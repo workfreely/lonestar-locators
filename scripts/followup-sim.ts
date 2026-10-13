@@ -290,7 +290,20 @@ async function main() {
     w.clock.advDay(2); w.clock.advMin(1)
     log(w, "tick (list now sent)", l.id, await gateStr(w, l.id))
     await doTick(w)
-    ck(runStr(w, l.id).startsWith("superseded/"), "new_lead run superseded when list_sent becomes applicable")
+    // Supersession REPLACES: the new_lead run is stood down AND a list_sent run takes over, so
+    // runStr (the latest run) is now the replacement, not the superseded one. Assert both halves of
+    // the contract explicitly — stricter than the old single check, which only held while the
+    // enroller superseded without enrolling anything in its place.
+    const runs7 = w.store.runsForLead(l.id)
+    const old7 = runs7.find((r) => r.sequence_key === "new_lead")
+    const new7 = runs7.find((r) => r.sequence_key === "list_sent")
+    ck(old7?.status === "superseded" && old7?.stop_reason === "sequence_superseded",
+      "new_lead run superseded when list_sent becomes applicable")
+    // waiting OR due: the replacement is created waiting and the same tick evaluates it to due
+    // because the list was sent two days ago. Both are active states; "due" is simply further along.
+    ck(!!new7 && ["waiting", "due"].includes(String(new7.status)), "…and the list_sent run takes over")
+    ck(runs7.filter((r) => ["waiting", "due"].includes(String(r.status))).length === 1,
+      "…leaving exactly one active run (no duplicate or conflicting sequence)")
   })
 
   // 8) Contact FU1/FU2/FU3 cadence (+2d each), morning-gated
@@ -506,12 +519,23 @@ async function main() {
     w.clock.set(eligible)
     log(w, "tick @ last-end +2h (7PM CT)", l.id, await gateStr(w, l.id))
     await doTick(w)
+    // This lead is opted in, so the same tick ALSO enrols the ordinary new_lead sequence — a
+    // post_tour run carries a session_date, so it is not an "active lifecycle run" and the two
+    // legitimately coexist. The scenario is about the POST-TOUR message, so it asserts on that
+    // step rather than on whatever the claim happens to return first.
+    // The new_lead intent enqueued by this same tick takes the first dispatch slot, so the
+    // post-tour send is placed behind it by the cross-client stagger (3–7 min, pacing.ts). It is
+    // scheduled, not lost — advance past the widest gap and it is claimable, exactly as production
+    // would deliver it. Still 7PM CT, so no quiet-hours interaction.
+    w.clock.advMin(8)
     const jobs = await claim(w)
-    ck(jobs.length === 1, "exactly ONE post-tour message (not one per property)")
-    ck(/tours go/.test(jobs[0]?.body ?? ""), "uses the multiple-tour (plural) copy")
-    log(w, "claim post_tour", l.id, "send", body(jobs, "ask"))
-    await ack(w, jobs, "sent")
-    ck(w.store.intentsForLead(l.id).length === 1, "single tour session → single intent for the day")
+    const tourJobs = jobs.filter((j) => j.stepKey === "ask")
+    ck(tourJobs.length === 1, "exactly ONE post-tour message (not one per property)")
+    ck(/tours go/.test(tourJobs[0]?.body ?? ""), "uses the multiple-tour (plural) copy")
+    log(w, "claim post_tour", l.id, "send", body(tourJobs, "ask"))
+    await ack(w, tourJobs, "sent")
+    const tourIntents = w.store.intentsForLead(l.id).filter((i) => i.step_key === "ask")
+    ck(tourIntents.length === 1, "single tour session → single intent for the day")
   }, "2026-09-28T22:00:00Z")
 
   // 22) Post Tour +2h falls in quiet hours → wait for next permitted window
@@ -547,8 +571,13 @@ async function main() {
     w.clock.set(eligible)
     log(w, "tick @ 7PM CT", l.id, await gateStr(w, l.id))
     await doTick(w)
-    ck(runStr(w, l.id).startsWith("canceled/"), "post_tour canceled (client_replied)")
-    ck((await claim(w)).length === 0, "no generic post-tour message sent")
+    // Same coexistence as scenario 21: assert on the POST-TOUR run and the post-tour step, not on
+    // the latest run (which is the separately-enrolled new_lead sequence) or on every claimed job.
+    const tourRun = w.store.runsForLead(l.id).find((r) => r.sequence_key === "post_tour")
+    ck(tourRun?.status === "canceled" && tourRun?.stop_reason === "client_replied",
+      "post_tour canceled (client_replied)")
+    ck((await claim(w)).filter((j) => j.stepKey === "ask").length === 0,
+      "no generic post-tour message sent")
   }, "2026-09-28T22:00:00Z")
 
   // 24) Post Tour PRODUCTION HOOK: tours in lead_tours → one run at MAX(ends_at)+2h

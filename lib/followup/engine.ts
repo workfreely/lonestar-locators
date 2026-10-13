@@ -10,7 +10,7 @@
 // role) is what turns a claimed job into a delivered message + an ack.
 
 import { evaluateSend } from "./gate"
-import { applicableSequence, resolveStepBody } from "./sequences"
+import { LIFECYCLE_SEQUENCES, applicableSequence, resolveStepBody } from "./sequences"
 import {
   newLeadText1EligibleAt,
   nextStepEligibility,
@@ -131,6 +131,17 @@ export async function enrollLifecycleRuns(store: FollowupStore, now: Date): Prom
 
     const active = await store.activeLifecycleRun(row.id)
     if (active) {
+      // EVENT-TRIGGERED RUNS ARE AUTHORITATIVE. future_move, resume_search, post_tour and tour are
+      // created by an explicit event and applicableSequence() never returns them, so comparing them
+      // against it always disagreed — and this enroller superseded them and installed a competing
+      // lifecycle run in their place. A client with a future move-in date, or one who pressed Resume
+      // Search, lost their reactivation message to a generic new-lead greeting and never heard back.
+      //
+      // gate.ts step 3 has always drawn this distinction; this is the same rule, applied here.
+      // It does NOT block lifecycle enrollment indefinitely: the run is only skipped while it is
+      // still waiting/due, which is all activeLifecycleRun returns. The moment it completes or is
+      // cancelled it stops matching, and normal enrollment resumes on the very next tick.
+      if (!LIFECYCLE_SEQUENCES.has(active.sequence_key as SequenceKey)) continue
       if (active.sequence_key === applicable) continue // already in the right sequence
       // Same verdict the gate reaches, applied here so the slot frees immediately.
       await store.updateRun(active.id, {

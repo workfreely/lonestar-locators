@@ -84,6 +84,12 @@ export class InMemoryFollowupStore implements FollowupStore {
     for (const r of this.runs.values()) if (r.lead_id === leadId) if (!latest || r._seq > latest._seq) latest = r
     return latest
   }
+  /** Every run for a lead, oldest first. Supersession leaves the OLD run superseded and a NEW run
+   *  active, so a scenario asserting on supersession must look at the specific run, not just the
+   *  latest one. Inspection only — not part of FollowupStore. */
+  runsForLead(leadId: number): StoredRun[] {
+    return [...this.runs.values()].filter((r) => r.lead_id === leadId).sort((a, b) => a._seq - b._seq)
+  }
   intentsForLead(leadId: number): StoredIntent[] {
     return [...this.intents.values()].filter((i) => i.lead_id === leadId).sort((a, b) => a._seq - b._seq)
   }
