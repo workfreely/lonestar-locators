@@ -179,6 +179,31 @@ export async function enrollLifecycleRuns(store: FollowupStore, now: Date): Prom
     // future, and this guard does not fire. It gates the stale event, never the lead.
     if (isStaleStep(seed.sequence_key, seed.step_key, seed.next_eligible_at, now)) continue
 
+    // THE OPENING PAIR IS ONCE PER CLIENT, FOR EVER — from stored history, not from a clock.
+    //
+    // WHAT PROTECTED IT BEFORE. Only `now - created_at > 6h` in lifecycleSeed, plus the
+    // one-active-lifecycle index. Both are real, but neither records the FACT that this client has
+    // been introduced, so every guarantee rested on a coincidence of timing: anything that made
+    // new_lead applicable again inside that six-hour window could re-open the intro — most
+    // plainly a share whose sent_at is cleared, which flips applicableSequence back to new_lead.
+    //
+    // WHAT PROTECTS IT NOW. followup_outbound_intents is already a durable per-message ledger: the
+    // row outlives its run (run_id is ON DELETE SET NULL), supersession rewrites only
+    // dispatch_status, and nothing deletes intents on archive, restore, stage change or restart.
+    // So "has this lead ever had t1 enqueued, claimed or sent?" is answerable from what we already
+    // store, and the answer survives everything in the list above.
+    //
+    // UNCERTAIN COUNTS AS SENT. The predicate includes `claimed` — an intent the device may have
+    // delivered before losing its ack — because a duplicate opening text to a client is worse than
+    // a missing one. `failed` and `superseded` are confirmed NOT sent and do not block, so an
+    // intro that genuinely never went out can still be retried.
+    //
+    // ONLY t1 IS CHECKED HERE because enrolment only ever creates t1; Text 2 is scheduled solely
+    // by advanceRun on a confirmed t1 ack, is unique per (run, step) in the database, and is
+    // transitively bounded to one by this very guard — a second new_lead run can no longer exist.
+    // Text 1 and Text 2 remain independently recorded, per step, in the ledger.
+    if (seed.sequence_key === "new_lead" && (await store.intentExistsForStep(row.id, "new_lead", "t1"))) continue
+
     const conv = await store.conversation(row.id)
     const ok = await store.insertRun({
       lead_id: row.id,

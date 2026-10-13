@@ -120,6 +120,34 @@ export interface FollowupStore {
    * than risk a double-send.
    */
   activeIntentFor(runId: string, stepKey: string): Promise<IntentRow | null>
+  /**
+   * DURABLE PER-MESSAGE HISTORY: has this LEAD ever had this sequence step
+   * enqueued, claimed or sent — in any run, ever?
+   *
+   * The one-time New-Lead opening pair rests on this. It was previously protected
+   * only by `now - created_at > 6h` in lifecycleSeed plus the one-active-run
+   * index: a coincidence of timing with no stored fact behind it, so anything that
+   * made new_lead applicable again inside that window could re-open the intro.
+   *
+   * followup_outbound_intents IS that stored fact, and needs no new column:
+   *   • `run_id` is ON DELETE SET NULL, so the row outlives its run;
+   *   • supersession only rewrites dispatch_status and nulls idempotency_key —
+   *     the row, its lead_id and its step_key all survive;
+   *   • nothing deletes intents on archive, restore, stage change, supersession
+   *     or restart.
+   *
+   * Deliberately scoped to dispatch_status IN ('pending','claimed','sent') — the
+   * SAME predicate as followup_intents_active_step_uidx, and the same three-way
+   * reading the recovery design uses: `sent` is confirmed delivered to Messages,
+   * `claimed` is UNCERTAIN (the device may have sent it and lost the ack), and
+   * `pending` is already queued. All three must block a second attempt, because
+   * the cost of a duplicate client text is worse than the cost of a missing one.
+   * `failed` and `superseded` are confirmed NOT sent and deliberately do NOT
+   * block, so a genuinely undelivered intro can still be retried.
+   *
+   * Per STEP, not per sequence, so Text 1 and Text 2 are tracked independently.
+   */
+  intentExistsForStep(leadId: number, sequenceKey: string, stepKey: string): Promise<boolean>
   pendingIntents(workspaceId: string, limit: number): Promise<IntentRow[]>
   intentById(intentId: string): Promise<IntentRow | null>
   // Latest send_not_before among the workspace's live (pending/claimed) intents —

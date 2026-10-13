@@ -195,6 +195,30 @@ export class SupabaseFollowupStore implements FollowupStore {
     return (data as unknown as IntentRow) ?? null
   }
 
+  /** See FollowupStore.intentExistsForStep — the durable per-message history. */
+  async intentExistsForStep(leadId: number, sequenceKey: string, stepKey: string): Promise<boolean> {
+    const { data, error } = await supabaseAdmin
+      .from("followup_outbound_intents")
+      .select("id")
+      .eq("lead_id", leadId)
+      .eq("sequence_key", sequenceKey)
+      .eq("step_key", stepKey)
+      .in("dispatch_status", ["pending", "claimed", "sent"])
+      .limit(1)
+      .maybeSingle()
+    if (error) {
+      // FAIL CLOSED. Every other store read answers "nothing found" on error,
+      // which is the safe direction when the answer gates a SEND. Here it gates a
+      // RE-SEND, so the safe direction is inverted: a read failure must read as
+      // "yes, already attempted" and suppress the intro, never as "no, go ahead"
+      // — which would turn a transient database error into a duplicate text to a
+      // client. A suppressed intro is recoverable; a duplicate is not.
+      console.error("[followup/store] intentExistsForStep failed:", error.message)
+      return true
+    }
+    return !!data
+  }
+
   async pendingIntents(workspaceId: string, limit: number): Promise<IntentRow[]> {
     const { data } = await supabaseAdmin
       .from("followup_outbound_intents")

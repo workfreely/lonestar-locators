@@ -217,6 +217,17 @@ export class InMemoryFollowupStore implements FollowupStore {
     return null
   }
 
+  /** See FollowupStore.intentExistsForStep — mirrors the Supabase predicate exactly. */
+  async intentExistsForStep(leadId: number, sequenceKey: string, stepKey: string): Promise<boolean> {
+    return [...this.intents.values()].some(
+      (i) =>
+        i.lead_id === leadId &&
+        i.sequence_key === sequenceKey &&
+        i.step_key === stepKey &&
+        ["pending", "claimed", "sent"].includes(String(i.dispatch_status)),
+    )
+  }
+
   async pendingIntents(workspaceId: string, limit: number): Promise<IntentRow[]> {
     const key = (i: StoredIntent) => (i.send_not_before ? new Date(i.send_not_before).getTime() : new Date(i.created_at).getTime())
     return [...this.intents.values()]

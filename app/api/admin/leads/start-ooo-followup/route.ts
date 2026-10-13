@@ -93,6 +93,35 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ ok: true, alreadyStarted: true, reason: "active_run_exists" })
   }
 
+  // DURABLE ONE-TIME INTRO — the same ledger check enrollLifecycleRuns uses.
+  //
+  // This route is the one place that inserts a new_lead run WITHOUT going through the enroller, so
+  // the enroller's guard does not cover it. The three checks above are each real but each has a
+  // gap: `ooo_released_at` is stamped AFTER the run is created, and the active-run check only sees
+  // a run that is still waiting/due. So if the stamp ever failed and the run then completed, a
+  // second click would find no stamp and no active run, create a second new_lead run, and send a
+  // client their opening pair twice.
+  //
+  // Narrow, but the one-time rule is meant to hold on stored history rather than on three
+  // timing-dependent guards agreeing. followup_outbound_intents answers it directly and survives
+  // restarts, archive/restore and supersession. 'pending'/'claimed'/'sent' mirrors the engine's
+  // predicate exactly: `claimed` is uncertain and still blocks, because sending a client a
+  // duplicate greeting is worse than withholding one.
+  const { data: priorIntro, error: introErr } = await supabaseAdmin
+    .from("followup_outbound_intents")
+    .select("id")
+    .eq("lead_id", leadIdNum)
+    .eq("sequence_key", "new_lead")
+    .eq("step_key", "t1")
+    .in("dispatch_status", ["pending", "claimed", "sent"])
+    .limit(1)
+    .maybeSingle()
+  // Fail CLOSED: a read failure must not be read as "no intro yet" and license a duplicate text.
+  if (introErr || priorIntro) {
+    if (introErr) console.error("[start-ooo-followup] intro-history check failed:", introErr.message)
+    return NextResponse.json({ ok: true, alreadyStarted: true, reason: "intro_already_sent" })
+  }
+
   // ── RUN FIRST, STAMP SECOND ────────────────────────────────────────────────
   // Order is deliberate. If the stamp fails after the run exists, the button
   // still shows but a second click is refused by the active-run check above, so
