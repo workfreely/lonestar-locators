@@ -11,12 +11,18 @@ export type BillingProfile = {
   // only an 'active' value grants complimentary access. Never derived from
   // Stripe; resolved separately from network_members.
   organization_status?: OrganizationStatus | null
+  // INTERNAL COMPLIMENTARY ACCESS (lb_complimentary_access): the FOURTH access source.
+  // Optional and defaulting to absent, so every existing caller behaves exactly as before.
+  // Only an explicit `true` grants access. Never derived from Stripe, never from a licence —
+  // it mirrors one owner-granted row keyed on the user id, and it has no expiry.
+  complimentary_access?: boolean | null
 }
 
 export type AccessState =
   | { allowed: true; reason: "trialing"; trialEndsAt: string }
   | { allowed: true; reason: "subscribed" }
   | { allowed: true; reason: "organization" }
+  | { allowed: true; reason: "complimentary" }
   | { allowed: false; reason: "trial_expired" }
   | { allowed: false; reason: "canceled" }
   | { allowed: false; reason: "past_due" }
@@ -47,6 +53,14 @@ export function getAccessState(profile: BillingProfile): AccessState {
   // subscription_status ('canceled', null, expired trial, etc.).
   if (profile.organization_status === "active") {
     return { allowed: true, reason: "organization" }
+  }
+
+  // Internal complimentary — checked alongside Organization Included and for the same reason:
+  // an owner-granted free account has no subscription and no trial, so it must be read BEFORE the
+  // denial branches or a null subscription_status would deny it. Independent of licence state, so
+  // the grant survives the holder becoming licensed.
+  if (profile.complimentary_access === true) {
+    return { allowed: true, reason: "complimentary" }
   }
 
   if (profile.subscription_status === "canceled") {

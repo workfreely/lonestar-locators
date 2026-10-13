@@ -285,11 +285,37 @@ async function appGate(request: NextRequest): Promise<NextResponse | null> {
     organizationStatus = null; // fail open
   }
 
-  const access = getAccessState({
+  const billing = {
     subscription_status: profile.subscription_status ?? null,
     trial_ends_at: profile.trial_ends_at ?? null,
     organization_status: organizationStatus,
-  });
+  };
+
+  // Internal complimentary access: the fourth source, and the ONLY one that costs a query, so it
+  // is asked for last and only when the answer could still change. A paying or trialing user is
+  // already allowed by the three sources above, and adding a database round trip to every /admin
+  // navigation for every subscriber — to answer a question about a handful of owner-granted
+  // accounts — would be a poor trade.
+  //
+  // Read fail-safe, like the network lookup above: any error resolves to false, so a failed lookup
+  // can never GRANT access. Only a live (unrevoked) grant counts; review_date is advisory and is
+  // deliberately not consulted here, so a grant never lapses on its own.
+  let access = getAccessState(billing);
+  if (!access.allowed) {
+    let complimentary = false;
+    try {
+      const { data: grant } = await supabase
+        .from("lb_complimentary_access")
+        .select("user_id")
+        .eq("user_id", userId)
+        .is("revoked_at", null)
+        .maybeSingle();
+      complimentary = !!grant;
+    } catch {
+      complimentary = false; // fail safe: never grants
+    }
+    if (complimentary) access = getAccessState({ ...billing, complimentary_access: true });
+  }
 
   if (!access.allowed) {
     const redirectUrl = request.nextUrl.clone();
