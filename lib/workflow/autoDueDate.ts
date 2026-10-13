@@ -89,6 +89,41 @@ export function normalizeToWorkingWindow(
   return dueIso
 }
 
+/**
+ * SPEED-TO-LEAD: how long a brand-new lead may sit before its initial Contact Lead
+ * action is overdue. Ten minutes, measured from the lead's creation.
+ */
+export const SPEED_TO_LEAD_MINUTES = 10
+
+/**
+ * The due timestamp for the INITIAL Contact Lead action.
+ *
+ * ── WHY THIS IS NOT autoDueInDays(0) ────────────────────────────────────────────────────────
+ * autoDueInDays(0) anchors to 9:00 AM on the target day whatever the hour, so a lead created at
+ * 3:34 PM got an action due at 9:00 AM THAT MORNING — six and a half hours before the lead
+ * existed. Day-level urgency hid it (it still read "Today"), but the stored timestamp was a
+ * deadline that had already passed on arrival.
+ *
+ * Here the clock starts at creation instead: now + 10 minutes, then the SAME working-window
+ * clamp every other scheduled action uses, so the locator's hours and timezone still decide the
+ * boundaries:
+ *
+ *   created 07:00 → 09:00 the same day      (before the window opens → defer to its start)
+ *   created 15:34 → 15:44                   (inside the window → ten real minutes)
+ *   created 22:30 → 09:00 the next day      (after the window closes → defer to the next start)
+ *   created 00:30 → 09:00 the same day      (before the window opens → defer to its start)
+ *
+ * The result can never precede the lead's creation: it starts at `now` and the clamp only ever
+ * moves a timestamp FORWARD to a window start.
+ *
+ * `now` is injectable so the boundaries, midnight and both DST transitions are testable without
+ * waiting for them.
+ */
+export function speedToLeadDue(timeZone: string, workHours?: WorkHours, now: Date = new Date()): string {
+  const target = new Date(now.getTime() + SPEED_TO_LEAD_MINUTES * 60_000).toISOString()
+  return normalizeToWorkingWindow(target, timeZone, workHours)
+}
+
 // 9:00 AM `days` calendar days from now, in the locator zone, clamped to the
 // working window. `timeZone` is REQUIRED (a resolved IANA id). Optional
 // `workHours` (the locator's Profile setting) overrides the 9/21 default window;

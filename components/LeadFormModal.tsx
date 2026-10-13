@@ -7,6 +7,7 @@ import { supabase } from "@/lib/supabase/client"
 import { isValidUsPhone } from "@/lib/utils/formatPhone"
 import { buildEditPatch } from "@/lib/leads/leadFormValues"
 import { withPhoneIdentity } from "@/lib/phone/identity"
+import { recordFirstContact } from "@/lib/leads/contactWorkflow"
 import { verdictForWrite, countAreaSelections } from "@/lib/leads/areaLimit"
 import { criteriaChangedMetadata, diffCriteria } from "@/lib/leads/criteriaHistory"
 import { recordTimelineEvent } from "@/lib/leads/timeline"
@@ -53,6 +54,10 @@ export default function LeadFormModal({
   onLeadSaved?: (lead: any) => void
 }) {
   const [loading, setLoading] = useState(false)
+  // ALREADY CONTACTED — explicit, and OFF by default. Entering someone's details is not
+  // contact, so nothing about adding a lead may infer this; only the locator ticking the
+  // box does. Unticked keeps the normal speed-to-lead reminder.
+  const [alreadyContacted, setAlreadyContacted] = useState(false)
   // Set when the server reports an exact match and is waiting to be told whether
   // to update. Holds the payload so confirming re-sends exactly what was typed.
   const [pendingDuplicate, setPendingDuplicate] = useState<null | {
@@ -302,7 +307,7 @@ export default function LeadFormModal({
       const submitRes = await fetch("/api/leads/submit", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ formType: "full", manualEntry: true, lead: leadPayload }),
+        body: JSON.stringify({ formType: "full", manualEntry: true, alreadyContacted, lead: leadPayload }),
       })
 
       const submitJson = await submitRes.json().catch(() => null)
@@ -327,6 +332,19 @@ export default function LeadFormModal({
         alert(
           "Created — but this may be a duplicate of an existing lead. It's flagged for review on the board."
         )
+      }
+
+      // Already contacted: advance through the CANONICAL cascade rather than writing a
+      // stage here, so the timeline event, first-contact stamp, Google Contact sync and
+      // Build List successor all behave exactly as they do for any other reached lead.
+      // The route has already skipped the Contact Lead reminder, so nothing needs
+      // completing. Fire-and-forget: the lead is created either way.
+      if (alreadyContacted && data?.id) {
+        try {
+          recordFirstContact({ lead: data, method: "call", timeZone })
+        } catch (err) {
+          console.error("[add-lead] already-contacted cascade failed:", err)
+        }
       }
 
       onLeadCreated(data)
@@ -375,6 +393,7 @@ export default function LeadFormModal({
       priority: "warm",
       lead_type: "renter",
     })
+    setAlreadyContacted(false)
   }
 
   // "Update Lead" — re-sends the same payload with confirmUpdate, which is the
@@ -491,7 +510,26 @@ export default function LeadFormModal({
             the fields rather than hugging the modal edge — and the bottom-right
             corner, where the floating Ask Beast AI trigger lives, stays clear
             without any change to that component. */}
-        <div className="border-t border-[var(--crm-border)] px-6 pt-5 pb-6 flex justify-end gap-3">
+        <div className="border-t border-[var(--crm-border)] px-6 pt-5 pb-6 flex items-center justify-between gap-3 flex-wrap">
+
+          {/* CREATE ONLY. On an edit the lead's stage is already whatever it is, and a
+              checkbox here would read as a way to change it. Unticked is the default and
+              means "not yet contacted" — the normal ten-minute Contact Lead reminder. */}
+          {!isEdit ? (
+            <label className="flex items-center gap-2 text-sm text-[var(--crm-text-secondary)] select-none cursor-pointer">
+              <input
+                type="checkbox"
+                checked={alreadyContacted}
+                onChange={(e) => setAlreadyContacted(e.target.checked)}
+                className="h-4 w-4 accent-[var(--crm-accent)] cursor-pointer"
+              />
+              Already contacted
+            </label>
+          ) : (
+            <span />
+          )}
+
+          <div className="flex justify-end gap-3">
 
           <button
             onClick={onClose}
@@ -507,6 +545,8 @@ export default function LeadFormModal({
           >
             {isEdit ? (loading ? "Saving..." : "Save Changes") : (loading ? "Creating..." : "Create Lead")}
           </button>
+
+          </div>
 
         </div>
       </div>

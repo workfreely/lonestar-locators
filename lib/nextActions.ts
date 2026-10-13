@@ -79,14 +79,56 @@ export function isTourScheduled(lead: any, actions: { lead_id: number | string; 
 const PRIORITY_RANK: Record<"low" | "medium" | "high", number> = { high: 0, medium: 1, low: 2 }
 const URGENCY_RANK: Record<RankedAction["urgency"], number> = { overdue: 0, today: 1, upcoming: 2, none: 3 }
 
-function urgencyOf(dueAt: string | null): RankedAction["urgency"] {
+/**
+ * Action keys whose deadline is a real MOMENT rather than a day.
+ *
+ * Deliberately a one-key set, not a flag on every action. Day-level urgency is correct for the
+ * rest of the workflow — a Build List backstop due "today at 9 AM" should not turn red at 9:01,
+ * because the locator has the day to do it. Speed to lead is the exception: a Contact Lead due
+ * ten minutes after the lead arrived means ten minutes, and rounding it to a calendar day throws
+ * away the entire point of the deadline.
+ *
+ * Every other action keeps the behaviour it has always had.
+ */
+const TIMESTAMP_LEVEL_ACTION_KEYS = new Set(["contact_lead"])
+
+/** True when this action's due time should be compared as an instant, not a date. */
+function isTimestampLevel(action: { action_key?: string | null } | null | undefined): boolean {
+  const key = String(action?.action_key ?? "").toLowerCase()
+  return TIMESTAMP_LEVEL_ACTION_KEYS.has(key)
+}
+
+/**
+ * Urgency bucket for a due timestamp.
+ *
+ * `exact` switches from day comparison to instant comparison. In exact mode an action is overdue
+ * the moment its deadline passes; before that it is "today" when it falls on the local calendar
+ * day and "upcoming" otherwise — so a late-evening lead deferred to 9 AM tomorrow correctly reads
+ * as upcoming rather than as something to chase tonight.
+ */
+function urgencyOf(dueAt: string | null, exact = false): RankedAction["urgency"] {
   if (!dueAt) return "none"
-  const today = new Date()
   const d = new Date(dueAt)
+
+  // An UNPARSEABLE due_at falls through to the day-level path below, where NaN
+  // comparisons yield "upcoming" — exactly what it has always returned. Callers store
+  // non-date sentinels (payload fixtures use "t0"/"t1" ordering markers), and silently
+  // reclassifying those would reorder actions that have nothing to do with this change.
+  if (exact && !Number.isNaN(d.getTime())) {
+    if (d.getTime() < Date.now()) return "overdue"
+    const startOfToday = new Date()
+    startOfToday.setHours(0, 0, 0, 0)
+    const startOfTomorrow = new Date(startOfToday.getTime())
+    startOfTomorrow.setDate(startOfTomorrow.getDate() + 1)
+    return d.getTime() < startOfTomorrow.getTime() ? "today" : "upcoming"
+  }
+
+  const today = new Date()
+  const day = new Date(d.getTime())
   today.setHours(0, 0, 0, 0)
-  d.setHours(0, 0, 0, 0)
-  if (d.getTime() < today.getTime()) return "overdue"
-  if (d.getTime() === today.getTime()) return "today"
+  day.setHours(0, 0, 0, 0)
+  if (day.getTime() < today.getTime()) return "overdue"
+  if (day.getTime() === today.getTime()) return "today"
   return "upcoming"
 }
 
@@ -270,7 +312,7 @@ export function rankLeadActions(
     title: a.title,
     dueAt: a.due_at,
     priority: a.priority,
-    urgency: urgencyOf(a.due_at),
+    urgency: urgencyOf(a.due_at, isTimestampLevel(a as { action_key?: string | null })),
     relevance: actionRelevanceRank(lead, { action_key: (a as any).action_key, action_type: (a as any).action_type }),
     manualAction: a,
   }))

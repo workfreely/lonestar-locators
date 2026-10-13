@@ -16,7 +16,7 @@
 
 import type { SupabaseClient } from "@supabase/supabase-js"
 import { CURRENT_WORKFLOW_VERSION, type WorkflowActionKey } from "@bc/companion-shared"
-import { autoDueInDays, autoDueOnDate, type WorkHours } from "./workflow/autoDueDate"
+import { autoDueInDays, speedToLeadDue, autoDueOnDate, type WorkHours } from "./workflow/autoDueDate"
 import { isDemoLeadId } from "@/lib/demo/demoWorkspace"
 
 export type WorkflowActionSpec = {
@@ -70,12 +70,15 @@ export function getStageWorkflowAction(
 ): WorkflowActionSpec | null {
   switch (newStage) {
     case "new":
-      // Actionable IMMEDIATELY — the moment a lead lands, Contact Lead is the Next
-      // Action and is clickable right away. A brand-new lead is a highest-priority
-      // Contact Lead due the CREATION calendar day (autoDueInDays(0) → 9:00 AM local
-      // today), so it appears in Agenda → Today the moment it lands and only flips to
-      // Overdue once the local day advances (day-level urgency in lib/nextActions).
-      return { title: "Contact Lead", dueAt: autoDueInDays(0, timeZone, workHours), actionKey: "contact_lead" }
+      // SPEED TO LEAD. Actionable immediately, and genuinely deadlined: due ten minutes
+      // after the lead arrives, clamped to the locator's working window (before it opens
+      // → its start; after it closes → the next start). This replaces autoDueInDays(0),
+      // which anchored to 9:00 AM on the creation day and therefore produced a deadline
+      // already hours in the past for any lead that arrived after 9 AM.
+      //
+      // Paired with timestamp-level urgency for this action key alone (lib/nextActions):
+      // every other workflow action keeps day-level overdue semantics.
+      return { title: "Contact Lead", dueAt: speedToLeadDue(timeZone, workHours), actionKey: "contact_lead" }
 
     case "contacted":
       // After first contact, the canonical next step is building the client's

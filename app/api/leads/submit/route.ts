@@ -753,7 +753,16 @@ export async function POST(request: Request) {
     // Only for a genuinely new row (isNewLead) that's actually sitting in
     // "new" — an exact-match resubmission of an existing lead already past
     // that stage should never regenerate this reminder.
-    if (isNewLead && data.crm_status === "new") {
+    // ALREADY CONTACTED (manual Add Lead only). An explicit, default-off checkbox the
+    // locator ticks when they have already spoken to this person — entering someone's
+    // details is NOT contact, so this is never inferred from the act of adding a lead.
+    // When set we skip the initial reminder entirely rather than creating one and
+    // completing it, because a reminder that never applied should leave no trace. The
+    // stage advance is NOT done here: the client runs the canonical recordFirstContact
+    // cascade so the timeline event, Google Contact sync and Build List successor all
+    // happen exactly as they do for any other successful contact.
+    const alreadyContacted = body?.alreadyContacted === true && body?.manualEntry === true
+    if (isNewLead && data.crm_status === "new" && !alreadyContacted) {
       try {
         after(async () => {
           try {
