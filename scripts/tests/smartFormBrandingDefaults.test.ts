@@ -113,5 +113,50 @@ ok(
   mergeSmartFormConfig({ copy: { formReassurance: "Two minutes, tops" } }).copy.formReassurance === "Two minutes, tops",
 )
 
+// ── 6. headline + subtitle on a new form ────────────────────────────────────────────────────
+console.log("\nHeadline and subtitle")
+const newForm = buildInitialSmartFormConfig({ agentName: "A Locator", serviceAreas: ["san-antonio"] })
+ok("the headline is visible on a new form", newForm.sections.visibility.headline === true)
+ok(
+  "with the approved wording",
+  newForm.copy.headline === "Stop Wasting Time Searching for Apartments",
+)
+ok(
+  "and the approved subtitle beneath it",
+  newForm.copy.subheadline === "Get Your Free Custom Apartment List",
+)
+// An agent who HID their headline keeps it hidden — saved visibility wins at merge time.
+ok(
+  "an agent who hid their headline keeps it hidden",
+  mergeSmartFormConfig({ sections: { visibility: { headline: false } } }).sections.visibility.headline === false,
+)
+ok(
+  "an agent's own headline wording is preserved",
+  mergeSmartFormConfig({ copy: { headline: "Find your next place" } }).copy.headline === "Find your next place",
+)
+ok(
+  "an agent's own subtitle is preserved",
+  mergeSmartFormConfig({ copy: { subheadline: "Free, fast, local" } }).copy.subheadline === "Free, fast, local",
+)
+
+// ── 7. NO UNVERIFIED LICENCE CLAIM ──────────────────────────────────────────────────────────
+// The placeholder title asserts a regulated credential. A form that never set one must not
+// make that claim on the agent's behalf.
+console.log("\nAgent title makes no licence claim")
+ok("a new form carries NO agent title", newForm.copy.agentTitle === "")
+ok(
+  "specifically, it does not claim 'Licensed Apartment Locator'",
+  newForm.copy.agentTitle !== "Licensed Apartment Locator",
+)
+ok(
+  "an agent who set their own title keeps it",
+  mergeSmartFormConfig({ copy: { agentTitle: "Licensed Apartment Locator" } }).copy.agentTitle ===
+    "Licensed Apartment Locator",
+)
+ok(
+  "and any other title they chose",
+  mergeSmartFormConfig({ copy: { agentTitle: "Apartment Specialist" } }).copy.agentTitle === "Apartment Specialist",
+)
+
 console.log(`\n${pass} passed, ${fail} failed\n`)
 process.exit(fail === 0 ? 0 : 1)

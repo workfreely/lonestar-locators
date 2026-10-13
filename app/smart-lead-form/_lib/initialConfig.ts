@@ -51,6 +51,13 @@ export function buildInitialSmartFormConfig(input: InitialFormInput): SmartLeadF
   // Writing "" instead means a missing value renders as absent, never as fiction.
   copy.agentName = agentName ?? ""
   copy.brokerageName = brokerageName ?? ""
+  // agentTitle is written EMPTY for the same reason as the fields around it, and it is
+  // the one that matters most: DEFAULT_CONFIG's placeholder is "Licensed Apartment
+  // Locator", so a form that never set it asserted a LICENCE the agent may not hold.
+  // That is a claim about a regulated credential, not a stylistic default, and it is not
+  // ours to make on someone's behalf. Empty renders as absent; the agent types their own
+  // title in the editor whenever they want one.
+  copy.agentTitle = ""
   copy.serviceAreas = areasLabel ?? ""
   copy.phoneNumber = phone ?? ""
   // The initials shown when there is no photo are derived from copy.agentName by
@@ -68,10 +75,15 @@ export function buildInitialSmartFormConfig(input: InitialFormInput): SmartLeadF
   // is gated on there being no saved config, so an agent who already chose to
   // show their phone keeps that choice.
   visibility.phoneNumber = false
-  // Headline: the feature stays fully available in the editor — this only sets
-  // its INITIAL state, so "Stop Wasting Time Searching for Apartments" is never
-  // published on a brand-new form before the agent has written their own.
-  visibility.headline = false
+  // Headline: SHOWN by default now, carrying DEFAULT_CONFIG's approved wording
+  // ("Stop Wasting Time Searching for Apartments" above "Get Your Free Custom Apartment
+  // List"). It was previously hidden so a new form would not publish placeholder copy —
+  // but that reasoning applied to the sample TESTIMONIALS and the fictional identity
+  // below, which name real-sounding people and a brokerage that does not exist. The
+  // headline names nobody and makes no claim; it is the product's own proposition, and a
+  // hero without it reads as unfinished rather than as restrained. Agents who hid their
+  // headline keep it hidden: this only sets the INITIAL state of a form with no saved
+  // config, and a saved visibility choice always wins at merge time.
   // Testimonials: the three samples are attributed to named people in Austin,
   // Dallas and Houston. On a new form they would read as genuine reviews of an
   // agent who has never had a client, in cities they may not even serve.
