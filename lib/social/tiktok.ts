@@ -146,3 +146,36 @@ export function buildTokenBundle(t: TikTokTokenResponse): string {
     refresh_expires_at: expiryFromExpiresIn(t.refresh_expires_in),
   })
 }
+
+/**
+ * Sanitized one-line description of a Supabase/Postgres error, safe to log.
+ *
+ * WHY THIS EXISTS. The connect callback discarded the RPC error entirely — `if (error)
+ * return redirect(?error=store)` — so the reconnect failure that blocked TikTok app review
+ * produced a user-visible message and NOT ONE server log line. The cause had to be found by
+ * reproducing it against the database by hand. A single sanitized line would have named it
+ * immediately: `23505 duplicate key value violates unique constraint "secrets_name_idx"`.
+ *
+ * WHY IT IS NOT JUST `error.message`. A Postgres uniqueness error quotes the offending KEY
+ * back in its detail, and for this flow that key is the Vault secret NAME — which embeds the
+ * admin's user id and the TikTok open_id. Neither is a token, but neither belongs in a log.
+ * So:
+ *   • Vault secret names collapse to `social:<provider>:<redacted>`.
+ *   • Anything resembling a bearer/JWT/act.* token, or a long opaque blob, is dropped.
+ *   • The result is truncated, because a Postgres DETAIL can carry a whole row.
+ * The error CODE is preserved verbatim, which is the part that actually identifies the fault.
+ */
+export function sanitizeDbError(error: { code?: string | null; message?: string | null } | null): string {
+  if (!error) return "unknown"
+  const code = (error.code ?? "").trim() || "no_code"
+  let message = (error.message ?? "").trim()
+  message = message
+    // Vault secret names: keep the shape, drop the identifiers inside it.
+    .replace(/social:[a-z]+:[^\s"')]+/gi, "social:<provider>:<redacted>")
+    // JWTs and act.* / bearer-looking tokens.
+    .replace(/\b(?:act\.)?[A-Za-z0-9_-]{24,}\.[A-Za-z0-9_-]{8,}(?:\.[A-Za-z0-9_-]+)?/g, "<redacted>")
+    // Any remaining long opaque run that could be a token or code.
+    .replace(/\b[A-Za-z0-9_-]{40,}\b/g, "<redacted>")
+  if (message.length > 300) message = `${message.slice(0, 300)}…`
+  return message ? `${code} ${message}` : code
+}

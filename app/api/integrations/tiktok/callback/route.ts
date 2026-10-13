@@ -12,6 +12,7 @@ import {
   expiryFromExpiresIn,
   isValidOAuthState,
   buildTokenBundle,
+  sanitizeDbError,
 } from "@/lib/social/tiktok"
 
 // GET ← TikTok redirects here with ?code&state (or ?error). This is the FIXED registered
@@ -59,7 +60,15 @@ export async function GET(request: Request) {
       // Already fetched in the same user.info.basic call above — no extra TikTok request.
       p_avatar_url: user.avatar_url ?? null,
     })
-    if (error) return NextResponse.redirect(`${accounts}?error=store`)
+    if (error) {
+      // The reconnect failure that blocked app review produced a user-visible message and
+      // NOT ONE server log line, because this branch discarded `error`. Sanitized so the
+      // CODE survives (the part that identifies the fault) while the Vault secret name —
+      // which a uniqueness error quotes back, and which embeds the admin id and open_id —
+      // does not. Never the token, the refresh token, or the authorization code.
+      console.error("[tiktok/callback] persist failed:", sanitizeDbError(error))
+      return NextResponse.redirect(`${accounts}?error=store`)
+    }
     return NextResponse.redirect(`${accounts}?connected=tiktok`)
   } catch {
     // No token in the error path — nothing sensitive is logged.
