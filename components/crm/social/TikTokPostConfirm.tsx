@@ -1,6 +1,6 @@
 "use client"
 
-import { useCallback, useEffect, useState } from "react"
+import { useCallback, useEffect, useRef, useState } from "react"
 import { SiTiktok } from "react-icons/si"
 
 // Minimal TikTok Direct Post confirmation (Sandbox MVP). Opens for a READY Social Beast post,
@@ -74,16 +74,39 @@ export default function TikTokPostConfirm({ postId, open, onClose }: { postId: s
   // below render nothing checked until they do (in today's Sandbox, that means clicking the one
   // enabled option, SELF_ONLY).
   const [privacy, setPrivacy] = useState<string>("")
-  // Interaction toggles start OFF (unchecked). Creator Info can only further RESTRICT them
-  // (a creator-disabled interaction is not offered at all); it never turns one on by default.
+  // Interaction toggles. Comments now default ON, because these are promotional posts whose whole
+  // CTA is "Comment LIST" — a default that silenced the thing the video asks for was working
+  // against the content. Duet and Stitch stay OFF.
+  //
+  // Creator Info can only further RESTRICT: a creator-disabled interaction is not offered in the UI
+  // and the default below is taken from the capability, so it is never switched on for a creator
+  // who has comments off. resolveDirectPostSelection clamps it server-side regardless
+  // (`info.comment_disabled ? true : …`), so this is a UI default and never an override.
   const [allowComment, setAllowComment] = useState(false)
   const [allowDuet, setAllowDuet] = useState(false)
   const [allowStitch, setAllowStitch] = useState(false)
 
-  // Commercial Content Disclosure (TikTok Content Sharing Guidelines) — off by default.
+  // Commercial Content Disclosure (TikTok Content Sharing Guidelines). Now defaults to ON with
+  // "Your brand" selected: every video Social Beast posts promotes the locating service itself,
+  // which is exactly what TikTok's own-brand disclosure describes, and the published post is
+  // labelled "Promotional content" as a result.
+  //
+  // Branded Content stays OFF — it means a paid third-party promotion, which these are not, and
+  // TikTok forbids it on a SELF_ONLY post anyway. Disclosure ON with neither box ticked is refused
+  // server-side, so the pair of defaults has to be set together to be valid.
   const [disclosureOn, setDisclosureOn] = useState(false)
   const [yourBrand, setYourBrand] = useState(false)
   const [brandedContent, setBrandedContent] = useState(false)
+
+  // DEFAULTS ARE APPLIED ONCE PER POST, NOT ON EVERY OPEN.
+  //
+  // load() runs on every open and used to reset privacy, disclosure and the interaction toggles
+  // unconditionally — so closing the dialog to check something and reopening it silently discarded
+  // whatever had been chosen. This records which post has already been initialised; a reopen then
+  // leaves the current selections alone and only refreshes Creator Info and the caption.
+  // Cleared after a successful post, so the next one starts from the defaults again rather than
+  // inheriting the last post's choices.
+  const initialisedFor = useRef<string | null>(null)
   // TikTok never allows Branded Content on a SELF_ONLY (private) post.
   const brandedContentBlocked = privacy === "SELF_ONLY"
   // Keep state consistent if privacy resolves to SELF_ONLY after Branded Content was checked
@@ -102,7 +125,10 @@ export default function TikTokPostConfirm({ postId, open, onClose }: { postId: s
 
   const load = useCallback(async () => {
     setLoading(true); setError(null); setData(null); setResult(null); setNeedsRender(false)
-    setPrivacy(""); setDisclosureOn(false); setYourBrand(false); setBrandedContent(false)
+    // Privacy is deliberately NOT pre-selected: TikTok requires an explicit choice. It is cleared
+    // only on a first initialisation, so reopening keeps a choice already made.
+    const firstForThisPost = initialisedFor.current !== postId
+    if (firstForThisPost) { setPrivacy(""); setDisclosureOn(true); setYourBrand(true); setBrandedContent(false) }
     try {
       // Single dry-run: resolves token + Creator Info + caption + video size WITHOUT posting.
       const res = await fetch(PUBLISH, {
@@ -119,11 +145,18 @@ export default function TikTokPostConfirm({ postId, open, onClose }: { postId: s
       }
       const d = json as DryRun
       setData(d)
-      // Privacy stays unset — the user must manually pick one (below) before Post is enabled.
-      // Default all interactions OFF; a creator-disabled one is never offered (stays off).
-      setAllowComment(false)
-      setAllowDuet(false)
-      setAllowStitch(false)
+      if (firstForThisPost) {
+        // Comments ON unless the creator has them disabled — the capability decides, not us.
+        setAllowComment(!d.capabilities.commentDisabled)
+        setAllowDuet(false)
+        setAllowStitch(false)
+        initialisedFor.current = postId
+      } else if (d.capabilities.commentDisabled) {
+        // A reopen keeps the operator's choices, with one exception: if Creator Info now reports
+        // comments disabled, that is TikTok restricting the account and it wins over a stale
+        // selection. The server clamps it too; this keeps the UI from showing something untrue.
+        setAllowComment(false)
+      }
     } catch {
       setError("Couldn't reach TikTok.")
     } finally {
@@ -169,6 +202,9 @@ export default function TikTokPostConfirm({ postId, open, onClose }: { postId: s
         return
       }
       setResult({ publishId: json.publishId, status: json.status, failReason: json.failReason ?? null })
+      // This post is done. Drop the init marker so a subsequent open starts from the defaults —
+      // including an unset privacy, which TikTok requires to be chosen per post.
+      initialisedFor.current = null
     } catch {
       setError("Couldn't reach TikTok.")
     } finally {
