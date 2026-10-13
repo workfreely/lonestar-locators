@@ -13,6 +13,9 @@ const TABS: { label: string; href: string }[] = [
   { label: "Video Library", href: BASE },
   { label: "Calendar", href: `${BASE}/calendar` },
   { label: "Queue", href: `${BASE}/queue` },
+  // Comments — Automated Lead Capture. Sits after Queue because it is the step AFTER a post is
+  // live: the queue publishes, this is what comes back. Automation ships OFF.
+  { label: "Comments", href: `${BASE}/comments` },
   { label: "History", href: `${BASE}/history` },
   { label: "Accounts", href: `${BASE}/accounts` },
   { label: "Analytics", href: `${BASE}/analytics` },
