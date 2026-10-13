@@ -153,6 +153,27 @@ export function renderVariantsFor(destinations: readonly SocialDestination[]): {
   return [...by.entries()].map(([safeAreaId, ds]) => ({ safeAreaId, destinations: ds }))
 }
 
+/**
+ * WHICH PROVIDER IS THIS POST FOR? The one answer the editor's "Post to" selector must reflect.
+ *
+ * THE REGRESSION THIS FIXES. The editor used to seed that selector from the legacy `platform`
+ * column. Once the selector began writing `destination` — and deliberately NOT `platform`, which is
+ * a protected column — the two disagreed the moment a post was switched to TikTok: destination
+ * said tiktok_video, platform still said instagram. Reloading after the save then re-seeded the
+ * selector from platform, snapped the selection back to Instagram, and unmounted the
+ * "Post to TikTok (Sandbox)" button the operator had just revealed.
+ *
+ * Destination is the source of truth and platform is only the fallback for rows written before
+ * destinations existed — exactly the order renderPost and the TikTok publish guard already use.
+ */
+export function providerForPost(
+  destination: string | null | undefined,
+  platform: string | null | undefined,
+): SocialProvider {
+  const d = isSocialDestination(destination) ? destination : destinationFromLegacyPlatform(platform)
+  return DESTINATIONS[d].provider
+}
+
 /** Legacy bridge: a bare `platform` value means that provider's primary video surface. Lets rows
  *  written before destinations existed resolve without a backfill. */
 export function destinationFromLegacyPlatform(platform: string | null | undefined): SocialDestination {

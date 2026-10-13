@@ -15,7 +15,7 @@ import type { IconType } from "react-icons"
 import { buildHashtags, normalizeHashtag, hashtagLimitFor, MAX_HASHTAGS } from "@/lib/social/hashtags"
 import { PRICE_LABEL_MODES, priceLabelMode as narrowPriceLabelMode, type PriceLabelMode, buildCaption, specialDisplay, buildTemplateHeadline, buildTemplateDetail, OVERLAY_TEMPLATES, OVERLAY_TEMPLATE_LABEL, DEFAULT_OVERLAY_TEMPLATE, type OverlayTemplate, isGeneratedHeadline, isGeneratedCaption, isGeneratedHashtags, isOverlayPreviewStale, type OverlayPreviewBaseline, type SourceMeta } from "@/lib/social/composePost"
 import SpecialSelect from "@/components/crm/social/SpecialSelect"
-import { DESTINATIONS, isSocialDestination, destinationFromLegacyPlatform } from "@/lib/social/destinations"
+import { DESTINATIONS, isSocialDestination, destinationFromLegacyPlatform, providerForPost } from "@/lib/social/destinations"
 import { computeOverlayLayout } from "@/lib/social/overlaySpec"
 import ReelCoverControl from "@/components/crm/social/ReelCoverControl"
 import SafeAreaOverlay from "@/components/crm/social/SafeAreaOverlay"
@@ -214,17 +214,19 @@ export default function PostEditor({ postId, from }: { postId: string; from?: st
   // TikTok publish route refuses with a message naming the mismatch. Failing loudly there beats
   // silently picking a surface the operator did not choose.
   const togglePlatform = (id: string) => {
-    setSelectedPlatforms((prev) => {
-      const next = new Set(prev)
-      if (next.has(id)) next.delete(id)
-      else next.add(id)
-      const only = next.size === 1 ? [...next][0] : null
-      const destination = only === "tiktok" ? "tiktok_video" : only === "instagram" ? "instagram_reel" : null
-      // Changing the surface changes the geometry, so the server invalidates the render — which is
-      // why this is a real save rather than local state. Published posts are refused server-side.
-      if (destination && destination !== currentDestination) void patch({ destination }, null).then((ok) => { if (ok) void load() })
-      return next
-    })
+    // The next selection is computed OUTSIDE the state updater. A updater must be pure — React may
+    // invoke it more than once for a single update (it does in development StrictMode), and the
+    // save below is a side effect, so running it in there could PATCH the same change twice.
+    const next = new Set(selectedPlatforms)
+    if (next.has(id)) next.delete(id)
+    else next.add(id)
+    setSelectedPlatforms(next)
+
+    const only = next.size === 1 ? [...next][0] : null
+    const destination = only === "tiktok" ? "tiktok_video" : only === "instagram" ? "instagram_reel" : null
+    // Changing the surface changes the geometry, so the server invalidates the render — which is
+    // why this is a real save rather than local state. Published posts are refused server-side.
+    if (destination && destination !== currentDestination) void patch({ destination }, null).then((ok) => { if (ok) void load() })
   }
   // Platform-aware editor cap: the strictest (smallest) limit among the selected destinations (any
   // selection including TikTok → 5; Instagram and/or YouTube alone → 7), falling back to the Instagram
@@ -355,7 +357,10 @@ export default function PostEditor({ postId, from }: { postId: string; from?: st
       setUnlocked(false)
       setPostName(p.postName ?? "")
       setPostType(p.postType || "reel")
-      setSelectedPlatforms(new Set([p.platform || "instagram"])) // reflect the post's platform (Instagram today)
+      // Seed from the DESTINATION, not the legacy platform column. Seeding from platform is what
+      // made a TikTok-only selection snap back to Instagram after its own save — see
+      // providerForPost. Legacy rows with no destination still resolve through platform.
+      setSelectedPlatforms(new Set([providerForPost(p.destination, p.platform)]))
       setOverlayMode(p.overlayMode === "existing" ? "existing" : "generate")
       const tpl = (OVERLAY_TEMPLATES as readonly string[]).includes(p.overlayTemplate ?? "") ? (p.overlayTemplate as OverlayTemplate) : DEFAULT_OVERLAY_TEMPLATE
       setOverlayTemplate(tpl)
@@ -1200,7 +1205,11 @@ export default function PostEditor({ postId, from }: { postId: string; from?: st
               <p className="text-[10.5px] text-[var(--crm-text-muted)] mt-1">
                 {post.renderStatus === "ready"
                   ? "Direct Post the current render to TikTok. Sandbox posts are private (SELF_ONLY)."
-                  : "Render this post first (via Schedule/Publish) to enable TikTok Direct Post."}
+                  // NOT "render first via Schedule/Publish": Publish is DISABLED whenever TikTok is
+                  // selected (it is the Instagram scheduler), so that pointed at the one control
+                  // the operator cannot use — and TikTok never needs Instagram scheduling anyway.
+                  // The confirmation dialog renders the TikTok version itself.
+                  : "No TikTok render yet — opening this will render it first. Sandbox posts are private (SELF_ONLY)."}
               </p>
               <TikTokPostConfirm postId={post.id} open={ttConfirmOpen} onClose={() => setTtConfirmOpen(false)} />
             </div>
