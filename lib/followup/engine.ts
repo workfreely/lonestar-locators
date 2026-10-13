@@ -21,6 +21,7 @@ import {
   resumeSearchEligibleAt,
 } from "./cadence"
 import { interClientJitterMs, nextCrossClientSlotMs } from "./pacing"
+import { isStaleStep } from "./staleness"
 import { runSnapshotFromRow } from "./snapshot"
 import type { SequenceKey } from "./types"
 import type { FollowupStore, IntentRow, LeadRow, RunRow } from "./store"
@@ -153,6 +154,31 @@ export async function enrollLifecycleRuns(store: FollowupStore, now: Date): Prom
 
     const seed = lifecycleSeed(applicable, row, share, lead, now)
     if (!seed) continue
+
+    // DO NOT ENROL AN EVENT WHOSE MOMENT HAS ALREADY PASSED.
+    //
+    // THE DEFECT THIS FIXES. Every seed above anchors its first step to the DURABLE event that
+    // defines the sequence (share.sent_at, done_selecting_at, applied_at). For an event long in
+    // the past that anchor is already overdue, so the run was created `waiting` and the SAME
+    // tick's dispatcher pass found it due, asked the gate, and got `stale_sequence` — cancel. A
+    // cancelled run no longer matches activeLifecycleRun, so the next tick built another one.
+    // One run created and cancelled every minute, for ever, per affected lead: ~1,440 rows a day
+    // each carrying three snapshot reads, and the client never received anything.
+    //
+    // It is reached by the most ordinary action there is — turning Automated Texts on for an
+    // existing client, or restoring an archived one — because almost every real client's list was
+    // sent more than three days ago.
+    //
+    // WHY HERE, AND WHY THIS PREDICATE. The staleness bounds are not weakened or duplicated: this
+    // asks isStaleStep the same question the gate asks, with the same per-sequence bounds, one
+    // step earlier. Suppression at the source means no row is written at all, rather than a row
+    // written and withdrawn — the same shape new_lead already uses via its enrolment window.
+    //
+    // IT DOES NOT BLOCK FUTURE ENROLMENT. Staleness is measured from the EVENT, so a genuinely
+    // new event is never stale: send a fresh list and sent_at moves, the anchor lands in the
+    // future, and this guard does not fire. It gates the stale event, never the lead.
+    if (isStaleStep(seed.sequence_key, seed.step_key, seed.next_eligible_at, now)) continue
+
     const conv = await store.conversation(row.id)
     const ok = await store.insertRun({
       lead_id: row.id,
