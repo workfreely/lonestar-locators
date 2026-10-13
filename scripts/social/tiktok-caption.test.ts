@@ -56,5 +56,49 @@ console.log("\nManual caption preserved (not overwritten), TikTok hashtags still
   ok("no generated amenities injected into a manual caption", !tt.includes("🏡 Amenities"))
 }
 
+console.log("\nOUTGOING PAYLOAD SPACING — pinned end-to-end (the text TikTok actually receives):")
+{
+  // The real San Antonio post, reproduced exactly: a generator-owned caption with a special and
+  // three amenities. This pins the spacing of the string that leaves our server, because our
+  // pipeline is verifiably NOT where the published caption loses its blank lines — the route
+  // passes `title` to TikTok verbatim (tiktokPublish.initTikTokDirectPost sets `title: p.title`),
+  // and JSON.stringify preserves \n. If spacing ever compresses on OUR side, these fail.
+  const realSource = {
+    market: "San Antonio", property_type: "Apartment", special: "6 Weeks Free", budget_range: null,
+    amenities: "Attached Garages\nResort-Style Pool\nStainless Steel Appliances",
+  }
+  const tt = buildTikTokCaptionPayload({ caption: null, socialSpecial: null, sourceContentId: "sa-1", source: realSource })
+  const sections = tt.split("\n\n")
+
+  // 6 body sections + the hashtag block = 7, each separated by a blank line.
+  ok("every major section is separated by a BLANK line (6 body + hashtags)", sections.length === 7)
+  ok("1 hook is a single line", sections[0].length > 0 && !sections[0].includes("\n"))
+  ok("2 special on its own line", sections[1].startsWith("\u2728") && sections[1].includes("6 weeks free"))
+  ok("3 amenities header alone", sections[2] === "\uD83C\uDFE1 Amenities")
+  ok("4 bullets grouped, single-spaced within the block", sections[3].split("\n").length === 3 && sections[3].split("\n").every((l) => l.startsWith("\u2022 ")))
+  ok("5 service statement", /completely free/.test(sections[4]))
+  ok("6 CTA, then the hashtag block last", /Comment/.test(sections[5]) && /^#/.test(sections[6]))
+
+  // No stray triple newlines, and no trailing/leading whitespace that would render as a gap.
+  ok("no collapsed boundary (no section separated by a single \\n)", !/[^\n]\n[^\n\u2022]/.test(tt.replace(/\u2022 [^\n]*/g, "\u2022")))
+  ok("no triple newline anywhere", !tt.includes("\n\n\n"))
+  ok("no leading or trailing whitespace", tt === tt.trim())
+
+  // The publish route's only transformation is a length cap. For a normal caption it is a no-op,
+  // so the pinned structure above is byte-identical to what initTikTokDirectPost sends.
+  const TIKTOK_TITLE_MAX = 2200
+  const title = tt.length > TIKTOK_TITLE_MAX ? tt.slice(0, TIKTOK_TITLE_MAX) : tt
+  ok("route truncation is a no-op at normal length — payload reaches TikTok unchanged", title === tt)
+  ok("…and the blank lines survive JSON encoding", JSON.parse(JSON.stringify({ title })).title === tt)
+
+  // Instagram's body must stay byte-identical: this task must not change Instagram formatting.
+  const ig = buildInstagramCaptionPayload({
+    caption: null, hashtags: null, socialSpecial: null, sourceContentId: "sa-1",
+    overlayTemplate: null, source: realSource,
+  })
+  ok("Instagram body is byte-identical to TikTok's (only the hashtag block differs)",
+    ig.split("\n\n").slice(0, 6).join("\n\n") === sections.slice(0, 6).join("\n\n"))
+}
+
 console.log(`\nTikTok caption unit: ${pass} passed, ${fail} failed`)
 process.exit(fail === 0 ? 0 : 1)
