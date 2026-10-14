@@ -7,6 +7,7 @@
 // is not a flat template: New-Lead Text 1's graceful search-context composition.
 
 import { DEFAULT_FOLLOW_UP_TEMPLATES, renderTemplate } from "@bc/companion-shared"
+import { formatPropertyTypeDisplay } from "@/lib/leads/propertyTypeDisplay"
 import type { LeadSnapshot } from "./types"
 
 // ── NEW-LEAD initial double-text ──────────────────────────────────────────────
@@ -17,30 +18,91 @@ import type { LeadSnapshot } from "./types"
 // punctuation — so the search context is gracefully OMITTED when unknown and can
 // never render "a  move". This is the only place that logic lives.
 
-/** Beds/property-type phrase ("1 bedroom" / "studio" / "high-rise"), or "". */
-function bedsPhrase(lead: LeadSnapshot): string {
-  const t = (lead.propertyType || "").toLowerCase()
-  if (t === "high-rise") return "high-rise"
-  const b = (lead.beds || "").trim().toLowerCase()
+/**
+ * The renter's bedroom preference, as a person would say it.
+ *
+ *   "1" → "1 bed"      "2" → "2 bed"      "3+" → "3+ bed"      "Studio" → "studio"
+ *
+ * A plus sign is part of what the renter actually selected ("3+ Bedrooms" is a real option
+ * in BED_OPTIONS), so it is kept. "bed", not "bedroom" and never "1-bedroom": this is a text
+ * message, and the hyphenated form reads like a listing.
+ *
+ * Returns "" when nothing usable is stored — a count is NEVER invented.
+ */
+export function bedsLabel(beds: string | null | undefined): string {
+  const b = (beds ?? "").trim().toLowerCase()
   if (!b) return ""
   if (b === "studio" || b === "0") return "studio"
-  return `${b} bedroom`
+  // Tolerant of every shape the column has held — "2", "2 bedrooms", "3+", "3+ Bedrooms".
+  const m = /^(\d+)\s*(\+?)/.exec(b)
+  if (!m) return ""
+  if (m[1] === "0") return "studio"
+  return `${m[1]}${m[2]} bed`
 }
 
-/** The engine-composed {search_tail}: " for a <phrase> move[ in <Month>]." with any
- *  known search info, or "!" when neither beds/type nor move month is known. */
+/**
+ * The renter's property type, as a person would say it.
+ *
+ * Reuses the CANONICAL map (formatPropertyTypeDisplay) rather than restating it — a second
+ * table would drift the moment someone added a type to one of them. Two message-specific
+ * adjustments sit on top of it, and neither changes what that map returns to anyone else:
+ *
+ *   • hyphens are removed, so "High-Rise" reads "high rise" rather than "high-rise";
+ *   • "Open to All" (which the map renders "apartment search") yields "", because it is the
+ *     ABSENCE of a chosen type — "a 1 bed apartment search move" is not a sentence.
+ *
+ * "Studio" also yields "" here: it is a bedroom count in this sentence, not a type, and
+ * bedsLabel has already said it. That is what stops "a studio apartment move".
+ */
+export function propertyTypeLabel(propertyType: string | null | undefined): string {
+  const raw = (propertyType ?? "").trim()
+  if (!raw || raw === "Open to All" || raw.toLowerCase() === "studio") return ""
+  return formatPropertyTypeDisplay(raw).replace(/-/g, " ").replace(/\s+/g, " ").trim()
+}
+
+/**
+ * "1 bed high rise" / "2 bed apartment" / "studio" / "1 bed" / "".
+ *
+ * Studio collapses to one word: the renter chose a layout, not a layout AND a type, and
+ * "studio apartment" in this sentence reads like the form echoing itself back.
+ */
+export function searchPhrase(lead: LeadSnapshot): string {
+  const type = propertyTypeLabel(lead.propertyType)
+  // "Studio" lives in the property-type dropdown, so a studio lead may carry it there with
+  // no bedroom value at all.
+  const beds = bedsLabel(lead.beds) || ((lead.propertyType ?? "").trim().toLowerCase() === "studio" ? "studio" : "")
+  if (beds === "studio") return "studio"
+  return [beds, type].filter(Boolean).join(" ")
+}
+
+/** "a" or "an", chosen from the phrase that follows, so no path can emit "a apartment". */
+function article(phrase: string): string {
+  return /^[aeiou]/i.test(phrase) ? "an" : "a"
+}
+
+/**
+ * The engine-composed {search_tail}.
+ *
+ *   phrase + month  →  " for a 1 bed high rise move in October."
+ *   phrase only     →  " for a 1 bed apartment."
+ *   neither         →  "!"
+ *
+ * NO PHRASE MEANS NO CLAUSE, even when the month is known: " for a move in October" names
+ * nothing the renter asked for and reads like a bug, which is exactly what it would be.
+ * The month alone is not worth a sentence.
+ */
 function computeSearchTail(lead: LeadSnapshot): string {
-  const phrase = bedsPhrase(lead)
+  const phrase = searchPhrase(lead)
   const month = (lead.moveMonthLabel || "").trim()
-  if (!phrase && !month) return "!"
-  const noun = phrase ? (month ? `${phrase} move in ${month}` : `${phrase} move`) : `move in ${month}`
-  return ` for a ${noun}.`
+  if (!phrase) return "!"
+  const noun = month ? `${phrase} move in ${month}` : phrase
+  return ` for ${article(phrase)} ${noun}.`
 }
 
 /**
  * Render New-Lead Text 1 from the canonical (or overridden) template, filling the
  * name tokens and the engine-composed {search_tail}. Default output:
- *   full:  "Hey Sarah it's Jay! I got your form for a 1 bedroom move in October."
+ *   full:  "Hey Sarah it's Jay! I got your form for a 1 bed apartment move in October."
  *   none:  "Hey Sarah it's Jay! I got your form!"
  */
 export function renderNewLeadText1(lead: LeadSnapshot, override?: string | null): string {

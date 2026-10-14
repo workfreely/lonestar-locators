@@ -86,10 +86,14 @@ const MORNING = new Date("2026-09-23T14:30:00Z") // 09:30 CDT
 const AFTERNOON = new Date("2026-09-23T19:00:00Z") // 14:00 CDT
 
 console.log("COPY")
-ok(renderNewLeadText1(lead()) === "Hey Sarah it's Jay! I got your form for a 1 bedroom move in October.", "Text1 full context")
+// APPROVED WORDING (Oct 2026): "1 bed", not "1 bedroom". Casual and specific to
+// what the renter selected — see scripts/tests/newLeadText1.test.ts for the full contract.
+ok(renderNewLeadText1(lead()) === "Hey Sarah it's Jay! I got your form for a 1 bed move in October.", "Text1 full context")
 ok(renderNewLeadText1(lead({ beds: null, propertyType: null, moveMonthLabel: null })) === "Hey Sarah it's Jay! I got your form!", "Text1 graceful when beds/move unknown (no double space)")
-ok(renderNewLeadText1(lead({ propertyType: "High-Rise", beds: null })) === "Hey Sarah it's Jay! I got your form for a high-rise move in October.", "Text1 high-rise")
-ok(renderNewLeadText1(lead({ firstName: null, agentFirstName: null })) === "Hey! I got your form for a 1 bedroom move in October.", "Text1 no names")
+// The hyphen is gone: a text message is not a listing. With beds null the layout is simply
+// absent rather than invented — the live defect was that a high-rise DISCARDED a known count.
+ok(renderNewLeadText1(lead({ propertyType: "High-Rise", beds: null })) === "Hey Sarah it's Jay! I got your form for a high rise move in October.", "Text1 high-rise")
+ok(renderNewLeadText1(lead({ firstName: null, agentFirstName: null })) === "Hey! I got your form for a 1 bed move in October.", "Text1 no names")
 ok(NEW_LEAD_TEXT2 === "Are you trying to stay near a specific address or side of town?", "Text2 locked")
 ok(listFu3(2) === LIST_FU3_WITH_FAVORITES && listFu3(0) === LIST_FU3_NO_FAVORITES, "FU3 conditional LOCKED variants")
 ok(FINAL_PAUSE.startsWith("I haven't heard back") && !/Sarah|\{/.test(FINAL_PAUSE), "Final pause LOCKED, no name/token")

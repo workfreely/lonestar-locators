@@ -10,6 +10,9 @@ const PROPERTY_TYPE_DISPLAY: Record<string, string> = {
   "Studio": "studio",
   "Apartment": "apartment",
   "High-Rise": "high-rise",
+  // Loft is in PROPERTY_TYPES and was simply missing here, so a loft lead fell through to
+  // "" and lost its property type in every sentence built from this map.
+  "Loft": "loft",
   "Townhome": "townhome",
   "Rental Home": "rental home",
   "Penthouse": "penthouse",
