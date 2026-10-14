@@ -40,7 +40,9 @@ export function resolveThankYouMedia(config: {
   return (config.thankYouVideoUrl ?? "").trim() ? "video" : THANKYOU_MEDIA_DEFAULT
 }
 
-export type Testimonial = { name: string; city?: string | null; quote: string; photoUrl?: string | null }
+// Matches TestimonialItem (the editor's stored shape) so the SAME TestimonialCard renders both
+// the Smart Lead Form and the Thank You page with no casting between two near-identical types.
+export type Testimonial = { name: string; city: string; quote: string; photoUrl: string | null }
 
 /**
  * The built-in sample quotes. These ship in DEFAULT_CONFIG so the editor preview has something to
@@ -64,7 +66,10 @@ const SAMPLE_QUOTES: ReadonlySet<string> = new Set(
  *
  * Blank entries are dropped too: a half-filled row is not a review.
  */
-export function genuineTestimonials(list: readonly Testimonial[] | null | undefined, limit = 2): Testimonial[] {
+export function genuineTestimonials(
+  list: readonly { name: string; city?: string | null; quote: string; photoUrl?: string | null }[] | null | undefined,
+  limit = 2,
+): Testimonial[] {
   return (list ?? [])
     .filter((t) => {
       const quote = (t?.quote ?? "").trim()
@@ -73,6 +78,9 @@ export function genuineTestimonials(list: readonly Testimonial[] | null | undefi
       return !SAMPLE_QUOTES.has(quote.toLowerCase())
     })
     .slice(0, limit)
+    // Normalised, never invented: a missing city becomes "" (the card omits it) and a missing
+    // photo becomes null (the card omits the image). No content is added.
+    .map((t) => ({ name: t.name, quote: t.quote, city: t.city ?? "", photoUrl: t.photoUrl ?? null }))
 }
 
 /**

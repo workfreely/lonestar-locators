@@ -11,11 +11,11 @@
 // DISPLAY ONLY. No form, no submit, no network call, no analytics — it renders props. That is
 // what makes it safe to mount inside the editor.
 
-import { HiStar } from "react-icons/hi2"
 import type { ReactNode } from "react"
 import { Inter } from "next/font/google"
 import Footer from "@/app/smart-lead-form/_components/form/sections/Footer"
 import AgentSignature from "@/components/clientShare/AgentSignature"
+import TestimonialCard from "@/app/smart-lead-form/_components/form/sections/TestimonialCard"
 import type { SmartLeadFormConfig } from "@/app/smart-lead-form/_lib/types"
 import type { ThankYouStep } from "@/lib/smartForm/thankYouSteps"
 import type { Testimonial } from "@/lib/smartForm/thankYouMedia"
@@ -175,27 +175,13 @@ export default function ThankYouView({
   // (config.copy.testimonials) and the same card language: white card, #e2e4ea hairline, rounded,
   // amber stars, quote, then name — city. Only genuine entries reach here; the built-in samples
   // are filtered out upstream, so an agent who never wrote a testimonial shows none.
+  // Two testimonials, rendered by the SAME TestimonialCard the public Smart Lead Form renders —
+  // one component, one source of truth for the card's styling. Only the surrounding layout differs:
+  // the form stacks them, this lays two out in a grid. Only genuine entries reach here.
   const TestimonialCards = () => (
     <div className="grid gap-3 sm:grid-cols-2">
       {testimonials.map((t, i) => (
-        <div key={i} className="rounded-2xl border border-[#e2e4ea] bg-white p-5">
-          <div className="flex gap-0.5 text-amber-400">
-            {Array.from({ length: 5 }).map((_, j) => (
-              <HiStar key={j} className="h-5 w-5" />
-            ))}
-          </div>
-          <p className="mt-2.5 break-words text-[16px] leading-relaxed text-[#3a3f4d] sm:text-[15.5px]">&ldquo;{t.quote}&rdquo;</p>
-          <div className="mt-3 flex min-w-0 items-center gap-2.5">
-            {t.photoUrl && (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img src={t.photoUrl} alt={t.name} className="h-8 w-8 shrink-0 rounded-full object-cover" />
-            )}
-            <p className="min-w-0 break-words text-[15px] font-semibold text-[#111318]">
-              {t.name}
-              {t.city && <span className="font-normal text-[#9098a8]"> — {t.city}</span>}
-            </p>
-          </div>
-        </div>
+        <TestimonialCard key={i} testimonial={t} />
       ))}
     </div>
   )
