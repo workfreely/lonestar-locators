@@ -8,10 +8,14 @@ import { youtubeEmbedUrl } from "@/lib/smartForm/thankYouVideo"
 import { clientHeroImage } from "@/lib/clientShare/heroImage"
 import type { SmartLeadFormConfig } from "../../_lib/types"
 
-// SAMPLE RENTER, clearly not a real person. Used only to personalise the preview greeting and to
-// pick a hero skyline; nothing about it is written anywhere. The agent sees exactly what a renter
-// called Alex searching San Antonio would see.
-const SAMPLE_FIRST_NAME = "Alex"
+// PREVIEW PERSONALISATION. The greeting shows the PLACEHOLDER "{First Name}" rather than an
+// invented name: a preview that says "Thanks, Alex!" reads like real copy the agent might think is
+// hardcoded, whereas the placeholder says plainly which part is substituted per renter. A real
+// renter always sees their own first name — this value exists only inside the editor.
+//
+// The city is still a real market, because it selects which skyline renders and a placeholder
+// would resolve to the generic fallback and misrepresent the hero.
+const PREVIEW_FIRST_NAME = "{First Name}"
 const SAMPLE_CITY = "San Antonio"
 
 /**
@@ -46,7 +50,7 @@ export default function ThankYouPreview({
       testimonials: config.copy?.testimonials,
     })
     return {
-      intro: buildThankYouIntro(config.thankYouIntro, { firstName: SAMPLE_FIRST_NAME, city: SAMPLE_CITY }),
+      intro: buildThankYouIntro(config.thankYouIntro, { firstName: PREVIEW_FIRST_NAME, city: SAMPLE_CITY }),
       steps: buildThankYouSteps({
         agentName,
         brokerage,
@@ -70,7 +74,7 @@ export default function ThankYouPreview({
 
   return (
     <ThankYouView
-      name={SAMPLE_FIRST_NAME}
+      name={PREVIEW_FIRST_NAME}
       intro={view.intro}
       heroImg={view.heroImg}
       agentName={agentName}

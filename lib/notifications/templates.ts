@@ -1,4 +1,5 @@
 import { BRAND, absoluteUrl, type SenderCategory } from "./branding"
+import { buildLeadSummary } from "./leadSummary"
 import { renderEmail, paragraph, infoTable, pill, esc } from "./layout"
 import { cityBanner } from "./cityHeader"
 import { formatDateDisplay, formatPersonName } from "@bc/companion-shared"
@@ -145,17 +146,14 @@ export function newLeadEmail({ locatorName, leadUrl, lead }: NewLeadEmailParams)
         : "Website"
 
   // Blue "AI Lead Summary" box — plain-English narrative + at-a-glance chips.
-  // Income is incorporated two ways: the narrative notes whether it was provided,
-  // and (when present) an Income chip surfaces the exact saved range verbatim.
+  // The narrative (lib/notifications/leadSummary) describes ONLY what the renter submitted: a
+  // field they were never asked for is never mentioned, and absence is never reported as a
+  // negative. The chips are unchanged — an absent one simply does not render.
   const aiSummary = `
     <div style="background:#f1f7ff;border-radius:8px;padding:16px 18px;margin:0 0 24px 0;">
       <div style="font-size:16px;font-weight:700;color:#0b3a75;margin-bottom:10px;">AI Lead Summary</div>
       <p style="margin:0 0 10px 0;font-size:14px;line-height:1.5;color:${BRAND.ink};">
-        This lead is planning a move ${win ? `within ${win}` : "in the future"} and is looking for ${esc(
-          lead.property_type ?? "housing",
-        )} in ${esc(lead.city ?? "the area")}. ${
-          strongCredit ? "Credit appears strong" : "Credit may require additional review"
-        }${hasIncome ? ", and income was provided." : ", though income was not listed."}${
+        ${esc(buildLeadSummary(lead, win))}${
           newHomeCandidate
             ? " This lead may be a potential candidate for new home or builder programs."
             : ""
