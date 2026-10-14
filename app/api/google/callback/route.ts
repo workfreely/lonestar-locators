@@ -5,6 +5,7 @@ import { NextResponse } from "next/server"
 import { cookies } from "next/headers"
 import { createClient } from "@/lib/supabase/server"
 import { supabaseAdmin } from "@/lib/supabase/admin"
+import { reconnectCredentialRow } from "@/lib/google/integrationHealthRules"
 
 // Per-user Google OAuth callback (onboarding Connect step).
 //
@@ -92,14 +93,15 @@ export async function GET(request: Request) {
     }
 
     // Service-role write — the refresh token never touches the browser.
+    // reconnectCredentialRow also CLEARS the recorded health failure in the same write: a stale
+    // last_error would leave shouldAttemptGoogle refusing to use the token we just stored.
     const { error: credError } = await supabaseAdmin.from("google_credentials").upsert(
-      {
-        user_id: user.id,
-        refresh_token: tokens.refresh_token,
-        google_email: googleEmail,
+      reconnectCredentialRow({
+        userId: user.id,
+        refreshToken: tokens.refresh_token,
+        googleEmail,
         scopes: SCOPES,
-        updated_at: new Date().toISOString(),
-      },
+      }),
       { onConflict: "user_id" }
     )
     if (credError) {

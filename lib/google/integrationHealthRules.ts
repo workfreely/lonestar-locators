@@ -37,3 +37,35 @@ export function classifyGoogleError(e: unknown): string {
 export function isTerminalAuthError(code: string): boolean {
   return TERMINAL_AUTH_ERRORS.has(code)
 }
+
+/**
+ * The row a successful reconnect writes to `google_credentials`.
+ *
+ * ── WHY THIS IS A FUNCTION AND NOT AN INLINE OBJECT ─────────────────────────────────────────
+ * A reconnect has to clear the recorded failure, and that is easy to forget because nothing about
+ * writing a fresh refresh token suggests it. Forgetting it is silent and total: `last_error`
+ * stays "invalid_grant", so `shouldAttemptGoogle` keeps returning false and `getGoogleHealth`
+ * keeps reporting needsReconnect — the agent reconnects successfully, the Integrations page still
+ * says "Reconnect Google", and every Contacts and Calendar call is still skipped before it is
+ * attempted. A good token would sit there unused indefinitely.
+ *
+ * Clearing it in the SAME write as the token is what makes the two impossible to disagree.
+ */
+export function reconnectCredentialRow(opts: {
+  userId: string
+  refreshToken: string
+  googleEmail: string | null
+  scopes: readonly string[]
+  now?: Date
+}) {
+  return {
+    user_id: opts.userId,
+    refresh_token: opts.refreshToken,
+    google_email: opts.googleEmail,
+    scopes: [...opts.scopes],
+    updated_at: (opts.now ?? new Date()).toISOString(),
+    // The connection is healthy as of this moment, by definition: Google just issued this token.
+    last_error: null,
+    last_error_at: null,
+  }
+}
