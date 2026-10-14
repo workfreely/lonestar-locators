@@ -38,6 +38,8 @@ import { getOAuthClientForUser } from "@/lib/google/getOAuthClientForUser"
 import { findDuplicateMatch, type LeadIdentity } from "@/lib/leads/duplicateDetection"
 import { getStageWorkflowAction, createWorkflowActionIfNeeded } from "@/lib/workflowEngine"
 import { syncContactLeadCalendarEvent } from "@/lib/google/syncContactLeadEvent"
+import { recordGoogleFailure } from "@/lib/google/integrationHealth"
+import { classifyGoogleError } from "@/lib/google/integrationHealthRules"
 import { resolveUserTimeZone } from "@/lib/timezone/server"
 import { resolveWorkHoursFromProfile } from "@/lib/workflow/autoDueDate"
 import { requireWorkspaceMember } from "@/lib/auth/requireWorkspaceMember"
@@ -785,6 +787,9 @@ export async function POST(request: Request) {
             }
           } catch (err) {
             console.error("[api/leads/submit] New-lead calendar event failed:", err)
+            // Same silence as the contact path: this client is built with verify:false, so
+            // nothing else would have recorded a revoked token here.
+            if (attributedOwnerId) await recordGoogleFailure(attributedOwnerId, classifyGoogleError(err))
           }
         })
       } catch (err) {

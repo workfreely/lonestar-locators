@@ -1,5 +1,7 @@
 import { google } from "googleapis"
 import { supabaseAdmin } from "@/lib/supabase/admin"
+import { recordGoogleFailure } from "./integrationHealth"
+import { classifyGoogleError } from "./integrationHealthRules"
 import { buildContactNotes } from "@/lib/google/buildContactNotes"
 import { getOAuthClientForUser } from "@/lib/google/getOAuthClientForUser"
 
@@ -126,5 +128,12 @@ export async function createGoogleContactForOwner(
       "error"
     // Non-PII: only the lead id + error class; never the token, google_email, or client details.
     console.warn(`[google/contact] contact creation skipped for lead ${leadId ?? "?"} (${code === "invalid_grant" ? "invalid_grant — agent must reconnect Google" : code})`)
+    // RECORD IT. This path builds its client with verify:false — deliberately, to avoid a second
+    // token exchange — so getOAuthClientForUser's own failure recording never runs here and a
+    // revoked token produced a console line and nothing else. That is precisely the silence the
+    // health feature exists to end: the Integrations page could read "connected" while every new
+    // lead quietly failed to get a contact. A transient code is recorded but never asks for a
+    // reconnect; only a terminal auth error does.
+    await recordGoogleFailure(ownerUserId ?? "", classifyGoogleError(e))
   }
 }
