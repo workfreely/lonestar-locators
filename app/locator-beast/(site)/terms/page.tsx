@@ -40,6 +40,11 @@ const SECTIONS = [
     body: "You retain ownership of the client and lead data you enter into Locator Beast. We access your data only as necessary to provide and support the service.",
   },
   {
+    heading: "Connected Google Account",
+    body:
+      "Connecting a Google account for Calendar and Contacts is optional and separate from signing in with Google. By connecting it you authorize Locator Beast to create and update contacts and calendar events in that account on your behalf, as described in our Privacy Policy. You may withdraw that authorization at any time from the Integrations page or from your Google Account\u2019s permissions page; doing so stops future synchronization and does not affect your Locator Beast account, your leads, or anything already created in your Google account.",
+  },
+  {
     heading: "Intellectual Property",
     body: "Locator Beast and all associated software, branding, and content are the property of Locator Beast and its licensors. These Terms do not grant you any rights to our trademarks or branding.",
   },

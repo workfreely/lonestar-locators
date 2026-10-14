@@ -29,7 +29,27 @@ const SECTIONS = [
   },
   {
     heading: "Third-Party Integrations",
-    body: "When you connect third-party services such as Google Calendar or Google Contacts, information is shared with those services in accordance with their own privacy policies and the permissions you grant.",
+    body: "When you connect third-party services, information is shared with those services in accordance with their own privacy policies and the permissions you grant. Our Google Calendar and Google Contacts integration is described in detail in the two sections below.",
+  },
+  {
+    heading: "Google Calendar and Google Contacts",
+    body:
+      "Connecting your Google account is optional, and it is separate from signing in with Google \u2014 signing in uses only your name and email address and grants no access to your calendar or contacts. " +
+      "CONTACTS: with your permission, Locator Beast creates a Google contact in your account for each new lead you receive. To avoid creating a duplicate, it searches your Google Contacts by phone number, which reads the names, phone numbers and identifiers of the contacts that match; only the identifier of the matching contact is used, and the rest is discarded immediately and never stored. When a lead\u2019s stage changes, we update the notes field of the matching contact \u2014 including a contact you created yourself, if it matches the lead\u2019s phone number. We change no other field, and we never delete a contact. " +
+      "CALENDAR: we create and update events on your primary calendar for your own follow-up deadlines. We update only events we created, identified by an event id we stored when creating them, and we never delete an event. " +
+      "WHAT WE DO WITH IT: information read from your Google account is used only for the purposes above. It is not sent to any AI model, is not used for advertising, and we do not sell it. The contacts and calendar events themselves live in your Google account, not ours; what we store is the lead record you already entered, plus the identifiers linking it to the contact and event we created.",
+  },
+  {
+    heading: "Your Google Authorization",
+    body:
+      "Your Google authorization is held as a refresh token stored in our database. It is readable only by the Locator Beast server \u2014 no browser, and no other agent, can read it. " +
+      "You can disconnect at any time from the Integrations page. Disconnecting asks Google to revoke the authorization and removes the stored token, so Locator Beast stops creating or updating contacts and events for you immediately. If we cannot confirm that Google revoked the authorization, we tell you so rather than reporting success, and you can remove it yourself at https://myaccount.google.com/permissions. " +
+      "Disconnecting does not sign you out of Locator Beast and does not affect signing in with Google. Contacts and calendar events already created remain in your Google account and are yours to keep, edit, or delete; your leads and their history in Locator Beast are unaffected. You can reconnect at any time. " +
+      "Deleting your Locator Beast account revokes this authorization and deletes the stored token automatically.",
+  },
+  {
+    heading: "Google API Services User Data Policy",
+    body: "Locator Beast\u2019s use of information received from Google APIs adheres to the Google API Services User Data Policy, including its Limited Use requirements.",
   },
   {
     heading: "Data Security",
@@ -41,7 +61,7 @@ const SECTIONS = [
   },
   {
     heading: "Your Rights and Choices",
-    body: "You may access, update, or request deletion of your personal information at any time by contacting us. You may also disconnect third-party integrations from within the application.",
+    body: "You may access, update, or request deletion of your personal information at any time by contacting us, and you may delete your account from your account settings. You may disconnect your Google Calendar and Google Contacts authorization at any time from the Integrations page, or directly from your Google Account\u2019s permissions page.",
   },
   {
     heading: "Beast Companion Browser Extension",
