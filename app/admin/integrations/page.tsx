@@ -1,6 +1,7 @@
 export const dynamic = "force-dynamic"
 
 import IntegrationsClient from "@/components/crm/integrations/IntegrationsClient"
+import { getGoogleHealth } from "@/lib/google/integrationHealth"
 import { createClient } from "@/lib/supabase/server"
 
 export default async function IntegrationsPage() {
@@ -13,6 +14,7 @@ export default async function IntegrationsPage() {
   } = await supabase.auth.getUser()
 
   let googleConnected = false
+  let googleNeedsReconnect = false
   // Account-level Automated Texting authorization (private/internal rollout),
   // resolved server-side via the same SECURITY DEFINER RPC the Profile page uses.
   // Gates the account-level Automated Texting row in the Mac + iPhone card — an
@@ -25,10 +27,13 @@ export default async function IntegrationsPage() {
       .eq("id", user.id)
       .maybeSingle()
     googleConnected = !!profile?.google_connected
+    // Terminal auth failure on record ⇒ the stored token is dead and only a human reconnect fixes
+    // it. Resolved server-side so no token or provider detail reaches the browser.
+    if (googleConnected) googleNeedsReconnect = (await getGoogleHealth(user.id)).needsReconnect === true
 
     const { data: autoTx } = await supabase.rpc("is_automated_texting_authorized", { p_user_id: user.id })
     automatedTextingAuthorized = autoTx === true
   }
 
-  return <IntegrationsClient googleConnected={googleConnected} automatedTextingAuthorized={automatedTextingAuthorized} />
+  return <IntegrationsClient googleConnected={googleConnected} googleNeedsReconnect={googleNeedsReconnect} automatedTextingAuthorized={automatedTextingAuthorized} />
 }

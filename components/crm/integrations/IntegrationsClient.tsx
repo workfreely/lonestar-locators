@@ -21,7 +21,17 @@ const INTEGRATIONS: { name: string; description: string; google?: boolean }[] = 
 // (re)connect without being bounced through onboarding. No OAuth logic here.
 const GOOGLE_CONNECT_URL = "/api/google/auth?next=/admin/integrations"
 
-export default function IntegrationsClient({ googleConnected, automatedTextingAuthorized = false }: { googleConnected: boolean; automatedTextingAuthorized?: boolean }) {
+export default function IntegrationsClient({
+  googleConnected,
+  automatedTextingAuthorized = false,
+  googleNeedsReconnect = false,
+}: {
+  googleConnected: boolean
+  automatedTextingAuthorized?: boolean
+  /** A TERMINAL auth failure is on record — the stored token will never work again. A transient
+   *  Google error deliberately does NOT set this, so nobody is sent through OAuth to fix a blip. */
+  googleNeedsReconnect?: boolean
+}) {
   return (
     <SettingsShell title="Integrations">
       {/* Locator Beast's own tools appear first (Beast Companion, then Beast Sync),
@@ -48,10 +58,18 @@ export default function IntegrationsClient({ googleConnected, automatedTextingAu
               </div>
               {item.google ? (
                 <div className="flex flex-none items-center gap-3">
-                  {googleConnected && (
+                  {googleConnected && !googleNeedsReconnect && (
                     <span className="inline-flex items-center gap-1.5 text-[12.5px] font-medium text-[#15803d]">
                       <span className="h-1.5 w-1.5 rounded-full bg-[#16a34a]" />
                       Connected
+                    </span>
+                  )}
+                  {/* A revoked token used to fail silently for months. This is the signal.
+                      Deliberately says WHAT TO DO and nothing about the provider error. */}
+                  {googleConnected && googleNeedsReconnect && (
+                    <span className="inline-flex items-center gap-1.5 text-[12.5px] font-medium text-[#b45309]">
+                      <span className="h-1.5 w-1.5 rounded-full bg-[#d97706]" />
+                      Needs reconnect
                     </span>
                   )}
                   {/* Full navigation to the existing OAuth initiation route — same
@@ -59,7 +77,7 @@ export default function IntegrationsClient({ googleConnected, automatedTextingAu
                   <a
                     href={GOOGLE_CONNECT_URL}
                     className={
-                      googleConnected
+                      googleConnected && !googleNeedsReconnect
                         ? "rounded-lg border border-[#e5e7ee] bg-white px-4 py-2 text-[13px] font-semibold text-[#111318] transition-colors hover:bg-[#f4f5f8]"
                         : "rounded-lg bg-[#2f6bff] px-4 py-2 text-[13px] font-semibold text-white transition-colors hover:bg-[#255ae0]"
                     }

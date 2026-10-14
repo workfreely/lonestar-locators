@@ -37,6 +37,7 @@ import { createGoogleContactForOwner, type GoogleContactLeadFields } from "@/lib
 import { getOAuthClientForUser } from "@/lib/google/getOAuthClientForUser"
 import { findDuplicateMatch, type LeadIdentity } from "@/lib/leads/duplicateDetection"
 import { getStageWorkflowAction, createWorkflowActionIfNeeded } from "@/lib/workflowEngine"
+import { syncContactLeadCalendarEvent } from "@/lib/google/syncContactLeadEvent"
 import { resolveUserTimeZone } from "@/lib/timezone/server"
 import { resolveWorkHoursFromProfile } from "@/lib/workflow/autoDueDate"
 import { requireWorkspaceMember } from "@/lib/auth/requireWorkspaceMember"
@@ -834,7 +835,16 @@ export async function POST(request: Request) {
               workHours = resolveWorkHoursFromProfile(whProfile)
             }
             const spec = getStageWorkflowAction("new", data, timeZone, workHours)
-            if (spec) await createWorkflowActionIfNeeded(supabaseAdmin, data.id, spec)
+            const created = spec ? await createWorkflowActionIfNeeded(supabaseAdmin, data.id, spec) : null
+
+            // CONTACT LEAD → the agent's Google Calendar, server-side.
+            // The action is created here, on the server, so the existing CRM-triggered sync never
+            // ran for it — the Agenda showed a deadline the calendar knew nothing about until the
+            // agent happened to open the lead. Narrow by policy: contact_lead only.
+            // Never throws, and skips immediately when the agent's token needs reconnecting.
+            if (created?.id && data.owner_user_id) {
+              await syncContactLeadCalendarEvent({ ownerUserId: data.owner_user_id as string, actionId: created.id })
+            }
           } catch (err) {
             console.error("[api/leads/submit] Workflow Engine action failed:", err)
           }

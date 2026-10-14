@@ -1,4 +1,5 @@
 import { google } from "googleapis"
+import { recordGoogleFailure, clearGoogleFailure, classifyGoogleError } from "./integrationHealth"
 import { supabaseAdmin } from "@/lib/supabase/admin"
 
 // Per-agent Google OAuth client — the phase-2 replacement for the single global
@@ -76,10 +77,15 @@ export async function getOAuthClientForUser(
       const label = code === "invalid_grant" ? "invalid_grant — agent must reconnect Google" : "auth error"
       // Non-PII: opaque user id + error class only. Never the token or email.
       console.warn(`[google/oauth] token refresh failed for user ${ownerUserId} (${label})`)
+      // RECORD IT. A log line is not a signal anyone sees; this is what lets the Integrations
+      // page show "Reconnect Google" rather than the connection failing quietly for months.
+      await recordGoogleFailure(ownerUserId, classifyGoogleError(e))
       return null
     }
   }
 
+  // Verified good: clear any recorded failure so the indicator reflects the CURRENT state.
+  if (verify) await clearGoogleFailure(ownerUserId)
   return client
 }
 
