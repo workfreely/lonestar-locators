@@ -48,6 +48,7 @@ import { resolveSupabaseProject } from "@/lib/supabase/projects"
 import { isValidUsPhone } from "@/lib/utils/formatPhone"
 import { withPhoneIdentity } from "@/lib/phone/identity"
 import { attributeUnattributedMessages } from "@/lib/companion/attribution"
+import { shouldAutoEnroll } from "@/lib/followup/autoEnroll"
 import { verdictForWrite } from "@/lib/leads/areaLimit"
 import { criteriaChangedMetadata, initialCriteria } from "@/lib/leads/criteriaHistory"
 
@@ -636,6 +637,51 @@ export async function POST(request: Request) {
           }
         } catch (err) {
           console.error("[api/leads/submit] Beast Sync attribution failed:", err)
+        }
+      })
+    }
+
+    // ─── Follow-Up Agent automatic enrolment ──────────────────────────────
+    // Sets leads.followup_opt_in, and nothing else. Enrolment is the Follow-Up Agent's
+    // only switch — the tick already runs every minute and finds nothing because no lead
+    // has ever been enrolled.
+    //
+    // DISABLED BY DEFAULT. shouldAutoEnroll refuses unless a number is named in
+    // FOLLOWUP_AUTO_ENROLL_PHONES or FOLLOWUP_AUTO_ENROLL_ENABLED is exactly "true", and
+    // it refuses outright without SMS consent, without an account authorized to text, on
+    // a resubmission, or with no phone — whatever the flags say.
+    //
+    // Enrolment does not make a lead textable on its own: the engine still applies quiet
+    // hours, the stage gates, opt-out and the one-time-introduction ledger guard. Deferred
+    // and swallowed for the same reason as the blocks above — the renter is waiting on a
+    // response, and a failed enrolment must never fail their submission.
+    if (data?.id && data?.phone_e164) {
+      after(async () => {
+        try {
+          const { data: authRow } = await supabaseAdmin
+            .from("automated_texting_accounts")
+            .select("user_id")
+            .eq("user_id", data.owner_user_id ?? "")
+            .maybeSingle()
+
+          const decision = shouldAutoEnroll({
+            isNewLead,
+            smsOptIn: data.sms_opt_in as boolean | null,
+            accountAuthorized: !!authRow,
+            phoneE164: data.phone_e164 as string,
+          })
+          if (!decision.enroll) return
+
+          const { error: enrollErr } = await supabaseAdmin
+            .from("leads")
+            .update({ followup_opt_in: true, followup_enrolled_at: new Date().toISOString() })
+            .eq("id", data.id)
+            // Only ever fills a blank: never re-enrols a lead that was deliberately removed.
+            .is("followup_enrolled_at", null)
+          if (enrollErr) console.error("[api/leads/submit] auto-enrolment failed:", enrollErr.message)
+          else console.log(`[api/leads/submit] lead ${data.id} auto-enrolled (${decision.reason})`)
+        } catch (err) {
+          console.error("[api/leads/submit] auto-enrolment threw:", err)
         }
       })
     }
