@@ -180,8 +180,8 @@ export default async function SmartLeadFormThankYouPage({
                 {step.done ? (
                   <div className="flex flex-wrap items-center gap-2.5">
                     <p className="text-[20px] font-bold leading-snug text-[#0e2545] line-through decoration-2 decoration-[#6b7688] sm:text-[18px]">{step.title}</p>
-                    <span className="inline-flex items-center gap-2 rounded-full bg-[#e4f6ec] px-4 py-[7px] text-[14px] font-extrabold uppercase tracking-wide text-[#136c3a] sm:gap-1.5 sm:px-3 sm:py-[5px] sm:text-[11.5px]">
-                      <svg viewBox="0 0 24 24" className="h-4 w-4 flex-none sm:h-3 sm:w-3" fill="none" stroke="currentColor" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                    <span className="inline-flex items-center gap-2 rounded-full bg-[#e4f6ec] px-[16px] py-[7px] text-[14px] font-extrabold uppercase tracking-wide text-[#136c3a] sm:gap-1.5 sm:px-3 sm:py-[5px] sm:text-[11.5px]">
+                      <svg viewBox="0 0 24 24" className="h-[16px] w-[16px] flex-none sm:h-[12px] sm:w-[12px]" fill="none" stroke="currentColor" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
                         <path d="M20 6 9 17l-5-5" />
                       </svg>
                       Completed
