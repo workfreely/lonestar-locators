@@ -131,6 +131,9 @@ export type SmartLeadFormConfig = {
   // Optional agent intro video (a YouTube URL) shown on the post-submission
   // thank-you page. Empty string = no video, and the page shows the enhanced
   // agent card instead — it always looks complete either way.
+  /** What the Thank You page shows: "testimonials" (default) or "video".
+   *  "" = never chosen; lib/smartForm/thankYouMedia resolves it from the legacy video URL. */
+  thankYouMedia: "" | "testimonials" | "video"
   thankYouVideoUrl: string
   // Optional override for the thank-you page's "apply" step copy. Blank uses the
   // default, which lists the agent name + brokerage from the canonical profile.

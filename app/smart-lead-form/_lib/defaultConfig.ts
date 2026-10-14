@@ -108,6 +108,9 @@ export const DEFAULT_CONFIG: SmartLeadFormConfig = {
     criminalBackground: true,
     notes: true,
   },
+  // "" so resolveThankYouMedia applies the legacy rule: an agent who configured a video before
+  // this control existed keeps it; everyone else gets testimonials, the intended default.
+  thankYouMedia: "",
   thankYouVideoUrl: "",
   thankYouApplyInstructions: "",
   thankYouIncentive: "",

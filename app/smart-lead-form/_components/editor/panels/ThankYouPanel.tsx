@@ -2,6 +2,8 @@
 
 import type { SmartLeadFormConfig } from "../../../_lib/types"
 import { TextField } from "../ui/TextField"
+import SegmentedControl from "../ui/SegmentedControl"
+import { resolveThankYouMedia, genuineTestimonials } from "@/lib/smartForm/thankYouMedia"
 import ToggleRow from "../ui/ToggleRow"
 import { THANKYOU_DEFAULTS, shouldShowReward } from "@/lib/smartForm/thankYouSteps"
 
@@ -23,6 +25,11 @@ export default function ThankYouPanel({
   onChange: Updater
 }) {
   const set = (patch: Partial<SmartLeadFormConfig>) => onChange((prev) => ({ ...prev, ...patch }))
+  // Resolved the same way the public page resolves it, so the editor and the live page can never
+  // disagree — including the legacy rule for an agent who configured a video before this control.
+  const media = resolveThankYouMedia(config)
+  const genuineCount = genuineTestimonials(config.copy?.testimonials).length
+
   const rewardOn = shouldShowReward(config.thankYouShowReward, config.thankYouIncentive)
 
   const sectionTitle = "pb-1 text-[13px] font-semibold text-[#111318]"
@@ -90,7 +97,40 @@ export default function ThankYouPanel({
         )}
       </div>
 
-      {/* ── Video (optional) ──────────────────────────────────────────────── */}
+      {/* ── Thank You Page Content ───────────────────────────────────────────
+          One control, in the place the video field already lived. Switching to
+          Testimonials NEVER clears thankYouVideoUrl — the URL stays saved so the
+          agent can switch back, and the field below stays visible for that reason. */}
+      <div className="pt-3">
+        <p className={sectionTitle}>Thank You Page Content</p>
+        <p className={helper}>What clients see after they submit your form.</p>
+        <div className="mt-2">
+          <SegmentedControl
+            options={[
+              { id: "testimonials", label: "Testimonials (2)" },
+              { id: "video", label: "Video" },
+            ]}
+            value={media}
+            onChange={(v) => set({ thankYouMedia: v })}
+          />
+        </div>
+
+        {media === "testimonials" ? (
+          <p className={`${helper} mt-2`}>
+            {genuineCount > 0
+              ? `Showing your ${genuineCount === 1 ? "one review" : "first two reviews"} from the Testimonials section on the Content tab. Edit them there and they update here.`
+              : "No reviews yet. Add real client reviews in the Testimonials section on the Content tab — the samples are never published."}
+          </p>
+        ) : (
+          <p className={`${helper} mt-2`}>
+            {(config.thankYouVideoUrl ?? "").trim()
+              ? "Your video plays on the Thank You page."
+              : "Add a YouTube URL below, or the Thank You page will show no video."}
+          </p>
+        )}
+      </div>
+
+      {/* ── Video URL (kept whatever is selected, so switching back loses nothing) ── */}
       <div className="pt-3">
         <p className={`flex items-center gap-1.5 ${sectionTitle}`}>
           <svg width="17" height="17" viewBox="0 0 24 24" className="flex-none" aria-hidden>

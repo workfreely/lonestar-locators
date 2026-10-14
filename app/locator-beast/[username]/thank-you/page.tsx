@@ -1,3 +1,4 @@
+import { HiStar } from "react-icons/hi2"
 import type { ReactNode } from "react"
 import { notFound } from "next/navigation"
 import { Inter } from "next/font/google"
@@ -5,6 +6,7 @@ import { createClient } from "@/lib/supabase/server"
 import { mergeSmartFormConfig } from "@/app/smart-lead-form/_lib/mergeConfig"
 import { youtubeEmbedUrl } from "@/lib/smartForm/thankYouVideo"
 import { buildThankYouSteps, buildThankYouIntro } from "@/lib/smartForm/thankYouSteps"
+import { thankYouMediaToShow } from "@/lib/smartForm/thankYouMedia"
 import { serviceAreasLabelCanonical } from "@/lib/markets/catalog"
 import { clientHeroImage } from "@/lib/clientShare/heroImage"
 import Footer from "@/app/smart-lead-form/_components/form/sections/Footer"
@@ -133,7 +135,16 @@ export default async function SmartLeadFormThankYouPage({
   const brokerage = (form.brokerage_name ?? "").trim()
 
   const config = mergeSmartFormConfig(form.form_config)
-  const embedUrl = youtubeEmbedUrl(config.thankYouVideoUrl)
+  // WHAT THIS PAGE SHOWS. Testimonials by default; video when the agent chose it, or when they
+  // configured one before this control existed (see resolveThankYouMedia). Either way the block
+  // renders only when there is something real to render: no empty cards, no broken player.
+  const media = thankYouMediaToShow({
+    thankYouMedia: config.thankYouMedia,
+    thankYouVideoUrl: config.thankYouVideoUrl,
+    testimonials: config.copy?.testimonials,
+  })
+  const embedUrl = media.media === "video" && media.show ? youtubeEmbedUrl(config.thankYouVideoUrl) : null
+  const showTestimonials = media.media === "testimonials" && media.show
   const title = (config.copy.agentTitle ?? "").trim() || "Apartment Locator"
   const intro = buildThankYouIntro(config.thankYouIntro, { firstName: name, city: where })
 
@@ -180,8 +191,8 @@ export default async function SmartLeadFormThankYouPage({
                 {step.done ? (
                   <div className="flex flex-wrap items-center gap-2.5">
                     <p className="text-[20px] font-bold leading-snug text-[#0e2545] line-through decoration-2 decoration-[#6b7688] sm:text-[18px]">{step.title}</p>
-                    <span className="inline-flex items-center gap-2 rounded-full bg-[#e4f6ec] px-[16px] py-[7px] text-[14px] font-extrabold uppercase tracking-wide text-[#136c3a] sm:gap-1.5 sm:px-3 sm:py-[5px] sm:text-[11.5px]">
-                      <svg viewBox="0 0 24 24" className="h-[16px] w-[16px] flex-none sm:h-[12px] sm:w-[12px]" fill="none" stroke="currentColor" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                    <span className="inline-flex items-center gap-[9px] rounded-full bg-[#e4f6ec] px-[18px] py-[8px] text-[15px] font-extrabold uppercase tracking-wide text-[#136c3a] sm:gap-1.5 sm:px-3 sm:py-[5px] sm:text-[11.5px]">
+                      <svg viewBox="0 0 24 24" className="h-[18px] w-[18px] flex-none sm:h-[12px] sm:w-[12px]" fill="none" stroke="currentColor" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
                         <path d="M20 6 9 17l-5-5" />
                       </svg>
                       Completed
@@ -218,6 +229,35 @@ export default async function SmartLeadFormThankYouPage({
     </div>
   )
 
+  // Two testimonials, reusing the SAME data the Smart Lead Form renders
+  // (config.copy.testimonials) and the same card language: white card, #e2e4ea hairline, rounded,
+  // amber stars, quote, then name — city. Only genuine entries reach here; the built-in samples
+  // are filtered out upstream, so an agent who never wrote a testimonial shows none.
+  const TestimonialCards = () => (
+    <div className="grid gap-3 sm:grid-cols-2">
+      {media.testimonials.map((t, i) => (
+        <div key={i} className="rounded-2xl border border-[#e2e4ea] bg-white p-5">
+          <div className="flex gap-0.5 text-amber-400">
+            {Array.from({ length: 5 }).map((_, j) => (
+              <HiStar key={j} className="h-5 w-5" />
+            ))}
+          </div>
+          <p className="mt-2.5 break-words text-[16px] leading-relaxed text-[#3a3f4d] sm:text-[15.5px]">&ldquo;{t.quote}&rdquo;</p>
+          <div className="mt-3 flex min-w-0 items-center gap-2.5">
+            {t.photoUrl && (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={t.photoUrl} alt={t.name} className="h-8 w-8 shrink-0 rounded-full object-cover" />
+            )}
+            <p className="min-w-0 break-words text-[15px] font-semibold text-[#111318]">
+              {t.name}
+              {t.city && <span className="font-normal text-[#9098a8]"> — {t.city}</span>}
+            </p>
+          </div>
+        </div>
+      ))}
+    </div>
+  )
+
   // One intentional closing composition: the final client message + the dynamic
   // locator identity in a single polished card. No contact buttons.
   const ClosingCard = () => (
@@ -226,7 +266,7 @@ export default async function SmartLeadFormThankYouPage({
         You&apos;re all set!
       </h2>
       <p className="mt-2.5 text-[17px] leading-[1.6] text-[#4b5468] sm:mt-2 sm:text-[15.5px] sm:leading-relaxed">
-        Keep an eye on your texts and email. I&rsquo;ll reach out as soon as your recommendations are ready.
+        Keep an eye on your texts! I&rsquo;ll be reaching out shortly to help you get started.
       </p>
       {/* Canonical shared agent signature (identical to the Recommendations page). */}
       <div className="mt-6 border-t border-[#e3e8f1] pt-6">
@@ -276,6 +316,12 @@ export default async function SmartLeadFormThankYouPage({
               <section className="max-w-2xl">
                 <Timeline />
               </section>
+            )}
+
+            {showTestimonials && (
+              <div className="mt-9 max-w-2xl">
+                <TestimonialCards />
+              </div>
             )}
 
             <div className="max-w-2xl">

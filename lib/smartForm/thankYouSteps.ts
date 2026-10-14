@@ -23,19 +23,19 @@ export type ThankYouStep = {
 // text), so the two can never drift.
 export const THANKYOU_DEFAULTS = {
   intro:
-    "You're one step closer to finding the perfect home in {city}. I'm already working on your best list of options and will be in touch soon.",
+    "You're one step closer to your perfect home in {city}! Let's find the best options for you.",
   introNoCity:
-    "You're one step closer to finding the perfect home. I'm already working on your best list of options and will be in touch soon.",
+    "You're one step closer to your perfect home! Let's find the best options for you.",
   step1Title: "Tell us what you're looking for",
   step1Body: "Your search details are in.",
   step2Title: "Get your custom apartment list",
   step2Body:
-    "We'll narrow down the best options based on your budget, move date, preferred areas, current pricing, specials, and what fits your search.",
+    "I'll find the best options for your budget, preferences, and move-in date.",
   step3Title: "Tour your favorites",
-  step3Body: "Once you narrow down your options, we'll help coordinate tours and answer questions along the way.",
+  step3Body: "I'll help coordinate your tours and answer questions along the way.",
   step4Title: "List your locator when you apply",
   rewardTitle: "Move in and get rewarded",
-  rewardBody: "Get free movers or a cash rebate for working with me.",
+  rewardBody: "Enjoy free movers or a cash rebate when you lease with me.",
 } as const
 
 const pick = (override: string | null | undefined, fallback: string) => {
@@ -90,7 +90,9 @@ export function buildThankYouSteps(input: {
   const usingDefaultApply = !(input.applyInstructions ?? "").trim()
   const applyPhrase = `${agent}${brokerage ? ` with ${brokerage}` : ""}`
   const applyBody = usingDefaultApply
-    ? `When you're ready to apply, select Realtor or Apartment Locator and list ${applyPhrase} so the property knows who helped you.`
+    // `applyPhrase` already omits " with {brokerage}" when the agent has none, so an account
+    // without a brokerage never implies one.
+    ? `When you apply, select Realtor or Apartment Locator and list ${applyPhrase}.`
     : (input.applyInstructions as string).trim()
 
   const steps: ThankYouStep[] = [
