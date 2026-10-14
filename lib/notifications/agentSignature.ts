@@ -284,9 +284,10 @@ export function renderClientSignatureHtml(
       )}${formName}${esc(IABS_DISCLOSURE_SUFFIX)}</p>`
     : ""
 
-  // Larger, prominent profile image on TOP (circular, no distortion). 72px reads
-  // as a real headshot rather than a tiny avatar, and stays mobile-safe.
-  const avatarSize = 72
+  // Circular headshot, now BESIDE the identity rather than above it, and a little
+  // larger so it holds its own next to the name block. 88px is the largest that
+  // still leaves room for a long brokerage name beside it at a 320px screen width.
+  const avatarSize = 88
   const avatar = identity.photoUrl
     ? `<img src="${identity.photoUrl}" width="${avatarSize}" height="${avatarSize}" alt="" style="display:block;width:${avatarSize}px;height:${avatarSize}px;border-radius:9999px;object-fit:cover;border:0;" />`
     : `<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="${avatarSize}" height="${avatarSize}" style="width:${avatarSize}px;height:${avatarSize}px;"><tr><td align="center" valign="middle" bgcolor="${BRAND.ink}" style="width:${avatarSize}px;height:${avatarSize}px;border-radius:9999px;background:${BRAND.ink};color:#ffffff;font-size:26px;font-weight:700;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;">${esc(
@@ -337,9 +338,16 @@ export function renderClientSignatureHtml(
     ? `<div style="padding-top:14px;"><img src="${identity.logoUrl}" alt="" height="28" style="display:block;height:28px;width:auto;max-width:180px;border:0;" /></div>`
     : ""
 
+  // TWO CELLS, NOT A STACK. A table row is the one horizontal layout every email
+  // client honours — Gmail strips the media queries that would be needed to make
+  // floated or flex columns reflow, so a table keeps the photo beside the name on
+  // desktop AND on a phone. valign="top" aligns the headshot with the name rather
+  // than floating against the middle of the block.
   return `${disclosure}
 <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:8px 0 4px 0;">
-  <tr><td style="padding-bottom:14px;">${avatar}</td></tr>
-  <tr><td>${identityLines.join("")}${serving}${contact}${logo}</td></tr>
+  <tr>
+    <td valign="top" width="${avatarSize}" style="width:${avatarSize}px;padding-right:16px;">${avatar}</td>
+    <td valign="top">${identityLines.join("")}${serving}${contact}${logo}</td>
+  </tr>
 </table>`
 }

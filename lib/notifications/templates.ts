@@ -293,11 +293,6 @@ export function leadConfirmationEmail({ locatorName, signature, lead }: LeadConf
     `<div style="margin:0 0 16px 0;font-size:16px;line-height:1.7;color:${BRAND.inkSoft};"><span style="font-weight:700;color:${BRAND.ink};">Step ${n}:</span> ${text}</div>`
 
   const contentHtml = `
-    ${bodyPara(
-      `Thanks for reaching out about your search in <strong>${esc(
-        city
-      )}</strong>! We've received your details and are reviewing your budget, move timeline, and location preferences to find the best available options for you.`
-    )}
     <h2 style="margin:28px 0 8px 0;font-size:18px;font-weight:700;color:${BRAND.ink};">Your search summary</h2>
     ${infoTable(
       [
@@ -337,7 +332,16 @@ export function leadConfirmationEmail({ locatorName, signature, lead }: LeadConf
     subject: `${city} Search Update`,
     html: renderEmail({
       ...cityBanner(lead.city), // city skyline follows the LEAD's market
-      hideWordmark: true, // thin skyline band only — no wordmark band
+      hideWordmark: true, // no wordmark band
+      // The greeting and the opening acknowledgment move INTO the skyline hero, in white
+      // over a dark overlay — the same treatment as the Thank You page. The body therefore
+      // starts at "Your search summary" rather than repeating either of them.
+      hero: {
+        greeting: heading,
+        subtext: `Thanks for reaching out about your search in <strong>${esc(
+          city,
+        )}</strong>! We've received your details and are reviewing your budget, move timeline, and location preferences to find the best available options for you.`,
+      },
       // Client-facing: the renter should see their AGENT's contact info, not a
       // platform support address, so the support footer line is suppressed here.
       hideSupport: true,

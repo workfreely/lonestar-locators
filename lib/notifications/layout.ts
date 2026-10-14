@@ -114,6 +114,19 @@ export type EmailLayoutInput = {
    */
   hideWordmark?: boolean
   /**
+   * When set (with bannerImageUrl), the top of the email is a TALL skyline hero
+   * carrying the greeting and an opening line in white, instead of a thin band
+   * with the greeting in the body below.
+   *
+   * EMAIL-SAFE BY CONSTRUCTION. The image rides on the cell's `background`
+   * attribute over a dark `bgcolor`, so a client that blocks images, or cannot
+   * decode .webp, still renders white text on the brand navy — readable, never a
+   * broken image and never white-on-white. Outlook ignores CSS background images
+   * without VML and simply sees the solid navy, which is why the overlay gradient
+   * is a decoration rather than the thing making the text legible.
+   */
+  hero?: { greeting: string; subtext: string } | null
+  /**
    * Hide the "Need help? Reach us at admin@locatorbeast.com" support line in the
    * footer. Used by CLIENT-FACING emails (renter confirmation/update), where the
    * lead should primarily see their agent's contact info, not a platform support
@@ -122,7 +135,7 @@ export type EmailLayoutInput = {
   hideSupport?: boolean
 }
 
-export function renderEmail({ preheader, heading, contentHtml, cta, footerNote, bannerImageUrl, bannerAlt, hideWordmark, hideSupport }: EmailLayoutInput): string {
+export function renderEmail({ preheader, heading, contentHtml, cta, footerNote, bannerImageUrl, bannerAlt, hideWordmark, hideSupport, hero }: EmailLayoutInput): string {
   const year = "2026"
 
   // Thin skyline band: fixed ~60px, full-width, object-fit cover, empty alt +
@@ -139,7 +152,21 @@ export function renderEmail({ preheader, heading, contentHtml, cta, footerNote, 
           </td>
         </tr>`
 
-  const header = hideWordmark
+  // TALL skyline hero with the greeting in white. bgcolor carries the legibility;
+  // the image is an enhancement layered over it.
+  const heroBand = hero
+    ? `<tr>
+          <td bgcolor="${BRAND.ink}" background="${bannerImageUrl ?? ""}" valign="bottom"
+              style="background-color:${BRAND.ink};${bannerImageUrl ? `background-image:linear-gradient(180deg,rgba(9,25,48,.72) 0%,rgba(9,25,48,.86) 70%,rgba(9,25,48,.94) 100%),url('${bannerImageUrl}');background-size:cover;background-position:center 40%;` : ""}padding:34px 40px 30px 40px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;">
+            <h1 style="margin:0 0 10px 0;font-size:26px;line-height:1.25;font-weight:700;color:#ffffff;">${esc(hero.greeting)}</h1>
+            <p style="margin:0;font-size:15.5px;line-height:1.6;color:#ffffff;">${hero.subtext}</p>
+          </td>
+        </tr>`
+    : ""
+
+  const header = hero
+    ? heroBand
+    : hideWordmark
     ? skylineBand
     : `${
         bannerImageUrl
@@ -189,9 +216,12 @@ ${
         <!-- Body -->
         <tr>
           <td style="padding:36px 40px 32px 40px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;">
-            <h1 style="margin:0 0 18px 0;font-size:22px;line-height:1.3;font-weight:700;color:${
-              BRAND.ink
-            };">${esc(heading)}</h1>
+            ${
+              // The hero already shows the greeting; repeating it here would print it twice.
+              hero
+                ? ""
+                : `<h1 style="margin:0 0 18px 0;font-size:22px;line-height:1.3;font-weight:700;color:${BRAND.ink};">${esc(heading)}</h1>`
+            }
             ${contentHtml}
             ${cta ? button(cta.label, cta.url) : ""}
           </td>
