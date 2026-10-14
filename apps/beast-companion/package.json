@@ -2,12 +2,14 @@
   "name": "beast-companion",
   "private": true,
   "version": "0.1.0",
-  "description": "Beast Companion — a Manifest V3 Chrome extension that brings Locator Beast into supported websites via a contextual companion sidebar.",
+  "description": "Beast Companion \u2014 a Manifest V3 Chrome extension that brings Locator Beast into supported websites via a contextual companion sidebar.",
   "type": "module",
   "scripts": {
     "dev": "node scripts/build.mjs --watch",
-    "build": "tsc --noEmit && node scripts/build.mjs",
-    "typecheck": "tsc --noEmit"
+    "build": "tsc --noEmit && node scripts/build.mjs && node scripts/sync-to-chrome.mjs",
+    "typecheck": "tsc --noEmit",
+    "build:no-sync": "tsc --noEmit && node scripts/build.mjs",
+    "sync": "node scripts/sync-to-chrome.mjs"
   },
   "dependencies": {
     "react": "^18.3.1",
