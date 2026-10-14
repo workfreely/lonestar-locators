@@ -108,5 +108,19 @@ ok("an agent's own reward wording is used", buildThankYouSteps({ agentName: "A",
 ok("five steps maximum", buildThankYouSteps({ agentName: "A", showReward: "on", incentive: "x" }).length === 5)
 ok("the defaults object carries the new copy", THANKYOU_DEFAULTS.step3Body === "I'll help coordinate your tours and answer questions along the way.")
 
+// ── "None" hides both, and deletes neither ──────────────────────────────────────────────────
+console.log("\nNone")
+const noneCfg = { thankYouMedia: "none", thankYouVideoUrl: "https://youtu.be/keepme", testimonials: REAL }
+const none = thankYouMediaToShow(noneCfg)
+ok("None resolves to none", none.media === "none")
+ok("None shows nothing", none.show === false)
+ok("None returns no testimonials to render", none.testimonials.length === 0)
+ok("None does NOT touch the saved video URL", noneCfg.thankYouVideoUrl === "https://youtu.be/keepme")
+ok("None does NOT touch the saved testimonials", noneCfg.testimonials.length === 3)
+// Round trip: None → Video → Testimonials, same stored config, nothing lost.
+ok("None → Video restores the video", thankYouMediaToShow({ ...noneCfg, thankYouMedia: "video" }).show === true)
+ok("None → Testimonials restores the reviews", thankYouMediaToShow({ ...noneCfg, thankYouMedia: "testimonials" }).testimonials.length === 2)
+ok("an unset page still never resolves to none", resolveThankYouMedia({}) !== "none")
+
 console.log(`\n${pass} passed, ${fail} failed\n`)
 process.exit(fail === 0 ? 0 : 1)

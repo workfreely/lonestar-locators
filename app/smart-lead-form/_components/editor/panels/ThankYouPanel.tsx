@@ -1,8 +1,9 @@
 "use client"
 
-import type { SmartLeadFormConfig } from "../../../_lib/types"
+import type { SmartLeadFormConfig, TestimonialItem } from "../../../_lib/types"
 import { TextField } from "../ui/TextField"
 import SegmentedControl from "../ui/SegmentedControl"
+import TestimonialFields from "../ui/TestimonialFields"
 import { resolveThankYouMedia, genuineTestimonials } from "@/lib/smartForm/thankYouMedia"
 import ToggleRow from "../ui/ToggleRow"
 import { THANKYOU_DEFAULTS, shouldShowReward } from "@/lib/smartForm/thankYouSteps"
@@ -25,6 +26,16 @@ export default function ThankYouPanel({
   onChange: Updater
 }) {
   const set = (patch: Partial<SmartLeadFormConfig>) => onChange((prev) => ({ ...prev, ...patch }))
+  // IDENTICAL to ContentPanel's updater, writing to the SAME config.copy.testimonials array.
+  // There is no separate Thank You testimonial record: editing here edits the Content tab's data
+  // and vice versa, because both are this one array.
+  function updateTestimonial(index: 0 | 1 | 2, patch: Partial<TestimonialItem>) {
+    onChange((prev) => {
+      const testimonials = [...prev.copy.testimonials] as [TestimonialItem, TestimonialItem, TestimonialItem]
+      testimonials[index] = { ...testimonials[index], ...patch }
+      return { ...prev, copy: { ...prev.copy, testimonials } }
+    })
+  }
   // Resolved the same way the public page resolves it, so the editor and the live page can never
   // disagree — including the legacy rule for an agent who configured a video before this control.
   const media = resolveThankYouMedia(config)
@@ -109,23 +120,38 @@ export default function ThankYouPanel({
             options={[
               { id: "testimonials", label: "Testimonials (2)" },
               { id: "video", label: "Video" },
+              { id: "none", label: "None" },
             ]}
             value={media}
             onChange={(v) => set({ thankYouMedia: v })}
           />
         </div>
 
-        {media === "testimonials" ? (
-          <p className={`${helper} mt-2`}>
-            {genuineCount > 0
-              ? `Showing your ${genuineCount === 1 ? "one review" : "first two reviews"} from the Testimonials section on the Content tab. Edit them there and they update here.`
-              : "No reviews yet. Add real client reviews in the Testimonials section on the Content tab — the samples are never published."}
-          </p>
-        ) : (
+        {media === "testimonials" && (
+          <>
+            <p className={`${helper} mt-2`}>
+              {genuineCount > 0
+                ? `Your Thank You page shows ${genuineCount === 1 ? "this review" : "these two reviews"}. These are the same testimonials as the Content tab — editing either place changes both.`
+                : "Add a real client review below and it appears on your Thank You page. Until then no reviews are shown — the built-in samples are never published."}
+            </p>
+            {/* The SAME editor the Content tab renders, on the SAME data. Two cards, because the
+                Thank You page shows two. */}
+            <TestimonialFields testimonials={config.copy.testimonials} onChange={updateTestimonial} count={2} />
+          </>
+        )}
+
+        {media === "video" && (
           <p className={`${helper} mt-2`}>
             {(config.thankYouVideoUrl ?? "").trim()
               ? "Your video plays on the Thank You page."
               : "Add a YouTube URL below, or the Thank You page will show no video."}
+          </p>
+        )}
+
+        {media === "none" && (
+          <p className={`${helper} mt-2`}>
+            No reviews or video on your Thank You page. Nothing is deleted — your testimonials and
+            video URL stay saved, and switching back brings them straight back.
           </p>
         )}
       </div>

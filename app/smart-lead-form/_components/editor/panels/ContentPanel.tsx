@@ -4,6 +4,7 @@ import { serviceAreasLabelCanonical } from "@/lib/markets/catalog"
 import ToggleRow from "../ui/ToggleRow"
 import Card from "../ui/Card"
 import UploadTile from "../ui/UploadTile"
+import TestimonialFields from "../ui/TestimonialFields"
 import ConsentPanel from "./ConsentPanel"
 
 type Updater = (updater: (prev: SmartLeadFormConfig) => SmartLeadFormConfig) => void
@@ -153,26 +154,8 @@ export default function ContentPanel({
       {/* ── Testimonials (optional) ─────────────────────────────────────────── */}
       <div className="pt-3">
         <ToggleRow strong label="Testimonials" checked={visibility.testimonials} onChange={(v) => updateVisibility({ testimonials: v })} />
-        <div className="flex flex-col gap-3 pb-1 pt-1">
-          {copy.testimonials.map((t, i) => (
-            <Card key={i}>
-              <p className="pb-1 text-[12px] font-semibold text-[#4b5162]">Testimonial {i + 1}</p>
-              <div className="flex gap-3">
-                <UploadTile
-                  label="Photo (optional)"
-                  imageUrl={t.photoUrl}
-                  onChange={(url) => updateTestimonial(i as 0 | 1 | 2, { photoUrl: url })}
-                  round
-                />
-                <div className="flex-1">
-                  <TextField label="Customer Name" value={t.name} onChange={(v) => updateTestimonial(i as 0 | 1 | 2, { name: v })} />
-                  <TextField label="City (optional)" value={t.city} onChange={(v) => updateTestimonial(i as 0 | 1 | 2, { city: v })} />
-                </div>
-              </div>
-              <TextField label="Review" value={t.quote} onChange={(v) => updateTestimonial(i as 0 | 1 | 2, { quote: v })} multiline />
-            </Card>
-          ))}
-        </div>
+        {/* Shared with the Thank You Page tab — one editor, one data array. */}
+        <TestimonialFields testimonials={copy.testimonials} onChange={updateTestimonial} count={3} />
       </div>
 
       {/* ── FAQs (optional) — always after Testimonials ─────────────────────── */}

@@ -5,7 +5,7 @@
 
 import { DEFAULT_CONFIG } from "@/app/smart-lead-form/_lib/defaultConfig"
 
-export type ThankYouMedia = "testimonials" | "video"
+export type ThankYouMedia = "testimonials" | "video" | "none"
 /** Stored value. "" means the agent has never chosen, and the legacy rule below decides. */
 export type ThankYouMediaSetting = "" | ThankYouMedia
 
@@ -33,6 +33,9 @@ export function resolveThankYouMedia(config: {
   const explicit = (config.thankYouMedia ?? "").trim().toLowerCase()
   if (explicit === "video") return "video"
   if (explicit === "testimonials") return "testimonials"
+  // "none" hides both WITHOUT deleting either: the video URL and the testimonials stay in the
+  // config exactly as saved, so choosing None is reversible and loses nothing.
+  if (explicit === "none") return "none"
   // Never chosen: infer from what they configured before this control existed.
   return (config.thankYouVideoUrl ?? "").trim() ? "video" : THANKYOU_MEDIA_DEFAULT
 }
@@ -84,6 +87,7 @@ export function thankYouMediaToShow(config: {
   testimonials?: readonly Testimonial[] | null
 }): { media: ThankYouMedia; show: boolean; testimonials: Testimonial[] } {
   const media = resolveThankYouMedia(config)
+  if (media === "none") return { media, show: false, testimonials: [] }
   if (media === "video") {
     return { media, show: !!(config.thankYouVideoUrl ?? "").trim(), testimonials: [] }
   }
