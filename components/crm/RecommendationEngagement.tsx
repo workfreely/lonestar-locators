@@ -29,7 +29,19 @@ function ago(iso: string): string {
   return d === 1 ? "yesterday" : `${d} days ago`
 }
 
-export default function RecommendationEngagement({ leadId }: { leadId: number | string }) {
+export default function RecommendationEngagement({
+  leadId,
+  variant = "block",
+}: {
+  leadId: number | string
+  /**
+   * "block"  — the original stacked line under the panel header.
+   * "inline" — sits on the Recommended Properties action row, between Sent List History and Send
+   *            List. It must never add height or push the Send List button off the row, so it
+   *            truncates rather than wraps and renders nothing at all when there is no history.
+   */
+  variant?: "block" | "inline"
+}) {
   const [rows, setRows] = useState<ShareRow[] | null>(null)
 
   useEffect(() => {
@@ -68,6 +80,27 @@ export default function RecommendationEngagement({ leadId }: { leadId: number | 
     .filter((v): v is string => !!v)
     .sort()
     .pop()
+
+  const body =
+    views > 0 && last ? (
+      <>
+        <span className="font-semibold text-[var(--crm-text-secondary)]">Viewed {views}×</span>{" "}
+        <span>Last viewed {ago(last)}</span>
+      </>
+    ) : (
+      <span>Not viewed yet</span>
+    )
+
+  if (variant === "inline") {
+    return (
+      <span
+        className="min-w-0 flex-1 truncate text-[11.5px] leading-none text-[var(--crm-text-muted)]"
+        title={views > 0 && last ? `Viewed ${views}× · Last viewed ${ago(last)}` : "Not viewed yet"}
+      >
+        {body}
+      </span>
+    )
+  }
 
   return (
     <div className="mt-1 text-[11.5px] text-[var(--crm-text-muted)]">

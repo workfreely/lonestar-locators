@@ -5,6 +5,7 @@ import ReasonsControl from "./ReasonsControl"
 import PropertyThumb from "./PropertyThumb"
 import { displayAddress, formatRating, normalizeShortSpecial, isSpecialCurrent, evaluateLocatorCommission } from "@bc/companion-shared"
 import { StarRating } from "./StarRating"
+import RecommendationEngagement from "./RecommendationEngagement"
 import { propertyWebsiteHref } from "@/lib/propertyExplorer/types"
 
 // Recommended Properties — the canonical per-client Recommendations collection
@@ -194,21 +195,35 @@ export default function BestMatches({
             <button
               type="button"
               onClick={onOpenSentHistory}
-              className="inline-flex items-center justify-center gap-1.5 rounded-lg border border-[var(--crm-border)] px-3 py-2 text-[12px] font-semibold text-[var(--crm-text-secondary)] transition-colors hover:bg-[var(--crm-card)] hover:border-[var(--crm-text-muted)] hover:text-[var(--crm-text-primary)]"
+              className="inline-flex flex-none items-center justify-center gap-1.5 whitespace-nowrap rounded-lg border border-[var(--crm-border)] px-3 py-2 text-[12px] font-semibold text-[var(--crm-text-secondary)] transition-colors hover:bg-[var(--crm-card)] hover:border-[var(--crm-text-muted)] hover:text-[var(--crm-text-primary)]"
             >
               Sent List History
             </button>
           )}
+          {/* ENGAGEMENT, INLINE — the history button and what that history amounts to belong on
+              one line: they answer the same question. min-w-0 lets it truncate at narrow widths
+              instead of pushing Send List off the row, and it renders NOTHING when no list has
+              been sent, so the row collapses back to two buttons rather than leaving a gap. */}
+          {lead?.id != null && (
+            <RecommendationEngagement leadId={lead.id} variant="inline" />
+          )}
           {onSendRecommendations && (
-            <button
-              type="button"
-              onClick={onSendRecommendations}
-              disabled={leadRecommendations.length === 0}
-              title={leadRecommendations.length === 0 ? "Add recommendations first" : "Send these recommendations to the client"}
-              className="inline-flex flex-1 items-center justify-center gap-1.5 rounded-lg bg-[var(--crm-accent)] px-3 py-2 text-[12px] font-semibold text-white transition-[filter,opacity] hover:brightness-110 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:brightness-100"
-            >
-              Send List
-            </button>
+            <>
+              {/* The divider separates "what already happened" from "do it again". Hidden when
+                  there is no history to separate. */}
+              {onOpenSentHistory && (
+                <span aria-hidden className="ml-auto h-5 w-px flex-none bg-[var(--crm-border-soft)]" />
+              )}
+              <button
+                type="button"
+                onClick={onSendRecommendations}
+                disabled={leadRecommendations.length === 0}
+                title={leadRecommendations.length === 0 ? "Add recommendations first" : "Send these recommendations to the client"}
+                className={`inline-flex flex-none items-center justify-center gap-1.5 whitespace-nowrap rounded-lg bg-[var(--crm-accent)] px-3 py-2 text-[12px] font-semibold text-white transition-[filter,opacity] hover:brightness-110 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:brightness-100${onOpenSentHistory ? "" : " ml-auto"}`}
+              >
+                Send List
+              </button>
+            </>
           )}
         </div>
       )}

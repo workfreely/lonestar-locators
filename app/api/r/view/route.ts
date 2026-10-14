@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server"
 import { createClient } from "@/lib/supabase/server"
+import { supabaseAdmin } from "@/lib/supabase/admin"
 import { hashShareToken, looksLikeShareToken } from "@/lib/clientShare/token"
 import { sendNotification } from "@/lib/notifications/send"
 import { absoluteUrl } from "@/lib/notifications/branding"
@@ -40,9 +41,47 @@ export async function POST(req: NextRequest) {
   }
 
   const supabase = await createClient()
+  const tokenHash = hashShareToken(token)
+
+  // ── AN AGENT OPENING THEIR OWN CLIENT'S LINK IS NOT A CLIENT VIEW ──────────────────────────
+  // ?preview=1 already covered the CRM's Preview button, but it only covers that one doorway.
+  // The agent also opens the REAL link — from Sent List History, from the message they just
+  // sent, from a text to themselves — and that URL carries no preview flag, so the beacon fired
+  // and the list was recorded as viewed by the client. Production shows exactly that: lead 91's
+  // share was created at 16:28:44 and "viewed" at 16:28:51, seven seconds later. No renter reads
+  // a text and opens a list in seven seconds.
+  //
+  // The signal is IDENTITY, never timing: a renter has no account. This endpoint is public and
+  // normally runs with no session at all, so an authenticated caller who belongs to the
+  // workspace that OWNS this share is, by construction, someone internal looking at their own
+  // work. That is the only case skipped. An unauthenticated visitor — every genuine client —
+  // reaches the RPC exactly as before, and a signed-in user from any other workspace is not
+  // treated as internal either.
+  const { data: { user } } = await supabase.auth.getUser()
+  if (user) {
+    const { data: share } = await supabaseAdmin
+      .from("client_recommendation_shares")
+      .select("workspace_id")
+      .eq("token_hash", tokenHash)
+      .maybeSingle()
+    if (share?.workspace_id) {
+      const { data: membership } = await supabaseAdmin
+        .from("workspace_members")
+        .select("user_id")
+        .eq("workspace_id", share.workspace_id)
+        .eq("user_id", user.id)
+        .maybeSingle()
+      if (membership) {
+        // Recorded nothing, announced nothing. 200 because the request was valid and handled —
+        // the same contract an unknown or revoked share already returns.
+        return NextResponse.json({ ok: true, counted: false })
+      }
+    }
+  }
+
   // AWAITED — the entire point of this route.
   const { data, error } = await supabase.rpc("lb_record_client_share_view", {
-    p_token_hash: hashShareToken(token),
+    p_token_hash: tokenHash,
   })
   if (error) return NextResponse.json({ error: "failed" }, { status: 500 })
 
