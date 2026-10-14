@@ -23,9 +23,9 @@ export type ThankYouStep = {
 // text), so the two can never drift.
 export const THANKYOU_DEFAULTS = {
   intro:
-    "You're one step closer to your perfect home in {city}! Let's find the best options for you.",
+    "You're one step closer to your perfect home in {city}! Let's find your best options.",
   introNoCity:
-    "You're one step closer to your perfect home! Let's find the best options for you.",
+    "You're one step closer to your perfect home! Let's find your best options.",
   step1Title: "Tell us what you're looking for",
   step1Body: "Your search details are in.",
   step2Title: "Get your custom apartment list",

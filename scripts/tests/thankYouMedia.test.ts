@@ -84,8 +84,8 @@ ok("7. an existing agent's configured video is preserved, not overwritten", s7.m
 
 // ── approved copy ───────────────────────────────────────────────────────────────────────────
 console.log("\nApproved copy, shared by desktop and mobile")
-ok("hero intro (with city)", buildThankYouIntro("", { firstName: "Jay", city: "San Antonio" }) === "You're one step closer to your perfect home in San Antonio! Let's find the best options for you.")
-ok("hero intro (no city) does not invent one", buildThankYouIntro("", { firstName: "Jay", city: "" }) === "You're one step closer to your perfect home! Let's find the best options for you.")
+ok("hero intro (with city)", buildThankYouIntro("", { firstName: "Jay", city: "San Antonio" }) === "You're one step closer to your perfect home in San Antonio! Let's find your best options.")
+ok("hero intro (no city) does not invent one", buildThankYouIntro("", { firstName: "Jay", city: "" }) === "You're one step closer to your perfect home! Let's find your best options.")
 ok("an agent's own intro override still wins", buildThankYouIntro("Welcome {firstName}", { firstName: "Jay", city: "Austin" }) === "Welcome Jay")
 
 const steps = buildThankYouSteps({ agentName: "Jay Morris", brokerage: "AptAmigo Brokerage", incentive: "", showReward: "on" })

@@ -35,7 +35,7 @@ const TY_CSS = `
    which would inset/center the closing heading on phones; neutralize all three here
    (page-scoped) so "You're all set!" + body sit flush-left with the identity below. */
 .ty-close{text-align:left}
-.ty-close h2{max-width:none;margin-left:0;margin-right:0;text-align:left}
+.ty-close h2{max-width:none;margin-left:auto;margin-right:auto;text-align:center}
 .ty-legal{padding:22px 26px 26px;margin-top:8px;border-top:1px solid #eef1f7}
 .ty-legal a[href="https://locatorbeast.com"]{pointer-events:none;color:inherit;text-decoration:none;cursor:default}
 .ty-legal span:has(> a[href="/privacy"]),.ty-legal span:has(> a[href="/terms"]){display:none}
@@ -262,10 +262,10 @@ export default async function SmartLeadFormThankYouPage({
   // locator identity in a single polished card. No contact buttons.
   const ClosingCard = () => (
     <section className="ty-close mt-9 rounded-[20px] border border-[#e7ebf2] bg-[#f7f9fc] px-5 py-6 sm:px-7 sm:py-7">
-      <h2 className="text-left text-[26px] font-extrabold tracking-[-0.01em] text-[#0e2545] sm:text-[22px]">
+      <h2 className="text-center text-[26px] font-extrabold tracking-[-0.01em] text-[#0e2545] sm:text-[22px]">
         You&apos;re all set!
       </h2>
-      <p className="mt-2.5 text-[17px] leading-[1.6] text-[#4b5468] sm:mt-2 sm:text-[15.5px] sm:leading-relaxed">
+      <p className="mt-2.5 text-center text-[17px] leading-[1.6] text-[#4b5468] sm:mt-2 sm:text-[15.5px] sm:leading-relaxed">
         Keep an eye on your texts! I&rsquo;ll be reaching out shortly to help you get started.
       </p>
       {/* Canonical shared agent signature (identical to the Recommendations page). */}
