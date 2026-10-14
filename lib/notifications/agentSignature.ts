@@ -28,6 +28,23 @@ export const IABS_DISCLOSURE_SUFFIX = " to prospective clients."
 export const IABS_DISCLOSURE_PLAINTEXT =
   IABS_DISCLOSURE_PREFIX + IABS_FORM_LABEL + IABS_DISCLOSURE_SUFFIX
 
+/**
+ * How the IABS disclosure is presented. BOTH keep it in the body of the email, above the
+ * signature — that is a compliance boundary, not a design preference.
+ *
+ * 22 TAC §531.20(c) lets the notice be delivered as "a link within the body of an email, with a
+ * specific reference to the IABS Notice in the body of the email", which is exactly what this
+ * paragraph is. §531.20(d) then says the link "may not be in a footnote or signature block in an
+ * email", and TREC's own FAQ states that a link in a footnote or signature block is insufficient.
+ * So this paragraph may be restyled, but it may NOT be relocated into the footer, under the
+ * signature, or anywhere that reads as a footnote — that would fail the delivery requirement for
+ * a first substantive communication under Tex. Occ. Code §1101.558.
+ *
+ *   • "callout" — the original grey box (every existing consumer; unchanged)
+ *   • "plain"   — ordinary quiet body text, no box (renter confirmation email)
+ */
+export type DisclosureStyle = "callout" | "plain"
+
 // Title shown when the agent hasn't set one on their Smart Lead Form.
 export const DEFAULT_AGENT_TITLE = "Apartment Locator"
 
@@ -272,16 +289,20 @@ export function buildClientSignatureText(
  */
 export function renderClientSignatureHtml(
   identity: ResolvedAgentIdentity,
-  opts: { showDisclosure: boolean },
+  opts: { showDisclosure: boolean; disclosureStyle?: DisclosureStyle },
 ): string {
   const formName = identity.iabsUrl
     ? `<a href="${identity.iabsUrl}" target="_blank" rel="noopener noreferrer" style="color:${BRAND.blue};text-decoration:underline;">${IABS_FORM_LABEL}</a>`
     : IABS_FORM_LABEL
 
+  // "plain" drops the callout box so the disclosure reads as ordinary body text. It stays in the
+  // BODY, above the signature, at full size — see DisclosureStyle for why it cannot move lower.
+  const disclosureCss =
+    (opts.disclosureStyle ?? "callout") === "plain"
+      ? `margin:4px 0 22px 0;font-size:13px;line-height:1.6;color:${BRAND.inkSoft};`
+      : `margin:0 0 18px 0;padding:12px 14px;background:#f6f8fb;border-radius:8px;font-size:12px;line-height:1.5;color:${BRAND.inkSoft};`
   const disclosure = opts.showDisclosure
-    ? `<p style="margin:0 0 18px 0;padding:12px 14px;background:#f6f8fb;border-radius:8px;font-size:12px;line-height:1.5;color:${BRAND.inkSoft};">${esc(
-        IABS_DISCLOSURE_PREFIX,
-      )}${formName}${esc(IABS_DISCLOSURE_SUFFIX)}</p>`
+    ? `<p style="${disclosureCss}">${esc(IABS_DISCLOSURE_PREFIX)}${formName}${esc(IABS_DISCLOSURE_SUFFIX)}</p>`
     : ""
 
   // Circular headshot, now BESIDE the identity rather than above it, and a little

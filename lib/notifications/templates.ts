@@ -322,6 +322,10 @@ export function leadConfirmationEmail({ locatorName, signature, lead }: LeadConf
       signature
         ? renderClientSignatureHtml(signature, {
             showDisclosure: decideIabs(signature, { leadCity: lead.city }).show,
+            // Renter confirmation email ONLY — the grey callout box interrupted the email. The
+            // disclosure keeps its wording, its link, its full size and its position in the body
+            // above the signature; only the box is gone. See DisclosureStyle.
+            disclosureStyle: "plain",
           })
         : paragraph(`— ${esc((locatorName ?? "").trim() || "Your Locator Beast locator")}`)
     }
