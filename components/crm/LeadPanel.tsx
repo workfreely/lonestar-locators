@@ -11,7 +11,8 @@ import type { ResolvedAgentIdentity } from "@/lib/notifications/agentSignature"
 import { isGuestCardTitle } from "@/lib/leads/guestCardWorkflow"
 import { recordTimelineEvent } from "@/lib/leads/timeline"
 import { recordFirstContact as recordFirstContactCascade } from "@/lib/leads/contactWorkflow"
-import { AUTOMATED_CONTACT_ORIGIN, AUTOMATED_CONTACT_LABEL } from "@/lib/followup/firstContactRules"
+import { AUTOMATED_CONTACT_VIA, AUTOMATED_CONTACT_LABEL } from "@/lib/followup/firstContactRules"
+import CompletedActionLine from "@/components/crm/CompletedActionLine"
 import { advanceBuildListToSearching } from "@/lib/leads/buildListWorkflow"
 import { isDemoLeadId } from "@/lib/demo/demoWorkspace"
 import LeadSourceBadge from "./LeadSourceBadge"
@@ -593,16 +594,31 @@ export default function LeadPanel({
       String(a.lead_id) === String(lead.id) &&
       String(a.action_key ?? "").toLowerCase() === "contact_lead" &&
       (a.completed === true || a.status === "completed") &&
-      String(a.origin ?? "") === AUTOMATED_CONTACT_ORIGIN,
+      String(a.completed_via ?? "") === AUTOMATED_CONTACT_VIA,
   )
 
-  const lastAction: { title: string; completedAt: string } | null =
+  // The completion METHOD, read from the row that recorded it. Never inferred from the stage,
+  // the wording or the time — those look identical whoever made contact. A legacy row has none,
+  // and then the indicator is simply not shown.
+  const completedContactVia: "manual" | "followup_agent" | null =
+    (nextActions as any[]).find(
+      (a) =>
+        String(a.lead_id) === String(lead.id) &&
+        String(a.action_key ?? "").toLowerCase() === "contact_lead" &&
+        (a.completed === true || a.status === "completed"),
+    )?.completed_via ?? null
+
+  const lastAction: { title: string; completedAt: string; completedVia: "manual" | "followup_agent" | null } | null =
     justContacted && lead.first_text_sent_at
-      ? { title: autoContacted ? AUTOMATED_CONTACT_LABEL : "Contact Lead", completedAt: lead.first_text_sent_at }
+      ? {
+          title: autoContacted ? AUTOMATED_CONTACT_LABEL : "Contact Lead",
+          completedAt: lead.first_text_sent_at,
+          completedVia: completedContactVia,
+        }
       : completedAtTs
-      ? { title: primaryAction.title, completedAt: completedAtTs }
+      ? { title: primaryAction.title, completedAt: completedAtTs, completedVia: (primaryAction as any)?.completed_via ?? null }
       : tourScheduled && completedSetupTourAt
-      ? { title: "Setup Tour", completedAt: completedSetupTourAt }
+      ? { title: "Setup Tour", completedAt: completedSetupTourAt, completedVia: null }
       : null
 
   // Next Action — the next OPEN, actionable task. Null when the primary was just
@@ -927,22 +943,18 @@ export default function LeadPanel({
               from persisted state, so it survives a close/reopen and a refresh. */}
           {lastAction && (
             <div>
-              <div className="flex items-center justify-between gap-3">
-                <span className="text-[11px] font-semibold uppercase tracking-[0.14em] text-[var(--crm-text-secondary)]">Last Action</span>
-                <span className="w-24 flex-none text-right text-[11px] font-semibold uppercase tracking-[0.14em] text-[var(--crm-text-secondary)]">Status</span>
-              </div>
-              <div className="mt-2 flex items-center justify-between gap-3">
-                <span
-                  title={formatLastActionLabel(lastAction.title)}
-                  className="max-w-[62%] truncate rounded-lg border border-[var(--crm-border)] bg-[var(--crm-inset)] px-4 py-2 text-sm font-semibold text-[var(--crm-text-secondary)]"
-                >
-                  {formatLastActionLabel(lastAction.title)}
-                </span>
-                <span className="w-24 flex-none text-right text-sm font-semibold text-emerald-600">Completed</span>
-              </div>
-              <div className="mt-2.5 truncate text-left text-[12.5px] text-[var(--crm-text-muted)]">
-                Completed:{" "}
-                <span className="font-medium text-emerald-600">{formatDueDateTime(lastAction.completedAt, { timeZone: timeZone ?? undefined })}</span>
+              <div className="text-[11px] font-semibold uppercase tracking-[0.14em] text-[var(--crm-text-secondary)]">Last Action</div>
+              {/* The completed state is ONE shared component so this panel and every other
+                  surface showing a finished action present it identically. The old bordered
+                  pill plus a right-hand "Completed" column said the same thing twice; the
+                  green check and the green timestamp carry it, and the row beneath says HOW
+                  it was completed — which is the fact an agent could not previously see. */}
+              <div className="mt-2">
+                <CompletedActionLine
+                  label={formatLastActionLabel(lastAction.title)}
+                  completedAtDisplay={formatDueDateTime(lastAction.completedAt, { timeZone: timeZone ?? undefined })}
+                  completedVia={lastAction.completedVia}
+                />
               </div>
             </div>
           )}

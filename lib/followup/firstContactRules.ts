@@ -94,7 +94,14 @@ export function stageAdvanceCancelsPair(fromStage: string, toStage: string): boo
   return !terminal(fromStage) && terminal(toStage)
 }
 
-/** The marker written on the completed action so both Last Action surfaces can say who did it. */
-export const AUTOMATED_CONTACT_ORIGIN = "followup_agent"
+/**
+ * The completion method written on the action the agent never touched.
+ *
+ * Stored in lead_next_actions.completed_via — NOT in `origin`, which records who created the
+ * row. Both Last Action surfaces read it to say who actually made contact.
+ */
+export const AUTOMATED_CONTACT_VIA = "followup_agent"
+/** Completed by a person. The default for every manual path. */
+export const MANUAL_CONTACT_VIA = "manual"
 /** What the agent reads. "Contacted Lead" is true but hides that nobody lifted a finger. */
 export const AUTOMATED_CONTACT_LABEL = "Auto Text Sent"

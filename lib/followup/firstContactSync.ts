@@ -6,7 +6,7 @@ import { resolveWorkHoursFromProfile } from "@/lib/workflow/autoDueDate"
 import { DEFAULT_TIMEZONE } from "@/lib/timezone"
 import {
   decideFirstContactSync,
-  AUTOMATED_CONTACT_ORIGIN,
+  AUTOMATED_CONTACT_VIA,
   type SkipReason,
 } from "./firstContactRules"
 
@@ -76,14 +76,15 @@ export async function syncFirstContactFromAck(opts: {
 
     // THE OPEN CONTACT LEAD ACTION. Completed through the canonical patch (completed +
     // completed_at + status), so the Agenda's overdue query stops matching it — writing only
-    // `completed` is the bug actionCompletion exists to prevent. The origin marker is what lets
-    // both Last Action surfaces say "Auto Text Sent" instead of implying the agent did it.
+    // `completed` is the bug actionCompletion exists to prevent. completed_via records WHO
+    // finished it, which is what lets both Last Action surfaces say "Auto Text Sent" instead of
+    // crediting the agent. It is written from here, the one place that knows.
     let completedActionId: number | string | null = null
     const openId = await resolveOpenActionId(supabaseAdmin, lead!.id, "contact_lead")
     if (openId != null) {
       const { error: completeErr } = await supabaseAdmin
         .from("lead_next_actions")
-        .update({ ...completedPatch(opts.sentAt), origin: AUTOMATED_CONTACT_ORIGIN })
+        .update(completedPatch(opts.sentAt, AUTOMATED_CONTACT_VIA))
         .eq("id", openId)
       if (!completeErr) completedActionId = openId
       else console.error("[first-contact/auto] complete contact_lead failed:", completeErr.message)

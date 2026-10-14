@@ -17,13 +17,33 @@
  */
 import type { SupabaseClient } from "@supabase/supabase-js"
 
-/** The ONLY correct shape for marking a next action done. */
-export function completedPatch(now: string = new Date().toISOString()): {
+/**
+ * HOW an action was completed.
+ *
+ * `origin` records who CREATED the row ("workflow", "custom") and says nothing about who
+ * finished it, so completion provenance needed its own column. NULL is reserved for rows
+ * completed before it existed — legacy, and never guessed.
+ */
+export type CompletedVia = "manual" | "followup_agent"
+
+/**
+ * The ONLY correct shape for marking a next action done.
+ *
+ * `via` defaults to "manual" because every caller but one is a person clicking something; the
+ * Follow-Up Agent's acknowledged-send path passes "followup_agent" explicitly. The method is
+ * recorded from the CALL SITE — never inferred later from the stage, the wording, or the
+ * timestamp, all of which look identical whoever sent the message.
+ */
+export function completedPatch(
+  now: string = new Date().toISOString(),
+  via: CompletedVia = "manual",
+): {
   completed: true
   completed_at: string
   status: "completed"
+  completed_via: CompletedVia
 } {
-  return { completed: true, completed_at: now, status: "completed" }
+  return { completed: true, completed_at: now, status: "completed", completed_via: via }
 }
 
 /** Mark one action complete by id. Returns false when nothing was updated. */

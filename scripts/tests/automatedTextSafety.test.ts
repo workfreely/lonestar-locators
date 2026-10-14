@@ -153,12 +153,37 @@ async function main() {
       [{ id: "i1", lead_id: 1, rendered_body: "same text", message_guid: null }],
     )[0].provenance === "manual_outbound",
   )
+  // DELIBERATELY NARROWED (Oct 2026). This read "inbound is always client_inbound regardless of
+  // intents". It was a conservative default that production proved wrong in one direction:
+  // Apple Messages records the RECEIVED copy of a self-sent message with is_from_me = 0, so an
+  // agent testing on their own number had every automated send ingested as a client reply — and
+  // a reply stops a full-gated run. All 60 rows on that number were affected; all 278 outbound
+  // rows across real renter threads were already correct.
+  //
+  // The invariant that MATTERS is kept whole below: a message with no matching intent is always
+  // inbound. Only a message we can PROVE is our own — our recorded guid, or a byte-identical
+  // body on an unclaimed 'sent' intent for that same lead — is reclassified. A renter would have
+  // to retype our exact text, for the right lead, while the intent was unclaimed.
   check(
-    "inbound is always client_inbound regardless of intents",
+    "an inbound message with no matching intent is ALWAYS client_inbound",
+    classifyProvenance(
+      [{ id: "m", guid: "g", lead_id: 1, is_from_me: false, body: "a real reply", provenance: null, outbound_intent_id: null }],
+      [{ id: "i1", lead_id: 1, rendered_body: "something we sent", message_guid: null }],
+    )[0].provenance === "client_inbound",
+  )
+  check(
+    "a different lead's intent never reclassifies an inbound message",
+    classifyProvenance(
+      [{ id: "m", guid: "g", lead_id: 2, is_from_me: false, body: "same text", provenance: null, outbound_intent_id: null }],
+      [{ id: "i1", lead_id: 1, rendered_body: "same text", message_guid: null }],
+    )[0].provenance === "client_inbound",
+  )
+  check(
+    "our OWN send, flagged inbound by a self-conversation, is recognised as ours",
     classifyProvenance(
       [{ id: "m", guid: "g", lead_id: 1, is_from_me: false, body: "same text", provenance: null, outbound_intent_id: null }],
       [{ id: "i1", lead_id: 1, rendered_body: "same text", message_guid: null }],
-    )[0].provenance === "client_inbound",
+    )[0].provenance === "automated_outbound",
   )
 
   // ─── PROOF 2 — an ordinary reply still allows Text 2 ───────────────────────

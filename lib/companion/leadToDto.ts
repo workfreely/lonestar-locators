@@ -1,4 +1,4 @@
-import { AUTOMATED_CONTACT_ORIGIN, AUTOMATED_CONTACT_LABEL } from "@/lib/followup/firstContactRules"
+import { AUTOMATED_CONTACT_VIA, AUTOMATED_CONTACT_LABEL } from "@/lib/followup/firstContactRules"
 import type { LeadSummaryDTO, NextActionDTO, FavoriteDTO, RecommendationDTO, FollowUpOverrides, ClientHistoryEntryDTO } from "@bc/companion-shared"
 import { DEFAULT_TIMEZONE } from "@/lib/timezone"
 import { visibleRecommendations, favoriteMoveBlock } from "@/lib/leads/propertyCollections"
@@ -173,25 +173,39 @@ function deriveLastAction(
   lead: any,
   nextActions: any[] = [],
   latestOutreach: LatestOutreach = null,
-): { title: string; completedAt: string | null; propertyName: string | null } | null {
-  const candidates: { title: string; completedAt: string; propertyName: string | null }[] = []
+): { title: string; completedAt: string | null; propertyName: string | null; completedVia: string | null } | null {
+  const candidates: { title: string; completedAt: string; propertyName: string | null; completedVia: string | null }[] = []
 
   const firstContact = str(lead.first_text_sent_at)
   if (firstContact) {
     // WHO reached them. The Follow-Up Agent marks the contact_lead row it completed, so an
     // automated introduction reads "Auto Text Sent" rather than implying the agent did it.
+    const contactVia =
+      (nextActions || []).find(
+        (a: any) =>
+          String(a.lead_id) === String(lead.id) &&
+          String(a.action_key ?? "").toLowerCase() === "contact_lead" &&
+          (a.completed === true || a.status === "completed"),
+      )?.completed_via ?? null
     const auto = (nextActions || []).some(
       (a: any) =>
         String(a.lead_id) === String(lead.id) &&
         String(a.action_key ?? "").toLowerCase() === "contact_lead" &&
         (a.completed === true || a.status === "completed") &&
-        String(a.origin ?? "") === AUTOMATED_CONTACT_ORIGIN,
+        String(a.completed_via ?? "") === AUTOMATED_CONTACT_VIA,
     )
-    candidates.push({ title: auto ? AUTOMATED_CONTACT_LABEL : "Contact Lead", completedAt: firstContact, propertyName: null })
+    candidates.push({
+      title: auto ? AUTOMATED_CONTACT_LABEL : "Contact Lead",
+      completedAt: firstContact,
+      propertyName: null,
+      // Carried to Companion so it renders the SAME completed state the CRM does — the green
+      // check, the timestamp, and who actually made contact. Null for a legacy row.
+      completedVia: contactVia,
+    })
   }
 
   const outreachTitle = outreachLastActionTitle(lead, latestOutreach)
-  if (outreachTitle && latestOutreach) candidates.push({ title: outreachTitle, completedAt: latestOutreach.occurredAt, propertyName: null })
+  if (outreachTitle && latestOutreach) candidates.push({ title: outreachTitle, completedAt: latestOutreach.occurredAt, propertyName: null, completedVia: null })
 
   for (const a of nextActions || []) {
     if (String(a.lead_id) !== String(lead.id)) continue
@@ -203,10 +217,10 @@ function deriveLastAction(
     // "Tour Scheduled · The Foundry". Non-property actions have none (stays null).
     if (done && at && title) {
       const label =
-        String(a.action_key ?? "").toLowerCase() === "contact_lead" && String(a.origin ?? "") === AUTOMATED_CONTACT_ORIGIN
+        String(a.action_key ?? "").toLowerCase() === "contact_lead" && String(a.completed_via ?? "") === AUTOMATED_CONTACT_VIA
           ? AUTOMATED_CONTACT_LABEL
           : title
-      candidates.push({ title: label, completedAt: at, propertyName: str(a.property_name) })
+      candidates.push({ title: label, completedAt: at, propertyName: str(a.property_name), completedVia: str(a.completed_via) })
     }
   }
 
@@ -216,7 +230,7 @@ function deriveLastAction(
   // invented action. If created_at is somehow absent, stay null (can't invent).
   if (candidates.length === 0) {
     const createdAt = str(lead.created_at)
-    return createdAt ? { title: "Lead Created", completedAt: createdAt, propertyName: null } : null
+    return createdAt ? { title: "Lead Created", completedAt: createdAt, propertyName: null, completedVia: null } : null
   }
   candidates.sort((x, y) => (x.completedAt < y.completedAt ? 1 : x.completedAt > y.completedAt ? -1 : 0))
   return candidates[0]

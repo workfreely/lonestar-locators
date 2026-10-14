@@ -21,11 +21,12 @@ import {
   stageAdvanceCancelsPair,
   FIRST_CONTACT_SEQUENCE,
   FIRST_CONTACT_STEP,
-  AUTOMATED_CONTACT_ORIGIN,
+  AUTOMATED_CONTACT_VIA,
   AUTOMATED_CONTACT_LABEL,
 } from "@/lib/followup/firstContactRules"
 import { formatLastActionLabel, formatLastActionLabelFor } from "@/lib/leads/workflowActionLabels"
 import { completedPatch } from "@/lib/leads/actionCompletion"
+import { classifyProvenance } from "@/lib/companion/provenance"
 import { applicableSequence } from "@/lib/followup/sequences"
 import { supersedeTo, inboundStopsRun } from "@/lib/followup/reconcile"
 
@@ -78,10 +79,10 @@ ok("everything after it runs only for the winner", /if \(!advanced \|\| advanced
 
 // ── THE OPEN CONTACT LEAD ACTION ────────────────────────────────────────────────────────────
 console.log("\nThe stale overdue reminder")
-ok("it is completed through the canonical patch", /completedPatch\(opts\.sentAt\)/.test(sync))
+ok("it is completed through the canonical patch", /completedPatch\(opts\.sentAt, AUTOMATED_CONTACT_VIA\)/.test(sync))
 // Writing only `completed` is the exact bug actionCompletion exists to prevent: the Agenda's
 // overdue query filters on status, so a row completed without it stays overdue forever.
-const patch = completedPatch("2026-10-14T14:00:47.000Z")
+const patch = completedPatch("2026-10-14T14:00:47.000Z", "followup_agent")
 ok("which sets status too, so the Agenda stops matching it", patch.status === "completed" && patch.completed === true && !!patch.completed_at)
 ok("the right row is resolved server-side, not from React state", /resolveOpenActionId\(supabaseAdmin, lead!\.id, "contact_lead"\)/.test(sync))
 
@@ -115,13 +116,13 @@ ok("a reply DOES stop a full-gated step", inboundStopsRun({ sequenceKey: "list_s
 
 // ── LAST ACTION SAYS WHO ────────────────────────────────────────────────────────────────────
 console.log("\nLast Action")
-ok("an automated contact reads 'Auto Text Sent'", formatLastActionLabelFor("Contact Lead", AUTOMATED_CONTACT_ORIGIN) === AUTOMATED_CONTACT_LABEL)
+ok("an automated contact reads 'Auto Text Sent'", formatLastActionLabelFor("Contact Lead", AUTOMATED_CONTACT_VIA) === AUTOMATED_CONTACT_LABEL)
 ok("a manual one is unchanged", formatLastActionLabelFor("Contact Lead", "workflow") === formatLastActionLabel("Contact Lead"))
 ok("and so is every other action", formatLastActionLabelFor("Build List", null) === formatLastActionLabel("Build List"))
-ok("the marker is carried on the completed row", /origin: AUTOMATED_CONTACT_ORIGIN/.test(sync))
+ok("the method is written on the completed row", /completedPatch\(opts\.sentAt, AUTOMATED_CONTACT_VIA\)/.test(sync))
 for (const [file, what] of [["components/crm/LeadPanel.tsx", "the CRM panel"], ["lib/companion/leadToDto.ts", "Beast Companion"]] as const) {
   const src = readFileSync(file, "utf8")
-  ok(`${what} shows the automated label`, src.includes("AUTOMATED_CONTACT_LABEL") && src.includes("AUTOMATED_CONTACT_ORIGIN"))
+  ok(`${what} shows the automated label`, src.includes("AUTOMATED_CONTACT_LABEL") && src.includes("AUTOMATED_CONTACT_VIA"))
 }
 
 // ── WIRED TO THE ACKNOWLEDGMENT, AND ONLY THERE ─────────────────────────────────────────────
@@ -133,6 +134,96 @@ ok("a failed ack never reaches it", !/status === "failed"[\s\S]{0,120}syncFirstC
 // NEGATIVE CONTROL: the applier must actually be called, or every assertion above is theatre.
 ok("the ack route really calls it", /await syncFirstContactFromAck\(\{ intentId, workspaceId, sentAt: localSentAt \}\)/.test(ack))
 ok("the applier never throws into the ack", /catch \(e\)[\s\S]{0,200}return \{ synced: false, reason: "error" \}/.test(sync))
+
+
+// ── MANUAL vs AUTOMATED, PERSISTED ──────────────────────────────────────────────────────────
+// The method is recorded at the CALL SITE and stored; it is never re-derived later from the
+// stage, the message wording or the timestamp, all of which look identical whoever sent it.
+console.log("\nHow it was completed")
+const manual = completedPatch("2026-10-14T14:04:00.000Z")
+ok("a person's completion defaults to manual", manual.completed_via === "manual")
+ok("the automated path says so explicitly", completedPatch("x", "followup_agent").completed_via === "followup_agent")
+ok("both still write the full canonical shape", manual.completed === true && manual.status === "completed" && !!manual.completed_at)
+ok("manual reads 'Contacted Lead'", formatLastActionLabelFor("Contact Lead", "manual") === "Contacted Lead")
+ok("automated reads 'Auto Text Sent'", formatLastActionLabelFor("Contact Lead", "followup_agent") === AUTOMATED_CONTACT_LABEL)
+// LEGACY: a row completed before completed_via existed has no provenance, and guessing one
+// would be worse than silence.
+ok("a legacy row keeps its accurate existing label", formatLastActionLabelFor("Contact Lead", null) === formatLastActionLabel("Contact Lead"))
+ok("and shows no Manual/Automated indicator at all", (() => {
+  const ui = readFileSync("components/crm/CompletedActionLine.tsx", "utf8")
+  return /const known = completedVia === "manual" \|\| automated/.test(ui) && /\{known && \(/.test(ui)
+})())
+ok("the column refuses anything outside the two words", (() => {
+  const mig = readFileSync("supabase/migrations/20261018000000_action_completed_via.sql", "utf8")
+  return /completed_via in \('manual', 'followup_agent'\)/.test(mig) && /completed_via is null or/.test(mig)
+})())
+ok("origin is left to mean what it always meant — who CREATED the row", !/origin: /.test(sync))
+
+// ── THE APPROVED LAST ACTION PRESENTATION ───────────────────────────────────────────────────
+console.log("\nLast Action presentation")
+const line = readFileSync("components/crm/CompletedActionLine.tsx", "utf8")
+ok("a green check-circle, inline with the title", /<CheckCircle \/>[\s\S]{0,160}\{label\}/.test(line) && /text-emerald-600/.test(line))
+ok("the completed timestamp is green", /Completed:[\s\S]{0,160}text-emerald-600/.test(line))
+ok("a person glyph for manual, a bot glyph for automated", /automated \? <BotGlyph \/> : <PersonGlyph \/>/.test(line))
+ok("the wording is Manually completed / Automated", /"Automated" : "Manually completed"/.test(line))
+ok("no arrow between the sections", !/→|&rarr;|ArrowRight/.test(line))
+const panel = readFileSync("components/crm/LeadPanel.tsx", "utf8")
+ok("the CRM renders the shared component", /<CompletedActionLine/.test(panel))
+ok("the divider and the blue Next Action button are untouched", /my-3\.5 border-t border-\[var\(--crm-border-soft\)\]/.test(panel) && /Next Action<\/span>/.test(panel))
+ok("Beast Companion receives the same completion method", readFileSync("lib/companion/leadToDto.ts", "utf8").includes("completedVia: contactVia"))
+
+// ── OUTBOUND ATTRIBUTION IN A SELF-CONVERSATION ─────────────────────────────────────────────
+// chat.db reports is_from_me = 0 for the received copy of a self-sent message, so an agent
+// testing on their own number had every outbound text ingested as a client reply. Corrected by
+// IDENTITY — the guid we recorded, or a byte-identical body on an unclaimed 'sent' intent for
+// that lead — never by the phone number.
+console.log("\nOutbound attribution")
+const t1Body = "Hey Testy it's Jay! I got your form for a 1 bed high rise move in October."
+const intentRow = { id: "i1", lead_id: 91, rendered_body: t1Body, message_guid: null }
+const selfSent = classifyProvenance(
+  [{ id: "m1", guid: "g1", lead_id: 91, is_from_me: false, body: t1Body, provenance: null, outbound_intent_id: null }],
+  [intentRow],
+)
+ok("our own send is recognised as outbound despite is_from_me = false", selfSent[0].provenance === "automated_outbound")
+ok("and linked to the intent that produced it", selfSent[0].outboundIntentId === "i1")
+ok("on body evidence, not the phone number", selfSent[0].basis === "body_correlation")
+const byGuid = classifyProvenance(
+  [{ id: "m1", guid: "G-REAL", lead_id: 91, is_from_me: false, body: "rewritten by Messages", provenance: null, outbound_intent_id: null }],
+  [{ id: "i1", lead_id: 91, rendered_body: t1Body, message_guid: "G-REAL" }],
+)
+ok("a recorded guid is authoritative on its own", byGuid[0].provenance === "automated_outbound" && byGuid[0].basis === "guid_match")
+// A GENUINE REPLY MUST SURVIVE. No intent matches it, so it stays inbound.
+const realReply = classifyProvenance(
+  [{ id: "m2", guid: "g2", lead_id: 91, is_from_me: false, body: "Yes downtown works", provenance: null, outbound_intent_id: null }],
+  [intentRow],
+)
+ok("a genuine renter reply is still inbound", realReply[0].provenance === "client_inbound" && realReply[0].basis === "inbound")
+ok("and is never linked to an intent", realReply[0].outboundIntentId === null)
+const otherLead = classifyProvenance(
+  [{ id: "m3", guid: "g3", lead_id: 57, is_from_me: false, body: t1Body, provenance: null, outbound_intent_id: null }],
+  [intentRow],
+)
+ok("an identical body on ANOTHER lead is not claimed", otherLead[0].provenance === "client_inbound")
+// ONE-TO-ONE: two identical messages cannot both claim one intent.
+const twice = classifyProvenance(
+  [
+    { id: "a", guid: null, lead_id: 91, is_from_me: false, body: t1Body, provenance: null, outbound_intent_id: null },
+    { id: "b", guid: null, lead_id: 91, is_from_me: false, body: t1Body, provenance: null, outbound_intent_id: null },
+  ],
+  [intentRow],
+)
+ok("a duplicate ingestion claims the intent once", twice.filter((d) => d.outboundIntentId === "i1").length === 1)
+ok("and the unclaimed copy stays inbound rather than inventing a link", twice.some((d) => d.provenance === "client_inbound"))
+// Real renter conversations were already correct and must stay correct.
+const renterOutbound = classifyProvenance(
+  [{ id: "m4", guid: "g4", lead_id: 90, is_from_me: true, body: "I just called you!", provenance: null, outbound_intent_id: null }],
+  [],
+)
+ok("a manual outbound with no intent is still manual_outbound", renterOutbound[0].provenance === "manual_outbound" && renterOutbound[0].basis === "no_evidence")
+ok("an already-classified row is returned unchanged (idempotent re-sync)", classifyProvenance(
+  [{ id: "m5", guid: "g5", lead_id: 91, is_from_me: false, body: t1Body, provenance: "client_inbound", outbound_intent_id: null }],
+  [intentRow],
+)[0].provenance === "client_inbound")
 
 console.log(`\n${pass} passed, ${fail} failed\n`)
 process.exit(fail === 0 ? 0 : 1)
