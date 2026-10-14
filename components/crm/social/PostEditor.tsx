@@ -1338,7 +1338,7 @@ export default function PostEditor({ postId, from }: { postId: string; from?: st
           {/* Property Research PANEL — full editor width, directly beneath the
               Property/Type/Market row whose first cell holds its trigger. */}
           {researchOpen && !!placeId && sourceContentId && (
-            <PropertyResearch sourceContentId={sourceContentId} />
+            <PropertyResearch sourceContentId={sourceContentId} placeId={placeId} />
           )}
 
           {/* Row 2 — ONE horizontal row: Amenities (widest — chips stay one line) | Special (compact)

@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react"
 import AmenitySelect from "@/components/crm/social/AmenitySelect"
+import VerifiedPropertyDetails from "@/components/crm/social/VerifiedPropertyDetails"
 import { parseAmenities, serializeAmenities } from "@/lib/social/amenities"
 
 /**
@@ -57,7 +58,7 @@ function todayLocalIso(): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`
 }
 
-export default function PropertyResearch({ sourceContentId }: { sourceContentId: string }) {
+export default function PropertyResearch({ sourceContentId, placeId }: { sourceContentId: string; placeId?: string | null }) {
   // Mounted only while expanded (PostEditor owns the toggle), so "open" is true
   // for this component's whole life.
   const open = true
@@ -265,6 +266,11 @@ export default function PropertyResearch({ sourceContentId }: { sourceContentId:
                 {state === "saving" ? "Saving…" : "Save Property Research"}
               </button>
             </div>
+
+            {/* The REUSABLE record for this building, shared by every video of it. Read-only,
+                and deliberately BELOW the per-video fields above: those describe THIS clip,
+                this describes the property. Nothing here flows into marketing on its own. */}
+            <VerifiedPropertyDetails placeId={placeId} />
           </div>
       </div>
     </div>
