@@ -9,6 +9,8 @@ import EditorToolbar from "./EditorToolbar"
 import SettingsPanel from "./SettingsPanel"
 import PreviewFrame from "../preview/PreviewFrame"
 import PreviewSkeleton from "../preview/PreviewSkeleton"
+import ThankYouPreview from "../preview/ThankYouPreview"
+import type { Tab } from "./SettingsPanel"
 import SmartLeadForm from "../form/SmartLeadForm"
 import { displayFullName } from "@bc/companion-shared"
 
@@ -39,6 +41,14 @@ export default function SmartLeadFormEditor() {
   // never written into the saved form config, so a Profile update shows here on
   // reload without re-uploading anything.
   const [profilePhotoUrl, setProfilePhotoUrl] = useState<string | null>(null)
+  // Which settings tab is open. The ONLY thing it changes is which preview renders on the left;
+  // the panels, their order, the toolbar and Save are untouched.
+  const [activeTab, setActiveTab] = useState<Tab>("branding")
+  // Agent identity for the Thank You preview — the same profile row the editor already loads, so
+  // no extra query. Phone is read for the signature; it is never submitted anywhere.
+  const [agentIdentity, setAgentIdentity] = useState<{ name: string; brokerage: string; phone: string | null }>({
+    name: "", brokerage: "", phone: null,
+  })
   // Canonical profiles.license_state — decides whether the Texas-only TREC
   // disclosure fields are offered at all.
   const [licenseState, setLicenseState] = useState<string | null>(null)
@@ -102,6 +112,7 @@ export default function SmartLeadFormEditor() {
             legalFirst: prof?.first_name,
             legalLast: prof?.last_name,
           }) || (prof?.preferred_name ?? "").trim()
+        setAgentIdentity({ name, brokerage: (prof?.brokerage ?? "").trim(), phone: prof?.phone_number ?? null })
         setConfig(
           buildInitialSmartFormConfig({
             agentName: name,
@@ -179,10 +190,20 @@ export default function SmartLeadFormEditor() {
               it unreachably — the frame is shrink-0 to keep the scale accurate. */}
           <div className="flex flex-1 items-start justify-center overflow-auto p-8">
           <PreviewFrame>
-            {previewConfig ? (
-              <SmartLeadForm config={previewConfig} serviceAreaSlugs={serviceAreaSlugs} />
-            ) : (
+            {!previewConfig ? (
               <PreviewSkeleton />
+            ) : activeTab === "thankyou" ? (
+              /* Same preview frame, same scaling, same responsive rules — only the page inside
+                 changes. Switching to any other tab restores the form preview below. */
+              <ThankYouPreview
+                config={previewConfig}
+                agentName={agentIdentity.name}
+                brokerage={agentIdentity.brokerage}
+                photoUrl={profilePhotoUrl}
+                agentPhone={agentIdentity.phone}
+              />
+            ) : (
+              <SmartLeadForm config={previewConfig} serviceAreaSlugs={serviceAreaSlugs} />
             )}
           </PreviewFrame>
         </div>
@@ -191,7 +212,7 @@ export default function SmartLeadFormEditor() {
           {/* The panel edits the real config, so it waits for one. The column
               keeps its width and border, so nothing shifts when it appears. */}
           {config && (
-            <SettingsPanel config={config} onChange={updateConfig} slug={slug} licenseState={licenseState} serviceAreaSlugs={serviceAreaSlugs} />
+            <SettingsPanel config={config} onChange={updateConfig} slug={slug} licenseState={licenseState} serviceAreaSlugs={serviceAreaSlugs} onTabChange={setActiveTab} />
           )}
         </div>
       </div>

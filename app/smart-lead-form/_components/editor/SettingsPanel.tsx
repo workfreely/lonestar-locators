@@ -8,7 +8,7 @@ import FieldsPanel from "./panels/FieldsPanel"
 import ThankYouPanel from "./panels/ThankYouPanel"
 import SharePanel from "./panels/SharePanel"
 
-type Tab = "branding" | "content" | "fields" | "thankyou" | "share"
+export type Tab = "branding" | "content" | "fields" | "thankyou" | "share"
 type Updater = (updater: (prev: SmartLeadFormConfig) => SmartLeadFormConfig) => void
 
 // Ordered to match the natural build workflow: brand the page, write the
@@ -30,19 +30,27 @@ export default function SettingsPanel({
   config,
   onChange,
   slug,
+  onTabChange,
   licenseState,
   serviceAreaSlugs,
 }: {
   config: SmartLeadFormConfig
   onChange: Updater
   slug: string | null;
+  /** Reports the active tab so the editor can switch the preview. Optional: omitting it leaves
+   *  every existing behaviour exactly as before. */
+  onTabChange?: (tab: Tab) => void;
   /** profiles.license_state — gates the Texas-only disclosure fields. */
   licenseState?: string | null
   /** Workspace market slugs (canonical Profile source) — Content shows these
    *  read-only for Service Areas. */
   serviceAreaSlugs?: string[]
 }) {
-  const [tab, setTab] = useState<Tab>("branding")
+  const [tab, setTabState] = useState<Tab>("branding")
+  const setTab = (next: Tab) => {
+    setTabState(next)
+    onTabChange?.(next)
+  }
 
   return (
     <div className="flex h-full flex-col">

@@ -1,6 +1,6 @@
 import { cityToThemeSlug } from "@/lib/markets/cityTheme"
 import { themeImageUrl } from "@/lib/themes/config"
-import { SKYLINE_PATH } from "./skyline"
+import { SKYLINE_PATH } from "./skylinePath"
 
 // THE canonical client-facing hero image resolver, shared by the post-submission
 // Thank You page and the client Recommendations (/r) page. It resolves the

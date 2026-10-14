@@ -19,7 +19,10 @@ import path from "node:path"
 // decode WebP — an OG image built on a .webp fails at request time with an
 // opaque "failed to pipe response". One format both surfaces can read keeps
 // this a single-file swap.
-export const SKYLINE_PATH = "/locator-beast/brand/recommendations-skyline.jpg"
+// Declared in ./skylinePath so client components can import it without dragging node:fs in.
+// Re-exported here so every existing `from "./skyline"` import keeps working unchanged.
+export { SKYLINE_PATH } from "./skylinePath"
+import { SKYLINE_PATH } from "./skylinePath"
 
 /**
  * The same file as a data URI, for the OG image.
