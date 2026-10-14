@@ -17,6 +17,7 @@ import { StarRating } from "@/components/crm/StarRating"
 import { canonicalPropertyKey, selectMatchReasonLines, matchScoreTone, normalizeShortSpecial, isSpecialCurrent, evaluateLocatorCommission } from "@bc/companion-shared"
 import { createPortal } from "react-dom"
 import { searchProperties } from "@/lib/propertyExplorer/propertySearch"
+import { resolveShortlistIds, applyShortlist, shortlistStillValid, type MapFilterMode } from "@/lib/propertyExplorer/beastShortlist"
 
 /**
  * Beast Property Explorer — the Map workspace.
@@ -138,6 +139,10 @@ export default function BeastPropertyExplorer({ serviceAreaSlugs, activeClient, 
   const markerByIdRef = useRef<Map<string, PropertyMarker>>(new Map())
   // The current ranked suggestion order, mirrored into a ref for the handler.
   const suggestedIdsRef = useRef<string[]>([])
+  // The placeIds actually PLOTTED, in marker order. The halo pass's no-evidence
+  // fallback is "the first ten markers", so the shortlist needs the same ordered
+  // list to reproduce that exact set as ids rather than as marker objects.
+  const plottedIdsRef = useRef<string[]>([])
 
   // ── "Unleash the Beast" VISUAL PROTOTYPE ──────────────────────────────────
   // Front-end only: no query, no AI, no Supabase, no Recommendations write. It
@@ -175,6 +180,24 @@ export default function BeastPropertyExplorer({ serviceAreaSlugs, activeClient, 
   const [status, setStatus] = useState<Status>("loading")
   const [beastPhase, setBeastPhase] = useState<"idle" | "scanning" | "matched">("idle")
   const [beastMatchCount, setBeastMatchCount] = useState(0)
+  // ── THE SHORTLIST, AS IDENTITY ───────────────────────────────────────────
+  // The placeIds of the most recent Unleash run. Previously this existed only as
+  // opacity on live marker objects, so any marker rebuild — and the Dashboard
+  // rebuilds them on every one of ITS renders, including the one that follows
+  // adding a recommendation — silently restored the whole surrounding inventory
+  // to full brightness. Held in state, it survives the rebuild. null = no run yet.
+  const [beastShortlist, setBeastShortlist] = useState<string[] | null>(null)
+  const [mapFilter, setMapFilter] = useState<MapFilterMode>("all")
+  // Whose shortlist it is. A different client (or market) must never be shown the
+  // previous one's eight properties.
+  const shortlistContextRef = useRef<{ clientId: string | number | null; marketSlug: string | null }>({
+    clientId: null,
+    marketSlug: null,
+  })
+  // runHighlight is a zero-dependency callback that reads refs, so the context it
+  // stamps onto a shortlist has to arrive the same way.
+  const activeClientIdRef = useRef<string | number | null>(null)
+  const marketSlugRef = useRef<string | null>(null)
   // Screen-pixel origins for the sonar sweeps — one per resolved desired-area
   // center, so 2 areas draw 2 simultaneous sweeps and 3 draw 3. Empty → the
   // original fixed viewport-center sweep (no-client / no resolved area).
@@ -815,6 +838,9 @@ export default function BeastPropertyExplorer({ serviceAreaSlugs, activeClient, 
     setBeastPhase("idle")
     setBeastMatchCount(0)
     setRadarOrigins([])
+    // The shortlist indexes the market's results, which were just discarded.
+    setBeastShortlist(null)
+    setMapFilter("all")
     for (const t of beastTimersRef.current) window.clearTimeout(t)
     beastTimersRef.current = []
     for (const h of beastHalosRef.current) h.setMap(null)
@@ -906,8 +932,17 @@ export default function BeastPropertyExplorer({ serviceAreaSlugs, activeClient, 
       })
       beastHalosRef.current.push(halo)
     }
+    // THE SAME CHOICE, AS IDS. resolveShortlistIds reproduces exactly what `matches`
+    // above selected — ranked suggestions, else the first ten plotted — so the filter
+    // and the halos can never disagree about which properties are "the matches".
+    const shortlist = resolveShortlistIds(suggestedIdsRef.current, plottedIdsRef.current)
+    shortlistContextRef.current = { clientId: activeClientIdRef.current, marketSlug: marketSlugRef.current }
+    setBeastShortlist(shortlist)
+    // A completed run selects Beast Matches automatically — the agent asked for the
+    // matches, so the map shows the matches.
+    setMapFilter("beast")
     beastPhaseRef.current = "matched"
-    setBeastMatchCount(matches.length)
+    setBeastMatchCount(shortlist.length)
     setBeastPhase("matched")
   }, [])
 
@@ -921,8 +956,12 @@ export default function BeastPropertyExplorer({ serviceAreaSlugs, activeClient, 
     const g = map.getCenter()
     if (!hasAreas && !g) return
 
-    // Restartable: a click mid-run rewinds and starts over.
+    // Restartable: a click mid-run rewinds and starts over. The previous run's
+    // shortlist goes with it, and the map widens to All Properties for the search
+    // itself — the new shortlist is applied when the halo pass settles.
     beastReset()
+    setBeastShortlist(null)
+    setMapFilter("all")
     beastScanStartRef.current = typeof performance !== "undefined" ? performance.now() : 0
     beastPhaseRef.current = "scanning"
     setBeastPhase("scanning")
@@ -999,12 +1038,33 @@ export default function BeastPropertyExplorer({ serviceAreaSlugs, activeClient, 
     return () => window.removeEventListener("lb-voice-explorer", onVoice as EventListener)
   }, [serviceAreaSlugs, unleashTheBeast])
 
+  // ── The shortlist belongs to ONE client in ONE market ─────────────────────
+  // Mirrors the live context for runHighlight, and — the point of it — discards a
+  // shortlist the moment the map is showing someone else. Without this, selecting a
+  // different client would leave the previous client's eight properties filtering
+  // the map, which is both wrong and a privacy problem.
+  useEffect(() => {
+    activeClientIdRef.current = activeClient?.id ?? null
+    marketSlugRef.current = marketSlug ?? null
+    if (beastShortlist === null) return
+    if (shortlistStillValid(shortlistContextRef.current, { clientId: activeClient?.id ?? null, marketSlug: marketSlug ?? null })) return
+    setBeastShortlist(null)
+    setMapFilter("all")
+  }, [activeClient?.id, marketSlug, beastShortlist])
+
   // Markers = the substring filter UNIONED with the name-search matches AND the
   // current selection, so a name-searched / picker-clicked / selected property is
   // ALWAYS marker-visible while it is in `results` — never hidden by the live filter.
-  const visible = useMemo(
+  const baseVisible = useMemo(
     () => computeVisible(results, query, nameMatchIds, selected?.placeId ?? null),
     [results, query, nameMatchIds, selected],
+  )
+  // BEAST MATCHES narrows that to the active shortlist; ALL PROPERTIES returns the
+  // same array by reference, so the toggle costs nothing when it is off. Switching
+  // back needs no new search: the ids and the results are both still here.
+  const visible = useMemo(
+    () => applyShortlist(baseVisible, beastShortlist, mapFilter, selected?.placeId ?? null),
+    [baseVisible, beastShortlist, mapFilter, selected],
   )
 
   // Report upward AFTER render, never during — this only observes `visible`.
@@ -1029,6 +1089,7 @@ export default function BeastPropertyExplorer({ serviceAreaSlugs, activeClient, 
     const map = mapRef.current
     if (!map) return
     clearMarkers()
+    plottedIdsRef.current = []
     // A marker REQUIRES a real point. Google's own filter above already drops a
     // place with no location, so this changes nothing for Places today — it is
     // the guarantee that holds when a provider with partial coordinates
@@ -1080,6 +1141,7 @@ export default function BeastPropertyExplorer({ serviceAreaSlugs, activeClient, 
       })
       markersRef.current.push(marker)
       markerByIdRef.current.set(p.placeId, marker)
+      plottedIdsRef.current.push(p.placeId)
     }
   }, [visible, suggestions, clearMarkers, onSelectProperty])
 
@@ -1228,6 +1290,35 @@ export default function BeastPropertyExplorer({ serviceAreaSlugs, activeClient, 
     </button>
   )
 
+  // ── Map view: Beast Matches / All Properties ──────────────────────────────
+  // Appears only once a run has produced a shortlist — before that there is
+  // nothing to filter and the control would be a toggle between two identical
+  // views. Switching is pure state: no search, no AI call, no re-ranking.
+  const mapFilterToggle =
+    beastShortlist !== null ? (
+      <div
+        role="group"
+        aria-label="Map view"
+        className="pointer-events-auto inline-flex items-center rounded-full border border-[rgba(255,255,255,0.16)] bg-[#10131d] p-[3px] shadow-[0_4px_16px_rgba(0,0,0,0.5)]"
+      >
+        {([["beast", "Beast Matches"], ["all", "All Properties"]] as const).map(([mode, label]) => (
+          <button
+            key={mode}
+            type="button"
+            aria-pressed={mapFilter === mode}
+            onClick={() => setMapFilter(mode)}
+            className={`rounded-full px-3 py-1.5 text-[12.5px] font-semibold whitespace-nowrap transition-colors ${
+              mapFilter === mode
+                ? "bg-[#2f6bff] text-white"
+                : "text-[#aab3c5] hover:text-[#f4f6fb]"
+            }`}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+    ) : null
+
   return (
     <div className="relative h-full w-full">
       <div ref={hostRef} className="h-full w-full" />
@@ -1337,10 +1428,17 @@ export default function BeastPropertyExplorer({ serviceAreaSlugs, activeClient, 
           original centered position. Same element, same handler, same styling —
           only where it is mounted changes. */}
       {status !== "loading" && (actionsHost
-        ? createPortal(searchAreaButton, actionsHost)
+        ? createPortal(
+            <>
+              {searchAreaButton}
+              {mapFilterToggle}
+            </>,
+            actionsHost,
+          )
         : (
-        <div className="pointer-events-none absolute inset-x-0 top-16 flex justify-center">
+        <div className="pointer-events-none absolute inset-x-0 top-16 flex justify-center gap-2">
           {searchAreaButton}
+          {mapFilterToggle}
         </div>
       ))}
 
