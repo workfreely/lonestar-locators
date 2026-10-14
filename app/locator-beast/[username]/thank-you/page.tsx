@@ -153,7 +153,7 @@ export default async function SmartLeadFormThankYouPage({
 
   const Timeline = () => (
     <div>
-      <h2 className="text-left text-[22px] font-extrabold tracking-[-0.01em] text-[#0e2545] sm:text-[24px]">What Happens Next</h2>
+      <h2 className="text-left text-[26px] font-extrabold tracking-[-0.01em] text-[#0e2545] sm:text-[24px]">What Happens Next</h2>
       <ol className="mt-6">
         {steps.map((step, i) => {
           const isLast = i === steps.length - 1
@@ -179,9 +179,9 @@ export default async function SmartLeadFormThankYouPage({
               <div className="min-w-0 pt-1.5">
                 {step.done ? (
                   <div className="flex flex-wrap items-center gap-2.5">
-                    <p className="text-[17px] font-bold text-[#0e2545] line-through decoration-2 decoration-[#6b7688] sm:text-[18px]">{step.title}</p>
-                    <span className="inline-flex items-center gap-1.5 rounded-full bg-[#e4f6ec] px-3 py-[5px] text-[11.5px] font-extrabold uppercase tracking-wide text-[#136c3a]">
-                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                    <p className="text-[20px] font-bold leading-snug text-[#0e2545] line-through decoration-2 decoration-[#6b7688] sm:text-[18px]">{step.title}</p>
+                    <span className="inline-flex items-center gap-2 rounded-full bg-[#e4f6ec] px-4 py-[7px] text-[14px] font-extrabold uppercase tracking-wide text-[#136c3a] sm:gap-1.5 sm:px-3 sm:py-[5px] sm:text-[11.5px]">
+                      <svg viewBox="0 0 24 24" className="h-4 w-4 flex-none sm:h-3 sm:w-3" fill="none" stroke="currentColor" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
                         <path d="M20 6 9 17l-5-5" />
                       </svg>
                       Completed
@@ -189,8 +189,8 @@ export default async function SmartLeadFormThankYouPage({
                   </div>
                 ) : (
                   <>
-                    <p className="text-[17px] font-bold leading-snug text-[#0e2545] sm:text-[18px]">{step.title}</p>
-                    <p className="mt-1.5 text-[15px] leading-relaxed text-[#4b5468] sm:text-[15.5px]">{renderBody(step.body, step.emphasis)}</p>
+                    <p className="text-[20px] font-bold leading-snug text-[#0e2545] sm:text-[18px]">{step.title}</p>
+                    <p className="mt-2 text-[17px] leading-[1.6] text-[#4b5468] sm:mt-1.5 sm:text-[15.5px] sm:leading-relaxed">{renderBody(step.body, step.emphasis)}</p>
                   </>
                 )}
               </div>
@@ -222,10 +222,10 @@ export default async function SmartLeadFormThankYouPage({
   // locator identity in a single polished card. No contact buttons.
   const ClosingCard = () => (
     <section className="ty-close mt-9 rounded-[20px] border border-[#e7ebf2] bg-[#f7f9fc] px-5 py-6 sm:px-7 sm:py-7">
-      <h2 className="text-left text-[20px] font-extrabold tracking-[-0.01em] text-[#0e2545] sm:text-[22px]">
+      <h2 className="text-left text-[26px] font-extrabold tracking-[-0.01em] text-[#0e2545] sm:text-[22px]">
         You&apos;re all set!
       </h2>
-      <p className="mt-2 text-[15px] leading-relaxed text-[#4b5468] sm:text-[15.5px]">
+      <p className="mt-2.5 text-[17px] leading-[1.6] text-[#4b5468] sm:mt-2 sm:text-[15.5px] sm:leading-relaxed">
         Keep an eye on your texts and email. I&rsquo;ll reach out as soon as your recommendations are ready.
       </p>
       {/* Canonical shared agent signature (identical to the Recommendations page). */}
@@ -255,10 +255,10 @@ export default async function SmartLeadFormThankYouPage({
             className="ty-hero relative px-6 pt-11 pb-9 sm:px-12 sm:pt-12 sm:pb-10"
             style={{ ["--hero-img" as string]: `url('${heroImg}')` }}
           >
-            <h1 className="max-w-[16ch] text-left text-[30px] font-extrabold leading-[1.1] tracking-[-0.02em] text-white sm:text-[40px]">
+            <h1 className="max-w-[16ch] text-left text-[34px] font-extrabold leading-[1.1] tracking-[-0.02em] text-white sm:text-[40px]">
               {name ? `Thanks, ${name}!` : "Thank you!"}
             </h1>
-            <p className="mt-3.5 max-w-xl text-[16px] leading-relaxed text-white/90 sm:mt-4 sm:text-[17px]">{intro}</p>
+            <p className="mt-4 max-w-xl text-[18px] leading-[1.6] text-white/90 sm:mt-4 sm:text-[17px] sm:leading-relaxed">{intro}</p>
           </section>
 
           {/* ── BODY ── */}
