@@ -5,6 +5,7 @@ import { NextResponse } from "next/server"
 import { requireDeviceToken } from "@/lib/companion/auth"
 import { runAck } from "@/lib/followup/engine"
 import { SupabaseFollowupStore } from "@/lib/followup/stores/supabaseStore"
+import { syncFirstContactFromAck } from "@/lib/followup/firstContactSync"
 
 // Beast Sync ACK. Auth + payload validation here; the shared engine core (runAck)
 // records the result, enforces idempotency, and advances the run only on a
@@ -45,5 +46,26 @@ export async function POST(req: Request) {
   if (!result.ok) {
     return NextResponse.json({ error: result.error ?? "ack_failed" }, { status: result.code ?? 400 })
   }
-  return NextResponse.json({ ok: true, ...(result.already ? { already: true } : {}), ...(result.status ? { status: result.status } : {}) })
+
+  // CRM FIRST CONTACT. The acknowledgment above is the only moment we learn that a message
+  // genuinely left the device, and until now nothing carried that fact into the CRM: the
+  // canonical cascade (lib/leads/contactWorkflow) is a browser function, so an automated
+  // introduction left the lead sitting at New with "Contact Lead" overdue.
+  //
+  // Deliberately AFTER runAck and never in front of it: the acknowledgment and the follow-up
+  // run must be recorded whatever the CRM does. syncFirstContactFromAck never throws, refuses
+  // anything that is not a genuine new_lead/t1 "sent", and is idempotent, so a replayed ACK
+  // (result.already) is harmless — but we skip it anyway, because a replay is by definition
+  // not new information.
+  let contactSync: Awaited<ReturnType<typeof syncFirstContactFromAck>> | null = null
+  if (result.status === "sent" && !result.already) {
+    contactSync = await syncFirstContactFromAck({ intentId, workspaceId, sentAt: localSentAt })
+  }
+
+  return NextResponse.json({
+    ok: true,
+    ...(result.already ? { already: true } : {}),
+    ...(result.status ? { status: result.status } : {}),
+    ...(contactSync?.synced ? { crmAdvanced: "contacted" } : {}),
+  })
 }

@@ -11,6 +11,7 @@ import type { ResolvedAgentIdentity } from "@/lib/notifications/agentSignature"
 import { isGuestCardTitle } from "@/lib/leads/guestCardWorkflow"
 import { recordTimelineEvent } from "@/lib/leads/timeline"
 import { recordFirstContact as recordFirstContactCascade } from "@/lib/leads/contactWorkflow"
+import { AUTOMATED_CONTACT_ORIGIN, AUTOMATED_CONTACT_LABEL } from "@/lib/followup/firstContactRules"
 import { advanceBuildListToSearching } from "@/lib/leads/buildListWorkflow"
 import { isDemoLeadId } from "@/lib/demo/demoWorkspace"
 import LeadSourceBadge from "./LeadSourceBadge"
@@ -585,9 +586,19 @@ export default function LeadPanel({
       )?.completed_at ?? null
     : null
 
+  // The Follow-Up Agent stamps the contact_lead row it completed, so the line can say who
+  // actually made contact instead of crediting the agent for an automated text.
+  const autoContacted = (nextActions as any[]).some(
+    (a) =>
+      String(a.lead_id) === String(lead.id) &&
+      String(a.action_key ?? "").toLowerCase() === "contact_lead" &&
+      (a.completed === true || a.status === "completed") &&
+      String(a.origin ?? "") === AUTOMATED_CONTACT_ORIGIN,
+  )
+
   const lastAction: { title: string; completedAt: string } | null =
     justContacted && lead.first_text_sent_at
-      ? { title: "Contact Lead", completedAt: lead.first_text_sent_at }
+      ? { title: autoContacted ? AUTOMATED_CONTACT_LABEL : "Contact Lead", completedAt: lead.first_text_sent_at }
       : completedAtTs
       ? { title: primaryAction.title, completedAt: completedAtTs }
       : tourScheduled && completedSetupTourAt

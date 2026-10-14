@@ -1,3 +1,4 @@
+import { AUTOMATED_CONTACT_ORIGIN, AUTOMATED_CONTACT_LABEL } from "@/lib/followup/firstContactRules"
 import type { LeadSummaryDTO, NextActionDTO, FavoriteDTO, RecommendationDTO, FollowUpOverrides, ClientHistoryEntryDTO } from "@bc/companion-shared"
 import { DEFAULT_TIMEZONE } from "@/lib/timezone"
 import { visibleRecommendations, favoriteMoveBlock } from "@/lib/leads/propertyCollections"
@@ -176,7 +177,18 @@ function deriveLastAction(
   const candidates: { title: string; completedAt: string; propertyName: string | null }[] = []
 
   const firstContact = str(lead.first_text_sent_at)
-  if (firstContact) candidates.push({ title: "Contact Lead", completedAt: firstContact, propertyName: null })
+  if (firstContact) {
+    // WHO reached them. The Follow-Up Agent marks the contact_lead row it completed, so an
+    // automated introduction reads "Auto Text Sent" rather than implying the agent did it.
+    const auto = (nextActions || []).some(
+      (a: any) =>
+        String(a.lead_id) === String(lead.id) &&
+        String(a.action_key ?? "").toLowerCase() === "contact_lead" &&
+        (a.completed === true || a.status === "completed") &&
+        String(a.origin ?? "") === AUTOMATED_CONTACT_ORIGIN,
+    )
+    candidates.push({ title: auto ? AUTOMATED_CONTACT_LABEL : "Contact Lead", completedAt: firstContact, propertyName: null })
+  }
 
   const outreachTitle = outreachLastActionTitle(lead, latestOutreach)
   if (outreachTitle && latestOutreach) candidates.push({ title: outreachTitle, completedAt: latestOutreach.occurredAt, propertyName: null })
@@ -189,7 +201,13 @@ function deriveLastAction(
     // Per-property completions (Tour Scheduled = setup_tour, Guest Card Sent =
     // email_guest_card) carry their Favorite name so the Last Action line can read
     // "Tour Scheduled · The Foundry". Non-property actions have none (stays null).
-    if (done && at && title) candidates.push({ title, completedAt: at, propertyName: str(a.property_name) })
+    if (done && at && title) {
+      const label =
+        String(a.action_key ?? "").toLowerCase() === "contact_lead" && String(a.origin ?? "") === AUTOMATED_CONTACT_ORIGIN
+          ? AUTOMATED_CONTACT_LABEL
+          : title
+      candidates.push({ title: label, completedAt: at, propertyName: str(a.property_name) })
+    }
   }
 
   // Lowest-priority fallback: the lead's own creation. Any real activity above

@@ -1,3 +1,4 @@
+import { AUTOMATED_CONTACT_ORIGIN, AUTOMATED_CONTACT_LABEL } from "@/lib/followup/firstContactRules"
 /**
  * Workflow-action DISPLAY labels for the CRM. Identity stays the internal key /
  * legacy title ("FU1"/"Final"/"Invoice Details"); this only maps identity →
@@ -200,4 +201,18 @@ const LAST_ACTION_BY_DISPLAY: Record<string, string> = {
 export function formatLastActionLabel(titleOrKey: string): string {
   const nextLabel = formatWorkflowActionLabel(titleOrKey)
   return LAST_ACTION_BY_DISPLAY[nextLabel] ?? nextLabel
+}
+
+/**
+ * The Last Action line, told from WHO did it.
+ *
+ * "Contacted Lead" is true of an automated introduction and still misleading: it reads as the
+ * agent having picked up the phone. An agent scanning their board needs to know the Follow-Up
+ * Agent handled this one — so a contact_lead completed by automation (origin marked by
+ * AUTOMATED_CONTACT_ORIGIN) reads "Auto Text Sent" instead. Every manual completion is
+ * untouched, and the action's own key and title are unchanged, so nothing downstream shifts.
+ */
+export function formatLastActionLabelFor(titleOrKey: string, origin?: string | null): string {
+  if ((origin ?? "") === AUTOMATED_CONTACT_ORIGIN) return AUTOMATED_CONTACT_LABEL
+  return formatLastActionLabel(titleOrKey)
 }
