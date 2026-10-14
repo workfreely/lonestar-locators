@@ -4,6 +4,7 @@ import SettingsShell, { SettingsCard } from "@/components/crm/settings/SettingsS
 import BeastCompanionExtensionSection from "@/components/crm/integrations/BeastCompanionExtensionSection"
 import DeviceEcosystemSection from "@/components/crm/integrations/DeviceEcosystemSection"
 import MetaAdsSection from "@/components/crm/integrations/MetaAdsSection"
+import GoogleDisconnectButton from "@/components/crm/integrations/GoogleDisconnectButton"
 
 // Phone Sync lives in its own Beast Companion section below (it's the desktop
 // Companion), so it's no longer a generic "Soon" row here.
@@ -84,6 +85,10 @@ export default function IntegrationsClient({
                   >
                     {googleConnected ? "Reconnect" : "Connect"}
                   </a>
+                  {/* Disconnect sits beside Reconnect and only when there is something to
+                      disconnect. One grant serves both rows, so either row's button acts on the
+                      same authorization — the status above re-reads from the server afterwards. */}
+                  {googleConnected && <GoogleDisconnectButton />}
                 </div>
               ) : (
                 <button
