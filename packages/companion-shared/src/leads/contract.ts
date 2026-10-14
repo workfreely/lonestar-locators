@@ -123,6 +123,16 @@ export const lastActionSchema = z.object({
    *  Sent snapshot its Favorite name). Null for non-property actions (Contact
    *  Lead, follow-ups, …) so the panel appends "· {property}" only when real. */
   propertyName: z.string().nullish(),
+  /**
+   * HOW it was completed — "manual" (a person) or "followup_agent" (an acknowledged automated
+   * send). Null for a row completed before lead_next_actions.completed_via existed, and the
+   * panel then shows no method at all rather than guessing one.
+   *
+   * It must be declared here or it does not exist: zod strips unknown keys, so leadToDto was
+   * setting this field and the schema was silently discarding it before the Companion ever saw
+   * it. That is why the approved Automated indicator never appeared.
+   */
+  completedVia: z.string().nullish(),
 });
 export type LastActionDTO = z.infer<typeof lastActionSchema>;
 

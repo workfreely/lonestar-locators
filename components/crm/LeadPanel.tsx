@@ -12,6 +12,7 @@ import { isGuestCardTitle } from "@/lib/leads/guestCardWorkflow"
 import { recordTimelineEvent } from "@/lib/leads/timeline"
 import { recordFirstContact as recordFirstContactCascade } from "@/lib/leads/contactWorkflow"
 import CompletedActionLine from "@/components/crm/CompletedActionLine"
+import { compactDesiredAreas } from "@bc/companion-shared"
 import { advanceBuildListToSearching } from "@/lib/leads/buildListWorkflow"
 import { isDemoLeadId } from "@/lib/demo/demoWorkspace"
 import LeadSourceBadge from "./LeadSourceBadge"
@@ -75,7 +76,10 @@ function formatDesiredAreas(neighborhoods: unknown, city: string | null | undefi
   const raw = (neighborhoods ?? "").toString().trim()
   if (!raw) return null
   if (/all of/i.test(raw)) return (city ?? "").trim() || raw.replace(/^all of\s*/i, "").trim()
-  return raw
+  // DISPLAY ONLY — the city has its own row in this card, so "Downtown San Antonio" reads
+  // "Downtown". The saved value is untouched and matching never reads this. One shared
+  // implementation with Beast Companion, so the two panels cannot drift.
+  return compactDesiredAreas(raw, city)
 }
 
 // A saved value is "meaningful" only when present and non-blank. The single

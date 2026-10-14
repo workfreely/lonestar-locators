@@ -1,6 +1,8 @@
 import { useState } from "react";
 import type { LeadSummaryDTO, NextActionDTO } from "@bc/companion-shared";
-import { formatWorkflowActionLabel, formatLastActionLabel, isFollowUpAction, isContactFollowUpAction, formatDateDisplay, formatDueDateTime, isPastDue, formatPersonName, formatPhone, formatUnitDisplay } from "@bc/companion-shared";
+import { formatWorkflowActionLabel, formatLastActionLabel, isFollowUpAction, isContactFollowUpAction, formatDateDisplay, formatDueDateTime, isPastDue, formatPersonName, formatPhone, formatUnitDisplay,
+  compactDesiredAreas,
+} from "@bc/companion-shared";
 import { SectionCard, Field, StageBadge, StatusPill, Button } from "./primitives";
 
 /**
@@ -384,16 +386,46 @@ export function LeadPanelBody({
                 (not pushed to the far right). Next Action's Status pill layout is
                 unchanged. Presentation only — same values. */}
             <div style={{ marginTop: 15 }}>
+              {/* The green check sits INLINE with the title, on the card's own left edge — the
+                  same treatment the CRM Lead Panel uses, so the two panels read identically. */}
               <div
-                style={{ fontSize: 14, fontWeight: 600, color: "var(--lb-text, #e6ebf5)" }}
+                style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 14, fontWeight: 600, color: "var(--lb-text, #e6ebf5)" }}
                 title={`${formatLastActionLabel(lastAction.title)}${lastActionProperty ? ` · ${lastActionProperty}` : ""}`}
               >
-                {formatLastActionLabel(lastAction.title)}
-                {lastActionProperty && <span className="lp-last-prop"> · {lastActionProperty}</span>}
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#059669" strokeWidth="2"
+                  strokeLinecap="round" strokeLinejoin="round" style={{ flex: "none" }} aria-hidden>
+                  <circle cx="12" cy="12" r="10" />
+                  <path d="m9 12 2 2 4-4" />
+                </svg>
+                <span>
+                  {formatLastActionLabel(lastAction.title)}
+                  {lastActionProperty && <span className="lp-last-prop"> · {lastActionProperty}</span>}
+                </span>
               </div>
               {lastAction.completedAt && (
                 <div className="lp-completed">
                   Completed: <span className="lp-completed-val">{fmtDue(lastAction.completedAt, tz)}</span>
+                </div>
+              )}
+              {/* WHO completed it — shown only when the record says so. A legacy row carries no
+                  method and gets no indicator, because an invented one would be worse. */}
+              {(lastAction.completedVia === "followup_agent" || lastAction.completedVia === "manual") && (
+                <div className="lp-completed" style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                  {lastAction.completedVia === "followup_agent" ? (
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"
+                      strokeLinecap="round" strokeLinejoin="round" style={{ flex: "none" }} aria-hidden>
+                      <path d="M12 8V4H8" />
+                      <rect width="16" height="12" x="4" y="8" rx="2" />
+                      <path d="M2 14h2M20 14h2M15 13v2M9 13v2" />
+                    </svg>
+                  ) : (
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"
+                      strokeLinecap="round" strokeLinejoin="round" style={{ flex: "none" }} aria-hidden>
+                      <path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2" />
+                      <circle cx="12" cy="7" r="4" />
+                    </svg>
+                  )}
+                  <span>{lastAction.completedVia === "followup_agent" ? "Automated" : "Manually completed"}</span>
                 </div>
               )}
             </div>
@@ -644,7 +676,10 @@ export function LeadPanelBody({
           { label: "Property Type", value: sc.propertyType },
           { label: "Beds / Baths", value: sc.beds || sc.baths ? `${sc.beds || "—"} / ${sc.baths || "—"}` : null },
           { label: "Move Date", value: hasValue(sc.moveDate) ? formatDateDisplay(sc.moveDate) : null },
-          { label: "Desired Areas", value: sc.desiredAreas },
+          // DISPLAY ONLY — the city already has its own line above, so a redundant
+          // "… San Antonio" suffix is dropped from each saved label. The DTO and the database
+          // keep the canonical names, and matching never reads this.
+          { label: "Desired Areas", value: compactDesiredAreas(sc.desiredAreas, sc.city) },
           // Same row, same position, same label as the CRM's Search Criteria card.
           { label: "Commute / Destination", value: sc.commuteDestination },
           { label: "Source", value: sc.source },
