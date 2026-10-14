@@ -85,5 +85,34 @@ ok("counts are summed across the client's lists", /rows\.reduce\(\(n, r\) => n \
 ok("last viewed is the most recent across them", /\.sort\(\)\s*\n\s*\.pop\(\)/.test(eng))
 ok("the inline variant shows the SAME numbers as the block one", /const body =\s*\n\s*views > 0 && last \?/.test(eng))
 
+
+// ── EXACTLY ONE ENGAGEMENT SUMMARY ──────────────────────────────────────────────────────────
+// It rendered on the action row AND as a standalone line beneath it, so the same numbers
+// appeared twice with a stray line between the row and Favorite Properties.
+console.log("\nOne engagement summary, not two")
+const sites = ["components/crm/BestMatches.tsx", "components/crm/DashboardClient.tsx", "components/crm/LeadPanel.tsx"]
+  .flatMap((f) => (readFileSync(f, "utf8").match(/<RecommendationEngagement/g) || []).map(() => f))
+ok(`exactly one render site (found ${sites.length}: ${sites.join(", ") || "none"})`, sites.length === 1)
+ok("and it is the action row", sites[0] === "components/crm/BestMatches.tsx")
+ok("the standalone line is gone from the Dashboard", !/\{selectedLead && <RecommendationEngagement/.test(readFileSync("components/crm/DashboardClient.tsx", "utf8")))
+// The LOGIC is untouched — only the duplicate presentation went.
+ok("the component and its data path survive", /client-shares\?leadId=/.test(eng) && /viewSessionCount/.test(eng))
+
+console.log("\nSend List is the primary action")
+// The WHOLE button element — slicing from the middle of its class list put flex-none
+// before the slice and made the assertion meaningless.
+const btn = blockCode.slice(blockCode.lastIndexOf("<button", blockCode.indexOf("bg-[var(--crm-accent)]")), blockCode.indexOf("Send List\n") + 20)
+ok("more horizontal padding than the outlined button", /bg-\[var\(--crm-accent\)\] px-5 py-2/.test(blockCode))
+ok("the same vertical padding, so the row keeps its height", /px-5 py-2/.test(blockCode) && /border-\[var\(--crm-border\)\] px-3 py-2/.test(blockCode))
+ok("colour, typography and corners unchanged", /rounded-lg bg-\[var\(--crm-accent\)\]/.test(blockCode) && /text-\[12px\] font-semibold text-white/.test(btn))
+ok("still content-sized, never full-width", /flex-none/.test(btn) && !/\bw-full\b|\bflex-1\b/.test(btn))
+
+console.log("\nThe four states")
+// No list sent → the component returns null, so the row holds two buttons and the divider.
+ok("no sent list ⇒ nothing between the buttons", /if \(rows\.length === 0\) return null/.test(eng))
+ok("sent but unviewed ⇒ 'Not viewed yet'", /<span>Not viewed yet<\/span>/.test(eng))
+ok("verified views ⇒ count and recency, separated by a dot", /Viewed \{views\}×<\/span>\s*\n\s*\{" · "\}/.test(eng))
+ok("a narrow panel truncates the text, never the buttons", /min-w-0 flex-1 truncate/.test(eng) && (blockCode.match(/flex-none/g) || []).length >= 2)
+
 console.log(`\n${pass} passed, ${fail} failed\n`)
 process.exit(fail === 0 ? 0 : 1)

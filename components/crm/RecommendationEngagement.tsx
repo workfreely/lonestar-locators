@@ -3,7 +3,11 @@
 import { useEffect, useState } from "react"
 
 /**
- * Compact "has the client actually opened their list?" line for the client panel.
+ * Compact "has the client actually opened their list?" line.
+ *
+ * ONE RENDER SITE: the Recommended Properties action row, beside the Sent List History button it
+ * describes. It briefly rendered there AND as a standalone line beneath the row, which showed the
+ * same numbers twice.
  *
  * Reads the EXISTING view data — view_session_count and last_viewed_at, already served per-lead by
  * GET /api/admin/client-shares?leadId= — so there is no second tracking system and no new endpoint.
@@ -84,7 +88,8 @@ export default function RecommendationEngagement({
   const body =
     views > 0 && last ? (
       <>
-        <span className="font-semibold text-[var(--crm-text-secondary)]">Viewed {views}×</span>{" "}
+        <span className="font-semibold text-[var(--crm-text-secondary)]">Viewed {views}×</span>
+        {" · "}
         <span>Last viewed {ago(last)}</span>
       </>
     ) : (

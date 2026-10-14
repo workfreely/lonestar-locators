@@ -210,7 +210,9 @@ export default function BestMatches({
           {onSendRecommendations && (
             <>
               {/* The divider separates "what already happened" from "do it again". Hidden when
-                  there is no history to separate. */}
+                  there is no history to separate. The primary action earns its emphasis from
+                  horizontal padding only — px-5 against the outlined button's px-3 — so the row
+                  keeps its height and the button stays content-sized rather than full-width. */}
               {onOpenSentHistory && (
                 <span aria-hidden className="ml-auto h-5 w-px flex-none bg-[var(--crm-border-soft)]" />
               )}
@@ -219,7 +221,7 @@ export default function BestMatches({
                 onClick={onSendRecommendations}
                 disabled={leadRecommendations.length === 0}
                 title={leadRecommendations.length === 0 ? "Add recommendations first" : "Send these recommendations to the client"}
-                className={`inline-flex flex-none items-center justify-center gap-1.5 whitespace-nowrap rounded-lg bg-[var(--crm-accent)] px-3 py-2 text-[12px] font-semibold text-white transition-[filter,opacity] hover:brightness-110 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:brightness-100${onOpenSentHistory ? "" : " ml-auto"}`}
+                className={`inline-flex flex-none items-center justify-center gap-1.5 whitespace-nowrap rounded-lg bg-[var(--crm-accent)] px-5 py-2 text-[12px] font-semibold text-white transition-[filter,opacity] hover:brightness-110 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:brightness-100${onOpenSentHistory ? "" : " ml-auto"}`}
               >
                 Send List
               </button>

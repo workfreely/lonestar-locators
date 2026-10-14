@@ -12,7 +12,6 @@ import LeadFavorites from "./LeadFavorites"
 import LeadNotes from "./LeadNotes"
 import BestMatches from "./BestMatches"
 import SentListsPanel from "./SentListsPanel"
-import RecommendationEngagement from "./RecommendationEngagement"
 import LeadFormModal from "../LeadFormModal"
 import FollowUpTemplatesModal from "./FollowUpTemplatesModal"
 import WorkflowActionToast from "./WorkflowActionToast"
@@ -4537,10 +4536,10 @@ export default function DashboardClient({ leads, nextActions, favorites, recomme
                     onSendRecommendations={() => selectedLead && handleSendRecommendations(selectedLead)}
                     onOpenSentHistory={() => selectedLead && setSentHistory({ leadId: selectedLead.id, clientName: shareClientName(selectedLead) })}
                   />
-                  {/* Compact recommendation engagement — reads the existing view/session data, no
-                      new tracking and no new endpoint. Sits under the send/history controls it
-                      describes rather than becoming its own card. */}
-                  {selectedLead && <RecommendationEngagement leadId={selectedLead.id} />}
+                  {/* The engagement summary now lives INSIDE the action row (see BestMatches),
+                      beside the Sent List History button it describes. It used to render here as
+                      well, so the same numbers appeared twice — once on the row and once as a
+                      stray line beneath it. One render site, no second line, no extra height. */}
                   <LeadFavorites
                     reasonsByKey={reasonsByKey}
                     onSaveReasons={handleSaveReasons}
