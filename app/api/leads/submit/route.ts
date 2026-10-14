@@ -50,6 +50,7 @@ import { isValidUsPhone } from "@/lib/utils/formatPhone"
 import { withPhoneIdentity } from "@/lib/phone/identity"
 import { attributeUnattributedMessages } from "@/lib/companion/attribution"
 import { shouldAutoEnroll } from "@/lib/followup/autoEnroll"
+import { processNotesLocation } from "@/lib/criteria/processNotesLocation"
 import { verdictForWrite } from "@/lib/leads/areaLimit"
 import { criteriaChangedMetadata, initialCriteria } from "@/lib/leads/criteriaHistory"
 
@@ -638,6 +639,24 @@ export async function POST(request: Request) {
           }
         } catch (err) {
           console.error("[api/leads/submit] Beast Sync attribution failed:", err)
+        }
+      })
+    }
+
+    // ─── Commute destination from the renter's form notes ─────────────────
+    // Feeds the EXISTING location pipeline (extract → resolve → reconcile) with the one note a
+    // renter typed, so "I need to be near Randolph AFB" becomes a structured commute anchor
+    // instead of free text nothing can match against. Writes only the commute columns, only into
+    // blanks, and only on a confident resolution — an ambiguous destination writes nothing.
+    //
+    // The ORIGINAL note is never touched, and this never throws: the lead, its confirmation email
+    // and the CRM record are already written, and none of them may depend on this succeeding.
+    if (isNewLead && data?.id && (result.payload.notes as string | undefined)?.trim()) {
+      after(async () => {
+        const outcome = await processNotesLocation({ leadId: data.id, notes: result.payload.notes as string })
+        if (outcome.wrote) console.log(`[api/leads/submit] commute destination from notes: ${outcome.label}`)
+        else if (outcome.reason !== "no_location_hint" && outcome.reason !== "no_notes") {
+          console.log(`[api/leads/submit] no commute destination written (${outcome.reason})`)
         }
       })
     }

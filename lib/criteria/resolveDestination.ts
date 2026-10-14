@@ -1,4 +1,5 @@
 import { displayDestinationLabel } from "@/lib/commute/destinationAliases"
+import { aliasDestinationQuery } from "./destinationQueryAliases"
 import type { ResolvedDestination } from "./reconcileLocation"
 
 /**
@@ -116,7 +117,10 @@ export async function resolveDestination(
   query: string,
   opts: { signal?: AbortSignal } = {},
 ): Promise<ResolveOutcome> {
-  const textQuery = String(query ?? "").trim()
+  // Normalise a recognised destination name to the one Places resolves uniquely, BEFORE the
+  // lookup. Everything after this point is unchanged — same request, same cohesion check, same
+  // refusal on ambiguity. An unrecognised destination is sent exactly as the client said it.
+  const textQuery = aliasDestinationQuery(String(query ?? ""))
   if (textQuery.length < 3) return { status: "not_found" }
 
   const key = process.env.GOOGLE_PLACES_API_KEY
