@@ -103,5 +103,7 @@ export function stageAdvanceCancelsPair(fromStage: string, toStage: string): boo
 export const AUTOMATED_CONTACT_VIA = "followup_agent"
 /** Completed by a person. The default for every manual path. */
 export const MANUAL_CONTACT_VIA = "manual"
-/** What the agent reads. "Contacted Lead" is true but hides that nobody lifted a finger. */
-export const AUTOMATED_CONTACT_LABEL = "Auto Text Sent"
+// NO LABEL CONSTANT HERE, deliberately. An earlier version replaced the Last Action TITLE with
+// "Auto Text Sent", which answered the wrong question: the title names the CRM task that was
+// completed — Contacted Lead — and WHO completed it is secondary information that belongs on its
+// own line underneath. Renaming the task to describe its method hid the task.

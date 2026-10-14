@@ -5,7 +5,7 @@ import { AUTOMATED_CONTACT_VIA } from "@/lib/followup/firstContactRules"
  * other surface that shows a finished action cannot drift apart.
  *
  * Three lines, in the order an agent reads them:
- *   ✓ <what was done>
+ *   ✓ <the task that was completed — always its own name>
  *   Completed: <when>
  *   <who> <Manually completed | Automated>
  *
@@ -54,7 +54,7 @@ export default function CompletedActionLine({
   completedAtDisplay,
   completedVia,
 }: {
-  /** Already run through the label system — "Contacted Lead", "Auto Text Sent". */
+  /** The completed TASK's own canonical name — "Contacted Lead", "Build List". Never the method. */
   label: string
   /** Already formatted in the locator's timezone — "Today · 9:04 AM". */
   completedAtDisplay: string

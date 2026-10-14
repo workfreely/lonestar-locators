@@ -22,9 +22,8 @@ import {
   FIRST_CONTACT_SEQUENCE,
   FIRST_CONTACT_STEP,
   AUTOMATED_CONTACT_VIA,
-  AUTOMATED_CONTACT_LABEL,
 } from "@/lib/followup/firstContactRules"
-import { formatLastActionLabel, formatLastActionLabelFor } from "@/lib/leads/workflowActionLabels"
+import { formatLastActionLabel } from "@/lib/leads/workflowActionLabels"
 import { completedPatch } from "@/lib/leads/actionCompletion"
 import { classifyProvenance } from "@/lib/companion/provenance"
 import { applicableSequence } from "@/lib/followup/sequences"
@@ -116,13 +115,46 @@ ok("a reply DOES stop a full-gated step", inboundStopsRun({ sequenceKey: "list_s
 
 // ── LAST ACTION SAYS WHO ────────────────────────────────────────────────────────────────────
 console.log("\nLast Action")
-ok("an automated contact reads 'Auto Text Sent'", formatLastActionLabelFor("Contact Lead", AUTOMATED_CONTACT_VIA) === AUTOMATED_CONTACT_LABEL)
-ok("a manual one is unchanged", formatLastActionLabelFor("Contact Lead", "workflow") === formatLastActionLabel("Contact Lead"))
-ok("and so is every other action", formatLastActionLabelFor("Build List", null) === formatLastActionLabel("Build List"))
+// THE TITLE IS THE TASK, ALWAYS. An earlier version replaced it with "Auto Text Sent", which
+// renamed the CRM task after its delivery method and hid which task had actually been done.
+ok("an automated contact still reads 'Contacted Lead'", formatLastActionLabel("Contact Lead") === "Contacted Lead")
+ok("'Auto Text Sent' is no longer a title anywhere in the app", (() => {
+  for (const f of ["lib/leads/workflowActionLabels.ts", "lib/companion/leadToDto.ts", "components/crm/LeadPanel.tsx", "lib/followup/firstContactRules.ts"]) {
+    const src = readFileSync(f, "utf8")
+    // The phrase may survive in a comment explaining the mistake; it must not survive in code.
+    for (const line of src.split("\n")) {
+      const code = line.split("//")[0]
+      if (/Auto Text Sent/.test(code)) return false
+    }
+  }
+  return true
+})())
+// EVERY OTHER ACTION KEEPS ITS OWN NAME.
+// Through the EXISTING canonical vocabulary (LAST_ACTION_BY_DISPLAY), which already renders a
+// completed action in the past tense. These are the app's own conventions, not new titles — the
+// point is that no completion method alters any of them.
+for (const [stored, shown] of [
+  ["Contact Lead", "Contacted Lead"],
+  ["Build List", "List Built"],
+  ["Send List", "List Sent"],
+  ["Send Guest Card", "Guest Card Sent"],
+  ["Setup Tour", "Tour Scheduled"],
+] as const) {
+  const label = formatLastActionLabel(stored)
+  ok(`${stored} → ${JSON.stringify(label)}`, label === shown)
+}
+// The method is a SEPARATE line, and only when the column says so.
+const ui = readFileSync("components/crm/CompletedActionLine.tsx", "utf8")
+ok("the method renders under the title, never in it", /\{label\}[\s\S]{0,600}"Automated" : "Manually completed"/.test(ui))
+ok("Automated shows only for an explicit followup_agent", /const automated = completedVia === AUTOMATED_CONTACT_VIA/.test(ui))
+ok("Manually completed shows only for an explicit manual", /const known = completedVia === "manual" \|\| automated/.test(ui))
+ok("a NULL legacy row shows no method at all", /\{known && \(/.test(ui))
 ok("the method is written on the completed row", /completedPatch\(opts\.sentAt, AUTOMATED_CONTACT_VIA\)/.test(sync))
+// NEITHER SURFACE may still be substituting a title. The method travels in its own field.
 for (const [file, what] of [["components/crm/LeadPanel.tsx", "the CRM panel"], ["lib/companion/leadToDto.ts", "Beast Companion"]] as const) {
   const src = readFileSync(file, "utf8")
-  ok(`${what} shows the automated label`, src.includes("AUTOMATED_CONTACT_LABEL") && src.includes("AUTOMATED_CONTACT_VIA"))
+  ok(`${what} no longer renames the task`, !src.includes("AUTOMATED_CONTACT_LABEL"))
+  ok(`${what} carries the completion method separately`, /completedVia/.test(src))
 }
 
 // ── WIRED TO THE ACKNOWLEDGMENT, AND ONLY THERE ─────────────────────────────────────────────
@@ -144,11 +176,13 @@ const manual = completedPatch("2026-10-14T14:04:00.000Z")
 ok("a person's completion defaults to manual", manual.completed_via === "manual")
 ok("the automated path says so explicitly", completedPatch("x", "followup_agent").completed_via === "followup_agent")
 ok("both still write the full canonical shape", manual.completed === true && manual.status === "completed" && !!manual.completed_at)
-ok("manual reads 'Contacted Lead'", formatLastActionLabelFor("Contact Lead", "manual") === "Contacted Lead")
-ok("automated reads 'Auto Text Sent'", formatLastActionLabelFor("Contact Lead", "followup_agent") === AUTOMATED_CONTACT_LABEL)
+// THE TITLE DOES NOT MOVE. Whoever completed it, the task is the task — the method is a
+// separate line, asserted under "Last Action" below.
+ok("manual reads 'Contacted Lead'", formatLastActionLabel("Contact Lead") === "Contacted Lead")
+ok("automated reads 'Contacted Lead' too", formatLastActionLabel("Contact Lead") === "Contacted Lead")
 // LEGACY: a row completed before completed_via existed has no provenance, and guessing one
 // would be worse than silence.
-ok("a legacy row keeps its accurate existing label", formatLastActionLabelFor("Contact Lead", null) === formatLastActionLabel("Contact Lead"))
+ok("a legacy row keeps its accurate existing label", formatLastActionLabel("Contact Lead") === "Contacted Lead")
 ok("and shows no Manual/Automated indicator at all", (() => {
   const ui = readFileSync("components/crm/CompletedActionLine.tsx", "utf8")
   return /const known = completedVia === "manual" \|\| automated/.test(ui) && /\{known && \(/.test(ui)
@@ -171,6 +205,10 @@ const panel = readFileSync("components/crm/LeadPanel.tsx", "utf8")
 ok("the CRM renders the shared component", /<CompletedActionLine/.test(panel))
 ok("the divider and the blue Next Action button are untouched", /my-3\.5 border-t border-\[var\(--crm-border-soft\)\]/.test(panel) && /Next Action<\/span>/.test(panel))
 ok("Beast Companion receives the same completion method", readFileSync("lib/companion/leadToDto.ts", "utf8").includes("completedVia: contactVia"))
+ok("and Companion's titles are the tasks' own names", (() => {
+  const dto = readFileSync("lib/companion/leadToDto.ts", "utf8")
+  return dto.includes('title: "Contact Lead"') && dto.includes("candidates.push({ title, completedAt: at")
+})())
 
 // ── OUTBOUND ATTRIBUTION IN A SELF-CONVERSATION ─────────────────────────────────────────────
 // chat.db reports is_from_me = 0 for the received copy of a self-sent message, so an agent

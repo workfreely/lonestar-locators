@@ -11,7 +11,6 @@ import type { ResolvedAgentIdentity } from "@/lib/notifications/agentSignature"
 import { isGuestCardTitle } from "@/lib/leads/guestCardWorkflow"
 import { recordTimelineEvent } from "@/lib/leads/timeline"
 import { recordFirstContact as recordFirstContactCascade } from "@/lib/leads/contactWorkflow"
-import { AUTOMATED_CONTACT_VIA, AUTOMATED_CONTACT_LABEL } from "@/lib/followup/firstContactRules"
 import CompletedActionLine from "@/components/crm/CompletedActionLine"
 import { advanceBuildListToSearching } from "@/lib/leads/buildListWorkflow"
 import { isDemoLeadId } from "@/lib/demo/demoWorkspace"
@@ -587,16 +586,6 @@ export default function LeadPanel({
       )?.completed_at ?? null
     : null
 
-  // The Follow-Up Agent stamps the contact_lead row it completed, so the line can say who
-  // actually made contact instead of crediting the agent for an automated text.
-  const autoContacted = (nextActions as any[]).some(
-    (a) =>
-      String(a.lead_id) === String(lead.id) &&
-      String(a.action_key ?? "").toLowerCase() === "contact_lead" &&
-      (a.completed === true || a.status === "completed") &&
-      String(a.completed_via ?? "") === AUTOMATED_CONTACT_VIA,
-  )
-
   // The completion METHOD, read from the row that recorded it. Never inferred from the stage,
   // the wording or the time — those look identical whoever made contact. A legacy row has none,
   // and then the indicator is simply not shown.
@@ -611,7 +600,7 @@ export default function LeadPanel({
   const lastAction: { title: string; completedAt: string; completedVia: "manual" | "followup_agent" | null } | null =
     justContacted && lead.first_text_sent_at
       ? {
-          title: autoContacted ? AUTOMATED_CONTACT_LABEL : "Contact Lead",
+          title: "Contact Lead",
           completedAt: lead.first_text_sent_at,
           completedVia: completedContactVia,
         }

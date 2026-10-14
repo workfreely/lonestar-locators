@@ -1,4 +1,3 @@
-import { AUTOMATED_CONTACT_VIA, AUTOMATED_CONTACT_LABEL } from "@/lib/followup/firstContactRules"
 /**
  * Workflow-action DISPLAY labels for the CRM. Identity stays the internal key /
  * legacy title ("FU1"/"Final"/"Invoice Details"); this only maps identity →
@@ -203,16 +202,7 @@ export function formatLastActionLabel(titleOrKey: string): string {
   return LAST_ACTION_BY_DISPLAY[nextLabel] ?? nextLabel
 }
 
-/**
- * The Last Action line, told from WHO did it.
- *
- * "Contacted Lead" is true of an automated introduction and still misleading: it reads as the
- * agent having picked up the phone. An agent scanning their board needs to know the Follow-Up
- * Agent handled this one — so a contact_lead completed by automation (completed_via =
- * AUTOMATED_CONTACT_VIA) reads "Auto Text Sent" instead. Every manual completion is untouched,
- * and the action's own key and title are unchanged, so nothing downstream shifts.
- */
-export function formatLastActionLabelFor(titleOrKey: string, completedVia?: string | null): string {
-  if ((completedVia ?? "") === AUTOMATED_CONTACT_VIA) return AUTOMATED_CONTACT_LABEL
-  return formatLastActionLabel(titleOrKey)
-}
+// The Last Action TITLE is always the canonical name of the completed task — formatLastActionLabel
+// above, for every action type. Completion provenance is NOT a title: it renders on its own line
+// (see components/crm/CompletedActionLine), so "Contacted Lead" stays "Contacted Lead" whoever
+// completed it, and "Build List" is never rewritten either.

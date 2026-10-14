@@ -1,4 +1,3 @@
-import { AUTOMATED_CONTACT_VIA, AUTOMATED_CONTACT_LABEL } from "@/lib/followup/firstContactRules"
 import type { LeadSummaryDTO, NextActionDTO, FavoriteDTO, RecommendationDTO, FollowUpOverrides, ClientHistoryEntryDTO } from "@bc/companion-shared"
 import { DEFAULT_TIMEZONE } from "@/lib/timezone"
 import { visibleRecommendations, favoriteMoveBlock } from "@/lib/leads/propertyCollections"
@@ -178,8 +177,9 @@ function deriveLastAction(
 
   const firstContact = str(lead.first_text_sent_at)
   if (firstContact) {
-    // WHO reached them. The Follow-Up Agent marks the contact_lead row it completed, so an
-    // automated introduction reads "Auto Text Sent" rather than implying the agent did it.
+    // WHO reached them, carried alongside the title rather than instead of it: the task is
+    // always "Contact Lead", and completedVia says whether a person or the Follow-Up Agent
+    // finished it. Null for a legacy row, which then shows no method at all.
     const contactVia =
       (nextActions || []).find(
         (a: any) =>
@@ -187,19 +187,12 @@ function deriveLastAction(
           String(a.action_key ?? "").toLowerCase() === "contact_lead" &&
           (a.completed === true || a.status === "completed"),
       )?.completed_via ?? null
-    const auto = (nextActions || []).some(
-      (a: any) =>
-        String(a.lead_id) === String(lead.id) &&
-        String(a.action_key ?? "").toLowerCase() === "contact_lead" &&
-        (a.completed === true || a.status === "completed") &&
-        String(a.completed_via ?? "") === AUTOMATED_CONTACT_VIA,
-    )
     candidates.push({
-      title: auto ? AUTOMATED_CONTACT_LABEL : "Contact Lead",
+      title: "Contact Lead",
       completedAt: firstContact,
       propertyName: null,
       // Carried to Companion so it renders the SAME completed state the CRM does — the green
-      // check, the timestamp, and who actually made contact. Null for a legacy row.
+      // check, the timestamp, and the method on its own line.
       completedVia: contactVia,
     })
   }
@@ -216,11 +209,9 @@ function deriveLastAction(
     // email_guest_card) carry their Favorite name so the Last Action line can read
     // "Tour Scheduled · The Foundry". Non-property actions have none (stays null).
     if (done && at && title) {
-      const label =
-        String(a.action_key ?? "").toLowerCase() === "contact_lead" && String(a.completed_via ?? "") === AUTOMATED_CONTACT_VIA
-          ? AUTOMATED_CONTACT_LABEL
-          : title
-      candidates.push({ title: label, completedAt: at, propertyName: str(a.property_name), completedVia: str(a.completed_via) })
+      // EVERY action keeps its own name. Build List stays Build List, Send Guest Cards stays
+      // Send Guest Cards; the completion method travels beside the title, never over it.
+      candidates.push({ title, completedAt: at, propertyName: str(a.property_name), completedVia: str(a.completed_via) })
     }
   }
 
