@@ -59,8 +59,10 @@ type AliasEntry = {
 const ALIASES: AliasEntry[] = [
   // seen: "Lackland Air Force Base"
   { label: "Lackland AFB", contains: ["lackland"] },
-  // seen: "Randolph Air Force Base"
-  { label: "Randolph AFB", contains: ["randolph air force", "randolph afb"] },
+  // seen: "Randolph Air Force Base", and — via the query alias for "Randolph AFB" —
+  // "JBSA Randolph", which fell through to the generic formatter and displayed as
+  // itself instead of the approved label.
+  { label: "Randolph AFB", contains: ["randolph air force", "randolph afb", "jbsa randolph"] },
   // seen: "Joint Base Camp Bullis"
   { label: "Camp Bullis", contains: ["camp bullis"] },
   // seen: "Brooks City Base"

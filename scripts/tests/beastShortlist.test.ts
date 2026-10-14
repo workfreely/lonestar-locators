@@ -118,6 +118,15 @@ ok("switching modes runs NO search — it only sets state", /onClick=\{\(\) => s
 // NEGATIVE CONTROL on the wiring: the old unfiltered expression must be gone, or the filter
 // would be computed and then ignored.
 ok("the map no longer plots the unfiltered set", !/for \(const p of baseVisible\.filter\(hasCoordinates\)\)/.test(src) && /for \(const p of visible\.filter\(hasCoordinates\)\)/.test(src))
+ok("the control survives adding recommendations — only three events clear it", (() => {
+  // beastShortlist is what renders the toggle, so every place that nulls it is a place the
+  // control disappears. There must be exactly three, and adding a recommendation is none of
+  // them: a NEW RUN, a MARKET SWITCH, and a CHANGE OF CLIENT.
+  const clears = (src.match(/setBeastShortlist\(null\)/g) || []).length
+  return clears === 3
+})())
+ok("nothing in the recommendation path touches the shortlist", !/recommendedUrls[\s\S]{0,200}setBeastShortlist/.test(src))
+
 ok("matching, ranking and commute scoring are untouched here", !/computeSuggestions\s*=/.test(src) && !/MAX_SUGGESTIONS\s*=/.test(src))
 
 console.log(`\n${pass} passed, ${fail} failed\n`)

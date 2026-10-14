@@ -3494,6 +3494,7 @@ export default function DashboardClient({ leads, nextActions, favorites, recomme
             recReasons = collectRecommendationReasons({
               amenities,
               locationMatch: location?.verdict === "good",
+              locationArea: (location as { match?: string | null } | null)?.match ?? null,
               budget,
               approvalReason: approval?.reason ?? null,
             })
@@ -3507,6 +3508,11 @@ export default function DashboardClient({ leads, nextActions, favorites, recomme
             // the correct outcome, and what the manual editor is for.
             recReasons = collectRecommendationReasons({
               locationMatch: loc?.tone === "match",
+              // The client's own area wording, so the card names the evidence rather than
+              // alluding to it. Still the ONLY family the Map path can ground: Google
+              // supplies no rent, amenities, approval or drive time, and a reason for any
+              // of those would be invented.
+              locationArea: loc?.match ?? null,
             })
           }
         }

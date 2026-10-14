@@ -35,6 +35,17 @@ export type LocationFit = {
     | "Outside Preferred Area"
   /** Short factual reason, never a score. */
   reason: string
+  /**
+   * The client's OWN words that this property matched — the neighborhood, keyword,
+   * location or area text that produced the hit, carried raw rather than wrapped in a
+   * display sentence.
+   *
+   * Exists so a client-facing surface can say "In Alamo Heights, one of your preferred
+   * areas" instead of the generic "In your preferred area", WITHOUT parsing `reason`
+   * back apart. Present only on a match tone; nothing here changes any verdict, score
+   * or rank.
+   */
+  match?: string
   tone: "match" | "neutral" | "outside"
   /** Lower is stronger, for ordering when several match. A VERIFIED COMMUTE IS 0:
    *  in Commute Mode the client's stated maximum drive time IS their geographic
@@ -129,7 +140,7 @@ export function assessLocationFit(
     const nbhdParts = (property.neighborhood ?? "").split("/").map(norm).filter(Boolean)
     const nbhdHit = nbhdParts.find((part) => clientAreas.includes(part))
     if (nbhdHit) {
-      return { label: "Preferred Neighborhood Match", reason: `Neighborhood: ${nbhdHit}`, tone: "match", rank: 1 }
+      return { label: "Preferred Neighborhood Match", reason: `Neighborhood: ${nbhdHit}`, match: nbhdHit, tone: "match", rank: 1 }
     }
     // Location Keyword (OR). Accepts the client's label verbatim, or one of the
     // CURATED spellings for that label in this market (lib/propertyExplorer/areaAliases)
@@ -141,12 +152,12 @@ export function assessLocationFit(
       (k) => clientAreas.includes(k) || clientAreas.some((a) => isAreaAlias(k, a, client.city)),
     )
     if (kwHit) {
-      return { label: "Location Keyword Match", reason: `Keyword: ${kwHit}`, tone: "match", rank: 2 }
+      return { label: "Location Keyword Match", reason: `Keyword: ${kwHit}`, match: kwHit, tone: "match", rank: 2 }
     }
     // Broad Location.
     const loc = norm(property.location ?? "")
     if (loc && clientAreas.includes(loc)) {
-      return { label: "Preferred Location Match", reason: `Location: ${loc}`, tone: "match", rank: 3 }
+      return { label: "Preferred Location Match", reason: `Location: ${loc}`, match: loc, tone: "match", rank: 3 }
     }
     // No structured match — fall through to the address-text fallback below.
   }
@@ -163,7 +174,7 @@ export function assessLocationFit(
     return n.length >= 4 && address.includes(n)
   })
   if (hit) {
-    return { label: "Preferred Area Match", reason: `Address matches ${hit}`, tone: "match", rank: 4 }
+    return { label: "Preferred Area Match", reason: `Address matches ${hit}`, match: hit, tone: "match", rank: 4 }
   }
 
   // Without a market we cannot say anything further.

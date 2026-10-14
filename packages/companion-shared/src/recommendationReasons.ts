@@ -16,9 +16,12 @@
 // the correct output when there is no client-specific evidence — it is more honest
 // than generic copy, and the locator can add real reasons by hand.
 //
-// Automatic generation is capped at 2 (mobile-first: two short fragments sit under the
-// Google rating without pushing the View Property button down). Manual editing may
-// store up to 3, the ceiling the lead_recommendations_reasons_max3 constraint enforces.
+// Automatic generation is capped at the same 3 the lead_recommendations_reasons_max3
+// constraint enforces for manual editing. It was 2 — a mobile layout guess made when the
+// only reachable families were amenities, location, budget and approval, so two was all
+// most properties could produce anyway. It is not a layout rule: the client page already
+// renders three for a hand-edited list, and holding automatic generation one below the
+// stored ceiling only discarded a grounded reason that was allowed to exist.
 
 export type ReasonEvidence = {
   /** evaluateAmenities output — the client's OWN must-haves the property confirms. */
@@ -29,6 +32,15 @@ export type ReasonEvidence = {
   budget?: string | null
   /** evaluateApproval reason ("1099 friendly", "Second chance"), when present. */
   approvalReason?: string | null
+  /**
+   * The client's own area wording this property matched — LocationFit.match.
+   *
+   * Names the evidence instead of alluding to it: "In Alamo Heights, one of your
+   * preferred areas" is a reason; "In your preferred area" is a label. Nothing is
+   * invented — this string came from the client's own saved areas. Absent or blank
+   * falls back to the original generic line, so a path with no detail is unchanged.
+   */
+  locationArea?: string | null
 }
 
 /** Join amenity labels into a natural phrase: [a] → "a", [a,b] → "a and b",
@@ -54,8 +66,8 @@ function joinAmenities(list: string[]): string {
  * is out of scope. Fewer than two reasons is valid — slots are NEVER padded, and zero
  * is a legitimate result.
  */
-/** Automatic generation ceiling. Manual editing allows up to MAX_REASONS. */
-export const AUTO_REASON_LIMIT = 2
+/** Automatic generation ceiling — the same ceiling manual editing has. */
+export const AUTO_REASON_LIMIT = 3
 /** Hard ceiling, mirroring the lead_recommendations_reasons_max3 DB constraint. */
 export const MAX_REASONS = 3
 
@@ -68,7 +80,10 @@ export function collectRecommendationReasons(e: ReasonEvidence): string[] {
     out.push(`Has the ${joinAmenities(amenities.slice(0, 3))} you wanted`)
   }
 
-  if (e.locationMatch) out.push("In your preferred area")
+  if (e.locationMatch) {
+    const area = (e.locationArea ?? "").trim()
+    out.push(area ? `In ${area}, one of your preferred areas` : "In your preferred area")
+  }
 
   const b = (e.budget ?? "").trim().toLowerCase()
   if (b.startsWith("within budget")) out.push("Within your budget")
@@ -77,7 +92,7 @@ export function collectRecommendationReasons(e: ReasonEvidence): string[] {
   const approval = (e.approvalReason ?? "").trim()
   if (approval) out.push(approval)
 
-  // De-dupe case-insensitively (preserve first/highest-priority wording), cap at 2.
+  // De-dupe case-insensitively (preserve first/highest-priority wording), then cap.
   const seen = new Set<string>()
   const deduped: string[] = []
   for (const r of out) {

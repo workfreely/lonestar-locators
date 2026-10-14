@@ -56,6 +56,12 @@ export default function RecommendationEngagement({ leadId }: { leadId: number | 
   }, [leadId])
 
   if (rows === null) return null // nothing until it resolves — no layout jump, no spinner for one line
+  // NOTHING SENT ⇒ NOTHING TO REPORT. "Not viewed yet" is a statement about a list the
+  // client was actually given; with no share row there is no list, and the line was
+  // reporting the client had not opened something that was never sent. An empty array also
+  // arrives from a failed fetch and from demo leads, and in both of those the honest
+  // output is likewise silence rather than a confident claim.
+  if (rows.length === 0) return null
   const views = rows.reduce((n, r) => n + (r.viewSessionCount ?? 0), 0)
   const last = rows
     .map((r) => r.lastViewedAt)
