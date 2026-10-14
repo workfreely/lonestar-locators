@@ -1,7 +1,4 @@
 import { google } from "googleapis"
-// LEGACY global Google account — TODO(phase-2): migrate to per-user
-// google_credentials. See getOAuthClient.ts. Do not extend this path.
-import { getOAuthClient } from "./getOAuthClient"
 import { formatPersonName } from "@bc/companion-shared"
 import { formatWorkflowActionLabel } from "@/lib/leads/workflowActionLabels"
 
@@ -98,31 +95,39 @@ function buildDescription(lead: NewLeadEventInput): string {
 
 // ─── Shared low-level insert ──────────────────────────────────────────────────
 
-// Per-agent (B2): callers pass the agent's own OAuth client + `calendarIdOverride`
+// Per-agent: callers pass the agent's own OAuth client, and every write goes to that
 // of "primary" so the event lands in that agent's connected Google Calendar.
 // The legacy/global path (no client, no override) is UNCHANGED — it still uses
-// getOAuthClient() (GOOGLE_REFRESH_TOKEN) + GOOGLE_CALENDAR_ID, which is what the
+// the single global account, which is what the
 // Follow-Up events and any non-attributed lead keep using.
 type GoogleOAuthClient = InstanceType<typeof google.auth.OAuth2>
 
+/**
+ * Insert one event into the OWNING AGENT'S OWN primary calendar.
+ *
+ * ── TWO THINGS CHANGED HERE, AND THEY GO TOGETHER ───────────────────────────────────────────
+ * The client is now REQUIRED. It used to fall back to getOAuthClient(), a single global account
+ * built from GOOGLE_REFRESH_TOKEN — a variable that does not exist in production, so the
+ * fallback threw rather than wrote, silently, on every call that took it. A required parameter
+ * makes that unrepresentable instead of merely unlikely.
+ *
+ * The calendar is now pinned to "primary". It used to resolve calendarIdOverride ??
+ * GOOGLE_CALENDAR_ID — a configurable id that no live caller ever set, and that is the one thing
+ * standing between us and the narrower calendar.events.owned scope: an id pointing at a calendar
+ * the agent does not own is exactly what that scope forbids. Pinning makes every write land in
+ * the agent's own calendar by construction.
+ */
 async function insertCalendarEvent(
   eventBody: object,
   label: string,
-  oauth2Client?: GoogleOAuthClient,
-  calendarIdOverride?: string,
+  oauth2Client: GoogleOAuthClient,
 ): Promise<string> {
-  const calendarId = calendarIdOverride ?? process.env.GOOGLE_CALENDAR_ID
-  if (!calendarId) {
-    throw new Error("GOOGLE_CALENDAR_ID is not set in environment variables")
-  }
+  const calendarId = "primary"
 
   console.log(`📅 [calendar] Inserting event: ${label}`)
-  console.log(`📅 [calendar] calendarId: ${calendarId}`)
-  console.log(`📅 [calendar] Event body:`, JSON.stringify(eventBody, null, 2))
 
   try {
-    const client = oauth2Client ?? getOAuthClient()
-    const calendar = google.calendar({ version: "v3", auth: client })
+    const calendar = google.calendar({ version: "v3", auth: oauth2Client })
 
     const response = await calendar.events.insert({
       calendarId,
@@ -193,9 +198,12 @@ function buildListSentDescription(lead: ListSentEventInput): string {
  *
  * @param lead  - Lead that was just moved to list_sent
  * @returns     - The created Google Calendar event ID
- * @throws      - If GOOGLE_CALENDAR_ID is missing or the Calendar API call fails
+ * @throws      - If the Calendar API call fails
  */
-export async function createListSentCalendarEvent(lead: ListSentEventInput): Promise<string> {
+export async function createListSentCalendarEvent(
+  lead: ListSentEventInput,
+  client: GoogleOAuthClient,
+): Promise<string> {
   const fullName = [lead.first_name, lead.last_name].filter(Boolean).join(" ") || "Unknown Lead"
 
   // Next calendar day at 10:00 AM Chicago — regardless of what time it is now.
@@ -231,7 +239,7 @@ export async function createListSentCalendarEvent(lead: ListSentEventInput): Pro
     },
   }
 
-  return insertCalendarEvent(eventBody, `LIST FU1 — ${fullName}`)
+  return insertCalendarEvent(eventBody, `LIST SENT — ${fullName}`, client)
 }
 
 // ─── FU chain — FU2 / FU3 / Final ────────────────────────────────────────────
@@ -277,62 +285,9 @@ const FU_NEXT_EVENT: Record<number, { emoji: string; action: string; actions: st
  * @param lead          - The lead whose follow-up was just completed
  * @param completedStep - The follow_up_count that was JUST set (1 = FU1 done, 2 = FU2 done, 3 = FU3 done)
  */
-export async function createFollowUpCalendarEvent(
-  lead: ListSentEventInput,
-  completedStep: number
-): Promise<string> {
-  const config = FU_NEXT_EVENT[completedStep]
-  if (!config) {
-    throw new Error(`No follow-up event configured for completedStep=${completedStep} — chain ends here`)
-  }
-
-  const fullName = [lead.first_name, lead.last_name].filter(Boolean).join(" ") || "Unknown Lead"
-
-  // Next calendar day at 10:00 AM Chicago
-  const nowChicago = new Date(
-    new Date().toLocaleString("en-US", { timeZone: "America/Chicago" })
-  )
-  const tomorrowChicago = new Date(nowChicago)
-  tomorrowChicago.setDate(nowChicago.getDate() + 1)
-
-  const yyyy = tomorrowChicago.getFullYear()
-  const mm   = String(tomorrowChicago.getMonth() + 1).padStart(2, "0")
-  const dd   = String(tomorrowChicago.getDate()).padStart(2, "0")
-
-  const startDateTime = `${yyyy}-${mm}-${dd}T10:00:00`
-  const endDateTime   = `${yyyy}-${mm}-${dd}T10:15:00`
-
-  // Build description — same lead info block, FU-specific action lines
-  const lines: string[] = []
-  const fullNameLine = [lead.first_name, lead.last_name].filter(Boolean).join(" ")
-  if (fullNameLine)     lines.push(`Client: ${fullNameLine}`)
-  if (lead.phone)       lines.push(`Phone: ${formatPhone(lead.phone)}`)
-  if (lead.city)        lines.push(`City: ${lead.city}`)
-  if (lead.source)      lines.push(`Source: ${formatSource(lead.source)}`)
-  if (lead.desired_rent) lines.push(`Budget: ${lead.desired_rent}`)
-  if (lead.beds)        lines.push(`Beds: ${lead.beds}`)
-  if (lead.move_date)   lines.push(`Move Date: ${formatMoveDate(lead.move_date)}`)
-  lines.push("")
-  lines.push("ACTION:")
-  config.actions.forEach((a) => lines.push(a))
-
-  const title = formatEventTitle(config.emoji, lead.first_name, lead.last_name, config.action)
-
-  console.log(`📅 [fu-chain] Step ${completedStep} done → ${title} | Lead: ${fullName} | ${startDateTime} Chicago`)
-
-  const eventBody = {
-    summary: title,
-    description: lines.join("\n"),
-    start: { dateTime: startDateTime, timeZone: "America/Chicago" },
-    end:   { dateTime: endDateTime,   timeZone: "America/Chicago" },
-    reminders: {
-      useDefault: false,
-      overrides: [{ method: "popup", minutes: 0 }],
-    },
-  }
-
-  return insertCalendarEvent(eventBody, `${title} — ${fullName}`)
-}
+// createFollowUpCalendarEvent was removed with /api/google/followup-event: the route had no
+// callers and the helper had no other one. upsertFollowUpCalendarEvent is the live path and
+// takes the agent's own client.
 
 // ─── New Lead event ───────────────────────────────────────────────────────────
 
@@ -343,11 +298,11 @@ export async function createFollowUpCalendarEvent(
  *
  * @param lead  - Lead data from either the website intake form or CRM manual entry
  * @returns     - The created Google Calendar event ID
- * @throws      - If GOOGLE_CALENDAR_ID is missing or the Calendar API call fails
+ * @throws      - If the Calendar API call fails
  */
 export async function createNewLeadCalendarEvent(
   lead: NewLeadEventInput,
-  oauth2Client?: GoogleOAuthClient,
+  oauth2Client: GoogleOAuthClient,
 ): Promise<string> {
   const fullName = [lead.first_name, lead.last_name].filter(Boolean).join(" ") || "Unknown Lead"
 
@@ -383,7 +338,6 @@ export async function createNewLeadCalendarEvent(
     eventBody,
     `NEW LEAD — ${fullName}`,
     oauth2Client,
-    oauth2Client ? "primary" : undefined,
   )
 }
 

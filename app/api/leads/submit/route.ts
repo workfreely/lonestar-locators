@@ -774,16 +774,14 @@ export async function POST(request: Request) {
               move_date: result.payload.move_date as string | undefined,
               credit_score: result.payload.credit_score as string | undefined,
             }
+            // The New Lead event goes to the OWNING agent's own calendar, or nowhere. The
+            // "non-attributed lead (legacy/global path)" branch that used to sit here fell
+            // through to the single global account, whose refresh token does not exist in
+            // production — so it could only ever throw. A lead with no attributed owner has no
+            // calendar to write to, and saying so plainly beats a call that pretends otherwise.
             if (attributedOwnerId) {
-              // Smart Lead Form (B2): create the New Lead event in the OWNING
-              // agent's own connected Google Calendar. Not connected / revoked →
-              // skip (no global fallback for an attributed LB agent). Event
-              // content/timing unchanged — only the account/calendar differs.
               const client = await getOAuthClientForUser(attributedOwnerId, { verify: false })
               if (client) await createNewLeadCalendarEvent(leadInput, client)
-            } else {
-              // Non-attributed lead (legacy/global path) — unchanged.
-              await createNewLeadCalendarEvent(leadInput)
             }
           } catch (err) {
             console.error("[api/leads/submit] New-lead calendar event failed:", err)

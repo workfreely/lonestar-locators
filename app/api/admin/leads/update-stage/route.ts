@@ -1,13 +1,15 @@
 import { NextResponse } from "next/server"
 import { google } from "googleapis"
+
+type GoogleOAuthClient = InstanceType<typeof google.auth.OAuth2>
 import { supabaseAdmin } from "@/lib/supabase/admin"
 import { requireWorkspaceMember } from "@/lib/auth/requireWorkspaceMember"
 import { buildContactNotes } from "@/lib/google/buildContactNotes"
 import { updateGoogleContactNotes } from "@/lib/google/updateContactNotes"
-// LEGACY global Google account — TODO(phase-2): migrate the contacts + calendar
-// side-effects below to per-user google_credentials. See getOAuthClient.ts.
-import { getOAuthClient } from "@/lib/google/getOAuthClient"
 import { createListSentCalendarEvent } from "@/lib/google/createCalendarEvent"
+import { getOAuthClientForUser } from "@/lib/google/getOAuthClientForUser"
+import { recordGoogleFailure } from "@/lib/google/integrationHealth"
+import { classifyGoogleError } from "@/lib/google/integrationHealthRules"
 import { getStageWorkflowAction, createWorkflowActionIfNeeded } from "@/lib/workflowEngine"
 import { CONTACT_CHASE_ACTION_KEYS, STAGES_PAST_CONTACT_CHASE } from "@/lib/leads/contactChase"
 import { LIST_LADDER_ACTION_KEYS, STAGES_PAST_LIST_LADDER } from "@/lib/leads/actionCompletion"
@@ -82,13 +84,18 @@ function buildFullNotes(lead: any): string {
 }
 
 /**
- * Searches Google Contacts by phone number and returns the resourceName
- * of the first matching contact, or null if none found.
+ * Search the OWNING AGENT'S OWN Google Contacts by phone number.
+ *
+ * The client is a parameter, not a global: this used to build one from GOOGLE_REFRESH_TOKEN, a
+ * variable that does not exist in production, so every search here has been failing silently.
+ * Passing the owner's client is what makes it work AND what guarantees one agent's stage change
+ * can never read or write another agent's contacts.
  */
-async function findContactByPhone(formattedPhone: string): Promise<string | null> {
-  const oauth2Client = getOAuthClient()
-
-  const people = google.people({ version: "v1", auth: oauth2Client })
+async function findContactByPhone(
+  formattedPhone: string,
+  client: GoogleOAuthClient,
+): Promise<string | null> {
+  const people = google.people({ version: "v1", auth: client })
 
   // Warmup request required by Google People API before searching
   try {
@@ -346,15 +353,24 @@ export async function POST(request: Request) {
     // Failure here must NEVER prevent the calendar event.
     // =====================================================
 
+    // THE OWNER OF THE LEAD, not the caller and not a global account. Resolved once and shared
+    // by both Google side-effects below; null means this agent has not connected Google (or the
+    // token is dead), in which case both are skipped rather than attempted against nobody.
+    const googleOwnerId = (lead.owner_user_id as string | null) ?? null
+    const googleClient = googleOwnerId
+      ? await getOAuthClientForUser(googleOwnerId, { verify: false })
+      : null
+
     try {
       console.log(`🔍 [stage-sync] lead ${leadId} — google_contact_id: ${lead.google_contact_id ?? "null"}`)
+      if (!googleClient) throw new Error("no connected Google account for the lead owner")
 
       const notes = buildFullNotes(lead)
 
       if (lead.google_contact_id) {
         // ── Path A: stored resourceName ──────────────────
         console.log(`🔍 [stage-sync] Path A — updating via stored ID: ${lead.google_contact_id}`)
-        await updateGoogleContactNotes(lead.google_contact_id, notes)
+        await updateGoogleContactNotes(lead.google_contact_id, notes, googleClient)
         console.log(`✅ [stage-sync] Path A — Google Contact notes updated`)
       } else if (lead.phone) {
         // ── Path B: no stored ID — search by phone ───────
@@ -369,12 +385,12 @@ export async function POST(request: Request) {
           const formattedPhone = `+1${cleanedPhone}`
           console.log(`🔍 [stage-sync] phone (formatted): ${formattedPhone}`)
 
-          const resourceName = await findContactByPhone(formattedPhone)
+          const resourceName = await findContactByPhone(formattedPhone, googleClient)
 
           if (resourceName) {
             console.log(`✅ [stage-sync] Google contact found: ${resourceName}`)
             console.log(`🔍 [stage-sync] calling updateGoogleContactNotes...`)
-            await updateGoogleContactNotes(resourceName, notes)
+            await updateGoogleContactNotes(resourceName, notes, googleClient)
             console.log(`✅ [stage-sync] Google Contact notes updated via phone search`)
           } else {
             console.warn(`⚠️  [stage-sync] No Google contact found for phone ${formattedPhone} (lead ${leadId})`)
@@ -386,8 +402,10 @@ export async function POST(request: Request) {
         console.warn(`⚠️  [stage-sync] lead ${leadId} has no google_contact_id and no phone — skipping Google sync`)
       }
     } catch (googleContactError) {
-      // Log and continue — a Contact sync failure must never block the calendar event
+      // Log and continue — a Contact sync failure must never block the calendar event. It is
+      // also RECORDED now, so a dead token shows on the Integrations page instead of only here.
       console.error(`❌ [stage-sync] Google Contact sync failed for lead ${leadId}:`, googleContactError)
+      if (googleOwnerId) await recordGoogleFailure(googleOwnerId, classifyGoogleError(googleContactError))
     }
 
     // =====================================================
@@ -396,7 +414,10 @@ export async function POST(request: Request) {
     // Only fires on the FIRST transition into list_sent.
     // =====================================================
 
-    if (oldStage !== "list_sent" && crm_status === "list_sent") {
+    // The SAME owner client the Contact sync used — so the List Sent event lands in the calendar
+    // of the agent who OWNS the lead and nowhere else. No connected account means no event, which
+    // is the honest outcome; it used to be attempted against a global token production lacks.
+    if (oldStage !== "list_sent" && crm_status === "list_sent" && googleClient) {
       console.log(`📋 [stage-sync] List Sent calendar trigger starting — lead ${leadId}`)
       createListSentCalendarEvent({
         first_name:   lead.first_name,
@@ -407,12 +428,13 @@ export async function POST(request: Request) {
         desired_rent: lead.desired_rent,
         beds:         lead.beds,
         move_date:    lead.move_date,
-      })
+      }, googleClient)
         .then(() => {
           console.log(`✅ [stage-sync] List Sent calendar created — lead ${leadId}`)
         })
-        .catch((err) => {
+        .catch(async (err) => {
           console.error(`❌ [stage-sync] List Sent calendar failed — lead ${leadId}:`, err)
+          if (googleOwnerId) await recordGoogleFailure(googleOwnerId, classifyGoogleError(err))
         })
     } else {
       console.log(`📋 [stage-sync] List Sent calendar skipped — oldStage: ${oldStage}, newStage: ${crm_status}`)

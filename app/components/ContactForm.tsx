@@ -511,57 +511,11 @@ if (formData.sms_consent && formData.phone) {
         window.scrollTo({ top: 0, behavior: "smooth" });
       }, 200);
 
-      // ------------------------------------------------------
-      // Google Contact Sync (fire-and-forget)
-      // ------------------------------------------------------
-      fetch("/api/google/create-contact", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          leadId: submitJson?.leadId,
-
-          firstName: formData.firstName,
-          lastName: formData.lastName,
-          phone: formData.phone,
-          email: formData.email,
-
-          city: formData.city || "Lead",
-          source: leadSource || "website",
-
-          moveDate: formData.moveDate,
-          desiredRent: formData.desiredRent,
-
-          beds: formData.beds,
-          baths: formData.baths,
-
-          propertyType: formData.propertyType,
-
-          neighborhoods: formData.neighborhoods.join(", "),
-          submarkets: formData.submarkets?.join(", "),
-
-          creditScore: formData.creditScore,
-          creditHistory: formData.creditHistory,
-
-          brokenLeaseAge: formData.brokenLeaseAge,
-          brokenLeaseAmount: formData.brokenLeaseAmount,
-
-          evictionCourt: formData.evictionCourt,
-          evictionAge: formData.evictionAge,
-          evictionBalance: formData.evictionBalance,
-
-          criminalBackground: formData.criminalBackground,
-          criminalCharge: formData.criminalCharge,
-
-          felonyAge: formData.felonyAge,
-          misdemeanorAge: formData.misdemeanorAge,
-
-          notes: formData.notes,
-        }),
-      }).catch((err) => {
-        console.error("Google Contact sync failed:", err);
-      });
+      // GOOGLE CONTACT SYNC REMOVED. /api/leads/submit already creates the contact in the
+      // OWNING agent's account, server-side, through the per-agent OAuth client — proven in
+      // production (lead 92). This browser call went to a route built on the single global
+      // account, whose refresh token does not exist in production, so it had been a no-op.
+      // Repairing it instead of removing it would have produced TWO contacts per lead.
 
       // ------------------------------------------------------
       // Send Confirmation Email to Lead (fire-and-forget)
