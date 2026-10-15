@@ -53,6 +53,91 @@ end $$;
 select pg_temp.ck('inserting a fixture creates NO revision (history starts at the first change)',
   (select count(*) from public.social_revisions where row_id = current_setting('test.pid')) = 0);
 
+-- ── 0. BASELINE RECOVERY ────────────────────────────────────────────────────────────────────
+-- The question this answers: a record that has NEVER been edited has no history. When it is first
+-- changed, is the state it had before that change recoverable EXACTLY — including hand-written
+-- content that no generator would ever reproduce?
+--
+-- The fixture below is deliberately shaped like real content: a hand-written caption with emoji,
+-- smart quotes and newlines, a manually chosen template, a manually entered amenity list and
+-- price. If any of it came back altered, a restore would be worse than useless.
+-- Its OWN fixtures, so this block cannot disturb the premises of the tests that follow.
+do $$
+declare owner_a uuid := current_setting('test.owner_a')::uuid;
+        cid uuid; pid uuid;
+        hand_caption text := 'Hand-written. ✨ Smart quotes: don''t, "quoted", and — a dash.' || chr(10) || chr(10) || 'Second paragraph.';
+        n_before int;
+begin
+  -- Created ALREADY in the realistic "never edited since upload" state, so the baseline is the
+  -- inserted state and no setup write pollutes the history being measured.
+  insert into public.social_content (owner_user_id, storage_path, property_name, amenities, special,
+         budget_range, property_type, area_neighborhood, district, notes, place_id)
+  values (owner_a, owner_a || '/baseline/source.mp4', 'BASELINE Property',
+          'Rooftop Pool' || chr(10) || 'Concierge' || chr(10) || 'EV Charging',
+          'Up to 8 Weeks Free', '2450', 'Penthouse', 'Downtown Dallas', 'Arts District',
+          'manually typed note', 'BASELINE_PLACE')
+  returning id into cid;
+
+  insert into public.social_posts (owner_user_id, source_content_id, status, caption, hashtags,
+         overlay_headline, overlay_template, overlay_mode, cover_thumb_offset_ms)
+  values (owner_a, cid, 'draft', hand_caption, array['#manual','#chosen','#bythem'],
+          'MANUALLY WRITTEN HEADLINE', 'hits_different', 'existing', 600)
+  returning id into pid;
+
+  select count(*) into n_before from public.social_revisions;
+
+  -- THE FIRST MEANINGFUL EDIT after that baseline.
+  update public.social_posts
+     set caption = 'REPLACED BY A LATER SAVE', overlay_template = 'market_type',
+         hashtags = array['#different'], overlay_headline = 'REGENERATED HEADLINE',
+         cover_thumb_offset_ms = 1500
+   where id = pid;
+  update public.social_content
+     set amenities = 'Pool', special = null, budget_range = '1200', property_type = 'Apartment',
+         district = null, notes = null
+   where id = cid;
+
+  perform pg_temp.ck('a first meaningful edit records exactly TWO revisions — one per table',
+    (select count(*) from public.social_revisions) = n_before + 2);
+
+  -- EXACT recovery, field by field, byte for byte.
+  perform pg_temp.ck('the hand-written caption comes back EXACTLY — emoji, smart quotes, newlines',
+    (select previous->>'caption' from public.social_revisions
+      where entity='social_posts' and row_id=pid::text order by id desc limit 1) = hand_caption);
+  perform pg_temp.ck('the manually chosen template is recoverable',
+    (select previous->>'overlay_template' from public.social_revisions
+      where entity='social_posts' and row_id=pid::text order by id desc limit 1) = 'hits_different');
+  perform pg_temp.ck('the manually written headline and overlay mode are recoverable',
+    (select previous->>'overlay_headline' from public.social_revisions
+      where entity='social_posts' and row_id=pid::text order by id desc limit 1) = 'MANUALLY WRITTEN HEADLINE');
+  perform pg_temp.ck('the manually chosen hashtags are recoverable, in order',
+    (select previous->'hashtags' from public.social_revisions
+      where entity='social_posts' and row_id=pid::text order by id desc limit 1) = '["#manual","#chosen","#bythem"]'::jsonb);
+  perform pg_temp.ck('the 600 ms cover offset is recoverable',
+    (select previous->>'cover_thumb_offset_ms' from public.social_revisions
+      where entity='social_posts' and row_id=pid::text order by id desc limit 1) = '600');
+  perform pg_temp.ck('the FULL manually entered amenity list is recoverable, all three lines',
+    (select previous->>'amenities' from public.social_revisions
+      where entity='social_content' and row_id=cid::text order by id desc limit 1)
+    = 'Rooftop Pool' || chr(10) || 'Concierge' || chr(10) || 'EV Charging');
+  perform pg_temp.ck('a special CLEARED to null is still recoverable',
+    (select previous->>'special' from public.social_revisions
+      where entity='social_content' and row_id=cid::text order by id desc limit 1) = 'Up to 8 Weeks Free');
+  perform pg_temp.ck('price, property type, district and notes are all recoverable from the one revision',
+    (select previous->>'budget_range'='2450' and previous->>'property_type'='Penthouse'
+        and previous->>'district'='Arts District' and previous->>'notes'='manually typed note'
+       from public.social_revisions where entity='social_content' and row_id=cid::text order by id desc limit 1));
+  perform pg_temp.ck('an UNCHANGED watched field is absent from the revision — no needless snapshot',
+    (select not (previous ? 'area_neighborhood') from public.social_revisions
+      where entity='social_content' and row_id=cid::text order by id desc limit 1));
+end $$;
+
+-- A record nobody has touched must have NO history at all — the system costs nothing until a
+-- change actually happens.
+select pg_temp.ck('an untouched record has no revisions, so unchanged records cost nothing',
+  (select count(*) from public.social_revisions r
+    where r.entity='social_property_research' and r.entity_key->>'place_id'='FIXTURE_PLACE') = 0);
+
 -- ── 1. CAPTION ──────────────────────────────────────────────────────────────────────────────
 update public.social_posts set caption = 'EDITED CAPTION' where id = current_setting('test.pid')::uuid;
 select pg_temp.ck('a caption change records exactly one revision, naming only caption',

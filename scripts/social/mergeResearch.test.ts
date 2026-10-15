@@ -116,6 +116,27 @@ ok("it handles the table with no `id` column", /social_floorplan_observations: "
 ok("a deleted row is refused rather than silently recreated", /no longer exists/.test(r))
 ok("the restore is itself recorded, and the script says so", /can be undone the same way/.test(r))
 
+// ── THE ENFORCED SAVE PATH ──────────────────────────────────────────────────────────────────
+console.log("\nresearch enrichment goes through ONE save path:")
+const sr = read("scripts/social/saveResearch.ts")
+const src2 = codeOnly(sr)
+ok("saveResearch imports the merge helper rather than re-implementing it",
+  /import \{ mergeStableResearch, omittedKeys/.test(src2))
+ok("stable is MERGED, never assigned from the incoming object",
+  /stable = rec\.stable\s*\?\s*mergeStableResearch/.test(src2.replace(/\n\s*/g, " ")))
+ok("sources are unioned, so a bibliography can only grow", /unionList\(\(existing\.sources/.test(src2))
+ok("unresolved conflicts are unioned, so a later reading cannot clear a flag",
+  /unionList\(\(existing\.unresolved/.test(src2))
+ok("pricing merges too, but specials and starting prices are REPLACED — expiry must take effect",
+  /replace: \[\.\.\.\(opts\.replace \?\? \[\]\), "specials", "startingPrices", "overallRange"\]/.test(src2))
+ok("identity is the PAIR — both halves are required and both are used in the lookup",
+  /needs BOTH owner_user_id and place_id/.test(sr) &&
+  /\.eq\("owner_user_id", rec\.owner_user_id\)[\s\S]{0,60}\.eq\("place_id", rec\.place_id\)/.test(src2))
+ok("it NEVER deletes a research row", !/\.delete\(/.test(src2))
+ok("a write that would change nothing is skipped, so no needless revision is recorded",
+  /action: "unchanged"/.test(src2))
+ok("it reports what a plain overwrite WOULD have destroyed", /preserved/.test(src2) && /were KEPT/.test(sr))
+
 // ── MEDIA IS NOT IN THE BLAST RADIUS ────────────────────────────────────────────────────────
 console.log("\nmedia protections are untouched:")
 const mig = read("supabase/migrations/20261021000000_social_revisions.sql").replace(/^--.*$/gm, "")
