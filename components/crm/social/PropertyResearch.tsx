@@ -142,6 +142,16 @@ export default function PropertyResearch({ sourceContentId, placeId }: { sourceC
 
   const inputCls =
     "w-full text-[12.5px] rounded-lg border border-[var(--crm-border)] bg-[var(--crm-card)] text-[var(--crm-text-primary)] px-2 py-1"
+  // SECTION LABELS. The +4px of air around each one (mt-1 -> mt-2 below the label, mt-1 added
+  // above a section) is deliberate polish, not an accident of the grid: at 10px uppercase these
+  // read as headings, and sitting 4px off their own inputs made them look attached to the field
+  // rather than to the group.
+  //
+  // TWO GAPS ARE DELIBERATELY UNTOUCHED, because changing either one is visible everywhere:
+  //   • the panel's own `gap-3` between the three sections — that is the panel's density;
+  //   • the gap BENEATH "+ More", which is that same gap-3 falling to the Observations block.
+  //     No top margin is added to that block for exactly this reason; Features Observed gets its
+  //     extra space from its own inner wrapper instead.
   const tiny = "text-[10px] uppercase tracking-wide text-[var(--crm-text-muted)]"
   const setField = (k: string, v: string) => setFields((f) => ({ ...f, [k]: v }))
 
@@ -154,7 +164,7 @@ export default function PropertyResearch({ sourceContentId, placeId }: { sourceC
           {/* ── THIS VIDEO ─────────────────────────────────────────────── */}
           <div>
             <div className={tiny}>This Video</div>
-            <div className="mt-1 grid grid-cols-2 md:grid-cols-3 gap-1.5">
+            <div className="mt-2 grid grid-cols-2 md:grid-cols-3 gap-1.5">
               <label className="block"><span className="sr-only">Floor Plan</span>
                 <input className={inputCls} placeholder="Floor Plan" value={plan.planName}
                   onChange={(e) => setPlan((p) => ({ ...p, planName: e.target.value }))} /></label>
@@ -183,9 +193,11 @@ export default function PropertyResearch({ sourceContentId, placeId }: { sourceC
           </div>
 
           {/* ── PROPERTY STARTING PRICES ───────────────────────────────── */}
-          <div>
+          {/* mt-1 here, rather than a larger gap on the panel, separates this section from THIS
+              VIDEO's inputs without touching the spacing of the other two sections. */}
+          <div className="mt-1">
             <div className={tiny}>Property Starting Prices</div>
-            <div className="mt-1 grid grid-cols-2 sm:grid-cols-4 gap-1.5">
+            <div className="mt-2 grid grid-cols-2 sm:grid-cols-4 gap-1.5">
               {CORE_FIELDS.map(([key, label]) => (
                 <label key={key} className="block">
                   <span className="sr-only">{label}</span>
@@ -220,13 +232,15 @@ export default function PropertyResearch({ sourceContentId, placeId }: { sourceC
                 those 3 are a curated ranking layer, never the property's feature
                 list — the same distinction property_catalog.amenity_keywords
                 already draws against property_attributes. */}
-            <div>
+            {/* mt-1 on THIS wrapper, never on the Observations block above it: the block's top
+                edge is the gap beneath "+ More", which must not move. */}
+            <div className="mt-1">
               <div className={tiny}>Features Observed</div>
               {/* The SAME canonical bank + search the marketing field uses, with the
                   3-cap lifted: three curated keywords are a ranking layer, never the
                   property's feature list. Stored newline-joined in the observation
                   layer only — never written back to social_content.amenities. */}
-              <div className="mt-1">
+              <div className="mt-2">
                 <AmenitySelect
                   max={25}
                   value={parseAmenities(fields.observed_features ?? "")}
