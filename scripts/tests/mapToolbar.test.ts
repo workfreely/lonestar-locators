@@ -28,8 +28,8 @@ ok("the count still comes from the shortlist", /setBeastMatchCount\(shortlist\.l
 
 console.log("\nthe row can shrink")
 ok("the left group absorbs the width change", /\.kb-toolbar-left \{[^}]*flex:1 1 auto[^}]*min-width:0/.test(css))
-ok("the search shrinks to a floor instead of holding 320px",
-  /\.kb-toolbar-left \.kb-search \{[^}]*flex:1 1 320px[^}]*min-width:148px/.test(css))
+ok("the search shrinks to a floor instead of holding a fixed width",
+  /\.kb-toolbar-left \.kb-search \{[^}]*flex:1 1 272px[^}]*min-width:148px/.test(css))
 ok("NOTHING in the toolbar is flex:none with a fixed width any more",
   !/\.kb-toolbar-left \.kb-search \{ flex:none; width:320px; \}/.test(css))
 
@@ -53,6 +53,25 @@ console.log("\nthe Map button only disappears where it did nothing")
 ok("it still renders from the board", /\{workspace !== "map" && \([\s\S]{0,220}onWorkspaceChange\("map"\)/.test(board))
 ok("…and not inside the map, where it switched to the workspace you were already in",
   !/aria-pressed=\{workspace === "map"\} onClick=\{\(\) => onWorkspaceChange\("map"\)\}/.test(board))
+
+console.log("\nthe two control groups are separated")
+// .kb-map-actions had NO gap at all: Unleash Beast and the Beast Matches toggle are portalled
+// in as siblings, so they sat flush while every other control got the row's 10px.
+ok("the action group has a gap of its own", /\.kb-toolbar-left \.kb-map-actions \{[^}]*gap:12px/.test(css))
+ok("…and it narrows with the pane without ever returning to flush",
+  /@container kbpane \(max-width: 1180px\)[\s\S]{0,400}\.kb-map-actions \{ gap:10px; \}/.test(css) &&
+  /@container kbpane \(max-width: 820px\)[\s\S]{0,500}\.kb-map-actions \{ gap:8px; \}/.test(css))
+ok("the search gave back the width, trimmed to 272", /\.kb-toolbar-left \.kb-search \{ flex:1 1 272px[^}]*max-width:272px/.test(css))
+
+console.log("\nbelow ~700px the row wraps instead of overlapping")
+// A toolbar-level scrollWidth check CANNOT see this: .kb-toolbar-left is flex:1 1 auto with
+// min-width:0, so its BOX shrinks while its flex:none children keep their width and spill out.
+// Measured at a 620px pane before the fix: the toggle's right edge 628 vs Focus's left edge 579.
+ok("there is a wrap rule for the pane sizes that genuinely do not fit",
+  /@container kbpane \(max-width: 700px\)[\s\S]{0,400}flex-wrap:wrap/.test(css))
+ok("the wrapped rows are spaced", /@container kbpane \(max-width: 700px\)[\s\S]{0,400}row-gap:8px/.test(css))
+ok("Focus is never pulled into the wrap — it is not in the wrapping group",
+  !/\.kb-toolbar \{[^}]*flex-wrap/.test(css))
 
 console.log("\nnothing else about the map changed")
 ok("no matching, scoring or filtering logic is touched here",
