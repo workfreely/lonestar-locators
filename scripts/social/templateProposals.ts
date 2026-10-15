@@ -5,22 +5,7 @@ import { createClient } from "@supabase/supabase-js"
 import { readFileSync } from "node:fs"
 import { buildTemplateHeadline, buildTemplateDetail, isGeneratedCaption, type SourceMeta, type OverlayTemplate } from "@/lib/social/composePost"
 
-/** Candidates per unit-type family, best first. Variety comes from spreading WITHIN a family. */
-const FAMILIES: [RegExp, OverlayTemplate[]][] = [
-  [/Penthouse/, ["wanted_luxury", "real_living", "property_tour", "would_you_live_here", "pov_upgrade"]],
-  [/Loft/, ["real_living", "hits_different", "your_sign", "next_property"]],
-  [/High-Rise/, ["real_living", "property_tour", "hits_different", "would_you_live_here"]],
-  [/Townhome|Rental Home/, ["trade_up", "hits_different", "next_property", "your_sign", "real_living"]],
-  [/Studio/, ["next_property", "your_sign"]],
-  [/Apartment/, ["upgrade", "pov_upgrade", "next_property", "your_sign", "hits_different"]],
-]
-// Deterministic, never random: the same video always lands on the same template, across runs and
-// across machines, so a proposal reviewed today is the proposal applied tomorrow.
-const pick = (id: string, fam: OverlayTemplate[]) => {
-  let h = 0
-  for (const ch of id) h = (h * 31 + ch.charCodeAt(0)) >>> 0
-  return fam[h % fam.length]
-}
+import { familyFor, pickTemplate } from "@/lib/social/templateFamilies"
 
 async function main() {
   const env = Object.fromEntries(readFileSync(".env.local", "utf8").split("\n").filter((l) => l.includes("="))
@@ -46,9 +31,9 @@ async function main() {
     // A draft whose special is on the video stays put: changing its template regenerates the
     // caption, and the operator has frozen captions.
     if (String(c.special ?? "").trim()) { held.push(`${c.property_name} — carries a special; template change would regenerate its caption`); continue }
-    const fam = FAMILIES.find(([re]) => re.test(String(c.property_type ?? "")))?.[1]
+    const fam = familyFor(c.property_type as string | null)
     if (!fam) { held.push(`${c.property_name} — no template family for Unit Type ${JSON.stringify(c.property_type)}`); continue }
-    const tpl = pick(c.id as string, fam)
+    const tpl = pickTemplate(c.id as string, fam)
     const headNew = buildTemplateHeadline(tpl, meta), detNew = buildTemplateDetail(tpl, meta)
 
     // LEAK CHECKS. A price may appear only if the operator entered one; a concession never.
