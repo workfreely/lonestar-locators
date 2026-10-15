@@ -24,6 +24,7 @@
 
 import type { SupabaseClient } from "@supabase/supabase-js"
 import { mergeStableResearch, omittedKeys, type Json, type MergeOptions } from "@/lib/social/mergeResearch"
+import { resolvePlaceId } from "@/lib/social/placeIdentity"
 
 type JsonObject = { [k: string]: Json }
 
@@ -67,6 +68,29 @@ function unionList(current: Json[], incoming: Json[]): { out: Json[]; added: num
 }
 
 /**
+ * Every place_id this owner actually has a video for, plus every place_id in the table.
+ *
+ * Read fresh on each save. A cached set would be the same class of mistake as a truncated id —
+ * a stale copy of the truth, trusted because it looks right.
+ */
+async function ownedPlaceIds(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  sb: SupabaseClient<any, any, any>,
+  ownerUserId: string,
+): Promise<{ mine: Set<string>; all: Set<string> }> {
+  const { data, error } = await sb.from("social_content").select("place_id, owner_user_id")
+  if (error) throw new Error(`saveResearch could not read social_content to verify identity: ${error.message}`)
+  const mine = new Set<string>()
+  const all = new Set<string>()
+  for (const row of (data ?? []) as { place_id: string | null; owner_user_id: string }[]) {
+    if (!row.place_id) continue
+    all.add(row.place_id)
+    if (row.owner_user_id === ownerUserId) mine.add(row.place_id)
+  }
+  return { mine, all }
+}
+
+/**
  * Insert a new research record, or merge into the existing one for (owner_user_id, place_id).
  *
  * Never deletes, never truncates, and reports what a plain overwrite would have cost.
@@ -81,6 +105,24 @@ export async function saveResearch(
   const warnings: string[] = []
   if (!rec.owner_user_id || !rec.place_id) {
     throw new Error(`saveResearch needs BOTH owner_user_id and place_id — the identity is the pair, not either half (${name})`)
+  }
+
+  // ── IDENTITY GATE ───────────────────────────────────────────────────────────────────────────
+  // Nothing is written until the identifier is proved to exist, EXACTLY, on one of this owner's
+  // own videos. This is the gate that 49 fabricated place_ids walked straight through when it did
+  // not exist: every one was well-formed, and every one pointed at nothing.
+  //
+  // The check is a lookup against the live table rather than a cached list, so it cannot drift,
+  // and it is scoped to the owner so another account's building can never be matched.
+  const owned = await ownedPlaceIds(sb, rec.owner_user_id)
+  const identity = resolvePlaceId({
+    ownerUserId: rec.owner_user_id,
+    placeId: rec.place_id,
+    ownedPlaceIds: owned.mine,
+    allPlaceIds: owned.all,
+  })
+  if (!identity.ok) {
+    throw new Error(`saveResearch REFUSED for ${name} — ${identity.reason}: ${identity.message}`)
   }
 
   // IDENTITY IS THE PAIR. Looking up by place_id alone would merge one account's research into
