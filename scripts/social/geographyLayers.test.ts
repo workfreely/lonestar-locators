@@ -144,28 +144,40 @@ ok("SourceMeta still does not carry areaNeighborhood", !/areaNeighborhood\s*[?:]
 ok("SourceMeta does not carry district either", !/\bdistrict\s*[?:]/.test(codeOnly(metaBlock)))
 ok("composePost reads neither geographic field",
   !/\barea_neighborhood\b/.test(codeOnly(composer)) && !/\bdistrict\b/.test(codeOnly(composer)))
-// Editing either field must not invalidate generated copy. Both controls live in one cell, so the
-// whole cell is checked rather than one element.
-const areaCell = editor.slice(editor.indexOf("Neighborhood <span className=\"normal-case"))
-const cellEnd = areaCell.indexOf("</label>")
-const cell = areaCell.slice(0, cellEnd > 0 ? cellEnd : 2000)
+// Editing either field must not invalidate generated copy. The two controls now live in their own
+// ROW rather than stacked in one cell, so the region checked is row 2 in full — from the
+// Neighborhood label to the research panel that follows the row.
+// The slice must start at the ROW's opening div, not at the Neighborhood label — the label sits
+// inside the first cell, so starting there cuts that cell's own className off the front and the
+// col-span assertion below could only ever see one of the two.
+const labelAt = editor.search(/Neighborhood \/ Area <span className="normal-case/)
+const rowStart = editor.lastIndexOf('<div className="grid grid-cols-1 sm:grid-cols-[1.6fr_1fr_1fr_1fr] gap-3">', labelAt)
+const rowEnd = editor.indexOf("Property Research PANEL", labelAt)
+const cell = editor.slice(rowStart, rowEnd > rowStart ? rowEnd : rowStart + 3000)
 // codeOnly, because the comment INSIDE this cell explains the rule by naming syncGenerated — and
 // matching prose instead of code is how this assertion first failed against correct code.
 ok("changing Neighborhood or District does NOT regenerate copy", !/syncGenerated/.test(codeOnly(cell)))
-ok("both AreaSelects sit in that one cell", (codeOnly(cell).match(/<AreaSelect\b/g) ?? []).length === 2)
+ok("both AreaSelects sit in row 2, side by side", (codeOnly(cell).match(/<AreaSelect\b/g) ?? []).length === 2)
+ok("each gets its own column, spanning two tracks of the four", (cell.match(/sm:col-span-2/g) ?? []).length === 2)
 
 // ── 6. THE EDITOR'S DESIGN IS PRESERVED ─────────────────────────────────────────────────────
 console.log("\nproperty row — design unchanged:")
 const grid = editor.match(/sm:grid-cols-\[([0-9.]+fr(?:_[0-9.]+fr)+)\]/)
 ok("the row still declares an explicit multi-track grid", !!grid)
 ok("it still has FOUR columns, not five", !!grid && grid[1].split("_").length === 4)
+// BOTH rows declare the SAME four tracks, so their column edges line up.
+ok("the four-track grid is used by both identity rows",
+  (editor.match(/grid grid-cols-1 sm:grid-cols-\[1\.6fr_1fr_1fr_1fr\]/g) ?? []).length === 2)
 const at = (x: string) => editor.indexOf(x)
-const iArea = editor.search(/Neighborhood <span className="normal-case/)
-const iName = at("Property / Building Name"), iType = at(">Property Type<"), iMarket = at(">Market<")
-ok("the four original labels are all still present", [iName, iType, iMarket, iArea].every((i) => i > 0))
-ok("their order is still Name -> Type -> Market -> Neighborhood",
-  iName < iType && iType < iMarket && iMarket < iArea)
-ok("District sits BELOW Neighborhood, inside the same cell", editor.search(/District <span className="normal-case/) > iArea)
+const iArea = editor.search(/Neighborhood \/ Area <span className="normal-case/)
+const iName = at("Property / Building Name"), iBuilding = at("Building Type{")
+const iUnit = editor.search(/Unit Type <span className="normal-case/), iMarket = at(">Market<")
+ok("all five labels above the geography row are present", [iName, iBuilding, iUnit, iMarket, iArea].every((i) => i > 0))
+ok("row 1 is Name -> Building Type -> Unit Type -> Market",
+  iName < iBuilding && iBuilding < iUnit && iUnit < iMarket)
+ok("District sits BESIDE Neighborhood in row 2, no longer stacked in its cell",
+  editor.search(/District <span className="normal-case/) > iArea &&
+  !/mt-2 block[\s\S]{0,80}District/.test(editor))
 
 // ── 7. RENDER AND PUBLISH ARE NOT IN THE BLAST RADIUS ───────────────────────────────────────
 // A geographic field has no business in a render or a publish. These paths were not edited; this

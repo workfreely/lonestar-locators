@@ -32,6 +32,7 @@ import PresenterPreviewBox from "@/components/crm/social/PresenterPreviewBox"
 import { parseAmenities, serializeAmenities } from "@/lib/social/amenities"
 import { SOCIAL_MARKETS } from "@/lib/social/markets"
 import { PROPERTY_TYPES } from "@/lib/social/propertyTypes"
+import { BUILDING_TYPES } from "@/lib/social/buildingTypes"
 import { detectMarket } from "@/lib/social/filenameInference"
 import PropertySearchField from "@/components/crm/social/PropertySearchField"
 import { resolveLoadedCopy } from "@/lib/social/loadedCopy"
@@ -326,6 +327,16 @@ export default function PostEditor({ postId, from }: { postId: string; from?: st
   const [market, setMarket] = useState("")
   const [areaNeighborhood, setAreaNeighborhood] = useState("")
   const [district, setDistrict] = useState("")
+  // BUILDING TYPE — the PROPERTY's classification, not this video's. It lives in
+  // social_property_research.stable.buildingType, keyed by (owner, place_id), so one write
+  // describes every video of the building; 20 properties in this library have more than one.
+  //
+  // It is NOT part of the post's save payload and is NOT passed to syncGenerated: it belongs to a
+  // different table on a different key, and research is deliberately absent from composePost's
+  // SourceMeta, so it cannot reach a caption, headline, hashtag or overlay. Editing it saves on its
+  // own request, which is also what keeps Save Draft's body exactly what it is today.
+  const [buildingType, setBuildingType] = useState("")
+  const [buildingTypeState, setBuildingTypeState] = useState<"idle" | "loading" | "saving" | "saved" | "error">("idle")
   const [needsReview, setNeedsReview] = useState<{ at: string; reason: string | null } | null>(null)
   const [placeId, setPlaceId] = useState("")
   // Matched property's street address, READ from property_catalog by place_id —
@@ -347,6 +358,60 @@ export default function PostEditor({ postId, from }: { postId: string; from?: st
   // be reused across /posts/[id] navigations rather than remounted, so this is explicit.
   useEffect(() => { setSourceDims(null) }, [postId])
   useEffect(() => { setVideoReady(false) }, [postId])
+
+  // BUILDING TYPE, read from the property's research whenever the matched property changes.
+  //
+  // A BLANK place_id FETCHES NOTHING. There is no research row to read without one, and guessing
+  // would mean putting one building's classification on another building's video — the same rule
+  // the research endpoint itself enforces. The control renders disabled in that state rather than
+  // offering a value it could not save.
+  useEffect(() => {
+    setBuildingType("")
+    if (!placeId) { setBuildingTypeState("idle"); return }
+    let cancelled = false
+    setBuildingTypeState("loading")
+    void (async () => {
+      try {
+        const res = await fetch(`/api/admin/social-autopilot/property-research?placeId=${encodeURIComponent(placeId)}`)
+        const json = (await res.json()) as { research?: { stable?: Record<string, unknown> } | null }
+        if (cancelled) return
+        const v = json.research?.stable?.buildingType
+        setBuildingType(typeof v === "string" ? v : "")
+        setBuildingTypeState("idle")
+      } catch {
+        if (!cancelled) setBuildingTypeState("error")
+      }
+    })()
+    return () => { cancelled = true }
+  }, [placeId])
+
+  /**
+   * Save Building Type on its own request, to the property's research row.
+   *
+   * OPTIMISTIC ONLY FOR THE SELECT'S OWN VALUE. On failure it reverts to what was there, so the
+   * control can never show a classification the database does not hold. Nothing else in the editor
+   * is touched either way: no post field, no source field, no caption, no overlay.
+   */
+  const saveBuildingType = useCallback(async (next: string) => {
+    if (!placeId) return
+    const previous = buildingType
+    setBuildingType(next)
+    setBuildingTypeState("saving")
+    try {
+      const res = await fetch("/api/admin/social-autopilot/property-research", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ placeId, buildingType: next || null }),
+      })
+      if (!res.ok) throw new Error(String(res.status))
+      const json = (await res.json()) as { buildingType?: string | null }
+      setBuildingType(typeof json.buildingType === "string" ? json.buildingType : "")
+      setBuildingTypeState("saved")
+    } catch {
+      setBuildingType(previous)
+      setBuildingTypeState("error")
+    }
+  }, [placeId, buildingType])
 
   const load = useCallback(async () => {
     setError(null)
@@ -1305,11 +1370,22 @@ export default function PostEditor({ postId, from }: { postId: string; from?: st
             />
           ) : (
           <>
-          {/* Row 1: Property (still widest) | Type | Market | Area / Neighborhood
-              Property gives up width to make room for the fourth cell: 2fr of 4fr (50%) becomes
-              1.6fr of 4.6fr (~35%), while Type/Market/Area share the rest equally at ~22% each. It
-              stays the widest cell — it holds a search field and the matched-property and address
-              lines beneath it — but it was the only cell with slack to give. */}
+          {/* Row 1: Property / Building Name | Building Type | Unit Type | Market
+              Row 2: Neighborhood / Area | District
+
+              WHY TWO ROWS. Building Type is a fifth field, and the previous single row was already
+              carrying four — the finest two geographic layers had been stacked inside the
+              Neighborhood cell to avoid a fifth column. Splitting into two rows gives Building Type
+              a real column and puts Neighborhood BESIDE District instead of above it, which is also
+              how the two read together.
+
+              Both rows use the SAME four-track grid, so their column edges line up: row 2 spans
+              Neighborhood across the first two tracks and District across the last two. Neighborhood
+              takes the wider pair because its values are the long ones ("East Downtown (EaDo)",
+              "Universal City/Converse"). On a phone both collapse to grid-cols-1 and stack.
+
+              Property / Building Name stays the widest cell in row 1 — it holds a search field plus
+              the matched-property and address lines — and the 1.6fr track is unchanged. */}
           <div className="grid grid-cols-1 sm:grid-cols-[1.6fr_1fr_1fr_1fr] gap-3">
             <label className="block">
               <span className={fieldLabel}>Property / Building Name</span>
@@ -1345,8 +1421,47 @@ export default function PostEditor({ postId, from }: { postId: string; from?: st
                 </button>
               )}
             </label>
+            {/* BUILDING TYPE — the PROPERTY's classification. Six values, and blank is a valid
+                state: a property whose classification cannot be reliably verified is left empty
+                rather than defaulted.
+
+                IT NEVER OVERRIDES UNIT TYPE beside it. A high-rise contains apartments, lofts and
+                penthouses; an apartment community can offer townhome-style homes. A video of a
+                penthouse inside an "Apartment Community" is correctly a Penthouse.
+
+                SHARED, not per-video: it saves to the property's research row, so it describes
+                every video of this building at once. Disabled until the video is matched to a
+                property, because there is no research row to write to without a place_id. */}
             <label className="block">
-              <span className={fieldLabel}>Property Type</span>
+              <span className={fieldLabel}>
+                Building Type{" "}
+                <span className="normal-case text-[var(--crm-text-muted)]">
+                  {buildingTypeState === "saving" ? "· saving…"
+                    : buildingTypeState === "saved" ? "· saved"
+                    : buildingTypeState === "error" ? "· not saved"
+                    : "· shared"}
+                </span>
+              </span>
+              <select
+                className={`${control} mt-1`}
+                value={buildingType}
+                disabled={!placeId || buildingTypeState === "loading" || buildingTypeState === "saving"}
+                title={placeId ? "Applies to every video of this property" : "Match this video to a property first"}
+                onChange={(e) => { void saveBuildingType(e.target.value) }}
+              >
+                <option value="">{placeId ? "Not verified" : "Match a property first"}</option>
+                {[...BUILDING_TYPES, ...(buildingType && !(BUILDING_TYPES as readonly string[]).includes(buildingType) ? [buildingType] : [])]
+                  .map((t) => <option key={t} value={t}>{t}</option>)}
+              </select>
+            </label>
+            {/* UNIT TYPE — renamed from "Property Type". The LABEL is all that changed: the state,
+                the 14-value vocabulary, the propertyType API key and the social_content.property_type
+                column are untouched, and it still feeds generated copy exactly as before. The old
+                label was what made a Penthouse selection look like a claim about the building. */}
+            <label className="block">
+              <span className={fieldLabel}>
+                Unit Type <span className="normal-case text-[var(--crm-text-muted)]">· this video</span>
+              </span>
               <select className={`${control} mt-1`} value={propertyType} onChange={(e) => { const v = e.target.value; setPropertyType(v); syncGenerated(metaOf({ propertyType: v })) }}>
                 <option value="">No type</option>
                 {PROPERTY_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
@@ -1359,18 +1474,23 @@ export default function PostEditor({ postId, from }: { postId: string; from?: st
                 {[...SOCIAL_MARKETS, ...(market && !SOCIAL_MARKETS.includes(market) ? [market] : [])].map((m) => <option key={m} value={m}>{m}</option>)}
               </select>
             </label>
-            {/* Area / Neighborhood — captured at upload and stored all along, but until now the
-                editor never read it back, so a wrong or missing value could not be corrected after
-                upload. Same AreaSelect the upload screens use, so the option list comes from the
-                same market catalog and a market switch cannot silently drop a saved area.
+          </div>
 
-                NOT passed to syncGenerated. Every other field in this row feeds generated copy;
-                this one is internal-only and deliberately absent from SourceMeta, so editing it
-                must not invalidate or regenerate a caption, headline or overlay. The "internal"
-                marker matches the upload screens' labelling so the distinction is visible here too. */}
-            <label className="block">
+          {/* Row 2 of the identity block — the two finest geographic layers, SIDE BY SIDE.
+              They were stacked in one cell while the top row had four columns to fit; with the row
+              split they each get a real column, which is how they are read and compared.
+
+              Same four-track grid as row 1 so the column edges align: Neighborhood takes the first
+              two tracks (the wider pair — its values are the long ones), District the last two.
+
+              NEITHER IS PASSED TO syncGenerated. Both are internal-only and deliberately absent
+              from composePost's SourceMeta, so editing either one cannot invalidate or regenerate a
+              caption, headline or overlay. District SUPPLEMENTS the area, never replaces it:
+              "Downtown Dallas" stays in Neighborhood while "Arts District" goes in District. */}
+          <div className="grid grid-cols-1 sm:grid-cols-[1.6fr_1fr_1fr_1fr] gap-3">
+            <label className="block sm:col-span-2 min-w-0">
               <span className={fieldLabel}>
-                Neighborhood <span className="normal-case text-[var(--crm-text-muted)]">· internal</span>
+                Neighborhood / Area <span className="normal-case text-[var(--crm-text-muted)]">· internal</span>
               </span>
               <AreaSelect
                 market={market}
@@ -1378,16 +1498,9 @@ export default function PostEditor({ postId, from }: { postId: string; from?: st
                 className={`${control} mt-1`}
                 onChange={(v) => setAreaNeighborhood(v)}
               />
-              {/* DISTRICT — the fourth geographic layer, stacked INSIDE the Neighborhood cell
-                  rather than added as a fifth column. The row's four-track grid and the order of
-                  its four labels are unchanged; this cell simply carries both of the two finest
-                  layers, which is also where they read together.
-
-                  It supplements the field above, never replaces it: "Downtown Dallas" stays in
-                  Neighborhood while "Arts District" goes here. Same internal rule and the same
-                  absence from syncGenerated — editing either one must not regenerate a caption,
-                  headline or overlay. */}
-              <span className={`${fieldLabel} mt-2 block`}>
+            </label>
+            <label className="block sm:col-span-2 min-w-0">
+              <span className={fieldLabel}>
                 District <span className="normal-case text-[var(--crm-text-muted)]">· optional</span>
               </span>
               <AreaSelect
@@ -1400,13 +1513,14 @@ export default function PostEditor({ postId, from }: { postId: string; from?: st
             </label>
           </div>
 
-          {/* Property Research PANEL — full editor width, directly beneath the
-              Property/Type/Market row whose first cell holds its trigger. */}
+          {/* Property Research PANEL — full editor width, beneath BOTH identity rows. Its trigger
+              still lives in the Property / Building Name cell at the top of row 1; the panel is
+              rendered here because inside that 1.6fr cell its inner grids overflowed sideways. */}
           {researchOpen && !!placeId && sourceContentId && (
             <PropertyResearch sourceContentId={sourceContentId} placeId={placeId} />
           )}
 
-          {/* Row 2 — ONE horizontal row: Amenities (widest — chips stay one line) | Special (compact)
+          {/* Row 3 — ONE horizontal row: Amenities (widest — chips stay one line) | Special (compact)
               | Starting At (most compact). The layout caps at max-w-[1200px]; at the MacBook Air
               target the fields column is ~880px, so 68% gives Amenities ~598px, fitting the 3 longest
               canonical chips (~563px) on one line. min-w-0 lets the narrow columns hold short values

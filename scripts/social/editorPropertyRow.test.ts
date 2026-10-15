@@ -42,14 +42,25 @@ const at = (s: string) => editor.indexOf(s)
 // The Neighborhood index must come from the RENDERED LABEL, not from the first textual mention —
 // the comment above the grid also names the field, and matching that made this assertion pass/fail
 // on comment placement instead of on field order.
-const iArea = editor.search(/Neighborhood <span className="normal-case/)
-const iName = at("Property / Building Name"), iType = at(">Property Type<"), iMarket = at(">Market<")
-ok("all four labels are present", [iName, iType, iMarket, iArea].every((i) => i > 0))
-ok("order is Name -> Type -> Market -> Neighborhood", iName < iType && iType < iMarket && iMarket < iArea)
+// TWO ROWS NOW. The identity block was split so Building Type could have a real column and
+// Neighborhood could sit BESIDE District instead of stacked above it inside one cell.
+//   row 1  Property / Building Name | Building Type | Unit Type | Market
+//   row 2  Neighborhood / Area      | District
+// "Property Type" was renamed to "Unit Type" — label only; the state, the 14-value vocabulary and
+// the social_content.property_type column are untouched.
+const iArea = editor.search(/Neighborhood \/ Area <span className="normal-case/)
+const iName = at("Property / Building Name"), iBuilding = at("Building Type{")
+const iUnit = editor.search(/Unit Type <span className="normal-case/), iMarket = at(">Market<")
+const iDistrict = editor.search(/District <span className="normal-case/)
+ok("all six labels are present", [iName, iBuilding, iUnit, iMarket, iArea, iDistrict].every((i) => i > 0))
+ok("row 1 order is Name -> Building Type -> Unit Type -> Market",
+  iName < iBuilding && iBuilding < iUnit && iUnit < iMarket)
+ok("row 2 follows row 1, and is Neighborhood -> District", iMarket < iArea && iArea < iDistrict)
+ok("the old label is gone", !/>Property Type</.test(editor))
 
 // Matched-property + address must stay INSIDE the name cell, i.e. before the next field's label.
-ok("the matched-property address stays beneath the building name", at("{address}") > iName && at("{address}") < iType)
-ok("the Property Research trigger also stays in that cell", at("Property Research") > iName && at("Property Research") < iType)
+ok("the matched-property address stays beneath the building name", at("{address}") > iName && at("{address}") < iBuilding)
+ok("the Property Research trigger also stays in that cell", at("Property Research") > iName && at("Property Research") < iBuilding)
 
 console.log("\nthe read-back gap is closed end to end:")
 ok("GET projection selects area_neighborhood", /source:source_content_id\([^)]*\barea_neighborhood\b/.test(getRoute))

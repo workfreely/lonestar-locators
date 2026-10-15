@@ -123,10 +123,12 @@ ok("composePost cannot read district", !/\bdistrict\b/.test(composer))
 ok("composePost cannot read area_neighborhood", !/\barea_neighborhood\b/.test(composer))
 ok("...so neither can appear in a generated caption", !/\bdistrict\b/i.test(buildCaption(meta, SEED, TPL)))
 
-// The Neighborhood + District cell: both controls, and no syncGenerated anywhere in it.
-const cellStart = editor.search(/Neighborhood <span className="normal-case/)
-const cell = codeOnly(editor.slice(cellStart, cellStart + editor.slice(cellStart).indexOf("</label>")))
-ok("the geographic cell holds BOTH controls", (cell.match(/<AreaSelect\b/g) ?? []).length === 2)
+// Row 2 — Neighborhood and District, now side by side in their own row rather than stacked in one
+// cell. Both controls, and no syncGenerated anywhere in the row.
+const cellStart = editor.search(/Neighborhood \/ Area <span className="normal-case/)
+const cellEnd = editor.indexOf("Property Research PANEL", cellStart)
+const cell = codeOnly(editor.slice(cellStart, cellEnd > cellStart ? cellEnd : cellStart + 3000))
+ok("the geography row holds BOTH controls", (cell.match(/<AreaSelect\b/g) ?? []).length === 2)
 ok("neither geographic control calls syncGenerated", !/syncGenerated/.test(cell))
 
 // The research panel is read-only and writes through its own route, not the editor's save.
