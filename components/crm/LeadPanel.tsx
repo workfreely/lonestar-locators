@@ -1089,11 +1089,22 @@ export default function LeadPanel({
             (incl. "None" when that was actually recorded) but is omitted
             entirely when the field was never collected — no invented rows. */}
         {(() => {
+          // THE BALANCE IS PART OF THE ANSWER, not an optional extra. Both lead forms ask
+          // "Approximate balance owed" right beside "How old is the broken lease?", both store
+          // it, and this row read only the age — so a renter who answered $500–$1,000 showed as
+          // "3 years ago" and the single number that decides which properties will even consider
+          // them was invisible. Same omission, same shape, on the eviction row.
+          //
+          // hasValue is what keeps an explicit "$0" visible: it tests for a non-blank string, so
+          // a renter who owes nothing reads "$0" rather than disappearing like an unasked field.
+          const historyDetail = (age: unknown, balance: unknown): string =>
+            [hasValue(age) ? `${age} ago` : null, hasValue(balance) ? `balance ${balance}` : null]
+              .filter(Boolean).join(" · ") || "Yes"
           const brokenLease = String(lead.credit_history || "").toLowerCase().includes("broken")
-            ? (lead.broken_lease_age ? `${lead.broken_lease_age} ago` : "Yes")
+            ? historyDetail(lead.broken_lease_age, lead.broken_lease_amount)
             : null
           const eviction = lead.credit_history === "Eviction"
-            ? (lead.eviction_age ? `${lead.eviction_age} ago` : "Yes")
+            ? historyDetail(lead.eviction_age, lead.eviction_balance)
             : null
           const criminal = (() => {
             const cb = lead.criminal_background

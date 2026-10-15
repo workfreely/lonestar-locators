@@ -50,8 +50,12 @@ export function buildLeadSummary(lead: LeadSummaryInput, moveWindow: string | nu
   const win = clean(moveWindow)
 
   // ── Sentence 1: what they are looking for, most useful details first.
+  // "Open to All" is not a kind of home, it is the absence of a preference — so it cannot take
+  // an article. "looking for an open to all in San Antonio" was the sentence that gave it one.
+  // The stored property_type is untouched; only this sentence knows the difference.
+  const openToAll = /^open to all$/i.test(type)
   const what = type ? withArticle(type.toLowerCase()) : "housing"
-  let first = `This lead is looking for ${what}`
+  let first = openToAll ? "This lead is open to all property types" : `This lead is looking for ${what}`
   if (city) first += ` in ${city}`
   const extras: string[] = []
   if (beds) extras.push(`${beds} bed${beds === "1" ? "" : "s"}`)
