@@ -13,7 +13,7 @@ import { previewAspectClass } from "@/lib/social/postTypes"
 import { SiInstagram, SiTiktok, SiYoutube } from "react-icons/si"
 import type { IconType } from "react-icons"
 import { buildHashtags, normalizeHashtag, hashtagLimitFor, MAX_HASHTAGS } from "@/lib/social/hashtags"
-import { PRICE_LABEL_MODES, priceLabelMode as narrowPriceLabelMode, type PriceLabelMode, buildCaption, specialDisplay, buildTemplateHeadline, buildTemplateDetail, OVERLAY_TEMPLATES, OVERLAY_TEMPLATE_LABEL, DEFAULT_OVERLAY_TEMPLATE, type OverlayTemplate, isGeneratedHeadline, isGeneratedCaption, isGeneratedHashtags, isOverlayPreviewStale, type OverlayPreviewBaseline, type SourceMeta } from "@/lib/social/composePost"
+import { PRICE_LABEL_MODES, priceLabelMode as narrowPriceLabelMode, type PriceLabelMode, buildCaption, specialDisplay, buildTemplateHeadline, buildTemplateDetail, OVERLAY_TEMPLATES, OVERLAY_TEMPLATE_LABEL, DEFAULT_OVERLAY_TEMPLATE, type OverlayTemplate, isOverlayPreviewStale, type OverlayPreviewBaseline, type SourceMeta } from "@/lib/social/composePost"
 import SpecialSelect from "@/components/crm/social/SpecialSelect"
 import { DESTINATIONS, isSocialDestination, destinationFromLegacyPlatform, providerForPost } from "@/lib/social/destinations"
 import { computeOverlayLayout } from "@/lib/social/overlaySpec"
@@ -34,6 +34,7 @@ import { SOCIAL_MARKETS } from "@/lib/social/markets"
 import { PROPERTY_TYPES } from "@/lib/social/propertyTypes"
 import { detectMarket } from "@/lib/social/filenameInference"
 import PropertySearchField from "@/components/crm/social/PropertySearchField"
+import { resolveLoadedCopy } from "@/lib/social/loadedCopy"
 import ScheduleWorkspace from "@/components/crm/social/ScheduleWorkspace"
 
 // Social Autopilot — the ONE user-facing editor. Composes a social_posts variation (post type,
@@ -397,9 +398,26 @@ export default function PostEditor({ postId, from }: { postId: string; from?: st
       setAmenities(p.source?.amenities ?? "")
 
       // Generated-vs-manual detection on load. A stored value that matches a generated form for
-      // SOME market/type is AUTO-GENERATED → re-synced to the CURRENT metadata (repairs anything
-      // left stale by a prior metadata change). A value matching no generated form is a MANUAL
-      // override → kept as-is and flagged dirty. Overlay Detail is always derived (never manual).
+      // SOME market/type is AUTO-GENERATED and stays generator-OWNED, so a later Market/Type edit
+      // re-syncs it. A value matching no generated form is a MANUAL override → flagged dirty so the
+      // generator leaves it alone forever. Overlay Detail is always derived (never manual).
+      //
+      // ── WHAT LOADING DOES *NOT* DO ────────────────────────────────────────────────────────────
+      // Ownership is all this decides. It does NOT decide what is displayed: every stored value is
+      // loaded EXACTLY as stored, and generation runs only when there is nothing stored yet.
+      //
+      // This used to re-sync generator-owned copy to the current metadata on load, to repair drift.
+      // The repair was invisible and the editor sends caption/headline/hashtags on EVERY save, so
+      // opening a draft and saving an unrelated field — a District, a Neighborhood — silently
+      // rewrote its caption. Measured on a live draft: the stored caption said "8 Weeks Free" and
+      // "Submit the form to get your free custom apartment list", while the editor had already
+      // replaced it on load with "Up to 8 weeks free!" and a "Comment LIST" CTA. Saving a geographic
+      // field persisted that, and the original wording was gone with no history to restore it.
+      //
+      // Drift still gets repaired — just never silently. syncGenerated still fires on every
+      // metadata edit, changeTemplate still moves the headline and caption with the template, and
+      // the caption now has its own explicit Regenerate control beside the field (hashtags already
+      // had "Suggest from market"). Deliberate acts regenerate; opening a draft does not.
       const meta: SourceMeta = {
         market: p.source?.market ?? null,
         propertyType: p.source?.propertyType ?? null,
@@ -412,23 +430,29 @@ export default function PostEditor({ postId, from }: { postId: string; from?: st
       const seed = p.sourceContentId ?? undefined
       const storedHead = p.overlayHeadline ?? ""
       const genHead = buildTemplateHeadline(tpl, meta)
-      // Manual if a non-empty stored headline matches neither the current template's output nor any
-      // supported market/type Hero form; otherwise it is generated → re-sync to the template.
-      const hDirty = !!storedHead && storedHead !== genHead && !isGeneratedHeadline(storedHead)
-      setHeadlineDirty(hDirty)
-      const loadedHeadline = hDirty ? storedHead : genHead
+      // ONE pure rule, in lib/social/loadedCopy.ts, for all three generated fields — so "stored
+      // wins" cannot drift apart between caption, headline and hashtags inside this component.
+      const storedTags = Array.isArray(p.hashtags) ? p.hashtags : []
+      const loaded = resolveLoadedCopy({
+        storedCaption: p.caption,
+        storedHeadline: storedHead,
+        storedHashtags: storedTags,
+        meta,
+        seed,
+        template: tpl,
+        generatedHeadline: genHead,
+        generatedHashtags: buildHashtags(meta.market, MAX_HASHTAGS, meta.propertyType),
+      })
+      setHeadlineDirty(loaded.headlineDirty)
+      const loadedHeadline = loaded.headline
       setHeadline(loadedHeadline)
       // Baseline for the "has the user touched an overlay-affecting field this session?" check
       // below — exactly the values just set, so a fresh load never itself counts as edited.
       overlayBaselineRef.current = { mode: p.overlayMode === "existing" ? "existing" : "generate", template: tpl, headline: loadedHeadline }
-      const storedCap = p.caption ?? ""
-      const cDirty = !isGeneratedCaption(storedCap, meta, seed)
-      setCaptionDirty(cDirty)
-      setCaption(cDirty ? storedCap : buildCaption(meta, seed, tpl))
-      const storedTags = Array.isArray(p.hashtags) ? p.hashtags : []
-      const tDirty = !isGeneratedHashtags(storedTags, meta)
-      setHashtagsDirty(tDirty)
-      setHashtags(tDirty ? storedTags : buildHashtags(meta.market, MAX_HASHTAGS, meta.propertyType))
+      setCaptionDirty(loaded.captionDirty)
+      setCaption(loaded.caption)
+      setHashtagsDirty(loaded.hashtagsDirty)
+      setHashtags(loaded.hashtags)
 
       // Detect an existing (active/paused) Repeat rule for this post's SOURCE so the editor can show
       // Pause/Resume/Stop instead of the setup form. Stopped rules are treated as none.
@@ -779,6 +803,22 @@ export default function PostEditor({ postId, from }: { postId: string; from?: st
     if (!hashtagsDirty) setHashtags(buildHashtags(meta.market, MAX_HASHTAGS, meta.propertyType))
     // Overlay Detail is derived from the template + metadata — no state to set here.
   }
+  /**
+   * EXPLICIT caption regeneration — the deliberate replacement for the silent one that used to
+   * happen on load.
+   *
+   * Rebuilds the caption from the CURRENT metadata and template, and clears the dirty flag so the
+   * caption re-joins the generator afterwards. That second part is the point: it is also how a
+   * hand-edited caption is handed back, which the load-time resync could never do.
+   *
+   * It is the caption's counterpart to "Suggest from market" on the hashtag field. It only ever
+   * runs from a click, so nothing here can fire while a draft is merely being opened or saved.
+   */
+  const regenerateCaption = () => {
+    setCaption(buildCaption(metaOf(), sourceContentId ?? undefined, overlayTemplate))
+    setCaptionDirty(false)
+  }
+
   // Change the overlay template: regenerate the (non-manual) headline AND caption from the new
   // template — the caption's first line is template-aware, so it must move with the selection.
   const changeTemplate = (tpl: OverlayTemplate) => {
@@ -1503,6 +1543,16 @@ export default function PostEditor({ postId, from }: { postId: string; from?: st
                   sat a hair lower/higher than the Hashtags label inside its flex row. */}
               <div className="flex items-center justify-between">
                 <span className={fieldLabel}>Instagram Caption</span>
+                {/* The caption's own Regenerate, mirroring "Suggest from market" on the hashtag
+                    field opposite. Opening a draft no longer rewrites the caption, so this is how
+                    copy that has drifted from the metadata gets refreshed — by asking for it. */}
+                <button
+                  type="button"
+                  className="text-[11px] font-semibold text-[var(--crm-text-secondary)] hover:text-[var(--crm-text-primary)]"
+                  onClick={regenerateCaption}
+                >
+                  Regenerate
+                </button>
               </div>
               <textarea className={`${control} mt-1 min-h-[76px] resize-y`} rows={14} value={caption} onChange={(e) => { setCaption(e.target.value); setCaptionDirty(true) }} placeholder="Public caption" />
             </label>
