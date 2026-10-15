@@ -621,17 +621,28 @@ export default function LeadBoard({
                       continues there. With no active client it stays the normal
                       "Lead Board" toggle (existing global return). */}
                   {workspace === "map" && activeCompanionLeadId != null && onReturnToClientWorkspace ? (
-                    <button type="button" aria-pressed={false} onClick={() => onReturnToClientWorkspace(activeCompanionLeadId)}>
-                      ← Back to Workspace
+                    /* The words collapse to the arrow when the centre pane is narrow — the
+                       accessible name and the tooltip keep saying the whole thing, so the
+                       control never becomes a mystery glyph. */
+                    <button type="button" aria-pressed={false} title="Back to Workspace" aria-label="Back to Workspace"
+                      onClick={() => onReturnToClientWorkspace(activeCompanionLeadId)}>
+                      <span aria-hidden>←</span> <span className="kb-wide-label">Back to Workspace</span>
                     </button>
                   ) : (
-                    <button type="button" aria-pressed={workspace === "board"} onClick={() => onWorkspaceChange("board")}>
-                      Lead Board
+                    <button type="button" aria-pressed={workspace === "board"} title="Lead Board" onClick={() => onWorkspaceChange("board")}>
+                      <span className="kb-wide-label">Lead Board</span>
+                      <span className="kb-narrow-label" aria-hidden>←</span>
                     </button>
                   )}
-                  <button type="button" aria-pressed={workspace === "map"} onClick={() => onWorkspaceChange("map")}>
-                    Map
-                  </button>
+                  {/* "Map" is the way INTO the map from the board. Inside the map it is the
+                      pressed half of a toggle whose only action is to switch to the workspace
+                      you are already in — a control that does nothing, holding width in the one
+                      layout that has none to spare. It renders from the board, where it works. */}
+                  {workspace !== "map" && (
+                    <button type="button" aria-pressed={false} onClick={() => onWorkspaceChange("map")}>
+                      Map
+                    </button>
+                  )}
                 </div>
               )}
             <div className={`kb-search${voiceEnabled ? " kb-search-voice" : ""}`} ref={setSearchBoxHost}>
@@ -764,9 +775,12 @@ export default function LeadBoard({
                 className="kb-focus"
                 onClick={onToggleFocus}
                 aria-pressed={focus}
+                title={focus ? "Exit Focus" : "Focus"}
+                aria-label={focus ? "Exit Focus" : "Focus"}
               >
                 <span aria-hidden>⛶</span>
-                {focus ? "Exit Focus" : "Focus"}
+                {/* Glyph-only when space is short; the title keeps the meaning. */}
+                <span className="kb-wide-label">{focus ? "Exit Focus" : "Focus"}</span>
               </button>
             )}
           </div>

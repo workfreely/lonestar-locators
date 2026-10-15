@@ -1274,6 +1274,8 @@ export default function BeastPropertyExplorer({ serviceAreaSlugs, activeClient, 
       type="button"
       onClick={unleashTheBeast}
       disabled={status === "searching" || beastPhase === "scanning"}
+      title={beastPhase === "scanning" ? "Beast is searching…" : "Unleash Beast"}
+      aria-label={beastPhase === "scanning" ? "Beast is searching…" : "Unleash Beast"}
       className="pointer-events-auto inline-flex items-center gap-2 rounded-full border border-[rgba(255,255,255,0.16)] bg-[#10131d] px-4 py-2 text-[13px] font-semibold text-[#f4f6fb] shadow-[0_4px_16px_rgba(0,0,0,0.5)] transition-colors hover:bg-[#181d2b] disabled:opacity-60"
     >
       {/* Same location glyph the CRM uses, so the control reads as ours
@@ -1282,11 +1284,19 @@ export default function BeastPropertyExplorer({ serviceAreaSlugs, activeClient, 
         <path d="M21 10c0 6-9 12-9 12s-9-6-9-12a9 9 0 0 1 18 0Z" />
         <circle cx="12" cy="10" r="3" />
       </svg>
-      {beastPhase === "scanning"
-        ? "Beast is searching…"
-        : beastPhase === "matched"
-          ? `${beastMatchCount} Beast ${beastMatchCount === 1 ? "Match" : "Matches"}`
-          : "Unleash Beast"}
+      {/* The COUNT moved into the Beast Matches / All Properties toggle beside this
+          button, where it labels the thing it describes. Showing it here as well put
+          "5 Beast Matches" next to a "Beast Matches" tab — two controls, one fact, and
+          a toolbar already short of room with both sidebars open.
+
+          After a run this reads "Unleash Beast" again, which is also what it DOES:
+          the button stays enabled in the matched phase precisely so a second run can
+          be fired, and a label describing the previous result hid that. */}
+      {/* The words stand down with the pane, like Back to Workspace and Focus: the pin
+          glyph stays, and the title/aria-label carry the full name at every width. The
+          Beast Matches toggle beside it keeps ITS text, because that is the state you
+          need to read rather than an action you need to find. */}
+      <span className="kb-wide-label">{beastPhase === "scanning" ? "Beast is searching…" : "Unleash Beast"}</span>
     </button>
   )
 
@@ -1313,7 +1323,10 @@ export default function BeastPropertyExplorer({ serviceAreaSlugs, activeClient, 
                 : "text-[#aab3c5] hover:text-[#f4f6fb]"
             }`}
           >
-            {label}
+            {/* The count rides the tab it belongs to. It is beastMatchCount — the same
+                number the old separate label used, set from shortlist.length — so the
+                tab and the filter can never disagree about how many there are. */}
+            {mode === "beast" ? `${label} (${beastMatchCount})` : label}
           </button>
         ))}
       </div>

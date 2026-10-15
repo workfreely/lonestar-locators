@@ -1747,20 +1747,35 @@ body.jaybot-open {
 }
 
 /* Workspace + board layout */
-.kb-workspace { display:flex; flex-direction:column; height:100%; min-width:0; background:var(--kb-bg); }
-.kb-toolbar { flex:none; display:flex; align-items:center; justify-content:space-between; gap:12px; padding:12px 18px 6px; }
+/* THE TOOLBAR SIZES ITSELF AGAINST THIS PANE, NOT THE WINDOW.
+   Agenda and Beast Companion change how much room the centre pane has while the
+   viewport never moves, so a @media rule cannot see the crowding at all: with both
+   sidebars open on a 1440px screen the toolbar has roughly 700px and @media still
+   reads 1440. The pane is therefore a container, and the compacting rules below are
+   @container rules keyed off ITS width. */
+.kb-workspace { display:flex; flex-direction:column; height:100%; min-width:0; background:var(--kb-bg);
+  container-type:inline-size; container-name:kbpane; }
+.kb-toolbar { flex:none; display:flex; align-items:center; justify-content:space-between; gap:12px; padding:12px 18px 6px; min-width:0; }
 /* Board | Map + search share the left end of the toolbar. Sized to content so the
    space-between still pushes density/Focus to the right, and so the toolbar does
    not claim width it isn't using (which matters in map mode, where the empty
    region must stay draggable). */
-.kb-toolbar-left { display:flex; align-items:center; gap:10px; flex:none; }
+/* WAS flex:none, which is the whole bug. Every child of this toolbar declared
+   flex:none and the search field a fixed 320px, so the row had one intrinsic width
+   and no way to reach any other. In a pane narrower than that width the controls
+   simply ran past the edge. The left group now absorbs the change, and min-width:0
+   is what lets a flex child shrink below its content at all. */
+.kb-toolbar-left { display:flex; align-items:center; gap:10px; flex:1 1 auto; min-width:0; }
 /* The search keeps the exact width it had as a direct toolbar child. As a flex
    item its `width:100%` would otherwise resolve against this group and shrink to
    fit alongside Board | Map — which truncated the placeholder. flex:none pins it
    to its own max-width, and because the GROUP is also flex:none the toolbar's
    space-between lets the empty centre absorb the difference instead. */
-.kb-toolbar-left .kb-search { flex:none; width:320px; }
-.kb-toolbar-left .kb-search-voice { width:368px; }
+/* The search is the one control that can give room back without losing anything:
+   it keeps its placeholder, its icon and its mic, just less empty track. 320px is
+   still its preferred width; 148px is narrow but genuinely usable for typing. */
+.kb-toolbar-left .kb-search { flex:1 1 320px; width:auto; min-width:148px; max-width:320px; }
+.kb-toolbar-left .kb-search-voice { flex-basis:368px; max-width:368px; }
 /* Map-mode toolbar slots. Both are content-sized and flex:none so the approved
    320px search width is never traded away to make room — the toolbar's
    space-between lets the empty centre absorb the market control instead. */
@@ -2014,6 +2029,41 @@ body.jaybot-open {
   .bv-glow-line { opacity: 0.85; }
   .bv-glow-bloom { opacity: 0.6; }
 }
+/* ── TOOLBAR LABELS THAT CAN STAND DOWN ──────────────────────────────────────────
+   Shown by default; hidden only when the pane itself is short of room. Every button
+   that can lose its words carries a title and an aria-label, so the accessible name
+   and the tooltip are unchanged at any width — only the painted text goes. */
+.kb-narrow-label { display:none; }
+
+@container kbpane (max-width: 1180px) {
+  .kb-toolbar { gap:8px; padding:12px 12px 6px; }
+  .kb-toolbar-left { gap:7px; }
+  .kb-density button { padding:6px 10px; }
+  .kb-focus { padding:8px 10px; }
+}
+@container kbpane (max-width: 1000px) {
+  /* Words off, glyphs on. "Back to Workspace" becomes its arrow and Focus its ⛶ —
+     the two longest labels in the row, and the two whose meaning survives as a glyph
+     plus a tooltip. The market switcher, the search field and the Beast Matches
+     toggle all keep their text, because theirs is the content you came to read. */
+  .kb-wide-label { display:none; }
+  .kb-narrow-label { display:inline; }
+  /* With the words gone the flex gaps would leave a lopsided pill around a lone glyph. */
+  .kb-focus { gap:0; }
+  .kb-map-actions button[title="Unleash Beast"],
+  .kb-map-actions button[title="Beast is searching…"] { gap:0; padding-left:12px; padding-right:12px; }
+}
+@container kbpane (max-width: 820px) {
+  /* A narrow laptop with BOTH sidebars open — roughly 620px of pane. The search gives
+     up its last 20px and the two pill groups tighten; everything still fits and
+     nothing is hidden that was not already hidden at 1000px. */
+  .kb-toolbar { padding:10px 10px 6px; gap:6px; }
+  .kb-toolbar-left { gap:6px; }
+  .kb-density button { padding:6px 8px; }
+  .kb-toolbar-left .kb-search { min-width:128px; }
+  .kb-map-actions .inline-flex button { padding-left:10px; padding-right:10px; }
+}
+
 .kb-density { flex:none; display:inline-flex; padding:3px; gap:2px; border-radius:12px; border:1px solid var(--kb-border); background:color-mix(in srgb, var(--kb-ink) 5%, transparent); }
 .kb-density button { font:inherit; font-size:12.5px; font-weight:600; color:var(--kb-ink-muted); border:0; background:transparent; padding:6px 13px; border-radius:9px; cursor:pointer; transition:color .2s, background .2s; }
 .kb-density button[aria-pressed="true"] { color:var(--kb-ink); background:color-mix(in srgb, var(--kb-ink) 12%, transparent); }
