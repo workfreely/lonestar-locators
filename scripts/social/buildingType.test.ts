@@ -136,13 +136,13 @@ ok("row 1 order is Property / Building Name, Building Type, Unit Type, Market", 
      i("Unit Type <span") < i(">Market<"))
 })())
 ok("Neighborhood and District are in a SECOND grid, side by side",
-  (editor.match(/grid grid-cols-1 sm:grid-cols-\[1\.6fr_1fr_1fr_1fr\]/g) ?? []).length === 2 &&
+  (editor.match(/grid grid-cols-1 sm:grid-cols-\[1\.4fr_1\.2fr_1\.25fr_0\.75fr\]/g) ?? []).length === 2 &&
   /Neighborhood \/ Area/.test(editor) &&
   (editor.match(/className="block sm:col-span-2 min-w-0"/g) ?? []).length === 2)
 ok("District is no longer stacked inside the Neighborhood cell",
   !/mt-2 block[\s\S]{0,80}District/.test(editor))
 ok("both rows collapse to one column on a phone",
-  (editor.match(/grid-cols-1 sm:grid-cols-\[1\.6fr/g) ?? []).length === 2)
+  (editor.match(/grid-cols-1 sm:grid-cols-\[1\.4fr/g) ?? []).length === 2)
 ok("the label reads Unit Type, not Property Type", /Unit Type <span/.test(editor) && !/>Property Type</.test(editor))
 
 console.log("\nThe five things Building Type must never do")

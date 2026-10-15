@@ -1384,9 +1384,17 @@ export default function PostEditor({ postId, from }: { postId: string; from?: st
               takes the wider pair because its values are the long ones ("East Downtown (EaDo)",
               "Universal City/Converse"). On a phone both collapse to grid-cols-1 and stack.
 
-              Property / Building Name stays the widest cell in row 1 — it holds a search field plus
-              the matched-property and address lines — and the 1.6fr track is unchanged. */}
-          <div className="grid grid-cols-1 sm:grid-cols-[1.6fr_1fr_1fr_1fr] gap-3">
+              TRACK WIDTHS ARE MEASURED, not guessed. At the 880px working width the first attempt
+              (1.6fr_1fr_1fr_1fr) clipped the two new selects while Market sat on 60px of slack:
+              "Rental Home Community" needed 201px and had 178, "Industrial-Style Penthouse" needed
+              211 and had 178, while Market's longest value ("San Antonio") needs only 118. Moving
+              that slack to the cells that need it clears all three at 880 and 1440, and cuts the
+              shortfall at 768 from -48/-58 to -17/-19. No width overflows the page at any size.
+
+              Property / Building Name still takes the widest track and is still the cell that
+              absorbs the squeeze — it holds a text INPUT, which scrolls, rather than a select,
+              which simply truncates. */}
+          <div className="grid grid-cols-1 sm:grid-cols-[1.4fr_1.2fr_1.25fr_0.75fr] gap-3">
             <label className="block">
               <span className={fieldLabel}>Property / Building Name</span>
               <PropertySearchField
@@ -1487,7 +1495,7 @@ export default function PostEditor({ postId, from }: { postId: string; from?: st
               from composePost's SourceMeta, so editing either one cannot invalidate or regenerate a
               caption, headline or overlay. District SUPPLEMENTS the area, never replaces it:
               "Downtown Dallas" stays in Neighborhood while "Arts District" goes in District. */}
-          <div className="grid grid-cols-1 sm:grid-cols-[1.6fr_1fr_1fr_1fr] gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-[1.4fr_1.2fr_1.25fr_0.75fr] gap-3">
             <label className="block sm:col-span-2 min-w-0">
               <span className={fieldLabel}>
                 Neighborhood / Area <span className="normal-case text-[var(--crm-text-muted)]">· internal</span>

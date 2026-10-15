@@ -34,7 +34,14 @@ if (grid) {
   ok("it has FOUR columns", tracks.length === 4, )
   ok("the name column is still the widest", tracks[0] === Math.max(...tracks))
   ok("but narrower than the old 2fr, which is what paid for the 4th cell", tracks[0] < 2)
-  ok("the other three share one width", new Set(tracks.slice(1)).size === 1)
+  // THE THREE SELECTS ARE DELIBERATELY UNEQUAL now, and the order is not arbitrary — it follows
+  // what each one's longest value actually needs at the 880px working width:
+  //   "Industrial-Style Penthouse" 211px  >  "Rental Home Community" 201px  >  "San Antonio" 118px
+  // The first attempt gave all three the same track, which clipped the two selects while Market
+  // kept 60px of slack. Equal widths are the bug here, not the contract.
+  ok("Unit Type gets the widest of the three — its longest value is the longest", tracks[2] > tracks[1])
+  ok("Building Type gets more than Market", tracks[1] > tracks[3])
+  ok("Market gets the least — 'San Antonio' is the longest thing it holds", tracks[3] === Math.min(...tracks))
 }
 
 // Order is what the user specified. Compare by source position so a reorder fails loudly.

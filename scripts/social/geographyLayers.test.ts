@@ -151,7 +151,7 @@ ok("composePost reads neither geographic field",
 // inside the first cell, so starting there cuts that cell's own className off the front and the
 // col-span assertion below could only ever see one of the two.
 const labelAt = editor.search(/Neighborhood \/ Area <span className="normal-case/)
-const rowStart = editor.lastIndexOf('<div className="grid grid-cols-1 sm:grid-cols-[1.6fr_1fr_1fr_1fr] gap-3">', labelAt)
+const rowStart = editor.lastIndexOf('<div className="grid grid-cols-1 sm:grid-cols-[1.4fr_1.2fr_1.25fr_0.75fr] gap-3">', labelAt)
 const rowEnd = editor.indexOf("Property Research PANEL", labelAt)
 const cell = editor.slice(rowStart, rowEnd > rowStart ? rowEnd : rowStart + 3000)
 // codeOnly, because the comment INSIDE this cell explains the rule by naming syncGenerated — and
@@ -167,7 +167,7 @@ ok("the row still declares an explicit multi-track grid", !!grid)
 ok("it still has FOUR columns, not five", !!grid && grid[1].split("_").length === 4)
 // BOTH rows declare the SAME four tracks, so their column edges line up.
 ok("the four-track grid is used by both identity rows",
-  (editor.match(/grid grid-cols-1 sm:grid-cols-\[1\.6fr_1fr_1fr_1fr\]/g) ?? []).length === 2)
+  (editor.match(/grid grid-cols-1 sm:grid-cols-\[1\.4fr_1\.2fr_1\.25fr_0\.75fr\]/g) ?? []).length === 2)
 const at = (x: string) => editor.indexOf(x)
 const iArea = editor.search(/Neighborhood \/ Area <span className="normal-case/)
 const iName = at("Property / Building Name"), iBuilding = at("Building Type{")
