@@ -9,6 +9,7 @@ import { renderAffectingChanges, valueChanged } from "@/lib/social/renderInvalid
 import { isSocialDestination } from "@/lib/social/destinations"
 import { ensureStoryCompanion } from "@/lib/social/storyCompanion"
 import { hasRender, isRenderedReady, type LaneFacts } from "@/lib/social/postLane"
+import { resolveSourcePath } from "@/lib/social/sourcePath"
 
 // One post: GET (composer load), PATCH (save fields / schedule / unschedule), DELETE.
 // Platform-admin ONLY + RLS owner-scoping. PROTECTED fields (owner_user_id, source_content_id,
@@ -93,7 +94,11 @@ export async function GET(_req: NextRequest, ctx: { params: Promise<{ id: string
   // signMedia re-uses a still-valid URL for this owner+path, so re-opening the same post hands the
   // browser the SAME url and it can serve from cache / revalidate instead of re-downloading.
   const [preview, renderedPreview, thumb, cover] = await Promise.all([
-    signMedia(supabase, src?.storage_path ?? null, guard.userId),
+    // THE POST'S OWN FOOTAGE WINS — the same rule the renderer applies, from the same helper.
+    // Signing src.storage_path unconditionally is what made a replaced video render correctly and
+    // play back as the original: Replace Video writes social_posts.source_storage_path, and this
+    // line never looked at it.
+    signMedia(supabase, resolveSourcePath(r.source_storage_path as string | null, src?.storage_path ?? null), guard.userId),
     signMedia(supabase, (r.rendered_storage_path as string | null) ?? null, guard.userId),
     // The library thumbnail — a ~20KB JPEG the editor paints immediately while the video loads.
     signMedia(supabase, src?.thumb_storage_path ?? null, guard.userId),

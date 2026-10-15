@@ -18,26 +18,10 @@ const OVERLAY_FONT_PATH = path.join(process.cwd(), "assets/social/fonts/LibreBas
 
 const extOf = (p: string) => (p.split(".").pop() || "mp4").toLowerCase().replace(/[^a-z0-9]/g, "") || "mp4"
 
-/**
- * Which video does this post render from?
- *
- * Exported and pure so the rule is testable without a database and so every caller that needs to
- * know "what footage is this post built on" — the renderer, the editor, a future preview — reads
- * the SAME rule rather than reimplementing `?? content.storage_path` and drifting.
- *
- * A blank/whitespace override is treated as absent, not as a path: an empty string reaching the
- * storage client would be a confusing "object not found" rather than a clean fall back to the
- * property's own video.
- */
-export function resolveSourcePath(
-  overridePath: string | null | undefined,
-  contentPath: string | null | undefined,
-): string | null {
-  const o = (overridePath ?? "").trim()
-  if (o) return o
-  const c = (contentPath ?? "").trim()
-  return c || null
-}
+// Imported AND re-exported: a bare `export { x } from` does not bind the name locally, and this
+// module calls it too. Existing importers of renderPost keep working unchanged.
+import { resolveSourcePath } from "./sourcePath"
+export { resolveSourcePath }
 
 export type RenderPostResult =
   | { ok: true; renderVersion: number; outputPath: string; platform: string; destination: string; safeAreaId: string }
