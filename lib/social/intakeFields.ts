@@ -111,3 +111,40 @@ export function preservedAreaValue(market: string | null | undefined, value: str
   const v = (value ?? "").trim()
   return v && !isCanonicalArea(market, v) ? v : null
 }
+
+// ── DISTRICT OPTIONS ─────────────────────────────────────────────────────────────────────────
+// The FOURTH geographic layer, read from the SAME canonical market catalog as the area bank
+// above — `districts` on the Market entry. No second list, no parallel source of truth.
+//
+// WHY THIS LAYER EXISTS: verified research keeps producing properties where two names are both
+// accurate and only one field existed to hold them — Atelier Dallas is in Downtown Dallas AND the
+// Arts District; Tin Top Flats is in Midtown San Antonio AND Tobin Hill. area_neighborhood keeps
+// the broader one, district takes the specific one, and neither has to win.
+//
+// EVERY MARKET'S BANK IS EMPTY TODAY, deliberately. `districts` is optional on Market and is not
+// populated anywhere, so the picker degrades to free text until verified district names are
+// approved market by market. An empty bank is the correct state, not a missing one — it is what
+// stops the field asserting a vocabulary nobody has reviewed.
+
+/** The district bank for a market NAME ("Dallas"). Empty when the market carries none. */
+export function districtOptionsForMarket(market: string | null | undefined): string[] {
+  const m = getMarketByName((market ?? "").trim())
+  return m?.districts ?? []
+}
+
+/** Is this value one of the market's canonical districts? */
+export function isCanonicalDistrict(market: string | null | undefined, value: string | null | undefined): boolean {
+  const v = (value ?? "").trim()
+  if (!v) return false
+  return districtOptionsForMarket(market).includes(v)
+}
+
+/**
+ * A stored district the current market's bank does not contain — rendered as its own option so a
+ * market switch cannot silently delete it. Identical guarantee to preservedAreaValue; with every
+ * bank empty today this is the path EVERY stored district takes.
+ */
+export function preservedDistrictValue(market: string | null | undefined, value: string | null | undefined): string | null {
+  const v = (value ?? "").trim()
+  return v && !isCanonicalDistrict(market, v) ? v : null
+}

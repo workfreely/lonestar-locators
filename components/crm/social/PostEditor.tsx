@@ -54,6 +54,10 @@ type Source = {
   /** INTERNAL. Captured at upload, stored on social_content, and editable here — but deliberately
    *  NOT part of SourceMeta, so it can never reach a caption or an on-video overlay. */
   areaNeighborhood: string | null
+  /** INTERNAL. The SPECIFIC district, the finest geographic layer — stored BESIDE
+   *  areaNeighborhood, never instead of it, so "Downtown Dallas" and "Arts District" can both be
+   *  true. Same rule as its sibling: absent from SourceMeta, so it cannot reach public copy. */
+  district: string | null
   special: string | null
   budgetRange: string | null
   priceLabelMode: string | null
@@ -320,6 +324,7 @@ export default function PostEditor({ postId, from }: { postId: string; from?: st
   const [propertyType, setPropertyType] = useState("")
   const [market, setMarket] = useState("")
   const [areaNeighborhood, setAreaNeighborhood] = useState("")
+  const [district, setDistrict] = useState("")
   const [needsReview, setNeedsReview] = useState<{ at: string; reason: string | null } | null>(null)
   const [placeId, setPlaceId] = useState("")
   // Matched property's street address, READ from property_catalog by place_id —
@@ -381,6 +386,7 @@ export default function PostEditor({ postId, from }: { postId: string; from?: st
       setPropertyType(p.source?.propertyType ?? "")
       setMarket(p.source?.market ?? "")
       setAreaNeighborhood(p.source?.areaNeighborhood ?? "")
+      setDistrict(p.source?.district ?? "")
       setNeedsReview(p.needsReviewAt ? { at: p.needsReviewAt, reason: p.needsReviewReason ?? null } : null)
       setPlaceId(p.source?.placeId ?? "")
       setAddress(p.source?.address ?? null)
@@ -471,10 +477,10 @@ export default function PostEditor({ postId, from }: { postId: string; from?: st
     const res = await fetch(`/api/admin/social-autopilot/content/${encodeURIComponent(sourceContentId)}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ propertyName, propertyType, market, areaNeighborhood, placeId, special, budgetRange: priceRange, priceLabelMode: priceMode, amenities }),
+      body: JSON.stringify({ propertyName, propertyType, market, areaNeighborhood, district, placeId, special, budgetRange: priceRange, priceLabelMode: priceMode, amenities }),
     })
     return res.ok
-  }, [sourceContentId, propertyName, propertyType, market, areaNeighborhood, placeId, special, priceRange, priceMode, amenities])
+  }, [sourceContentId, propertyName, propertyType, market, areaNeighborhood, district, placeId, special, priceRange, priceMode, amenities])
 
   const patch = useCallback(
     async (extra: Record<string, unknown>, successMsg: string | null) => {
@@ -1331,6 +1337,25 @@ export default function PostEditor({ postId, from }: { postId: string; from?: st
                 value={areaNeighborhood}
                 className={`${control} mt-1`}
                 onChange={(v) => setAreaNeighborhood(v)}
+              />
+              {/* DISTRICT — the fourth geographic layer, stacked INSIDE the Neighborhood cell
+                  rather than added as a fifth column. The row's four-track grid and the order of
+                  its four labels are unchanged; this cell simply carries both of the two finest
+                  layers, which is also where they read together.
+
+                  It supplements the field above, never replaces it: "Downtown Dallas" stays in
+                  Neighborhood while "Arts District" goes here. Same internal rule and the same
+                  absence from syncGenerated — editing either one must not regenerate a caption,
+                  headline or overlay. */}
+              <span className={`${fieldLabel} mt-2 block`}>
+                District <span className="normal-case text-[var(--crm-text-muted)]">· optional</span>
+              </span>
+              <AreaSelect
+                layer="district"
+                market={market}
+                value={district}
+                className={`${control} mt-1`}
+                onChange={(v) => setDistrict(v)}
               />
             </label>
           </div>

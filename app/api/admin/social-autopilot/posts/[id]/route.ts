@@ -22,11 +22,11 @@ const SELECT =
   "overlay_headline, overlay_subheadline, overlay_mode, overlay_template, cover_thumb_offset_ms, cover_storage_path, cover_render_version, hashtags, audio_choice, audio_track_id, voice_hook_id, voice_cta_id, rendered_storage_path, render_status, render_error, render_version, " +
   "status, scheduled_at, published_at, external_post_id, external_post_url, created_at, updated_at, source_content_id, source_storage_path, approved_at, draft_saved_at, needs_review_at, needs_review_reason, " +
   "presenter_id, presenter_intro_seconds, presenter_side, presenter_width_px, presenter_clip_storage_path, presenter_audio_storage_path, " +
-  // area_neighborhood is INTERNAL editing metadata. It was captured at upload and stored correctly,
-  // but was missing from this projection — so the Post Editor could neither show it nor correct it and
-  // the value was effectively write-once. Read here for EDITING only: it stays deliberately absent
-  // from SourceMeta (lib/social/composePost.ts), so it still cannot reach a caption or an overlay.
-  "source:source_content_id(display_name, property_name, property_type, place_id, market, area_neighborhood, special, budget_range, price_label_mode, amenities, storage_path, thumb_storage_path, original_filename, kind, overlay_mode)"
+  // area_neighborhood and district are INTERNAL editing metadata — the broader area and the
+  // specific district, the two finest of Social Beast's four geographic layers. Both are read here
+  // for EDITING only: both stay deliberately absent from SourceMeta (lib/social/composePost.ts),
+  // so neither can reach a caption, headline or overlay.
+  "source:source_content_id(display_name, property_name, property_type, place_id, market, area_neighborhood, district, special, budget_range, price_label_mode, amenities, storage_path, thumb_storage_path, original_filename, kind, overlay_mode)"
 const AUDIO_CHOICES = new Set(["original", "none", "lb_track"])
 
 /**
@@ -85,7 +85,7 @@ export async function GET(_req: NextRequest, ctx: { params: Promise<{ id: string
   const r = data as unknown as Record<string, unknown>
   const src = (r.source ?? null) as {
     display_name: string | null; property_name: string | null; property_type: string | null; place_id: string | null
-    market: string | null; area_neighborhood: string | null; special: string | null; budget_range: string | null; price_label_mode: string | null; amenities: string | null
+    market: string | null; area_neighborhood: string | null; district: string | null; special: string | null; budget_range: string | null; price_label_mode: string | null; amenities: string | null
     storage_path: string | null; thumb_storage_path: string | null; original_filename: string | null; kind: string | null
   } | null
   // THREE-STATE, not null-or-not. "absent" (no such object) and "failed" (it exists, signing broke)
@@ -177,6 +177,7 @@ export async function GET(_req: NextRequest, ctx: { params: Promise<{ id: string
           placeId: src.place_id,
           market: src.market,
           areaNeighborhood: src.area_neighborhood,
+          district: src.district,
           special: src.special,
           budgetRange: src.budget_range,
           address: await catalogAddress(src.place_id),

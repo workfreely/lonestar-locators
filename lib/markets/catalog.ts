@@ -30,6 +30,19 @@ export type Market = {
   defaultTheme: string
   neighborhoods: string[]
   submarkets: string[]
+  /**
+   * SPECIFIC neighborhoods / districts — the finest geographic layer, finer than
+   * `neighborhoods` (which in practice carries broad areas like "Downtown Dallas") and finer
+   * than `submarkets` (separate cities inside the market, like Boerne and Schertz).
+   *
+   * OPTIONAL, and intentionally empty everywhere today. Social Beast's district field reads this
+   * bank; until verified district names are approved market by market, the field falls back to
+   * free text, which is how "Arts District" or "Tobin Hill" gets stored without this list
+   * pretending to be authoritative. Omitted on a market = no bank, never an error.
+   *
+   * The Smart Lead Form does NOT read this. It is additive for Social Beast only.
+   */
+  districts?: string[]
 }
 
 export const MARKETS: Market[] = [

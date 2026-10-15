@@ -11,12 +11,17 @@ import { buildSocialDisplayName } from "@/lib/social/displayName"
 // overwritten. Editing property/market while NOT customized auto-refines display_name to
 // "Property - Market - YYYY-MM-DD - NN" (date from created_at, NN from batch_seq).
 // PROTECTED fields (owner_user_id, storage_path, original_filename) are never mutated here.
-const EDITABLE = ["propertyName", "propertyType", "market", "areaNeighborhood", "special", "budgetRange", "amenities", "notes", "placeId", "overlayMode", "priceLabelMode"] as const
+// `district` is the FOURTH geographic layer (see migration 20261020000000). It sits beside
+// areaNeighborhood rather than replacing it, so "Downtown Dallas" + "Arts District" can both be
+// stored. INTERNAL, like its sibling: absent from composePost's SourceMeta, so editing it can
+// never change a caption, headline or overlay.
+const EDITABLE = ["propertyName", "propertyType", "market", "areaNeighborhood", "district", "special", "budgetRange", "amenities", "notes", "placeId", "overlayMode", "priceLabelMode"] as const
 const COLUMN: Record<(typeof EDITABLE)[number], string> = {
   propertyName: "property_name",
   propertyType: "property_type",
   market: "market",
   areaNeighborhood: "area_neighborhood",
+  district: "district",
   special: "special",
   budgetRange: "budget_range",
   amenities: "amenities",
@@ -25,6 +30,11 @@ const COLUMN: Record<(typeof EDITABLE)[number], string> = {
   overlayMode: "overlay_mode",
   priceLabelMode: "price_label_mode",
 }
+
+// Per-field caps where the generic 5000 is wrong. `district` matches the 200 the intake route
+// already applies to area_neighborhood — these are place names, not prose. Fields absent here keep
+// the 5000 default, so no existing field's behaviour changes.
+const MAX_LEN: Partial<Record<(typeof EDITABLE)[number], number>> = { district: 200 }
 
 export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
   const guard = await requirePlatformAdmin()
@@ -55,7 +65,7 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
     patch.tags = (body.tags as unknown[]).filter((t): t is string => typeof t === "string" && t.trim().length > 0).map((t) => t.trim().slice(0, 60)).slice(0, 40)
   }
   for (const k of EDITABLE) {
-    if (k in body) patch[COLUMN[k]] = typeof body[k] === "string" && (body[k] as string).trim() ? (body[k] as string).trim().slice(0, 5000) : null
+    if (k in body) patch[COLUMN[k]] = typeof body[k] === "string" && (body[k] as string).trim() ? (body[k] as string).trim().slice(0, MAX_LEN[k] ?? 5000) : null
   }
 
   // Prepared PUBLIC post (overlay/caption/hashtags) — SA-only overrides stored inside the

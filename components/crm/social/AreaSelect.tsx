@@ -1,7 +1,12 @@
 "use client"
 
 import { useState } from "react"
-import { areaOptionsForMarket, preservedAreaValue } from "@/lib/social/intakeFields"
+import {
+  areaOptionsForMarket,
+  preservedAreaValue,
+  districtOptionsForMarket,
+  preservedDistrictValue,
+} from "@/lib/social/intakeFields"
 
 /**
  * SOCIAL BEAST — Area / Neighborhood, market-aware.
@@ -17,24 +22,47 @@ import { areaOptionsForMarket, preservedAreaValue } from "@/lib/social/intakeFie
  * operator can then pick a canonical option or keep theirs — but the deletion is always their act.
  *
  * "Other…" keeps free text reachable for an area the catalog does not carry yet.
+ *
+ * ── TWO LAYERS, ONE COMPONENT ───────────────────────────────────────────────────────────────
+ * `layer` chooses which bank and labels to render. "area" (the default — unchanged behaviour for
+ * every existing caller) offers the market's Neighborhoods/Areas and Submarkets. "district"
+ * offers the market's `districts`, the finer layer, so "Downtown Dallas" and "Arts District" can
+ * be stored side by side instead of competing for one field.
+ *
+ * Both layers read the SAME canonical catalog through lib/social/intakeFields — a second options
+ * array would be the duplicate list this component exists to avoid. Every district bank is empty
+ * today, so the district layer opens straight into free text; the preservation guarantee above is
+ * what keeps a value typed there safe across a market switch.
  */
 export default function AreaSelect({
   market,
   value,
   onChange,
   className,
+  layer = "area",
 }: {
   market: string
   value: string
   onChange: (v: string) => void
   className?: string
+  layer?: "area" | "district"
 }) {
-  const { neighborhoods, submarkets } = areaOptionsForMarket(market)
-  const preserved = preservedAreaValue(market, value)
+  const isDistrict = layer === "district"
+  const area = areaOptionsForMarket(market)
+  const neighborhoods = isDistrict ? districtOptionsForMarket(market) : area.neighborhoods
+  const submarkets = isDistrict ? [] : area.submarkets
+  const preserved = isDistrict ? preservedDistrictValue(market, value) : preservedAreaValue(market, value)
+  const groupLabel = isDistrict ? "Neighborhoods / Districts" : "Neighborhoods / Areas"
+  const emptyLabel = isDistrict ? "Select district…" : "Select area / neighborhood…"
+  const typePlaceholder = isDistrict ? "Type a specific district" : "Type an area / neighborhood"
   // "Other…" is sticky: once chosen it stays a free-text field until the user picks a canonical
   // option, so typing is not interrupted by a re-render.
-  const [freeText, setFreeText] = useState(false)
   const hasBank = neighborhoods.length > 0 || submarkets.length > 0
+  // A select whose only real option is "Other…" is a dead end, so a DISTRICT layer with no bank
+  // opens straight into the text field. Scoped to the district layer on purpose: the area layer
+  // mounts before a market is chosen, when its bank is also momentarily empty, and keying off
+  // hasBank alone would leave it stuck in free text after the market arrived.
+  const [freeText, setFreeText] = useState(isDistrict && !hasBank)
 
   if (!market) {
     return (
@@ -51,7 +79,7 @@ export default function AreaSelect({
           className={className}
           value={value}
           autoFocus
-          placeholder="Type an area / neighborhood"
+          placeholder={typePlaceholder}
           onChange={(e) => onChange(e.target.value)}
         />
         {hasBank && (
@@ -76,7 +104,7 @@ export default function AreaSelect({
         onChange(e.target.value)
       }}
     >
-      <option value="">Select area / neighborhood…</option>
+      <option value="">{emptyLabel}</option>
       {/* A saved value the current market's bank does not contain — kept so switching markets
           cannot destroy it. */}
       {preserved && (
@@ -85,7 +113,7 @@ export default function AreaSelect({
         </optgroup>
       )}
       {neighborhoods.length > 0 && (
-        <optgroup label="Neighborhoods / Areas">
+        <optgroup label={groupLabel}>
           {neighborhoods.map((n) => <option key={n} value={n}>{n}</option>)}
         </optgroup>
       )}
