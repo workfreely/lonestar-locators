@@ -11,6 +11,25 @@
 
 /** Curated, de-duplicated selling points. Clean, consistent display capitalization.
  *
+ *  NINE ADDED, each inserted BESIDE its nearest relative rather than appended, because this array
+ *  is the picker's display order. The pairs that look like duplicates and are not:
+ *
+ *    Roof Deck        vs Sky Lounge      — the OUTDOOR community rooftop vs the indoor lounge.
+ *                                          A building can have either, both, or one on the other.
+ *    Private Terraces vs Private Balcony — a terrace is a RESIDENT's own outdoor room; the point of
+ *                                          keeping it apart from Roof Deck is that one is private
+ *                                          and one is shared, which is the whole claim.
+ *    Indoor Pool      vs Rooftop/Resort-Style/Infinity Pool — four different pools, not four
+ *                                          words for one.
+ *    Oversized Windows vs Floor-to-Ceiling Windows — oversized is not floor-to-ceiling, and a
+ *                                          property that says one must not be credited with the other.
+ *    Wine Storage Lockers vs Wine Fridges — a shared cellar locker vs an appliance in the home.
+ *
+ *  NOT ADDED: a plain "Lake Views" — it was already here. Note that The Mustang's hand-typed
+ *  "Lake View" (singular) therefore stays a CUSTOM chip, because normalizeKey keeps the trailing
+ *  "s"; the same is true of its "Private Yard" and "Wine Refrigerators". That is the documented
+ *  behaviour and nothing rewrites them.
+ *
  *  PLURAL IS THE CONVENTION for countable unit features (Balconies, Patios, Walk-In Closets,
  *  Kitchen Islands, Attached Garages, Built-In Desks, Mudrooms, Wine Fridges). "Walk-In Closet"
  *  and "Kitchen Island" were proposed as additions and deliberately NOT added: normalizeKey below
@@ -24,12 +43,14 @@ export const AMENITY_BANK: readonly string[] = [
   "Detached Garages",
   "Garage Parking",
   "Floor-to-Ceiling Windows",
+  "Oversized Windows",
   "High Ceilings",
   "Exposed Concrete Ceilings",
   "Concrete Flooring",
   "Rooftop Pool",
   "Resort-Style Pool",
   "Infinity Pool",
+  "Indoor Pool",
   "Stainless Steel Appliances",
   "Quartz Countertops",
   "Granite Countertops",
@@ -38,16 +59,22 @@ export const AMENITY_BANK: readonly string[] = [
   "Private Balcony",
   "Balconies",
   "Patios",
+  "Private Terraces",
   "EV Charging",
   "Dog Park",
+  "Putting Green",
   "Pet Spa",
   "Fitness Center",
+  "Basketball Court",
   "Yoga Studio",
   "Coworking Space",
   "Business Center",
   "Clubroom",
+  "Coffee Bar",
   "Sky Lounge",
+  "Roof Deck",
   "Concierge",
+  "Guest Suite",
   "Package Lockers",
   "Controlled Access",
   "Gated Community",
@@ -61,6 +88,7 @@ export const AMENITY_BANK: readonly string[] = [
   "Built-In Desks",
   "Mudrooms",
   "Wine Fridges",
+  "Wine Storage Lockers",
 ] as const
 
 // A loose key so trivial punctuation/spacing/case variants collapse to one canonical display value

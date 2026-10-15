@@ -99,8 +99,40 @@ async function main() {
     const missing = requested.filter((r) => !isCanonicalAmenity(r))
     ok(`all ${requested.length} are in the bank`, missing.length === 0, `missing: ${JSON.stringify(missing)}`)
 
+    const nk = (x: string) => x.toLowerCase().replace(/[^a-z0-9]+/g, "")
     const added = ["Concrete Flooring", "High Ceilings", "Exposed Concrete Ceilings", "Private Balcony", "Clubroom", "Sky Lounge", "Garage Parking"]
     for (const a of added) ok(`"${a}" was added`, AMENITY_BANK.includes(a))
+
+    // SECOND ROUND — nine options the library's own research kept producing with nowhere to put
+    // them. Each is a claim the bank could not previously express.
+    const round2 = ["Indoor Pool", "Roof Deck", "Putting Green", "Oversized Windows",
+      "Private Terraces", "Wine Storage Lockers", "Guest Suite", "Basketball Court", "Coffee Bar"]
+    for (const a of round2) ok(`"${a}" was added`, AMENITY_BANK.includes(a))
+    ok("the bank is 51 entries", AMENITY_BANK.length === 51)
+
+    // THE PAIRS THAT LOOK LIKE DUPLICATES AND ARE NOT. Each pair must remain two SEPARATE chips:
+    // if either collapsed into the other, a property claiming one would be credited with the other.
+    const pairs: [string, string][] = [
+      ["Roof Deck", "Sky Lounge"],                       // shared outdoor vs indoor lounge
+      ["Private Terraces", "Private Balcony"],           // a resident's outdoor room vs a balcony
+      ["Private Terraces", "Roof Deck"],                 // private vs shared — the whole claim
+      ["Indoor Pool", "Rooftop Pool"],
+      ["Indoor Pool", "Resort-Style Pool"],
+      ["Oversized Windows", "Floor-to-Ceiling Windows"], // oversized is NOT floor-to-ceiling
+      ["Wine Storage Lockers", "Wine Fridges"],          // shared cellar vs in-home appliance
+    ]
+    for (const [a, b] of pairs) {
+      ok(`"${a}" and "${b}" stay separate`,
+        canonicalizeAmenity(a) === a && canonicalizeAmenity(b) === b && nk(a) !== nk(b))
+    }
+
+    // LAKE VIEWS WAS ALREADY THERE and must not have gained a twin.
+    ok("Lake Views appears exactly once", AMENITY_BANK.filter((a) => /lake/i.test(a)).length === 1)
+    // The singular stays CUSTOM, which is the documented behaviour and is why The Mustang's
+    // hand-typed "Lake View" is not silently rewritten into the bank value.
+    ok('"Lake View" (singular) does NOT collapse into "Lake Views"',
+      canonicalizeAmenity("Lake View") === "Lake View" && !isCanonicalAmenity("Lake View"))
+    ok('"Private Yard" (singular) likewise stays custom', canonicalizeAmenity("Private Yard") === "Private Yard")
   }
 
   console.log("\nNO DUPLICATES WERE INTRODUCED:")
