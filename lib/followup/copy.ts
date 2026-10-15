@@ -150,6 +150,44 @@ export function renderOooRestartText1(lead: LeadSnapshot): string {
 // ── Canonical strings re-exported under the engine's stable names ─────────────
 export const NEW_LEAD_TEXT2 = DEFAULT_FOLLOW_UP_TEMPLATES.new_lead_text2
 
+/**
+ * How many DISTINCT areas the renter actually named, across both saved fields.
+ *
+ * Both columns are free-form CSV and either can be blank, so this trims, drops empties and
+ * de-duplicates case-insensitively — a renter who has "Alamo Heights" in neighborhoods and
+ * "alamo heights" in submarkets named ONE area, not two, and the question they get should
+ * reflect that.
+ */
+export function countDesiredAreas(lead: Pick<LeadSnapshot, "neighborhoods" | "submarkets">): number {
+  const seen = new Set<string>()
+  for (const field of [lead.neighborhoods, lead.submarkets]) {
+    for (const part of String(field ?? "").split(",")) {
+      const v = part.trim()
+      if (v) seen.add(v.toLowerCase())
+    }
+  }
+  return seen.size
+}
+
+/**
+ * New-Lead Text 2 — the one question whose wording follows what the renter already told us.
+ *
+ * ONE area named  → "a specific address or zip code?"   They have already said which side of
+ *                   town; asking again wastes the question. A zip is the next thing that
+ *                   actually narrows the search.
+ * TWO OR MORE     → "a specific address or side of town?"  (unchanged)
+ * NONE            → unchanged. No preference means the broad question is still the right one,
+ *                   and this is the path every pre-existing lead takes.
+ *
+ * Only the final noun moves. Text 1, the 30–45s hand-off, quiet hours, stop-on-reply, STOP
+ * handling and idempotency are all untouched, and nothing here writes to the lead.
+ */
+export function renderNewLeadText2(lead: Pick<LeadSnapshot, "neighborhoods" | "submarkets">): string {
+  return countDesiredAreas(lead) === 1
+    ? NEW_LEAD_TEXT2.replace("side of town", "zip code")
+    : NEW_LEAD_TEXT2
+}
+
 // EXISTING approved copy re-used verbatim (unchanged legacy keys).
 export const CONTACT_FOLLOW_UP_1 = DEFAULT_FOLLOW_UP_TEMPLATES.contact_follow_up_1 // uses {first_name}
 export const CONTACT_FOLLOW_UP_2 = DEFAULT_FOLLOW_UP_TEMPLATES.contact_follow_up_2

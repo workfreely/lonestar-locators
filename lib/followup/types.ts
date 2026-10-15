@@ -78,6 +78,11 @@ export type LeadSnapshot = {
   moveDate: string | null // ISO date (YYYY-MM-DD) or null
   moveMonthLabel: string | null // e.g. "October" or null
   crmStatus: string | null
+  /** The renter's saved area selections, verbatim CSV from the lead row. Read ONLY to count
+   *  how many areas they named — New-Lead Text 2 asks a different question for one area than
+   *  for several. Nothing here is rendered into a message, and nothing writes them back. */
+  neighborhoods: string | null
+  submarkets: string | null
   smsOptIn: boolean
   /**
    * leads.held_at — the client paused their SEARCH (On Hold). Distinct from a

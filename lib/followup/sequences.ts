@@ -131,7 +131,9 @@ export function resolveStepBody(
         // byte-identical copy to before.
         return lead.oooReleasedAt ? C.renderOooRestartText1(lead) : C.renderNewLeadText1(lead)
       case "t2":
-        return C.NEW_LEAD_TEXT2
+        // Same step, same timing, same gate — only the closing noun follows the number of
+        // areas the renter named. See copy.renderNewLeadText2.
+        return C.renderNewLeadText2(lead)
       case "contact_fu1":
         return renderTemplate(C.CONTACT_FOLLOW_UP_1, vars)
       case "contact_fu2":

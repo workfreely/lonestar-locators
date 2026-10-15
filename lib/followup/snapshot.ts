@@ -24,6 +24,10 @@ export type LeadRow = {
   property_type: string | null
   move_date: string | null
   crm_status: string | null
+  /** Saved area selections, CSV. Counted — never rendered — so New-Lead Text 2 can ask about a
+   *  zip code when the renter named ONE area and about a side of town when they named several. */
+  neighborhoods: string | null
+  submarkets: string | null
   sms_opt_in: boolean | null
   held_at: string | null
   followup_opt_in: boolean | null
@@ -41,7 +45,7 @@ export type LeadRow = {
 }
 
 export const LEAD_COLUMNS =
-  "id, first_name, phone, beds, property_type, move_date, crm_status, sms_opt_in, held_at, followup_opt_in, followup_enrolled_at, applied_at, created_at, ooo_held_at, ooo_released_at, owner_user_id, workspace_id"
+  "id, first_name, phone, beds, property_type, move_date, crm_status, neighborhoods, submarkets, sms_opt_in, held_at, followup_opt_in, followup_enrolled_at, applied_at, created_at, ooo_held_at, ooo_released_at, owner_user_id, workspace_id"
 
 function monthLabel(moveDate: string | null): string | null {
   if (!moveDate) return null
@@ -93,6 +97,8 @@ export async function buildLeadSnapshot(admin: SupabaseClient, lead: LeadRow): P
     moveDate: lead.move_date,
     moveMonthLabel: monthLabel(lead.move_date),
     crmStatus: lead.crm_status,
+    neighborhoods: lead.neighborhoods ?? null,
+    submarkets: lead.submarkets ?? null,
     smsOptIn: lead.sms_opt_in === true,
     heldAt: lead.held_at,
     oooReleasedAt: lead.ooo_released_at,
