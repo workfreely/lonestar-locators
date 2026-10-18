@@ -10,7 +10,9 @@ import { resolveProfileUrl } from "@/lib/social/commentIdentity"
 // PHASE 2 IS A SURFACE, NOT A SENDER. Nothing here calls Instagram. Every control that would cause
 // a message is inert and says so, because the permissions it needs have not been requested yet.
 
-export type AccountRow = { id: string; provider: string; username: string | null; status: string | null }
+// `scopes` is what the Instagram permission line is derived from. It was previously hardcoded to
+// "Permissions needed", which was true then and would have stayed wrong after the grant.
+export type AccountRow = { id: string; provider: string; username: string | null; status: string | null; scopes?: string[] | null }
 export type RuleRow = {
   id: string
   keyword: string
@@ -85,13 +87,16 @@ function outcomeOf(c: CommentRow): { text: string; tone: string; hint?: string }
 }
 
 export default function CommentsClient({
-  accounts, rules, rulesArePreview, comments, globalEnabled,
+  accounts, rules, rulesArePreview, comments, globalEnabled, globalUnreadable = false,
 }: {
   accounts: AccountRow[]
   rules: RuleRow[]
   rulesArePreview: boolean
   comments: CommentRow[]
   globalEnabled: boolean
+  /** The setting could not be READ — distinct from it being off. Both are not-enabled; only one
+   *  is a fault, and saying "Off" when we do not know would be a confidence we have not earned. */
+  globalUnreadable?: boolean
 }) {
   const [view, setView] = useState<"inbox" | "rules" | "automation">("inbox")
 
@@ -284,18 +289,25 @@ export default function CommentsClient({
         <div className={card}>
           <div className={`${label} mb-3`}>Automation</div>
 
-          {/* MASTER STATUS, NOT A SWITCH. There is deliberately no toggle here: comment reading and
-              sending are not implemented, so a control that looked switchable would promise
-              something the product cannot do. The underlying gate (accountAutomationGate) stays
-              fail-closed regardless of what this renders. */}
+          {/* MASTER STATUS, NOT A SWITCH. There is deliberately no toggle here: arming comment
+              automation also requires an environment gate and a per-account activation stamp, so a
+              control that looked like the whole answer would promise more than it delivers. The
+              underlying gate (accountAutomationGate) stays fail-closed regardless of what this
+              renders. The value is now READ rather than hardcoded. */}
           <div className="flex items-center justify-between gap-3 rounded-lg border border-[var(--crm-border)] bg-[var(--crm-card)] px-3 py-3">
             <div>
               <div className="text-[13px] font-semibold text-[var(--crm-text-primary)]">Auto Replies</div>
               <div className="text-[11.5px] text-[var(--crm-text-muted)] mt-[2px]">
-                {globalEnabled ? "Enabled, but not yet available" : "Not available yet"}
+                {globalUnreadable
+                  ? "The setting could not be read, so auto replies are treated as off."
+                  : globalEnabled
+                    ? "Switched on for this workspace. Each account also has to be enabled."
+                    : "Switched off for this workspace."}
               </div>
             </div>
-            <span className={`${pill} border border-[var(--crm-border)] text-[var(--crm-text-muted)]`}>Off</span>
+            <span className={`${pill} border border-[var(--crm-border)] ${globalEnabled && !globalUnreadable ? "text-emerald-600 dark:text-emerald-400" : "text-[var(--crm-text-muted)]"}`}>
+              {globalUnreadable ? "Unknown" : globalEnabled ? "On" : "Off"}
+            </span>
           </div>
 
           <div className={`${label} mt-4 mb-1`}>Accounts</div>
@@ -304,8 +316,22 @@ export default function CommentsClient({
               <SiInstagram size={13} aria-hidden="true" />
               {ig?.username ? `@${ig.username}` : "Instagram"}
             </span>
-            <span className="text-[var(--crm-text-muted)] text-right" title={ig ? "Comment access has not been approved for this account yet." : undefined}>
-              {ig ? "Permissions needed" : "Not connected"}
+            {/* DERIVED, NOT ASSUMED. Previously a hardcoded "Permissions needed". */}
+            <span
+              className="text-[var(--crm-text-muted)] text-right"
+              title={
+                !ig
+                  ? undefined
+                  : (ig.scopes ?? []).includes("instagram_business_manage_comments")
+                    ? "Comment access is granted for this account."
+                    : "Comment access has not been granted for this account yet — re-authorize from Accounts."
+              }
+            >
+              {!ig
+                ? "Not connected"
+                : (ig.scopes ?? []).includes("instagram_business_manage_comments")
+                  ? "Permission granted"
+                  : "Permission needed"}
             </span>
           </div>
           <div className="flex items-center justify-between gap-3 py-[7px] border-t border-[var(--crm-border)] text-[12.5px]">

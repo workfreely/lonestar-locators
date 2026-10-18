@@ -6,6 +6,10 @@ import { instagramConfigured } from "@/lib/social/instagram"
 import { tiktokConfigured } from "@/lib/social/tiktok"
 import PublishingDestinations, { type Destination, type PendingInvite, type TikTokConnection } from "@/components/crm/social/PublishingDestinations"
 import AutoPostingControl from "@/components/crm/social/AutoPostingControl"
+import { readAutoPosting } from "@/lib/social/autoPosting"
+import { accountAutomationGate } from "@/lib/social/commentSafety"
+import { INSTAGRAM_COMMENTS_SCOPE } from "@/lib/social/commentScope"
+import { publishingCapability, autoReplyCapability, type AutoReplyAttention } from "@/lib/social/accountCapabilities"
 
 // Social Autopilot → Accounts. Manages N Instagram Publishing Destinations for the current
 // platform-admin owner (was single-connection). Platform-admin gated. Tokens live in Vault and are
@@ -24,7 +28,10 @@ export default async function SocialAutopilotAccountsPage({ searchParams }: { se
   // address connection-ID-scoped backend actions; it is not shown in the UI.
   const { data: connRows } = await supabase
     .from("social_connections")
-    .select("id, username, status, label, posting_paused, posts_per_day, token_expires_at, created_at, agent_user_id")
+    // `scopes` joins the existing safe display fields: it is the granted permission list, which is
+    // what Auto Reply's status is derived from. Still NEVER token_secret_id / external_account_id /
+    // owner_user_id.
+    .select("id, username, status, label, posting_paused, posts_per_day, token_expires_at, created_at, agent_user_id, scopes")
     .eq("provider", "instagram")
     .order("created_at", { ascending: true })
 
@@ -78,7 +85,7 @@ export default async function SocialAutopilotAccountsPage({ searchParams }: { se
 
   // Resolve the selected-agent display fields (photo + name) for every referenced agent, via the
   // admin-gated definer RPC — profiles' own-profile-only RLS blocks a direct cross-user read.
-  type ConnRow = { id: string; username: string | null; status: string; label: string | null; posting_paused: boolean | null; posts_per_day: number | null; token_expires_at: string | null; created_at: string; agent_user_id: string | null }
+  type ConnRow = { id: string; username: string | null; status: string; label: string | null; posting_paused: boolean | null; posts_per_day: number | null; token_expires_at: string | null; created_at: string; agent_user_id: string | null; scopes: string[] | null }
   type InviteRow = { id: string; label: string | null; created_at: string; expires_at: string; agent_user_id: string | null }
   const conns = (connRows ?? []) as ConnRow[]
   const invites = (inviteRows ?? []) as InviteRow[]
@@ -96,8 +103,79 @@ export default async function SocialAutopilotAccountsPage({ searchParams }: { se
   }
   const agentOf = (id: string | null) => (id ? agentMap.get(id) ?? null : null)
 
+  // ── CAPABILITY INPUTS ─────────────────────────────────────────────────────────────────────
+  // The master Auto Posting switch, read through the SAME helper the publish worker uses, so this
+  // page cannot claim posting is on when the worker would treat it as paused. No session id would
+  // mean it cannot be read for anyone — reported unreadable, which renders as paused.
+  // ensurePlatformAdminPage makes that unreachable; it is explicit rather than a non-null assertion.
+  const autoPosting = me
+    ? await readAutoPosting(supabase, me.id)
+    : { state: "paused" as const, resumedAt: null, unreadable: true }
+
+  // The two comment-automation switches. Either read FAILING yields settingsReadOk: false, and
+  // accountAutomationGate then refuses — a page that cannot read its own gate must not render
+  // "Enabled". A MISSING ROW is not a failure: both columns default to false, so absence is "off".
+  let commentSettingsReadOk = true
+  let globalCommentEnabled: boolean | null = false
+  const { data: gRow, error: gErr } = await supabase
+    .from("comment_automation_settings")
+    .select("global_enabled")
+    .maybeSingle()
+  if (gErr) { commentSettingsReadOk = false } else { globalCommentEnabled = gRow?.global_enabled ?? false }
+
+  const { data: acctRows, error: aErr } = await supabase
+    .from("comment_account_settings")
+    .select("connection_id, enabled, activated_at")
+  if (aErr) commentSettingsReadOk = false
+  const acctSettings = new Map(
+    ((acctRows ?? []) as { connection_id: string; enabled: boolean | null; activated_at: string | null }[])
+      .map((r) => [r.connection_id, r]),
+  )
+
+  // Work that needs a person: sends we could not confirm, and DM claims never resolved. Surfaced
+  // even when automation is off, because an uncertain send is NEVER retried automatically and would
+  // otherwise sit invisible. Both reads tolerate failure and contribute zero.
+  const attentionOf = new Map<string, AutoReplyAttention>()
+  {
+    const { data: stuck } = await supabase
+      .from("social_commenters")
+      .select("connection_id")
+      .not("dm_claimed_at", "is", null)
+      .is("dm_sent_at", null)
+    for (const r of (stuck ?? []) as { connection_id: string }[]) {
+      const a = attentionOf.get(r.connection_id) ?? { unresolvedActions: 0, danglingClaims: 0 }
+      a.danglingClaims++
+      attentionOf.set(r.connection_id, a)
+    }
+    const { data: acts } = await supabase
+      .from("comment_actions")
+      .select("status, social_comments!inner(connection_id)")
+      .in("status", ["failed", "uncertain"])
+    // PostgREST returns an embedded relation as an ARRAY even for a to-one join, so this is
+    // normalised rather than asserted — an object cast here compiles and then reads undefined.
+    type ActRow = { social_comments: { connection_id: string }[] | { connection_id: string } | null }
+    for (const r of (acts ?? []) as ActRow[]) {
+      const rel = r.social_comments
+      const cid = Array.isArray(rel) ? rel[0]?.connection_id : rel?.connection_id
+      if (!cid) continue
+      const a = attentionOf.get(cid) ?? { unresolvedActions: 0, danglingClaims: 0 }
+      a.unresolvedActions++
+      attentionOf.set(cid, a)
+    }
+  }
+
   const destinations: Destination[] = conns.map((row) => {
     const agent = agentOf(row.agent_user_id)
+    const expired = !!row.token_expires_at && new Date(row.token_expires_at).getTime() < Date.now()
+    const acct = acctSettings.get(row.id)
+    // THE GATE IS THE AUTHORITY. This page renders its verdict; it does not re-decide it.
+    const gate = accountAutomationGate({
+      settingsReadOk: commentSettingsReadOk,
+      globalEnabled: globalCommentEnabled,
+      accountEnabled: acct?.enabled ?? false,
+      activatedAt: acct?.activated_at ?? null,
+      permissionsOk: (row.scopes ?? []).includes(INSTAGRAM_COMMENTS_SCOPE),
+    })
     return {
       id: row.id,
       username: row.username,
@@ -105,10 +183,20 @@ export default async function SocialAutopilotAccountsPage({ searchParams }: { se
       status: row.status,
       paused: !!row.posting_paused,
       postsPerDay: row.posts_per_day,
-      expired: !!row.token_expires_at && new Date(row.token_expires_at).getTime() < Date.now(),
+      expired,
       addedAt: row.created_at,
       agentName: agent?.name ?? null,
       agentPhotoUrl: agent?.photoUrl ?? null,
+      publishing: publishingCapability({
+        connectionStatus: row.status,
+        expired,
+        destinationPaused: !!row.posting_paused,
+        autoPosting: autoPosting.state,
+        autoPostingUnreadable: autoPosting.unreadable,
+      }),
+      autoReply: autoReplyCapability(gate, attentionOf.get(row.id)),
+      // Drives the Re-authorize Comments action. Derived from the granted scopes, never assumed.
+      commentsScopeGranted: (row.scopes ?? []).includes(INSTAGRAM_COMMENTS_SCOPE),
     }
   })
 

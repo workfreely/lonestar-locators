@@ -3,6 +3,10 @@
 import { useState } from "react"
 import { useRouter } from "next/navigation"
 import AgentSearchField, { type AgentHit } from "@/components/crm/social/AgentSearchField"
+import {
+  type Capability, type CapabilityState,
+  REAUTHORIZE_COMMENTS_LABEL, REAUTHORIZE_COMMENTS_TITLE,
+} from "@/lib/social/accountCapabilities"
 
 // Beast Social → Accounts → Publishing Destinations (admin-only management UI).
 //
@@ -24,6 +28,14 @@ export type Destination = {
   addedAt: string
   agentName: string | null // selected Locator Beast agent (display identity)
   agentPhotoUrl: string | null
+  // ── THE TWO CAPABILITIES ──────────────────────────────────────────────────────────────────
+  // Computed server-side (lib/social/accountCapabilities) from the master Auto Posting switch and
+  // from accountAutomationGate. This component RENDERS them and derives nothing: a second opinion
+  // here could disagree with the gate, and the one the operator reads would be the wrong one.
+  publishing: Capability
+  autoReply: Capability
+  /** Drives the Re-authorize Comments action. From the granted scopes, never assumed. */
+  commentsScopeGranted: boolean
 }
 
 export type PendingInvite = {
@@ -39,6 +51,7 @@ export type PendingInvite = {
 const MANAGE = "/api/admin/social-autopilot/destinations/manage"
 const INVITES = "/api/admin/social-autopilot/destinations/invitations"
 const CONNECT = "/api/admin/social-autopilot/accounts/instagram/connect"
+const COMMENTS_PAGE = "/admin/social-autopilot/comments"
 const TT_CONNECT = "/api/integrations/tiktok/connect"
 const TT_DISCONNECT = "/api/integrations/tiktok/disconnect"
 
@@ -286,6 +299,41 @@ export default function PublishingDestinations({
     }
   }
 
+  // ── CAPABILITY ROW ────────────────────────────────────────────────────────────────────────
+  // One colour per state, and "active" is the ONLY green. A connected account with posting paused
+  // or auto reply off is amber or grey, never green — the requirement that connection alone must
+  // not read as activity is enforced here as well as in the labels.
+  const capabilityTone = (state: CapabilityState): string => {
+    if (state === "active") return "text-emerald-600 dark:text-emerald-400"
+    if (state === "attention") return "text-amber-600 dark:text-amber-400"
+    if (state === "permission_needed") return "text-amber-600 dark:text-amber-400"
+    return "text-[var(--crm-text-muted)]"
+  }
+  const capabilityDot = (state: CapabilityState): string => {
+    if (state === "active") return "bg-emerald-500"
+    if (state === "attention" || state === "permission_needed") return "bg-amber-500"
+    return "bg-[var(--crm-text-muted)]"
+  }
+
+  // NAME LEFT, BADGE RIGHT, DETAIL UNDERNEATH — the capability reads as a column down a list of
+  // accounts, so the state is scannable without reading the sentence. Actions, when present, sit on
+  // their own full-width row beneath, because a button crowded against a right-aligned badge is the
+  // crowding this card already had once.
+  const capabilityRow = (name: string, cap: Capability, actions?: React.ReactNode) => (
+    <div className="py-[9px] border-t border-[var(--crm-border)]">
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <div className="text-[12.5px] font-semibold text-[var(--crm-text-primary)]">{name}</div>
+          <div className="text-[11.5px] text-[var(--crm-text-muted)] mt-[2px]">{cap.detail}</div>
+        </div>
+        <span className={`shrink-0 inline-flex items-center gap-1.5 text-[11px] font-semibold rounded-full border border-[var(--crm-border)] px-2 py-[3px] ${capabilityTone(cap.state)}`}>
+          {dot(capabilityDot(cap.state))} {cap.badge}
+        </span>
+      </div>
+      {actions && <div className="mt-2 flex items-center gap-2 flex-wrap">{actions}</div>}
+    </div>
+  )
+
   const statusPill = (d: Destination) => {
     if (d.status === "error" || d.expired)
       return <span className="inline-flex items-center gap-1.5 text-[11.5px] font-semibold text-amber-600 dark:text-amber-400">{dot("bg-amber-500")} Reconnect needed</span>
@@ -395,7 +443,16 @@ export default function PublishingDestinations({
 
                   {renamingId !== d.id && (
                     <div className="flex items-center gap-1.5 flex-wrap">
-                      {(d.status === "error" || d.expired) && <a href={CONNECT} className={btn}>Reconnect</a>}
+                      {/* ALWAYS AVAILABLE, not only once the token has expired — the same change
+                          TikTok already made, for the same reason: gating it on expiry left
+                          Disconnect as the only visible control on a healthy connection, i.e. the
+                          one action that throws the connection away. It does NOT disconnect first:
+                          it opens the same OAuth flow, and sa_connect_instagram UPDATEs on
+                          (owner_user_id, provider, external_account_id), so the SAME account lands
+                          back on the SAME row — preserving the connection id, posting_paused,
+                          posts_per_day, the label and every foreign key that points at it. A
+                          cancelled authorization returns before any write. */}
+                      <a href={CONNECT} className={btn} title={REAUTHORIZE_COMMENTS_TITLE}>Reconnect</a>
                       {d.paused ? (
                         <button type="button" className={btn} disabled={busyId === d.id} onClick={() => void manage(d.id, { action: "resume" })}>Resume</button>
                       ) : (
@@ -405,13 +462,45 @@ export default function PublishingDestinations({
                       <button type="button" className={btn} disabled={busyId === d.id} onClick={() => disconnect(d)}>Disconnect</button>
                     </div>
                   )}
+
+                  {/* ── THE TWO CAPABILITIES, SIDE BY SIDE ───────────────────────────────────
+                      One connection grants two unrelated abilities, and reading them off a single
+                      "Connected" pill is what made publishing look active when Auto Posting was
+                      paused. These lines state each one separately and name the reason nothing is
+                      happening. Keyword, reply and activity management stays on the Comments page;
+                      this is status plus the one action that unblocks it. */}
+                  <div className="w-full basis-full mt-1">
+                    {capabilityRow("Instagram Publishing", d.publishing)}
+                    {capabilityRow("Instagram Auto Reply", d.autoReply, (
+                      <>
+                        {/* Shown ONLY while the scope is missing. Once granted it has nothing left
+                            to grant, and the Reconnect control above covers re-authorization — so
+                            the action disappears rather than lingering as a thing to wonder about.
+                            `attention` keeps it visible, because that is the state where a scope
+                            may have been revoked and re-granting is the fix. */}
+                        {(!d.commentsScopeGranted || d.autoReply.state === "attention") && (
+                          <a href={CONNECT} className={`${btn} flex-1 text-center`} title={REAUTHORIZE_COMMENTS_TITLE}>
+                            {REAUTHORIZE_COMMENTS_LABEL}
+                          </a>
+                        )}
+                        <a href={COMMENTS_PAGE} className={`${btn} flex-1 text-center`}>
+                          Manage in Comments
+                        </a>
+                      </>
+                    ))}
+                  </div>
                 </div>
               ))
             )}
           </div>
-          {configured && (
+          {/* ONLY WHEN THERE IS NOTHING CONNECTED. With an account already in the list this link
+              offered to "connect my own Instagram directly" next to the account that is already
+              connected — redundant, and worse, it reads as an invitation to add a SECOND one. The
+              re-authorization path for an existing account is the Reconnect control on its row,
+              which keeps the same connection id. */}
+          {configured && destinations.length === 0 && (
             <div className="mt-2">
-              <a href={CONNECT} className="text-[11.5px] font-semibold text-[var(--crm-text-secondary)] hover:text-[var(--crm-text-primary)]">Connect my own Instagram directly →</a>
+              <a href={CONNECT} className="text-[11.5px] font-semibold text-[var(--crm-text-secondary)] hover:text-[var(--crm-text-primary)]">Connect my Instagram account →</a>
             </div>
           )}
         </div>

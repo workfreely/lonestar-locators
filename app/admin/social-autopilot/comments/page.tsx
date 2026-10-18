@@ -7,15 +7,23 @@ import { COMMENT_KEYWORDS } from "@/lib/social/commentKeywords"
 
 // Social Beast → Comments (Automated Lead Capture). Platform-admin gated, like every sibling tab.
 //
-// READ-ONLY IN PHASE 2. Nothing here polls Instagram, replies, or messages anyone: the structures
-// and the surface exist so the rules can be reviewed before any permission is requested. The
-// Instagram scopes this needs (instagram_business_manage_comments, and separately
-// instagram_business_manage_messages) have deliberately NOT been added yet.
+// READ-ONLY. Nothing on this page polls Instagram, replies, or messages anyone — it reads state
+// and renders it. The webhook, the reconciliation poll and the senders live elsewhere and are
+// gated independently (see lib/social/commentSendPolicy).
 //
-// THE TABLES MAY NOT EXIST. 20261014000000_comment_automation is written but not applied, so every
-// read below tolerates a missing relation and falls back to an empty list. That keeps the tab
-// openable for review without a production migration, and it is also the right behaviour in
-// general: a page that cannot read its own state shows nothing rather than guessing.
+// ── THE PERMISSION, CORRECTED ───────────────────────────────────────────────────────────────
+// This needs ONE scope: instagram_business_manage_comments. An earlier note here said a separate
+// instagram_business_manage_messages was also required; that is wrong. Meta's Instagram Login
+// private-reply endpoint is POST /{ig-user-id}/messages with recipient.comment_id, and its
+// documented permissions are instagram_business_basic + instagram_business_manage_comments. The
+// comments scope covers reading, public replies AND private replies.
+//
+// ── THE TABLES EXIST ────────────────────────────────────────────────────────────────────────
+// 20261014000000_comment_automation IS applied: all seven tables are present. The safe() wrapper
+// below is kept anyway, because tolerating an unreadable relation is the right behaviour in
+// general — a page that cannot read its own state must show nothing rather than guess. What
+// changed is that an unreadable SETTING is no longer silently reported as "off": see the
+// globalEnabled read below, which distinguishes "off" from "unknown" and fails closed on both.
 export default async function CommentsPage() {
   await ensurePlatformAdminPage()
   const supabase = await createClient()
@@ -31,7 +39,9 @@ export default async function CommentsPage() {
   }
 
   const connections = await safe<AccountRow[]>(
-    () => supabase.from("social_connections").select("id, provider, username, status").order("provider") as never,
+    // `scopes` drives the per-account permission line. Safe display data: no token, no
+    // external_account_id, no owner_user_id.
+    () => supabase.from("social_connections").select("id, provider, username, status, scopes").order("provider") as never,
     [],
   )
 
@@ -43,6 +53,27 @@ export default async function CommentsPage() {
         .order("keyword") as never,
     [],
   )
+
+  // ── THE GLOBAL SWITCH, READ RATHER THAN ASSUMED ─────────────────────────────────────────
+  // This was hardcoded to `false`, which was true at the time and would have quietly stayed false
+  // after the switch was turned on. It is now read.
+  //
+  // FAIL CLOSED, AND DISTINGUISH THE TWO FAILURES. A MISSING ROW means off — the column defaults
+  // to false, so a fresh install is silent by construction. An unreadable TABLE means we do not
+  // know, which is reported separately so the page can say so instead of showing a confident
+  // "Off" it has not earned. Both render as not-enabled; only one of them is a problem.
+  let globalEnabled = false
+  let globalUnreadable = false
+  try {
+    const { data, error } = await supabase
+      .from("comment_automation_settings")
+      .select("global_enabled")
+      .maybeSingle()
+    if (error) globalUnreadable = true
+    else globalEnabled = data?.global_enabled === true
+  } catch {
+    globalUnreadable = true
+  }
 
   const comments = await safe<CommentRow[]>(
     () =>
@@ -78,7 +109,8 @@ export default async function CommentsPage() {
       rules={previewRules}
       rulesArePreview={seeded}
       comments={comments}
-      globalEnabled={false}
+      globalEnabled={globalEnabled}
+      globalUnreadable={globalUnreadable}
     />
   )
 }
