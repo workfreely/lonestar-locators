@@ -217,12 +217,18 @@ export default async function SocialAutopilotAccountsPage({ searchParams }: { se
   // the Instagram and TikTok connect flows land here with the right copy.
   const connectedProvider = sp.connected === "tiktok" ? "TikTok" : sp.connected === "instagram" ? "Instagram" : null
   const errorCode = typeof sp.error === "string" ? sp.error : null
+  // EVERY CODE THE CALLBACK CAN EMIT, in the user's words. The codes are a closed set chosen by us
+  // — never a provider message echoed through the URL, which is how a token ends up in a browser
+  // history. The detail behind each one is in the server log.
   const errorText: Record<string, string> = {
-    denied: "Authorization was cancelled.",
+    denied: "Authorization was cancelled, so nothing changed. If you meant to allow it, try again and switch ON every permission before choosing Allow.",
     state: "Couldn't verify the request (state mismatch). Please try connecting again.",
-    exchange: "Sign-in failed. Please try again.",
+    exchange: "Sign-in failed. Your existing connection was left unchanged. Please try again.",
     store: "Connected but couldn't save the connection. Please try again.",
     not_configured: "This integration isn't configured yet.",
+    no_account: "Instagram didn't identify an account. Nothing was changed.",
+    would_revoke: "That authorization would have REMOVED a permission this account already uses, so nothing was changed. Try again and switch ON every permission, including publishing.",
+    unverified_grant: "Instagram didn't confirm which permissions were granted, so nothing was recorded. Your existing connection is unchanged.",
   }
 
   return (
@@ -230,6 +236,12 @@ export default async function SocialAutopilotAccountsPage({ searchParams }: { se
       {connectedProvider && (
         <div className="mb-3 rounded-lg border border-[var(--crm-border)] bg-[var(--crm-card)] px-4 py-2.5 text-[13px] text-[var(--crm-text-primary)]">
           {connectedProvider} connected.
+          {sp.scopes === "unverified" && (
+            <span className="text-[var(--crm-text-secondary)]">
+              {" "}Instagram didn&apos;t report which permissions were granted, so the recorded permissions were left
+              unchanged and the sign-in was refreshed.
+            </span>
+          )}
         </div>
       )}
       {errorCode && (

@@ -8,7 +8,7 @@ import {
   exchangeCodeForShortToken,
   exchangeForLongLivedToken,
   fetchInstagramProfile,
-  grantedScopes,
+  resolveGrantedScopes,
   instagramConfigured,
   instagramRedirectUri,
   expiryFromExpiresIn,
@@ -50,10 +50,42 @@ export async function GET(request: Request) {
     const profile = await fetchInstagramProfile(long.access_token)
 
     const externalId = String(profile.user_id ?? short.user_id ?? "")
-    // Store what Instagram says it GRANTED, not what we asked for. A partial grant stored as the
-    // full request would make a later publish failure unexplainable; `grantedScopes` falls back to
-    // the requested list only when the exchange reports nothing.
-    const scopes = grantedScopes(INSTAGRAM_ADMIN_SCOPES, short.permissions)
+    if (!externalId) return NextResponse.redirect(`${accounts}?error=no_account`)
+
+    // ── WHAT WE ALREADY HOLD, READ BEFORE WE DECIDE WHAT TO WRITE ─────────────────────────
+    // Needed so a grant that is missing a scope we already have can be refused rather than
+    // silently applied. Read through the session client, so RLS scopes it to this admin.
+    const { data: current } = await supabase
+      .from("social_connections")
+      .select("scopes")
+      .eq("provider", "instagram")
+      .eq("external_account_id", externalId)
+      .maybeSingle()
+    const existing = ((current as { scopes?: string[] } | null)?.scopes ?? []) as string[]
+
+    // Store what Instagram CONFIRMS it granted — never what we asked for. See
+    // resolveGrantedScopes: it cannot record an assumed grant, and it refuses a write that would
+    // drop a scope we already hold.
+    const resolution = resolveGrantedScopes({
+      requested: INSTAGRAM_ADMIN_SCOPES,
+      reported: short.permissions,
+      existing,
+    })
+    if (!resolution.ok) {
+      // NOTHING IS WRITTEN on either branch, so the connection, its token and its settings are
+      // exactly as they were. `would_revoke` is the one worth spelling out on the page: the user
+      // did authorize, but left a switch off that we already depend on.
+      console.error(
+        `[instagram/callback] refusing to record scopes: ${resolution.reason}` +
+          (resolution.lost.length ? ` (would lose: ${resolution.lost.join(", ")})` : ""),
+      )
+      return NextResponse.redirect(`${accounts}?error=${resolution.reason}`)
+    }
+    const scopes = resolution.scopes
+    if (!resolution.verified) {
+      // The token still rotates; the recorded permissions are unchanged and nothing was assumed.
+      console.warn("[instagram/callback] provider reported no permissions — scopes left unchanged")
+    }
     const { error } = await supabase.rpc("sa_connect_instagram", {
       p_external_account_id: externalId || null,
       p_username: profile.username ?? null,
@@ -62,10 +94,19 @@ export async function GET(request: Request) {
       p_token: long.access_token,
       p_expires_at: expiryFromExpiresIn(long.expires_in),
     })
-    if (error) return NextResponse.redirect(`${accounts}?error=store`)
-    return NextResponse.redirect(`${accounts}?connected=instagram`)
-  } catch {
-    // No token in the error path — nothing sensitive is logged.
+    if (error) {
+      console.error(`[instagram/callback] sa_connect_instagram failed: ${error.message}`)
+      return NextResponse.redirect(`${accounts}?error=store`)
+    }
+    return NextResponse.redirect(
+      `${accounts}?connected=instagram${resolution.verified ? "" : "&scopes=unverified"}`,
+    )
+  } catch (e) {
+    // THE MESSAGE IS LOGGED, NEVER REDIRECTED. A thrown fetch error can carry the request URL, and
+    // these URLs carry client_secret and access_token in their query strings — so the browser gets
+    // an opaque code and the server log gets the detail. The message itself is emitted rather than
+    // the error object for the same reason: no stack, no cause chain, no request echo.
+    console.error(`[instagram/callback] exchange failed: ${(e as Error).message}`)
     return NextResponse.redirect(`${accounts}?error=exchange`)
   }
 }

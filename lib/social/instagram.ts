@@ -42,23 +42,97 @@ export const INSTAGRAM_SCOPES = ["instagram_business_basic", "instagram_business
 export const INSTAGRAM_ADMIN_SCOPES = [...INSTAGRAM_SCOPES, "instagram_business_manage_comments"] as const
 
 /**
- * What the provider says it actually GRANTED, falling back to what we asked for.
+ * Parse the `permissions` field, whichever shape the provider used.
  *
- * The token exchange may report a `permissions` array. When it does, that is the truth and the
- * requested list is only an intention — storing the intention would let a partial grant look
- * complete, so a later publish would fail with no record of why. When it does not report anything,
- * the requested list is the best available answer and is stored as before.
+ * Meta's own Business Login documentation currently shows a COMMA-SEPARATED STRING; this code was
+ * written against an ARRAY, and the live account connected successfully on 14 Sep 2026 through the
+ * array path — which means `permissions` was absent on that call and the field has never actually
+ * been exercised. A string reaching the old code threw `(reported ?? []).map is not a function`
+ * inside the callback, which the catch turned into a generic "Sign-in failed" with nothing written.
+ *
+ * So both shapes are accepted, and anything else returns NULL rather than an empty array. The
+ * distinction is load-bearing: null means "the provider told us nothing", which is not the same
+ * fact as "the provider told us nothing was granted", and resolveGrantedScopes treats them
+ * differently.
  */
-export function grantedScopes(requested: readonly string[], reported: readonly string[] | undefined): string[] {
-  const seen = (reported ?? []).map((p) => p.trim()).filter(Boolean)
-  return seen.length > 0 ? seen : [...requested]
+export function parsePermissions(reported: unknown): string[] | null {
+  const clean = (xs: unknown[]): string[] =>
+    xs.map((x) => (typeof x === "string" ? x.trim() : "")).filter(Boolean)
+
+  if (Array.isArray(reported)) {
+    const out = clean(reported)
+    return out.length > 0 ? out : null
+  }
+  if (typeof reported === "string") {
+    const out = clean(reported.split(","))
+    return out.length > 0 ? out : null
+  }
+  return null
 }
 
-/** Requested scopes the provider did NOT report as granted. Empty when nothing is missing, or when
- *  the provider reported nothing at all (in which case we know nothing, rather than nothing missing). */
-export function missingScopes(requested: readonly string[], reported: readonly string[] | undefined): string[] {
-  const seen = (reported ?? []).map((p) => p.trim()).filter(Boolean)
-  if (seen.length === 0) return []
+export type ScopeResolution =
+  | { ok: true; scopes: string[]; verified: true }
+  /** The token may be rotated, but the recorded permissions are left exactly as they were. */
+  | { ok: true; scopes: string[]; verified: false; reason: "unverified_grant" }
+  | { ok: false; reason: "unverified_grant" | "would_revoke"; lost: string[] }
+
+/**
+ * Decide what to RECORD as granted — the one place that may never guess.
+ *
+ * ── RULE 1: NEVER SUBSTITUTE THE REQUEST FOR THE GRANT ────────────────────────────────────
+ * The previous version fell back to the requested list whenever the provider reported nothing.
+ * That is an assumed grant: it would have recorded instagram_business_manage_comments as granted
+ * on an authorization where the user left the toggle off, the UI would have shown "Ready but
+ * disabled", and every comment call would have failed with no record of why. Removing that
+ * fallback is a deliberate behaviour change, and it is the point of this function.
+ *
+ * ── RULE 2: A GRANT MAY ADD, BUT NEVER SILENTLY TAKE AWAY ─────────────────────────────────
+ * If the provider confirms a set that is MISSING something we already hold, writing it would
+ * quietly revoke a working capability — re-authorizing for comments and losing publishing is the
+ * exact failure this guards. We refuse the write and report which scopes would have been lost,
+ * leaving the existing connection untouched.
+ *
+ * ── RULE 3: UNVERIFIABLE IS NOT FATAL FOR AN EXISTING CONNECTION ──────────────────────────
+ * When nothing is reported and we already have a connection, the honest record is the one we
+ * already had: the token still rotates (the useful half of re-authorizing) and the scopes stay as
+ * they were, flagged unverified. Nothing is added on faith. For a FIRST connection there is no
+ * prior truth to keep, so it fails closed rather than inventing one.
+ */
+export function resolveGrantedScopes(input: {
+  requested: readonly string[]
+  reported: unknown
+  /** Scopes already recorded for this connection. Empty for a first-time connect. */
+  existing?: readonly string[]
+}): ScopeResolution {
+  const confirmed = parsePermissions(input.reported)
+  const existing = (input.existing ?? []).map((s) => s.trim()).filter(Boolean)
+
+  if (!confirmed) {
+    if (existing.length === 0) return { ok: false, reason: "unverified_grant", lost: [] }
+    return { ok: true, scopes: [...existing], verified: false, reason: "unverified_grant" }
+  }
+
+  const lost = existing.filter((s) => !confirmed.includes(s))
+  if (lost.length > 0) return { ok: false, reason: "would_revoke", lost }
+
+  return { ok: true, scopes: confirmed, verified: true }
+}
+
+// `grantedScopes` USED TO LIVE HERE and was deleted rather than deprecated. It returned the
+// REQUESTED scopes whenever the provider reported none — an assumed grant, and the reason a
+// re-authorization with the permission switches left off could have been recorded as a success.
+// Leaving it exported, with a passing test describing that fallback as correct, would have been an
+// invitation to call it again. resolveGrantedScopes is the only way to decide what to record.
+
+/**
+ * Requested scopes the provider did NOT report as granted — for REPORTING only, never for deciding
+ * what to write. Empty when nothing is missing, and ALSO empty when the provider reported nothing
+ * at all, because then we know nothing rather than knowing nothing is missing. Accepts the same
+ * shapes as parsePermissions, so a comma-separated string no longer reads as "reported nothing".
+ */
+export function missingScopes(requested: readonly string[], reported: unknown): string[] {
+  const seen = parsePermissions(reported)
+  if (!seen) return []
   return requested.filter((r) => !seen.includes(r))
 }
 
@@ -114,7 +188,7 @@ export function instagramAuthorizeUrl(
   return `${AUTHORIZE_URL}?${params.toString()}`
 }
 
-type ShortToken = { access_token: string; user_id: string | number; permissions?: string[] }
+type ShortToken = { access_token: string; user_id: string | number; permissions?: unknown }
 type LongToken = { access_token: string; token_type?: string; expires_in?: number }
 export type InstagramProfile = { user_id?: string; username?: string; account_type?: string }
 
@@ -133,7 +207,40 @@ export async function exchangeCodeForShortToken(code: string, redirectUri: strin
     body,
   })
   if (!res.ok) throw new Error(`ig short-token exchange failed: ${res.status}`)
-  return (await res.json()) as ShortToken
+  return unwrapShortToken(await res.json())
+}
+
+/**
+ * Accept the token response in either documented envelope.
+ *
+ * Meta's Business Login docs show the result wrapped in a `data` array; this code was written
+ * against a flat object, and the live connection proves the flat shape was what arrived in
+ * September 2026. Rather than bet on which is current — a bet that can only be settled by
+ * consuming a real authorization code — both are accepted. The wrapped shape reaching the old code
+ * left `access_token` undefined, so the long-lived exchange was called with "undefined", Meta
+ * answered 400, and the callback reported a generic failure having written nothing.
+ */
+export function unwrapShortToken(json: unknown): ShortToken {
+  const obj = (v: unknown): Record<string, unknown> | null =>
+    typeof v === "object" && v !== null && !Array.isArray(v) ? (v as Record<string, unknown>) : null
+
+  const root = obj(json)
+  const data = root?.data
+  const inner = Array.isArray(data) ? obj(data[0]) : null
+  const src = inner ?? root
+  if (!src) throw new Error("ig short-token exchange returned an unreadable body")
+
+  const token = typeof src.access_token === "string" ? src.access_token.trim() : ""
+  // REFUSE EARLY, WITH A SPECIFIC MESSAGE. Returning a token-less object sent "undefined" to the
+  // next call and surfaced as an opaque 400 three steps away from the cause.
+  if (!token) throw new Error("ig short-token exchange returned no access_token")
+
+  const uid = src.user_id
+  return {
+    access_token: token,
+    user_id: typeof uid === "string" || typeof uid === "number" ? uid : "",
+    permissions: src.permissions,
+  }
 }
 
 /** Exchange a short-lived token for a LONG-lived (~60 day) token. */

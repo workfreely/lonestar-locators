@@ -21,7 +21,6 @@ import {
   INSTAGRAM_SCOPES,
   INSTAGRAM_ADMIN_SCOPES,
   instagramAuthorizeUrl,
-  grantedScopes,
   missingScopes,
 } from "@/lib/social/instagram"
 
@@ -82,16 +81,13 @@ ok("the builder's DEFAULT is the invite set, not the admin set", defaultScope ==
 ok("the default asks for no comment access", !defaultScope.includes(COMMENTS))
 
 // ── what we persist ─────────────────────────────────────────────────────────────────────────
-// A partial grant stored as the full request would make a later publish failure unexplainable.
-console.log("\nPersisted scopes reflect what was granted")
+// What gets PERSISTED is decided by resolveGrantedScopes and asserted in
+// instagramScopeGrant.test.ts. Here we only check the reporting helper, which answers the narrower
+// question "what did we ask for that was not confirmed?".
+console.log("\nReported-vs-requested comparison")
 ok(
-  "a reported grant is stored verbatim",
-  JSON.stringify(grantedScopes(INSTAGRAM_ADMIN_SCOPES, [BASIC, PUBLISH, COMMENTS])) ===
-    JSON.stringify([BASIC, PUBLISH, COMMENTS]),
-)
-ok(
-  "a PARTIAL grant is stored as the partial truth, not the full request",
-  JSON.stringify(grantedScopes(INSTAGRAM_ADMIN_SCOPES, [BASIC, PUBLISH])) === JSON.stringify([BASIC, PUBLISH]),
+  "a full grant leaves nothing missing",
+  missingScopes(INSTAGRAM_ADMIN_SCOPES, [BASIC, PUBLISH, COMMENTS]).length === 0,
 )
 ok(
   "a partial grant names what is missing",
@@ -101,13 +97,16 @@ ok(
   "a grant missing PUBLISHING is reported — this is the one that breaks posting",
   missingScopes(INSTAGRAM_ADMIN_SCOPES, [BASIC, COMMENTS]).includes(PUBLISH),
 )
-ok(
-  "nothing reported ⇒ fall back to the requested list",
-  JSON.stringify(grantedScopes(INSTAGRAM_ADMIN_SCOPES, undefined)) === JSON.stringify([...INSTAGRAM_ADMIN_SCOPES]),
-)
+// WHAT WE RECORD AS GRANTED NO LONGER LIVES HERE. `grantedScopes` was deleted: it fell back to the
+// REQUESTED list when the provider reported nothing, which is an assumed grant. The rules that
+// replaced it — never assume, never silently revoke — are asserted in instagramScopeGrant.test.ts.
 ok("nothing reported ⇒ we claim nothing is missing, because we do not know", missingScopes(INSTAGRAM_ADMIN_SCOPES, undefined).length === 0)
-ok("an empty array is treated as 'reported nothing', not 'granted nothing'", grantedScopes(INSTAGRAM_ADMIN_SCOPES, []).length === 3)
-ok("whitespace in a reported scope is trimmed", grantedScopes(INSTAGRAM_ADMIN_SCOPES, [" " + BASIC + " "])[0] === BASIC)
+ok("an empty array also means we know nothing, so nothing is reported missing",
+  missingScopes(INSTAGRAM_ADMIN_SCOPES, []).length === 0)
+ok("a COMMA-SEPARATED string is understood, so a partial grant is seen as partial",
+  JSON.stringify(missingScopes(INSTAGRAM_ADMIN_SCOPES, BASIC + "," + PUBLISH)) === JSON.stringify([COMMENTS]))
+ok("whitespace in a reported scope is trimmed",
+  missingScopes(INSTAGRAM_ADMIN_SCOPES, [" " + BASIC + " ", PUBLISH, COMMENTS]).length === 0)
 
 console.log(`\n${pass} passed, ${fail} failed\n`)
 process.exit(fail === 0 ? 0 : 1)
