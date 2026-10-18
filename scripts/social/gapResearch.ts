@@ -154,7 +154,7 @@ const POLICY: Policy[] = [
 
 // ── RULE 5: every attribute key needs a human label, or the run aborts ──────────────────────
 // These are literal renamings of the attribute key. They add no adjective the source did not use.
-const LABELS: Record<string, string> = {
+export const LABELS: Record<string, string> = {
   abundant_natural_light: "Abundant natural light",
   attached_garage: "Attached garage",
   built_in_bar: "Built-in bar",
@@ -211,9 +211,9 @@ const LABELS: Record<string, string> = {
 }
 
 /** Shared facilities rather than in-unit finishes. Everything else stays an interior feature. */
-const COMMUNITY = new Set(["infinity_pool", "golf_simulator", "interior_corridor"])
+export const COMMUNITY = new Set(["infinity_pool", "golf_simulator", "interior_corridor"])
 /** The source records these without saying whether they are in-unit or shared. Say so. */
-const AMBIGUOUS = new Set(["media_room", "built_in_bar"])
+export const AMBIGUOUS = new Set(["media_room", "built_in_bar"])
 
 const label = (key: string): string => {
   const l = LABELS[key]
@@ -387,4 +387,10 @@ async function main() {
   await run(built.map((b) => b.rec))
 }
 
-main().catch((e) => { console.error(e); process.exit(1) })
+// RUN ONLY WHEN THIS FILE IS THE ENTRYPOINT.
+//
+// Another batch script imports LABELS/COMMUNITY/AMBIGUOUS from here so the attribute vocabulary
+// lives in one place. Without this guard that import would EXECUTE this batch — and with --apply
+// on the command line it would re-run these ten writes as a side effect of someone else's run.
+const isEntrypoint = process.argv[1] ? import.meta.url.endsWith(process.argv[1].split("/").pop() ?? "\u0000") : false
+if (isEntrypoint) main().catch((e) => { console.error(e); process.exit(1) })
