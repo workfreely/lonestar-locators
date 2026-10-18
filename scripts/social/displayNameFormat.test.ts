@@ -104,8 +104,22 @@ async function main() {
     ok("a naive new Date() would shift this date in a behind-UTC zone (control)",
       typeof naive === "string" && naive.length > 0)
     eq("ours does not — Jan 1 stays Jan 1", ours, "A - Jan 1, 2026")
+    // SCOPED TO THE FORMATTER IT PROTECTS. This used to scan the whole module, which was correct
+    // when the module had one date path. buildSocialDisplayName now has to construct a Date — it
+    // converts an INSTANT (created_at) into the Central calendar day, which cannot be done from
+    // digits — so a file-wide ban would forbid the fix for the opposite bug. The guard that
+    // matters is unchanged: the FORMATTER, which receives a date-only string, must never build a
+    // Date from it, because new Date("2026-01-01") is UTC midnight and renders Dec 31 here.
     const impl = strip(read("lib/social/displayName.ts"))
-    ok("the implementation constructs no Date at all", !/new Date\(/.test(impl))
+    const formatter = impl.slice(impl.indexOf("export function formatSocialDisplayName"))
+      .split("\n}")[0]
+    ok("the FORMATTER constructs no Date at all", !/new Date\(/.test(formatter))
+    // And the BUILDER must convert through the timezone-aware helper, never a bare local Date.
+    const builder = impl.slice(impl.indexOf("function centralDay")).split("\n}")[0]
+    ok("the builder's date path goes through dateKeyInTz (America/Chicago)",
+      /dateKeyInTz\(/.test(builder))
+    ok("…and does not slice a UTC ISO string, which was the off-by-one bug",
+      !/dateISO[^\n]*\.slice\(0, ?10\)/.test(impl))
     ok("…and does not use toLocaleDateString", !/toLocaleDateString/.test(impl))
     ok("…the month name comes from a fixed table", /MONTHS_SHORT\[month - 1\]/.test(impl))
   }

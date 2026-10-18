@@ -4,6 +4,7 @@
 // Temporary format before metadata:      "<original filename base> - YYYY-MM-DD - NN"
 // The name is display-only metadata — it never affects the immutable storage path.
 import { normalizeSocialMarket } from "@/lib/social/markets"
+import { dateKeyInTz } from "@/lib/social/recurrence"
 
 // Keep letters, numbers, spaces, underscores and hyphens; collapse whitespace.
 function clean(s: string | null | undefined): string {
@@ -102,6 +103,34 @@ function stripTrailingSeq(name: string): string {
   return name.replace(/\s-\s\d{1,2}$/, "")
 }
 
+/**
+ * The calendar day a display name carries, in CENTRAL time.
+ *
+ * ── THE BUG THIS REPLACES ─────────────────────────────────────────────────────────────────
+ * This was `(opts.dateISO ?? "").slice(0, 10)` — the first ten characters of a UTC ISO string,
+ * which is the UTC calendar day, not ours. Central is UTC-5 in summer and UTC-6 in winter, so
+ * anything uploaded after 7pm (6pm in winter) was named with TOMORROW'S date:
+ *
+ *     Oct 17 18:30 CDT → 2026-10-17   correct
+ *     Oct 17 19:30 CDT → 2026-10-18   WRONG — the Central day is still the 17th
+ *     Dec 17 18:30 CST → 2026-12-18   WRONG — the winter window opens an hour earlier
+ *
+ * dateKeyInTz handles the offset AND the daylight-saving switch, because Intl resolves
+ * America/Chicago for the specific instant rather than applying a fixed offset. It is the same
+ * helper the recurrence engine already uses to decide which day a scheduled post belongs to, so
+ * a name and a schedule can no longer disagree about what day it is.
+ *
+ * AN UNPARSEABLE DATE YIELDS "", exactly as the old slice did for a malformed string — the name is
+ * built without a date rather than with a wrong one or the word "Invalid".
+ */
+function centralDay(dateISO: string | null | undefined): string {
+  const raw = (dateISO ?? "").trim()
+  if (!raw) return ""
+  const d = new Date(raw)
+  if (Number.isNaN(d.getTime())) return ""
+  return dateKeyInTz(d)
+}
+
 export function buildSocialDisplayName(opts: {
   propertyName?: string | null
   market?: string | null
@@ -109,7 +138,7 @@ export function buildSocialDisplayName(opts: {
   seq?: number | null
   fallbackFilename?: string | null
 }): string {
-  const date = (opts.dateISO ?? "").slice(0, 10)
+  const date = centralDay(opts.dateISO)
   const prop = clean(opts.propertyName)
   const market = clean(normalizeSocialMarket(opts.market))
   const parts: string[] = []
