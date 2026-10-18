@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation"
 import AgentSearchField, { type AgentHit } from "@/components/crm/social/AgentSearchField"
 import {
   type Capability, type CapabilityState,
+  CAPABILITY_TONE, CAPABILITY_DOT,
   REAUTHORIZE_COMMENTS_LABEL, REAUTHORIZE_COMMENTS_TITLE,
 } from "@/lib/social/accountCapabilities"
 
@@ -300,20 +301,12 @@ export default function PublishingDestinations({
   }
 
   // ── CAPABILITY ROW ────────────────────────────────────────────────────────────────────────
-  // One colour per state, and "active" is the ONLY green. A connected account with posting paused
-  // or auto reply off is amber or grey, never green — the requirement that connection alone must
-  // not read as activity is enforced here as well as in the labels.
-  const capabilityTone = (state: CapabilityState): string => {
-    if (state === "active") return "text-emerald-600 dark:text-emerald-400"
-    if (state === "attention") return "text-amber-600 dark:text-amber-400"
-    if (state === "permission_needed") return "text-amber-600 dark:text-amber-400"
-    return "text-[var(--crm-text-muted)]"
-  }
-  const capabilityDot = (state: CapabilityState): string => {
-    if (state === "active") return "bg-emerald-500"
-    if (state === "attention" || state === "permission_needed") return "bg-amber-500"
-    return "bg-[var(--crm-text-muted)]"
-  }
+  // The colours come from CAPABILITY_TONE / CAPABILITY_DOT so this page and the preview harness
+  // cannot disagree. "active" is still the ONLY green: a connected account with posting paused or
+  // auto reply off is yellow, sky or orange — never green. The rule that connection alone must not
+  // read as activity is enforced in the labels and in the palette.
+  const capabilityTone = (state: CapabilityState): string => CAPABILITY_TONE[state]
+  const capabilityDot = (state: CapabilityState): string => CAPABILITY_DOT[state]
 
   // NAME LEFT, BADGE RIGHT, DETAIL UNDERNEATH — the capability reads as a column down a list of
   // accounts, so the state is scannable without reading the sentence. Actions, when present, sit on

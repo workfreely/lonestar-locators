@@ -11,6 +11,7 @@
 // Run: npx tsx scripts/social/accountCapabilities.test.ts
 import {
   publishingCapability, autoReplyCapability,
+  CAPABILITY_TONE, CAPABILITY_DOT, type CapabilityState,
   REAUTHORIZE_COMMENTS_LABEL, REAUTHORIZE_COMMENTS_TITLE,
 } from "@/lib/social/accountCapabilities"
 import { accountAutomationGate } from "@/lib/social/commentSafety"
@@ -240,6 +241,58 @@ console.log("\n6. THE COMMENTS PAGE CLEANUP:")
     /instagram_business_manage_comments/.test(client) && !/\{ig \? "Permissions needed"/.test(client))
   ok("the Automation pill can now show On / Off / Unknown",
     /globalUnreadable \? "Unknown" : globalEnabled \? "On" : "Off"/.test(client))
+}
+
+console.log("\n7. THE PALETTE — five states, five colours, told apart at a glance:")
+{
+  const STATES: CapabilityState[] = ["active", "paused", "disabled", "permission_needed", "attention"]
+
+  ok("every state has a text colour", STATES.every((s) => !!CAPABILITY_TONE[s]))
+  ok("every state has a dot colour", STATES.every((s) => !!CAPABILITY_DOT[s]))
+
+  // THE WHOLE POINT. Before this, paused and disabled shared muted grey, and permission_needed
+  // shared amber with attention — five states wearing three colours.
+  const tones = STATES.map((s) => CAPABILITY_TONE[s])
+  const dots = STATES.map((s) => CAPABILITY_DOT[s])
+  ok("all five TEXT colours are distinct", new Set(tones).size === 5, tones.join(" | "))
+  ok("all five DOT colours are distinct", new Set(dots).size === 5, dots.join(" | "))
+
+  // The requested meanings.
+  ok("active is green (emerald)", /emerald/.test(CAPABILITY_TONE.active) && /emerald/.test(CAPABILITY_DOT.active))
+  ok("paused is yellow", /yellow/.test(CAPABILITY_TONE.paused) && /yellow/.test(CAPABILITY_DOT.paused))
+  ok("disabled is blue / muted cyan (sky)", /sky|cyan|blue/.test(CAPABILITY_TONE.disabled))
+  ok("permission_needed is orange", /orange/.test(CAPABILITY_TONE.permission_needed))
+  ok("attention keeps the existing warning colour (amber)",
+    CAPABILITY_TONE.attention === "text-amber-600 dark:text-amber-400"
+    && CAPABILITY_DOT.attention === "bg-amber-500")
+
+  // ACTIVE IS STILL THE ONLY GREEN. A paused or switched-off capability must never read as running.
+  const greens = STATES.filter((s) => /emerald|green/.test(CAPABILITY_TONE[s]))
+  ok("exactly ONE state is green, and it is `active`", greens.length === 1 && greens[0] === "active",
+    greens.join(", "))
+  ok("no NOT-running state uses green",
+    (["paused", "disabled", "permission_needed", "attention"] as CapabilityState[])
+      .every((s) => !/emerald|green/.test(CAPABILITY_TONE[s]) && !/emerald|green/.test(CAPABILITY_DOT[s])))
+
+  // Dark mode is not optional: a 600-weight text colour on a dark panel is unreadable.
+  ok("every text colour declares a dark-mode variant",
+    STATES.every((s) => /dark:/.test(CAPABILITY_TONE[s])), tones.join(" | "))
+
+  // The component must RENDER the shared palette rather than keeping its own copy — that drift is
+  // exactly what put a different tone function in the preview harness once already.
+  const comp = read("components/crm/social/PublishingDestinations.tsx")
+  ok("the component reads the shared palette", /CAPABILITY_TONE\[state\]/.test(comp) && /CAPABILITY_DOT\[state\]/.test(comp))
+  ok("…and keeps no hard-coded colour of its own",
+    !/capabilityTone[\s\S]{0,200}text-(emerald|amber|sky|yellow|orange)-/.test(comp))
+
+  // The status LOGIC is unchanged — this was a visual-only change.
+  ok("publishing still reports paused for the live state",
+    publishingCapability({ ...HEALTHY, autoPosting: "paused" }).state === "paused")
+  ok("auto reply still reports permission_needed with no scope",
+    autoReplyCapability(accountAutomationGate({
+      settingsReadOk: true, globalEnabled: true, accountEnabled: true,
+      activatedAt: "2026-10-18T00:00:00Z", permissionsOk: false,
+    })).state === "permission_needed")
 }
 
 console.log(`\n${pass} passed, ${fail} failed`)

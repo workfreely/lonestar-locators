@@ -158,6 +158,37 @@ export function autoReplyCapability(
   }
 }
 
+// ── THE PALETTE ─────────────────────────────────────────────────────────────────────────────
+// ONE COLOUR PER STATE, and every state a different one. Before this, `paused` and `disabled`
+// both fell through to muted grey and `attention` and `permission_needed` shared amber — five
+// states wearing three colours, which is the opposite of telling them apart at a glance.
+//
+// The hues are ordered by how much they ask of the reader:
+//   active            emerald — the only green anywhere. Green means something IS happening.
+//   disabled          sky     — cool and calm: nothing is wrong, it is simply switched off.
+//   paused            yellow  — a deliberate stop, not a fault.
+//   permission_needed orange  — a fault you can fix in one click.
+//   attention         amber   — the existing warning colour, deliberately unchanged.
+//
+// Yellow, orange and amber are neighbours, so they are separated by lightness as well as hue and
+// each carries a distinct dot. Declared here rather than in the component so the page and the
+// preview harness cannot drift apart — they did once already.
+export const CAPABILITY_TONE: Record<CapabilityState, string> = {
+  active: "text-emerald-600 dark:text-emerald-400",
+  disabled: "text-sky-600 dark:text-sky-400",
+  paused: "text-yellow-600 dark:text-yellow-400",
+  permission_needed: "text-orange-600 dark:text-orange-400",
+  attention: "text-amber-600 dark:text-amber-400",
+}
+
+export const CAPABILITY_DOT: Record<CapabilityState, string> = {
+  active: "bg-emerald-500",
+  disabled: "bg-sky-500",
+  paused: "bg-yellow-500",
+  permission_needed: "bg-orange-500",
+  attention: "bg-amber-500",
+}
+
 /** Copy for the re-authorization action. One definition so the link and its tooltip cannot drift. */
 export const REAUTHORIZE_COMMENTS_LABEL = "Re-authorize Comments"
 

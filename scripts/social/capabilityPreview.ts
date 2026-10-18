@@ -14,15 +14,30 @@
 // server-rendered outside a Next request. So this previews the STATES and the COPY faithfully; it
 // is not a screenshot of the live page.
 import { readFileSync, writeFileSync } from "node:fs"
-import { publishingCapability, autoReplyCapability, REAUTHORIZE_COMMENTS_LABEL, REAUTHORIZE_COMMENTS_TITLE, type Capability } from "@/lib/social/accountCapabilities"
+import { publishingCapability, autoReplyCapability, CAPABILITY_TONE, CAPABILITY_DOT, REAUTHORIZE_COMMENTS_LABEL, REAUTHORIZE_COMMENTS_TITLE, type Capability, type CapabilityState } from "@/lib/social/accountCapabilities"
 import { accountAutomationGate } from "@/lib/social/commentSafety"
 
 const css = readFileSync("app/globals.css", "utf8")
 
-const tone = (s: Capability["state"]) =>
-  s === "active" ? "#059669" : s === "attention" || s === "permission_needed" ? "#d97706" : "var(--crm-text-muted)"
-const dotBg = (s: Capability["state"]) =>
-  s === "active" ? "#10b981" : s === "attention" || s === "permission_needed" ? "#f59e0b" : "var(--crm-text-muted)"
+// Tailwind's own palette values, keyed by the class the component actually renders. The mapping
+// below is a RENDERING of CAPABILITY_TONE / CAPABILITY_DOT, not a second opinion about colour: if
+// a state's class changes and this table has no entry for it, the preview fails loudly rather than
+// quietly showing the wrong swatch.
+const HEX: Record<string, string> = {
+  "emerald-600": "#059669", "emerald-500": "#10b981",
+  "sky-600": "#0284c7",     "sky-500": "#0ea5e9",
+  "yellow-600": "#ca8a04",  "yellow-500": "#eab308",
+  "orange-600": "#ea580c",  "orange-500": "#f97316",
+  "amber-600": "#d97706",   "amber-500": "#f59e0b",
+}
+const shade = (cls: string, prefix: string): string => {
+  const m = cls.match(new RegExp(`${prefix}-([a-z]+-\\d{3})`))
+  const hex = m ? HEX[m[1]] : undefined
+  if (!hex) throw new Error(`capabilityPreview: no hex for "${cls}" — add it to HEX so the preview stays truthful`)
+  return hex
+}
+const tone = (s: CapabilityState) => shade(CAPABILITY_TONE[s], "text")
+const dotBg = (s: CapabilityState) => shade(CAPABILITY_DOT[s], "bg")
 
 const capRow = (name: string, cap: Capability, actions = "") => `
   <div class="cap">
@@ -114,10 +129,16 @@ const html = `<!doctype html>
   .badge { flex:none; font-size:11px; font-weight:600; display:inline-flex; align-items:center; gap:6px; border:1px solid var(--crm-border,#e5e7eb); border-radius:999px; padding:3px 8px; }
   .capactions { display:flex; gap:8px; flex-wrap:wrap; margin-top:8px; }
   .btn.grow { flex:1 1 0; text-align:center; }
+  .legend { display:flex; gap:14px; flex-wrap:wrap; margin:0 0 18px; padding:10px 12px; background:var(--crm-panel,#fff); border:1px solid var(--crm-border,#e5e7eb); border-radius:10px; }
+  .swatch { font-size:11.5px; font-weight:600; display:inline-flex; align-items:center; gap:6px; }
   .note { font-size:12px; color:var(--crm-text-secondary,#4b5563); background:var(--crm-panel,#fff); border:1px solid var(--crm-border,#e5e7eb); border-left:3px solid #f59e0b; border-radius:8px; padding:10px 12px; margin:0 0 22px; }
 </style></head>
 <body><div class="wrap">
 <h1>Social Beast → Accounts: the two capability lines</h1>
+<div class="legend">
+  ${(["active","paused","disabled","permission_needed","attention"] as CapabilityState[]).map((st) => `
+    <span class="swatch" style="color:${tone(st)}"><i class="dot" style="background:${dotBg(st)}"></i> ${st.replace(/_/g," ")}</span>`).join("")}
+</div>
 <p class="lede">Every label, sentence and colour below is produced by the real
 <code>publishingCapability</code> / <code>autoReplyCapability</code> / <code>accountAutomationGate</code>
 functions. The surrounding row markup is transcribed from the component.</p>
