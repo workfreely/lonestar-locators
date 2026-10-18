@@ -12,6 +12,13 @@ export default {
     "./pages/**/*.{js,ts,jsx,tsx,mdx}",
     "./components/**/*.{js,ts,jsx,tsx,mdx}",
     "./app/**/*.{js,ts,jsx,tsx,mdx}",
+    // `lib` IS scanned, because class names live there now. lib/social/accountCapabilities.ts
+    // holds the Accounts page's status palette so the page and its preview harness cannot drift;
+    // with lib outside these globs Tailwind never saw those strings and silently emitted no rule
+    // for bg-yellow-500, text-sky-600 or any of the orange utilities. The class still reached the
+    // HTML, so nothing threw — the badges just rendered with no colour. A utility that is only
+    // ever referenced from a non-scanned file fails exactly this quietly.
+    "./lib/**/*.{js,ts,jsx,tsx,mdx}",
   ],
   theme: {
     extend: {
