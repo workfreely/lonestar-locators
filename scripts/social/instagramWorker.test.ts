@@ -137,11 +137,22 @@ async function main() {
     // it was a second route that can publish to Instagram. So it now asserts that directly, which
     // a bare count never did: a third cron that DID publish would have been admitted by simply
     // bumping the expected number.
+    //
+    // EXTENDED A SECOND TIME, 17 Oct 2026, for the comment reconciliation poll. This assertion
+    // fired correctly when that cron was added — which is the whole reason it is an allow-list and
+    // not a count. The poll reads comments and can send a reply; it imports none of the publish
+    // helpers, which the assertion below proves rather than assumes. Adding a path here is a
+    // DELIBERATE act requiring the review that produced this comment; the protection that actually
+    // matters is the next assertion, and it is unchanged.
+    const ALLOWED_SOCIAL_CRONS = [
+      "/api/cron/social-instagram-publish",   // the only route that may publish
+      "/api/cron/social-autopilot-plan",      // schedules; cannot publish
+      "/api/cron/social-comment-poll",        // reconciles comments; cannot publish
+    ]
     const socialCrons = vercel.crons.filter((c) => /social/.test(c.path))
-    ok("the only social crons are the publish worker and the plan trigger",
-      socialCrons.length === 2
-      && socialCrons.some((c) => c.path === "/api/cron/social-instagram-publish")
-      && socialCrons.some((c) => c.path === "/api/cron/social-autopilot-plan"),
+    ok("the social crons are exactly the three reviewed ones, and no others",
+      socialCrons.length === ALLOWED_SOCIAL_CRONS.length
+      && ALLOWED_SOCIAL_CRONS.every((p) => socialCrons.some((c) => c.path === p)),
       JSON.stringify(socialCrons.map((c) => c.path)))
     ok("…and this worker is the ONLY cron that can publish to Instagram",
       socialCrons

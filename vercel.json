@@ -29,6 +29,10 @@
       "schedule": "*/5 * * * *"
     },
     {
+      "path": "/api/cron/social-comment-poll",
+      "schedule": "*/5 * * * *"
+    },
+    {
       "path": "/api/cron/social-autopilot-plan",
       "schedule": "0 * * * *"
     }
