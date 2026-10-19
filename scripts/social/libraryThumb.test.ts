@@ -126,5 +126,70 @@ console.log("\n6. the backfill is resumable, idempotent and non-destructive:")
   ok("a per-row failure is counted, not fatal", /failures\.push\(/.test(b) && !/process\.exit\(1\)[\s\S]{0,80}catch/.test(b))
 }
 
+// ── ENLARGED PREVIEW ON THE LIBRARY TILE ────────────────────────────────────
+// The tile's native fullscreen button zoomed and cropped the vertical video. It is replaced by the
+// SHARED VideoLightbox — the same component the Post Editor's Enlarge control and the History
+// thumbnails already open.
+//
+// THE CONSTRAINT THAT DRIVES THE LAYOUT: upper-RIGHT is the status badge (DRAFT) and upper-LEFT is
+// the select checkbox. A control in either corner covers one of them, which is the whole reason
+// this control is at the bottom. Asserted so a future tidy-up cannot quietly move it up.
+console.log("\n7. the tile's enlarged preview replaces native fullscreen without touching the badges:")
+{
+  const c = read("components/crm/social/SocialAutopilotClient.tsx")
+  // Isolate the Thumb component, so a match elsewhere in this 2,000-line file cannot stand in.
+  const thumb = /function Thumb\(\{ card \}: \{ card: Card \}\)[\s\S]*?\n\}/.exec(c)?.[0] ?? ""
+  ok("the Thumb component was found", thumb.length > 0)
+
+  ok("native fullscreen is suppressed on the tile player", /controlsList="nofullscreen"/.test(thumb))
+  ok("picture-in-picture is suppressed too, matching the editor", /disablePictureInPicture/.test(thumb))
+  ok("the shared lightbox is reused, not a second modal", /<VideoLightbox/.test(thumb))
+  ok("...imported from the shared component", /import VideoLightbox from "@\/components\/crm\/social\/VideoLightbox"/.test(c))
+  ok("no second video modal was added to this file", !/fixed inset-0[\s\S]{0,120}<video/.test(c))
+  ok("the enlarged view carries the tile's DRAFT overlay", /overlay=\{<PreviewOverlay layout=\{card\.draftOverlay\} \/>\}/.test(thumb))
+
+  // THE BADGE COLLISION GUARD.
+  const enlarge = /aria-label="Enlarge video"[\s\S]*?className="([^"]+)"/.exec(thumb)?.[1] ?? ""
+  ok("the enlarge control was found", enlarge.length > 0)
+  ok("it is NOT in the upper-right, where the DRAFT badge lives", !/\btop-\S/.test(enlarge))
+  ok("it is positioned from the BOTTOM", /\bbottom-\S/.test(enlarge))
+  ok("it is clear of the native controls strip, not flush to the bottom edge",
+    /\bbottom-10\b/.test(enlarge))
+  ok("it sits on the right, matching the fullscreen button it replaces", /\bright-\S/.test(enlarge))
+
+  // The badges and the checkbox must still be where they were, in the PARENT.
+  ok("the select checkbox is still upper-left", /absolute top-1\.5 left-1\.5[\s\S]{0,200}type="checkbox"/.test(c))
+  ok("the status badge is still rendered upper-right by StatusBadge", /<StatusBadge badge=\{b\} \/>/.test(c))
+
+  // PLAYBACK IS UNTOUCHED: controls stay on, and nothing else was removed.
+  ok("the tile still shows native controls while playing", /controls=\{playing\}/.test(thumb))
+  ok("controlsList removes ONLY fullscreen — download and remote playback are untouched",
+    !/nodownload|noremoteplayback/.test(thumb))
+  ok("the enlarge control only exists while playing, as the native button did", /\{playing && card\.raw\?\.kind !== "image" &&/.test(thumb))
+  ok("opening it pauses the tile rather than leaving two players running", /ref\.current\?\.pause\(\)/.test(thumb))
+  ok("the click does not bubble into the card's open handler", /e\.stopPropagation\(\)/.test(thumb))
+
+  // NOT TOUCHED — this is a presentation change only.
+  // Behaviour, not prose: the previous version of this assertion grepped the component for the
+  // words "render" and "publish" and matched its own COMMENTS ("a Rendered card", "It renders ONLY
+  // while playing"). What actually matters is that the tile performs no side effect at all.
+  const thumbCode = thumb.replace(/\/\*[\s\S]*?\*\/|\/\/[^\n]*/g, "")
+  ok("the tile writes no database row", !/\.update\(|\.insert\(|\.delete\(|\.upsert\(/.test(thumbCode))
+  ok("the tile makes no network request", !/fetch\(/.test(thumbCode))
+  ok("the tile touches no storage", !/\.storage\b/.test(thumbCode))
+  ok("the tile calls no render or publish endpoint", !/\/api\//.test(thumbCode))
+  ok("its only state is local playback + expansion",
+    (thumbCode.match(/useState/g) ?? []).length === 2)
+
+  // The shared lightbox's own guarantees, since the tile now depends on them.
+  const lb = read("components/crm/social/VideoLightbox.tsx")
+  ok("the lightbox shows true aspect, never cropped", /object-contain/.test(lb))
+  ok("...at a bounded portrait size rather than upscaled to the viewport",
+    /aspectRatio: "9 \/ 16"/.test(lb) && /88vh/.test(lb) && /maxWidth/.test(lb))
+  ok("the lightbox keeps full playback controls", /<video[^>]*\bcontrols\b/.test(lb))
+  ok("the lightbox closes via X, Escape and backdrop", /aria-label="Close preview"/.test(lb) && /"Escape"/.test(lb) && /onClick=\{onClose\}/.test(lb))
+  ok("the lightbox suppresses native fullscreen too", /controlsList="nofullscreen"/.test(lb))
+}
+
 console.log(`\nLibrary thumbnails: ${pass} passed, ${fail} failed`)
 if (fail > 0) process.exit(1)

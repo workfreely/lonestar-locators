@@ -8,6 +8,7 @@ import { SOCIAL_MARKETS, normalizeSocialMarket } from "@/lib/social/markets"
 import { formatSocialDisplayName } from "@/lib/social/displayName"
 import { sourceNeedsWork, workingBadge, renderedBadge, BADGE_TONE, type LaneFacts, type DraftFacts, type CardBadge } from "@/lib/social/postLane"
 import PreviewOverlay from "@/components/crm/social/PreviewOverlay"
+import VideoLightbox from "@/components/crm/social/VideoLightbox"
 import { computeOverlayLayout, type OverlayLayout } from "@/lib/social/overlaySpec"
 import { OVERLAY_TEMPLATES, OVERLAY_TEMPLATE_LABEL, DEFAULT_OVERLAY_TEMPLATE } from "@/lib/social/composePost"
 import { PROPERTY_TYPES } from "@/lib/social/propertyTypes"
@@ -208,6 +209,12 @@ async function runPool<T>(items: T[], limit: number, worker: (item: T) => Promis
 function Thumb({ card }: { card: Card }) {
   const ref = useRef<HTMLVideoElement>(null)
   const [playing, setPlaying] = useState(false)
+  // ENLARGED PREVIEW — the SHARED VideoLightbox, the same one the Post Editor's Enlarge control
+  // and the History thumbnails already open. State is local to the tile rather than lifted: only
+  // one can be open at a time in practice, and the lightbox is `fixed` so it escapes the card's
+  // overflow-hidden on its own (the card's hover style is box-shadow/border only — no transform,
+  // which would have made `fixed` behave like `absolute` and clip it inside the tile).
+  const [expanded, setExpanded] = useState(false)
 
   if (card.demo || !card.previewUrl) {
     return (
@@ -256,6 +263,15 @@ function Thumb({ card }: { card: Card }) {
           preload="metadata"
           autoPlay={playing}
           controls={playing}
+          // Native fullscreen zoomed and cropped the vertical video, so it is suppressed here the
+          // same way the Post Editor and the lightbox already suppress it, and the Enlarge control
+          // below replaces it. NOTE: controlsList is a Chromium-only extension (WICG proposal, not
+          // in the HTML spec) — Chrome and Edge hide the button, Safari and Firefox ignore the
+          // attribute entirely and keep their own fullscreen button. There is no standard way to
+          // remove just that one control; the only complete fix is abandoning `controls` for a
+          // hand-built bar, which is a much larger change than this is worth.
+          controlsList="nofullscreen"
+          disablePictureInPicture
           onLoadedMetadata={(e) => {
             const v = e.currentTarget
             if (playing) return // playing: let it run from the start rather than seeking away
@@ -289,6 +305,40 @@ function Thumb({ card }: { card: Card }) {
         >
           <span className="h-8 w-8 rounded-full bg-white/90 text-black text-[12px] flex items-center justify-center pl-0.5">▶</span>
         </button>
+      )}
+      {/* ENLARGE — stands in for the native fullscreen button it replaces.
+          POSITION IS CONSTRAINED, not chosen freely. Upper-RIGHT is the status badge (DRAFT) and
+          upper-LEFT is the select checkbox, so the only free corner is the bottom. It sits at
+          bottom-10 rather than bottom-1.5 to clear the native controls strip beneath it, so the
+          scrubber and volume stay fully reachable.
+          It renders ONLY while playing — exactly when `controls` is on and the native fullscreen
+          button would have existed. Before play the full-tile play button owns the surface. */}
+      {playing && card.raw?.kind !== "image" && (
+        <button
+          type="button"
+          aria-label="Enlarge video"
+          onClick={(e) => {
+            e.stopPropagation()
+            // Pause the tile rather than leaving two players running behind the backdrop.
+            try { ref.current?.pause() } catch { /* nothing to pause */ }
+            setExpanded(true)
+          }}
+          className="absolute bottom-10 right-1.5 z-10 rounded-lg bg-black/55 hover:bg-black/75 text-white p-1.5 backdrop-blur-sm transition-colors"
+        >
+          <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7" />
+          </svg>
+        </button>
+      )}
+      {expanded && card.previewUrl && (
+        <VideoLightbox
+          src={card.previewUrl}
+          onClose={() => setExpanded(false)}
+          // The tile's SAVED DRAFT overlay carries into the enlarged view, the same way the Post
+          // Editor passes its pre-render approximation — so the expanded frame shows what the tile
+          // showed, at true 9:16 aspect instead of the tile's object-cover crop.
+          overlay={<PreviewOverlay layout={card.draftOverlay} />}
+        />
       )}
     </div>
   )
