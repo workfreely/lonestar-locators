@@ -221,9 +221,24 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
   // lib/social/renderInvalidation). It also replaces two separate single-column reads that used to
   // sit further down — one for render_version when stamping a cover, one for platform when capping
   // hashtags — so this is one query where there were two.
+  //
+  // EVERY PRESENTER COLUMN IS HERE SO renderAffectingChanges CAN ACTUALLY COMPARE.
+  // renderAffectingChanges asks `valueChanged(stored[col], patch[col])`, and an unselected column
+  // reads undefined — so valueChanged(undefined, x) reported a change for a value that had not
+  // changed, and re-saving a post with its presenter settings untouched reset render_status to
+  // 'none' and cleared approved_at, discarding a finished render for nothing. All six presenter
+  // columns in RENDER_AFFECTING_COLUMNS are now selected, so a no-op save is correctly a no-op.
+  //
+  // render_status AND rendered_storage_path ARE REQUIRED HERE, NOT OPTIONAL EXTRAS.
+  // The approval gate below asks "does this post have a current rendered video?" by reading both
+  // off `stored`. While they were missing from this list both read undefined, so willHaveRender
+  // was ALWAYS false and `approved: true` ALWAYS returned nothing_to_approve — approval was
+  // impossible for every post, and with it scheduling and publishing, which both require
+  // approved_at. Do not remove them from this select. Neither column is in
+  // RENDER_AFFECTING_COLUMNS, so neither participates in render invalidation.
   const { data: storedRow } = await supabase
     .from("social_posts")
-    .select("id, platform, destination, published_at, external_post_id, render_version, source_storage_path, overlay_headline, overlay_subheadline, overlay_mode, overlay_template, audio_choice, audio_track_id, voice_hook_id, voice_cta_id, presenter_id, presenter_audio_storage_path, presenter_clip_storage_path")
+    .select("id, platform, destination, published_at, external_post_id, render_version, source_storage_path, overlay_headline, overlay_subheadline, overlay_mode, overlay_template, audio_choice, audio_track_id, voice_hook_id, voice_cta_id, presenter_id, presenter_audio_storage_path, presenter_clip_storage_path, presenter_intro_seconds, presenter_side, presenter_width_px, render_status, rendered_storage_path")
     .eq("id", id)
     .maybeSingle()
   const stored = (storedRow ?? null) as Record<string, unknown> | null
