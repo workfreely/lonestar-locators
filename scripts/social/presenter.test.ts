@@ -333,8 +333,19 @@ console.log("\n11. the editor is opt-in and the server re-checks ownership:")
     // The route's doc comment legitimately EXPLAINS the owner_user_id policy, and that explanation
     // matched a text search for the very thing it says is absent from the query. Assert on code.
     const listCode = list.replace(/\/\*[\s\S]*?\*\/|\/\/[^\n]*/g, "")
+    // SCOPED TO THE GET BODY. The file also holds a POST whose insert MUST set owner_user_id —
+    // the RLS insert policy requires `owner_user_id = auth.uid()`, so a whole-file search for the
+    // column now reports the correct code as a violation. What this has always meant is that the
+    // LISTING does not filter by owner, and that is what it now checks.
+    const getBody = /export async function GET\(\)[\s\S]*?\n\}/.exec(listCode)?.[0] ?? ""
+    ok("the GET body exists to check", getBody.length > 0)
     ok("the list endpoint relies on RLS rather than a forgettable WHERE",
-      !/owner_user_id/.test(listCode) && /from\("social_presenters"\)/.test(listCode))
+      !/owner_user_id/.test(getBody) && /from\("social_presenters"\)/.test(getBody))
+    // And nowhere in the file is the listing narrowed by an owner predicate.
+    ok("no owner predicate is applied to any query here", !/\.eq\("owner_user_id"/.test(listCode))
+    // The POST's insert, by contrast, MUST set it — that is the policy's own requirement.
+    ok("the upload insert sets owner_user_id explicitly", /owner_user_id: userId/.test(listCode))
+    ok("...and never creates a shared sample", /is_sample: false/.test(listCode) && !/is_sample: true/.test(listCode))
   }
   ok("...and returns no credential", !/heygen_avatar_id|api_key|secret|token/i.test(list.replace(/\/\*[\s\S]*?\*\//g, "")))
   ok("server-side range clamping mirrors the DB CHECKs",

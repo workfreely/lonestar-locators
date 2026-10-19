@@ -2,6 +2,10 @@
 
 import { useCallback, useEffect, useState } from "react"
 import { PRESENTER, clampIntroSeconds, clampWidthPx, normalizeSide, type PresenterSide } from "@/lib/social/presenterSpec"
+import {
+  PRESENTER_UPLOAD, checkPresenterFormat, checkPresenterSize, labelFromFilename, presenterStorageKey,
+} from "@/lib/social/presenterUpload"
+import { supabase } from "@/lib/supabase/client"
 
 /**
  * AI PRESENTER — the post editor's control.
@@ -50,6 +54,10 @@ export default function AiPresenterControl({
   // can never disagree about what exists. Fetched here rather than threaded through the editor.
   const [voiceClips, setVoiceClips] = useState<{ id: string; name: string; clipType: string }[]>([])
   const [loadErr, setLoadErr] = useState<string | null>(null)
+  // Upload state is kept separate from loadErr: a failed upload must not read as "the presenter
+  // list is broken", and the list the operator already has stays usable while one upload fails.
+  const [uploading, setUploading] = useState(false)
+  const [uploadErr, setUploadErr] = useState<string | null>(null)
   const on = !!value.presenterId
 
   // Loaded lazily — a post that never turns the feature on never pays for this request.
@@ -105,6 +113,60 @@ export default function AiPresenterControl({
     patch({ presenterId: first.id, introSeconds: clampIntroSeconds(first.defaultIntroSeconds), side: null, widthPx: null })
   }
 
+  /**
+   * UPLOAD AN AVATAR CLIP — the two-step the Voice Clips library uses.
+   *
+   * The browser puts the file in the bucket with its own authenticated client, then the route
+   * registers the key. The file deliberately does NOT travel through the API request: a serverless
+   * request body is capped well below the size of a real avatar clip, so the simpler-looking
+   * version is the one that fails on a large file.
+   *
+   * The checks here are a courtesy, not the protection — they catch the obvious mistake before a
+   * pointless upload. The route re-derives all of them server-side, and it is the route that
+   * proves transparency, which nothing on this side can do.
+   */
+  const upload = async (file: File) => {
+    setUploadErr(null)
+    const fmt = checkPresenterFormat(file.name)
+    if (!fmt.ok) { setUploadErr(fmt.detail); return }
+    const sizeErr = checkPresenterSize(file.size)
+    if (sizeErr) { setUploadErr(sizeErr); return }
+
+    setUploading(true)
+    try {
+      const { data: u } = await supabase.auth.getUser()
+      const uid = u.user?.id
+      if (!uid) throw new Error("You are not signed in.")
+      const key = presenterStorageKey(uid, fmt.ext, crypto.randomUUID())
+      const up = await supabase.storage.from("social-media").upload(key, file, {
+        contentType: file.type || (fmt.ext === "webm" ? "video/webm" : "video/quicktime"),
+        upsert: false,
+      })
+      if (up.error) throw new Error(up.error.message)
+
+      const res = await fetch("/api/admin/social-autopilot/presenters", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ storagePath: key, filename: file.name, label: labelFromFilename(file.name) }),
+      })
+      const j = (await res.json().catch(() => ({}))) as { presenter?: PresenterOption; error?: string; detail?: string }
+      // The route removes the stored object on every failure, so there is nothing to clean up here
+      // and a retry starts from a clean bucket.
+      if (!res.ok || !j.presenter) throw new Error(j.detail ?? j.error ?? "The avatar could not be saved.")
+
+      // Refresh from the server rather than appending locally, so the list is exactly what the
+      // next render of this control would fetch — and select the new avatar straight away.
+      const list = await load()
+      const saved = list.find((o) => o.id === j.presenter!.id) ?? j.presenter
+      patch({ presenterId: saved.id, introSeconds: clampIntroSeconds(saved.defaultIntroSeconds) })
+      setLoadErr(null)
+    } catch (e) {
+      setUploadErr((e as Error).message.slice(0, 240))
+    } finally {
+      setUploading(false)
+    }
+  }
+
   const side: PresenterSide = normalizeSide(value.side)
   const widthPx = clampWidthPx(value.widthPx)
   const introSeconds = clampIntroSeconds(value.introSeconds)
@@ -135,11 +197,37 @@ export default function AiPresenterControl({
       ) : (
         <div className={`mt-2 flex flex-col gap-2 ${wrap}`}>
           {loadErr && <p className="text-[11px] text-red-400">{loadErr}</p>}
+          {uploadErr && <p className="text-[11px] text-red-400">{uploadErr}</p>}
 
           {/* ROW 1 — who speaks, and with what voice. */}
           <div className="grid grid-cols-2 gap-2">
             <label className="block min-w-0">
-              <span className={subLabel}>Presenter</span>
+              {/* The upload sits ON the Presenter caption rather than in a row of its own: it is
+                  the same decision as "which presenter", just the first time you make it. */}
+              <span className="flex items-baseline justify-between gap-2">
+                <span className={subLabel}>Presenter</span>
+                <span
+                  className={`shrink-0 text-[10px] font-semibold uppercase tracking-wide ${uploading ? "text-[var(--crm-text-muted)]" : "cursor-pointer text-[var(--crm-text-secondary)] hover:text-[var(--crm-text-primary)]"}`}
+                  title={`Upload a transparent avatar clip (WebM or alpha MOV, up to ${PRESENTER_UPLOAD.maxBytes / (1024 * 1024)} MB)`}
+                >
+                  {uploading ? "Checking…" : (
+                    <label className="cursor-pointer">
+                      + Upload
+                      <input
+                        type="file"
+                        accept={PRESENTER_UPLOAD.acceptAttribute}
+                        className="hidden"
+                        disabled={uploading}
+                        onChange={(e) => {
+                          const f = e.target.files?.[0]
+                          e.currentTarget.value = ""
+                          if (f) void upload(f)
+                        }}
+                      />
+                    </label>
+                  )}
+                </span>
+              </span>
               <select
                 className={controlClassName}
                 value={value.presenterId ?? ""}
