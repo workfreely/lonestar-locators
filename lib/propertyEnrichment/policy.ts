@@ -191,6 +191,18 @@ export function toStoredText(value: unknown): string | null {
 // curated intelligence (identity, geography, amenities) is NOT here and keeps preserve-by-
 // default in full — and commission is excluded twice over, since the firewall in the writer
 // rejects it before this is ever consulted.
+// ── OWNER-WRITABLE COMMISSION FIELDS ────────────────────────────────────────────────────
+// The ONLY commission columns an authenticated platform owner may set, and the ONLY way any
+// commission column is writable at all. Deliberately kept OUT of ENRICHMENT_WRITABLE_FIELDS and
+// CANONICAL_SCALAR_FIELDS: the general allowlist is what automated enrichment consults, and
+// adding them there would open commission to every job in the system. This set is consulted only
+// by the firewall's owner branch, which additionally demands request-level authorization.
+export const OWNER_COMMISSION_FIELDS = new Set([
+  "send_commission",
+  "escort_commission",
+  "bonus_flat",
+])
+
 export const OWNER_CORRECTABLE_FIELDS = new Set([
   "studio_starting_rent",
   "onebr_starting_rent",
@@ -229,9 +241,30 @@ export function decideFieldWrite(args: {
   currentProvenance: FieldProvenance | null
   /** See FieldCandidate.ownerOverride. Absent/false on every automated path. */
   candidateOwnerOverride?: boolean
+  /** See FieldCandidate.ownerClear. Absent/false on every automated path. */
+  candidateOwnerClear?: boolean
 }): Decision {
   const { field, candidateText, candidateSourceType, candidateVerification, currentText, currentProvenance } = args
   const ownerOverride = args.candidateOwnerOverride === true
+  const ownerClear = args.candidateOwnerClear === true
+
+  // ── INTENTIONAL CLEAR — the ONE way a stored value returns to unknown ────────────────────
+  // Checked BEFORE the no_value rule below, and gated so tightly that no automated path can
+  // reach it: an explicit clear instruction, an owner override, the internal manual source, and
+  // a commission field. "Unknown" is a real answer for a commission, and a rate entered by
+  // mistake has to be retractable — writing 0% instead would assert a verified zero nobody found.
+  if (
+    candidateText === null &&
+    ownerClear &&
+    ownerOverride &&
+    candidateSourceType === "manual_verified" &&
+    OWNER_COMMISSION_FIELDS.has(field)
+  ) {
+    // Already unknown ⇒ nothing to do. Writing null over null would add an audit row describing
+    // a change that did not happen.
+    if (currentText === null) return { outcome: "skip", reason: "already_unknown" }
+    return { outcome: "write", reason: "owner_cleared" }
+  }
 
   // Missing research result → NEVER write / never null out an existing value.
   if (candidateText === null) return { outcome: "skip", reason: "no_value" }
@@ -274,10 +307,14 @@ export function decideFieldWrite(args: {
   // The WRITE is authorized here; the LABEL is not touched. candidateVerification flows
   // through to the audit exactly as supplied, so an owner value with no supporting source
   // is recorded as `inferred` rather than being promoted to `verified`.
+  // Commission is included here so an owner can CORRECT a rate that is already populated — a
+  // stale commission is the thing most worth fixing. Reaching this point at all already required
+  // the writer's firewall to admit the candidate, which demands request-level authorization that
+  // this pure function never sees; this branch only decides preserve-vs-write.
   if (
     ownerOverride &&
     candidateSourceType === "manual_verified" &&
-    OWNER_CORRECTABLE_FIELDS.has(field)
+    (OWNER_CORRECTABLE_FIELDS.has(field) || OWNER_COMMISSION_FIELDS.has(field))
   ) {
     return { outcome: "write", reason: `owner_correction_${candidateVerification}` }
   }

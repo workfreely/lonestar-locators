@@ -237,7 +237,14 @@ async function main() {
   {
     ok("pencil button keeps its 22×22 footprint", ed.includes('className="inline-flex h-[22px] w-[22px] items-center justify-center'))
     ok("compact two-column source/date row preserved", ed.includes('className="mt-3 grid grid-cols-2 gap-2"'))
-    ok("three-up rent grid preserved", ed.includes('className="grid grid-cols-3 gap-2"'))
+    // TWO three-up grids now: the rents, and the commission row beneath them. Asserting the
+    // count rather than one exact class string, which broke when the rent grid gained a margin
+    // alongside its new "Starting monthly rent" heading — a layout addition, not a regression.
+    ok("two three-up grids: rents and commission",
+      (ed.match(/grid grid-cols-3 gap-2/g) ?? []).length === 2,
+      `found ${(ed.match(/grid grid-cols-3 gap-2/g) ?? []).length}`)
+    ok("the rent row is still 1BR / 2BR / 3BR",
+      /\["1BR", onebr, setOnebr\], \["2BR", twobr, setTwobr\], \["3BR", threebr, setThreebr\]/.test(ed))
     ok("PUT body still omits blank fields", ed.includes("if (onebr.trim()) body.onebr = onebr.trim()"))
     ok("the save path is untouched", ed.includes('method: "PUT"') && ed.includes("ENDPOINT"))
     ok("date still travels as YYYY-MM-DD", ed.includes("body: Record<string, unknown> = { placeId, checkedAt }"))

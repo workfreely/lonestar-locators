@@ -26,12 +26,16 @@ import DateTimePicker from "./DateTimePicker"
 
 type Loaded = {
   propertyName: string | null
+  address: string | null
   onebr: number | null
   twobr: number | null
   threebr: number | null
   currentSpecial: string | null
   pricingSource: string | null
   checkedAt: string | null
+  sendCommission: string | null
+  escortCommission: string | null
+  bonusFlat: string | null
 }
 
 const ENDPOINT = "/api/admin/owner/property-pricing"
@@ -39,6 +43,23 @@ const ENDPOINT = "/api/admin/owner/property-pricing"
 function todayIso(): string {
   const d = new Date()
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`
+}
+
+/**
+ * A stored commission value → what the numeric input shows.
+ *
+ * "100%" → "100", "0%" → "0", "500" → "500". NULL/blank → "" — and that distinction is the whole
+ * point: "" means nobody has checked, "0" means somebody checked and it is zero. A value we
+ * cannot read as a number (a legacy "No", "1 month") is returned VERBATIM rather than blanked,
+ * so opening the editor can never silently discard a rate it did not understand.
+ */
+export function commissionToInput(stored: string | null | undefined): string {
+  const t = (stored ?? "").trim()
+  if (!t) return ""
+  const m = /^\$?\s*([\d,]+(?:\.\d+)?)\s*%?$/.exec(t)
+  if (!m) return t
+  const n = Number(m[1].replace(/,/g, ""))
+  return Number.isFinite(n) ? String(n) : t
 }
 
 /** Present a stored "YYYY-MM-DD" as "Oct 19, 2026" on the picker button; blank stays blank.
@@ -63,7 +84,11 @@ export default function PropertyPricingEditor({
   onSaved?: () => void
 }) {
   const [open, setOpen] = useState(false)
-  const [loading, setLoading] = useState(false)
+  // STARTS TRUE. With `false`, the first render after opening showed the FORM — holding the
+  // PREVIOUS property's values, because closing does not reset the fields — and only then did the
+  // effect flip it to "Loading…", collapsing the dialog, before it grew back populated. Three
+  // layouts and a vertical jump, every time, plus a flash of another property's prices.
+  const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [note, setNote] = useState<string | null>(null)
@@ -77,6 +102,15 @@ export default function PropertyPricingEditor({
   // The shared CRM picker is a normal element we render, so it has to be opened explicitly —
   // that is precisely what makes it containable, unlike the native input's browser-drawn popup.
   const [dateOpen, setDateOpen] = useState(false)
+  const [address, setAddress] = useState<string | null>(null)
+  // Commission, as TEXT the owner typed. "" means UNTOUCHED/unknown and is never sent; "0" is a
+  // deliberate zero and is. They are deliberately separate from the pricing fields.
+  const [send, setSend] = useState("")
+  const [escort, setEscort] = useState("")
+  const [bonus, setBonus] = useState("")
+  // What the three commission fields held WHEN LOADED. A field still equal to this was not
+  // edited, and an unedited field is never resubmitted — see the save handler.
+  const [loadedCommission, setLoadedCommission] = useState({ send: "", escort: "", bonus: "" })
 
   // Load the CURRENT stored values every time it opens, so a cancelled edit never leaks
   // into the next one and two cards for the same property can never disagree.
@@ -87,6 +121,15 @@ export default function PropertyPricingEditor({
     setError(null)
     setNote(null)
     setDateOpen(false)
+    // BLANK THE FORM BEFORE FETCHING. Opening the editor on a second property must never show
+    // the first one's figures, not even for a frame — these are prices and commission rates, and
+    // a glimpse of the wrong building's numbers is worse than a moment of nothing.
+    setOnebr(""); setTwobr(""); setThreebr("")
+    setSpecial(""); setSource("")
+    setSend(""); setEscort(""); setBonus("")
+    setLoadedCommission({ send: "", escort: "", bonus: "" })
+    setAddress(null)
+    setCheckedAt(todayIso())
     void (async () => {
       try {
         const res = await fetch(`${ENDPOINT}?placeId=${encodeURIComponent(placeId)}`, { cache: "no-store" })
@@ -101,6 +144,14 @@ export default function PropertyPricingEditor({
         setThreebr(d.threebr == null ? "" : String(d.threebr))
         setSpecial(d.currentSpecial ?? "")
         setSource(d.pricingSource ?? "")
+        setAddress(d.address ?? null)
+        // VERBATIM, and blank stays blank. Rendering a null as "0" would turn "nobody checked"
+        // into "checked, and it is zero" the moment the owner pressed Save.
+        const loadedSend = commissionToInput(d.sendCommission)
+        const loadedEscort = commissionToInput(d.escortCommission)
+        const loadedBonus = commissionToInput(d.bonusFlat)
+        setSend(loadedSend); setEscort(loadedEscort); setBonus(loadedBonus)
+        setLoadedCommission({ send: loadedSend, escort: loadedEscort, bonus: loadedBonus })
         setCheckedAt(d.checkedAt ? String(d.checkedAt).slice(0, 10) : todayIso())
       } catch {
         if (alive) setError("Couldn't load the current pricing.")
@@ -137,9 +188,37 @@ export default function PropertyPricingEditor({
       if (threebr.trim()) body.threebr = threebr.trim()
       if (special.trim()) body.currentSpecial = special.trim()
       if (source.trim()) body.pricingSource = source.trim()
+      // TWO REASONS A COMMISSION FIELD IS OMITTED, and the second one matters more than it looks.
+      //
+      // BLANK means "nobody has checked". Sending 0 for it would manufacture a verified zero out
+      // of an absence, which is the one thing this model exists to prevent.
+      //
+      // UNCHANGED means the owner did not touch it, so it must travel nowhere near the numeric
+      // validator. property_catalog holds legacy TEXT commissions — "No", "Not Paying",
+      // "1 month" — that the editor shows VERBATIM. Resubmitting one would fail validation and
+      // reject the WHOLE save, so editing a 2BR rent on such a property would be impossible. It
+      // would also be wrong in principle: converting a legacy value is an intentional act, and
+      // this is how it stays one. Change the field and it is sent, validated, and stored.
+      // THREE outcomes per commission field, and the change-tracking is what separates them:
+      //   untouched           → omitted entirely; the stored value, legacy text included, stands
+      //   edited to a number  → sent; "0" is a verified zero, and saves as one
+      //   CLEARED (was set,
+      //     now blank)        → sent as null; the owner is returning it to UNKNOWN
+      // A field that was already blank and stays blank is untouched, so it is omitted — never
+      // sent as null, which would write an audit row for a change that did not happen.
+      const changed = (now: string, before: string) => now.trim() !== before.trim()
+      const commit = (key: string, now: string, before: string) => {
+        if (!changed(now, before)) return
+        body[key] = now.trim() === "" ? null : now.trim()
+      }
+      commit("sendCommission", send, loadedCommission.send)
+      commit("escortCommission", escort, loadedCommission.escort)
+      commit("bonusFlat", bonus, loadedCommission.bonus)
 
-      if (!body.onebr && !body.twobr && !body.threebr && !body.currentSpecial) {
-        setError("Enter at least one price or a current special.")
+      // `in` rather than truthiness: a deliberate clear sends null, which is falsy but IS a save.
+      const anyCommission = "sendCommission" in body || "escortCommission" in body || "bonusFlat" in body
+      if (!body.onebr && !body.twobr && !body.threebr && !body.currentSpecial && !anyCommission) {
+        setError("Enter at least one price, a special, or a commission value.")
         return
       }
 
@@ -201,17 +280,28 @@ export default function PropertyPricingEditor({
           {/* max-h + overflow-y-auto: with the calendar open the dialog grows, and on a short
               viewport it must SCROLL rather than push Save/Cancel off-screen. The overlay's own
               p-4 is what the 2rem subtraction accounts for. */}
-          <div className="w-full max-w-[380px] max-h-[calc(100vh-2rem)] overflow-y-auto rounded-xl border border-[var(--crm-border)] bg-[var(--crm-panel)] p-4 shadow-xl">
+          {/* 475px (was 380). The lg: translate shifts it RIGHT by half the growth, so the extra
+              width is added on the right and the Recommended Properties list stays visible on the
+              left. The offset is dropped below lg, where there is no room to give — and max-h +
+              overflow-y-auto still clamp it to the viewport on short screens. */}
+          <div className="w-full max-w-[475px] max-h-[calc(100vh-2rem)] overflow-y-auto rounded-xl border border-[var(--crm-border)] bg-[var(--crm-panel)] p-4 shadow-xl lg:translate-x-[48px]">
             <div className="mb-3">
-              <p className="text-[13px] font-semibold text-[var(--crm-text-primary)]">Property pricing</p>
-              <p className="mt-[2px] truncate text-[11px] text-[var(--crm-text-muted)]">{propertyName ?? "This property"}</p>
+              <p className="text-[13px] font-semibold text-[var(--crm-text-primary)]">Property Intelligence</p>
+              {/* Name and the VERIFIED street address from the catalog record. Nothing is
+                  assembled from guesses — a property with no stored street line simply shows
+                  its name, because an invented address is worse than a missing one. */}
+              <p className="mt-[2px] truncate text-[11.5px] font-medium text-[var(--crm-text-secondary)]">{propertyName ?? "This property"}</p>
+              {address && <p className="mt-[1px] truncate text-[10.5px] text-[var(--crm-text-muted)]">{address}</p>}
             </div>
 
             {loading ? (
               <p className="py-6 text-center text-[12px] text-[var(--crm-text-muted)]">Loading…</p>
             ) : (
               <>
-                <div className="grid grid-cols-3 gap-2">
+                {/* Section header, matching the commission block below it — the two groups are
+                    different kinds of fact and should read as such. */}
+                <span className={label}>Starting monthly rent</span>
+                <div className="mt-1.5 grid grid-cols-3 gap-2">
                   {([["1BR", onebr, setOnebr], ["2BR", twobr, setTwobr], ["3BR", threebr, setThreebr]] as const).map(([lbl, val, set]) => (
                     <div key={lbl}>
                       <span className={label}>{lbl}</span>
@@ -277,8 +367,47 @@ export default function PropertyPricingEditor({
                   />
                 )}
                 <p className="mt-1.5 text-[10px] text-[var(--crm-text-muted)]">
-                  With a source, the price is recorded as verified; without one it is recorded as unverified. Either way it saves.
+                  With a source, the entry is recorded as verified; without one it is recorded as unverified. Either way it saves.
                 </p>
+
+                {/* ── LOCATOR COMMISSION ───────────────────────────────────────────────────
+                    INTERNAL ONLY. These never reach a client recommendation page, a public
+                    property list, a caption or a video — the client resolver does not carry
+                    them and this editor does not change that.
+
+                    Send and Escort are always percentages of one month's rent and Bonus is
+                    always a flat dollar amount, so there is no type selector to get wrong.
+                    The source and date above cover these too: one save, one provenance. */}
+                <div className="mt-4 border-t border-[var(--crm-border)] pt-3">
+                  <div className="flex items-baseline justify-between gap-2">
+                    <span className={label}>Locator commission</span>
+                    <span className="text-[9.5px] text-[var(--crm-text-muted)]">Internal only</span>
+                  </div>
+                  <div className="mt-1.5 grid grid-cols-3 gap-2">
+                    {([
+                      ["Send (%)", send, setSend, "—"],
+                      ["Escort (%)", escort, setEscort, "—"],
+                      ["Bonus ($)", bonus, setBonus, "—"],
+                    ] as const).map(([lbl, val, set, ph]) => (
+                      <div key={lbl}>
+                        <span className={label}>{lbl}</span>
+                        <input
+                          value={val}
+                          inputMode="numeric"
+                          placeholder={ph}
+                          onChange={(e) => set(e.target.value)}
+                          className={`${field} mt-1 tabular-nums`}
+                        />
+                      </div>
+                    ))}
+                  </div>
+                  {/* THE DISTINCTION THAT MATTERS, said plainly — it is the one thing about this
+                      section that is easy to get wrong and impossible to see afterwards. */}
+                  <p className="mt-1.5 text-[10px] text-[var(--crm-text-muted)]">
+                    Leave blank if unknown. Enter <span className="font-semibold text-[var(--crm-text-secondary)]">0</span> only to record a
+                    confirmed zero — blanks are never saved as 0.
+                  </p>
+                </div>
 
                 {error && <p className="mt-2.5 text-[11px] font-medium text-red-500">{error}</p>}
                 {note && <p className="mt-2.5 text-[11px] text-[var(--crm-text-secondary)]">{note}</p>}

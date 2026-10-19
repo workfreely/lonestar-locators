@@ -7,6 +7,7 @@
 
 import {
   COMMISSION_FIELDS,
+  OWNER_COMMISSION_FIELDS,
   ENRICHMENT_WRITABLE_FIELDS,
   IMAGE_FIELDS,
   IMAGE_BACKUP_FIELDS,
@@ -59,7 +60,7 @@ export async function enrichProperty(store: EnrichmentStore, input: EnrichmentIn
   const imageBackupAuthorized = property.imageBackupState === "missing" || property.imageBackupState === "change_requested"
 
   for (const cand of input.fields) {
-    const r = evaluate(cand, property, provenance, imageAuthorized, imageBackupAuthorized)
+    const r = evaluate(cand, property, provenance, imageAuthorized, imageBackupAuthorized, input.ownerAuthorized === true)
     // Track intended mutations for real (non-dry-run) application.
     if (r.decision === "write") {
       patch[cand.field] = cand.value
@@ -137,23 +138,58 @@ export async function enrichProperty(store: EnrichmentStore, input: EnrichmentIn
 
 type Eval = { decision: "write" | "skip" | "reject"; reason: string; oldValue?: string | null }
 
+/**
+ * Is this candidate an authenticated owner's deliberate commission write?
+ *
+ * FOUR conditions, and they are deliberately of two different KINDS. `ownerAuthorized` is a
+ * property of the REQUEST — the server proved who is calling. `ownerOverride` is a property of
+ * the DATA — this value is an intentional correction. Requiring both means a candidate can never
+ * authorize itself: data does not grant permission.
+ */
+function ownerCommissionWrite(cand: FieldCandidate, ownerAuthorized: boolean): boolean {
+  return (
+    ownerAuthorized === true &&
+    cand.ownerOverride === true &&
+    cand.sourceType === "manual_verified" &&
+    OWNER_COMMISSION_FIELDS.has(cand.field)
+  )
+}
+
 function evaluate(
   cand: FieldCandidate,
   property: { values: Record<string, unknown>; imageSelectionState: string; imageBackupState: string },
   provenance: Record<string, import("./types").FieldProvenance>,
   imageAuthorized: boolean,
   imageBackupAuthorized: boolean,
+  /** Request-level: the caller already authenticated and authorized a platform owner. */
+  ownerAuthorized: boolean,
 ): Eval {
   const currentText = toStoredText(property.values[cand.field])
 
-  // 1) COMMISSION FIREWALL — highest priority. Public-web (and any public source)
-  //    has ZERO authority; and no authoritative commission provider is approved yet,
-  //    so commission is not writable by ANY source in this checkpoint.
+  // 1) COMMISSION FIREWALL — highest priority. Public-web (and any public source) has ZERO
+  //    authority, and no automated commission provider is approved, so commission remains
+  //    unwritable by every enrichment path.
+  //
+  //    THE ONE EXCEPTION is an authenticated platform owner typing a rate they have verified.
+  //    It needs FOUR independent things to be true at once, and the first is the important one:
+  //
+  //      a. ownerAuthorized on the REQUEST — the server ran its own authorization check for this
+  //         call. A candidate cannot set this; it does not travel with data.
+  //      b. ownerOverride on the CANDIDATE — this particular value is a deliberate correction.
+  //      c. sourceType manual_verified — not a scraped or inferred source.
+  //      d. the field is in OWNER_COMMISSION_FIELDS — a set kept deliberately OUT of the general
+  //         enrichment allowlist, so no job can reach it.
+  //
+  //    (b) ALONE GRANTS NOTHING. That is the whole point of splitting (a) from (b): a forged or
+  //    replayed candidate carrying ownerOverride still meets a closed firewall, because the
+  //    request never proved who was asking.
   if (COMMISSION_FIELDS.has(cand.field)) {
-    const reason = PUBLIC_SOURCE_TYPES.has(cand.sourceType)
-      ? "commission_firewall_public_web"
-      : "commission_provider_not_approved"
-    return { decision: "reject", reason, oldValue: currentText }
+    if (!ownerCommissionWrite(cand, ownerAuthorized)) {
+      const reason = PUBLIC_SOURCE_TYPES.has(cand.sourceType)
+        ? "commission_firewall_public_web"
+        : "commission_provider_not_approved"
+      return { decision: "reject", reason, oldValue: currentText }
+    }
   }
 
   // 2) Provenance validity.
@@ -181,8 +217,10 @@ function evaluate(
     return { decision: "write", reason: (isBackup ? "image_backup_" : "image_") + slotState, oldValue: currentText }
   }
 
-  // 4) Allowlist.
-  if (!ENRICHMENT_WRITABLE_FIELDS.has(cand.field)) {
+  // 4) Allowlist. Commission columns are deliberately ABSENT from it — the owner path is
+  //    admitted by the firewall above instead, so opening this door never widens what an
+  //    automated job may write.
+  if (!ENRICHMENT_WRITABLE_FIELDS.has(cand.field) && !ownerCommissionWrite(cand, ownerAuthorized)) {
     return { decision: "reject", reason: "not_writable", oldValue: currentText }
   }
 
@@ -197,6 +235,8 @@ function evaluate(
     // Explicit owner correction. Undefined on every enrichment path, so this cannot widen
     // what an automated job is allowed to replace — see FieldCandidate.ownerOverride.
     candidateOwnerOverride: cand.ownerOverride === true,
+    // Explicit clear-to-unknown. Undefined on every enrichment path — see ownerClear.
+    candidateOwnerClear: cand.ownerClear === true,
   })
   return { decision: d.outcome, reason: d.reason, oldValue: currentText }
 }

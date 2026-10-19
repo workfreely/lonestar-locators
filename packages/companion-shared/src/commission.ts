@@ -80,16 +80,38 @@ export function evaluateLocatorCommission(c?: LocatorCommission | null): Commiss
   // Explicit "not paying locators" verification wins over everything.
   if (send === "nopay" || escort === "nopay" || bonus === "nopay") return { state: "not_paying" };
   const verified = (x: "zero" | "value" | "nopay" | "unknown") => x === "zero" || x === "value";
-  // Any VERIFIED commission (a value OR an explicit 0%) → paying. Send + Escort are
-  // ALWAYS shown when verified, with "0%" spelled out — never dropped merely for being
-  // zero. Bonus appended only when it is a real non-zero amount.
-  if (verified(send) || verified(escort) || verified(bonus)) {
+
+  // PAYING REQUIRES AT LEAST ONE REAL, NON-ZERO VALUE.
+  //
+  // This used to be `verified(send) || verified(escort) || verified(bonus)`, which treated a
+  // VERIFIED ZERO as evidence of payment. Two things went wrong, both reproducible:
+  //
+  //   send 0% / escort 0% / bonus $0  →  GREEN "paying · Send 0% · Escort 0%"
+  //                                      A property confirmed to pay nothing, shown as paying.
+  //   bonus $0, nothing else known    →  GREEN "paying" with an EMPTY text, because the branch
+  //                                      was entered on a zero but only a non-zero bonus is ever
+  //                                      appended — so the badge rendered "Commission:" and
+  //                                      nothing after it.
+  //
+  // Requiring a real value fixes both at once: a zero can still be DISPLAYED beside a genuine
+  // commission ("Send 0% · Escort 100%"), which is the escort-only case, but it can no longer
+  // CAUSE the paying state on its own, and the text can never come out empty.
+  if (send === "value" || escort === "value" || bonus === "value") {
     const parts: string[] = [];
     if (verified(send)) parts.push(`Send ${send === "zero" ? "0%" : (c.sendCommission ?? "").trim()}`);
     if (verified(escort)) parts.push(`Escort ${escort === "zero" ? "0%" : (c.escortCommission ?? "").trim()}`);
     if (bonus === "value") parts.push(`Bonus ${formatBonus((c.bonusFlat ?? "").trim())}`);
     return { state: "paying", text: parts.join(" · ") };
   }
-  // No verified value and no explicit no-pay marker → unverified (Unknown ≠ No).
+
+  // EVERY component verified at zero → the property is confirmed to pay nothing. That is the
+  // same fact an explicit "Not Paying" marker records, so it gets the same red state. All THREE
+  // must be zero: a verified 0% send with an UNKNOWN escort is not a confirmed no — the escort
+  // rate could be anything, and "unknown ≠ zero" is the rule this whole file turns on.
+  if (send === "zero" && escort === "zero" && bonus === "zero") return { state: "not_paying" };
+
+  // Anything else — no real value, and at least one component still unknown. Includes a lone
+  // verified zero, which tells us something but not enough to claim the property pays, and
+  // certainly not enough to claim it does not.
   return { state: "unverified" };
 }

@@ -41,6 +41,21 @@ export type FieldCandidate = {
    * as `inferred` and never gains a verification it has not earned.
    */
   ownerOverride?: boolean
+  /**
+   * An EXPLICIT owner instruction to return a field to UNKNOWN (null).
+   *
+   * The writer's first rule is that a missing value never nulls a stored one — absence of
+   * research is not evidence of absence, and every automated path depends on that. This flag is
+   * the one deliberate exception, and it is not a weaker version of the rule: it carries intent
+   * that only a human can supply, and the policy honours it only alongside `ownerOverride`,
+   * `manual_verified` and membership of OWNER_COMMISSION_FIELDS — on top of the request-level
+   * `ownerAuthorized`. Five conditions, none of which an enrichment job ever sets.
+   *
+   * It exists because "unknown" is a real answer for a commission. A rate recorded by mistake
+   * must be returnable to unknown, and overwriting it with 0% would assert a verified zero the
+   * owner never found.
+   */
+  ownerClear?: boolean
 }
 
 export type EnrichmentInput = {
@@ -48,6 +63,19 @@ export type EnrichmentInput = {
   jobId: string
   fields: FieldCandidate[]
   dryRun?: boolean
+  /**
+   * The CALLER has already authenticated and authorized a platform owner for THIS request.
+   *
+   * This is a second, independent key — not a restatement of FieldCandidate.ownerOverride. The
+   * commission firewall requires BOTH: a request-level proof that the server checked who is
+   * asking, and a field-level statement that this particular value is a deliberate owner
+   * correction. A candidate carrying ownerOverride can therefore never, on its own, reach a
+   * commission column — the flag travels with data, and data is not authorization.
+   *
+   * Only a route that has already run requirePlatformAdmin() may set it. Every enrichment job
+   * leaves it undefined, which is why no automated pass can write commission by any route.
+   */
+  ownerAuthorized?: boolean
 }
 
 // Outcome of one candidate field.

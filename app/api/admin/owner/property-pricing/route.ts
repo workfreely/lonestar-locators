@@ -45,9 +45,20 @@ const RENT_FIELDS: Record<string, string> = {
   threebr: "threebr_starting_rent",
 }
 
+/** Commission columns the owner may edit. TEXT, in the vocabulary classifyCommissionField reads:
+ *  "100%" / "0%" for the two rates, a bare amount for the bonus. Blank is UNKNOWN and is never
+ *  written; an explicit 0 is a VERIFIED ZERO and is. */
+const COMMISSION_FIELDS: Record<string, string> = {
+  sendCommission: "send_commission",
+  escortCommission: "escort_commission",
+  bonusFlat: "bonus_flat",
+}
+
 const READ_COLUMNS =
-  "place_id, property_name, onebr_starting_rent, twobr_starting_rent, threebr_starting_rent, " +
-  "current_special, current_special_source, current_special_checked_at, pricing_last_verified"
+  "place_id, property_name, address, city, state, zip, " +
+  "onebr_starting_rent, twobr_starting_rent, threebr_starting_rent, " +
+  "current_special, current_special_source, current_special_checked_at, pricing_last_verified, " +
+  "send_commission, escort_commission, bonus_flat"
 
 function cleanPlaceId(v: unknown): string | null {
   const s = typeof v === "string" ? v.trim() : ""
@@ -94,15 +105,30 @@ export async function GET(req: NextRequest) {
   // so a direct cast is rejected. Same shape the enrichment store reads.
   const row = data as unknown as Record<string, unknown>
   const num = (v: unknown) => (v === null || v === undefined || !Number.isFinite(Number(v)) ? null : Number(v))
+  const s = (v: unknown) => (typeof v === "string" && v.trim() ? v.trim() : null)
+  // The VERIFIED street address, assembled from the catalog's own parts. Nothing is invented:
+  // a missing street line yields null and the editor simply shows no address.
+  const street = s(row.address)
+  const locality = [s(row.city), [s(row.state), s(row.zip)].filter(Boolean).join(" ") || null]
+    .filter(Boolean)
+    .join(", ")
+  const fullAddress = street ? (locality ? `${street}, ${locality}` : street) : null
+
   return NextResponse.json({
     placeId,
     propertyName: (row.property_name as string | null) ?? null,
+    address: fullAddress,
     onebr: num(row.onebr_starting_rent),
     twobr: num(row.twobr_starting_rent),
     threebr: num(row.threebr_starting_rent),
     currentSpecial: (row.current_special as string | null) ?? null,
     pricingSource: (row.current_special_source as string | null) ?? null,
     checkedAt: (row.pricing_last_verified as string | null) ?? null,
+    // Commission, VERBATIM. Null stays null — the editor must be able to tell "nobody has
+    // checked" apart from "checked, and it is zero", so an unknown is never rendered as 0.
+    sendCommission: s(row.send_commission),
+    escortCommission: s(row.escort_commission),
+    bonusFlat: s(row.bonus_flat),
   })
 }
 
@@ -136,6 +162,9 @@ export async function PUT(req: NextRequest) {
     ? new Date(checkedAtRaw).toISOString()
     : new Date().toISOString()
 
+  // Did this save touch PRICING (rents or the special), as opposed to only commission? The
+  // freshness stamp below describes the pricing, so a commission-only edit must not restamp it.
+  let touchedPricing = false
   const add = (field: string, value: unknown) =>
     candidates.push({
       field,
@@ -153,12 +182,44 @@ export async function PUT(req: NextRequest) {
     const rent = parseRent(body[key])
     if (rent === undefined) { rejected.push(key); continue }
     if (rent === null) continue // blank ⇒ leave the stored value alone, never clear it
+    touchedPricing = true
     add(column, rent)
   }
 
   if ("currentSpecial" in body) {
     const s = typeof body.currentSpecial === "string" ? body.currentSpecial.trim().slice(0, 500) : ""
-    if (s) add("current_special", s)
+    if (s) { touchedPricing = true; add("current_special", s) }
+  }
+
+  // ── COMMISSION ────────────────────────────────────────────────────────────────────────────
+  // Stored as TEXT in the vocabulary the shared classifier already reads, so the badge, the Map
+  // and Beast Companion need no changes: a rate becomes "100%" / "0%", a bonus a bare amount
+  // that formatBonus renders as "$500".
+  //
+  // BLANK IS NEVER WRITTEN. An empty field means "nobody has checked", and writing 0 for it
+  // would manufacture a verified zero out of an absence — the one thing this whole model exists
+  // to prevent. An explicit 0 IS written, because a confirmed zero is a real finding.
+  for (const [key, column] of Object.entries(COMMISSION_FIELDS)) {
+    if (!(key in body)) continue
+    const raw = body[key]
+    // EXPLICIT null ⇒ the owner deliberately cleared a populated field back to unknown. This is
+    // the ONLY way a commission returns to null, and it is distinguishable from "untouched"
+    // because the editor omits an untouched field entirely rather than sending null for it.
+    if (raw === null) {
+      candidates.push({
+        field: column, value: null, sourceType: "manual_verified",
+        sourceReference: sourceRef, verificationStatus, checkedAt,
+        ownerOverride: true, ownerClear: true,
+      })
+      continue
+    }
+    if (raw === undefined) continue
+    const t = String(raw).trim().replace(/[$,%\s]/g, "")
+    if (t === "") continue // blank ⇒ leave the stored value alone; never clears, never zeroes
+    const n = Number(t)
+    if (!Number.isFinite(n) || n < 0 || n > 1_000_000) { rejected.push(key); continue }
+    // Rates carry their "%"; the bonus stays a bare number so formatBonus can add the "$".
+    add(column, column === "bonus_flat" ? String(Math.round(n)) : `${Math.round(n)}%`)
   }
 
   // A pricing edit always restamps when it was checked, so a card can show the age of the
@@ -168,7 +229,7 @@ export async function PUT(req: NextRequest) {
   // ISO timestamp would still store correctly (Postgres truncates) but would never compare
   // equal to the stored value, so the writer's idempotency check would miss and every save
   // would log a spurious change. The candidate's own `checkedAt` provenance stays full ISO.
-  if (candidates.length > 0) add("pricing_last_verified", checkedAt.slice(0, 10))
+  if (touchedPricing) add("pricing_last_verified", checkedAt.slice(0, 10))
 
   if (rejected.length > 0) {
     return NextResponse.json({ error: "bad_value", fields: rejected }, { status: 400 })
@@ -182,6 +243,11 @@ export async function PUT(req: NextRequest) {
     // Ties every audit row to the owner who made the change and when.
     jobId: `owner:${guard.userId}:${Date.now()}`,
     fields: candidates,
+    // REQUEST-LEVEL AUTHORIZATION, and the only place it is ever set. It is reachable solely
+    // because requirePlatformAdmin() returned ok at the top of this handler — the server decided
+    // who is asking, independently of anything the body claimed. Without it the writer's firewall
+    // rejects every commission candidate, no matter what flags they carry.
+    ownerAuthorized: true,
   })
 
   if (result.results.every((r) => r.reason === "property_not_found")) {
