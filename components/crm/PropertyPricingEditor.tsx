@@ -1,6 +1,7 @@
 "use client"
 
 import { useEffect, useState } from "react"
+import DateTimePicker from "./DateTimePicker"
 
 /**
  * Owner-only property pricing editor — the pencil on a Recommended Properties card.
@@ -40,6 +41,16 @@ function todayIso(): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`
 }
 
+/** Present a stored "YYYY-MM-DD" as "Oct 19, 2026" on the picker button; blank stays blank.
+ *  Purely presentational — the canonical stored value is unchanged. Mirrors the same helper in
+ *  GetInvoiceDetailsModal rather than extracting a shared one, to keep this change UI-only. */
+function formatCheckedDateDisplay(value: string): string {
+  const m = value.match(/^(\d{4})-(\d{2})-(\d{2})$/)
+  if (!m) return value
+  const d = new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]))
+  return Number.isNaN(d.getTime()) ? value : d.toLocaleDateString("en-US", { year: "numeric", month: "short", day: "numeric" })
+}
+
 export default function PropertyPricingEditor({
   placeId,
   propertyName,
@@ -63,6 +74,9 @@ export default function PropertyPricingEditor({
   const [special, setSpecial] = useState("")
   const [source, setSource] = useState("")
   const [checkedAt, setCheckedAt] = useState(todayIso())
+  // The shared CRM picker is a normal element we render, so it has to be opened explicitly —
+  // that is precisely what makes it containable, unlike the native input's browser-drawn popup.
+  const [dateOpen, setDateOpen] = useState(false)
 
   // Load the CURRENT stored values every time it opens, so a cancelled edit never leaks
   // into the next one and two cards for the same property can never disagree.
@@ -72,6 +86,7 @@ export default function PropertyPricingEditor({
     setLoading(true)
     setError(null)
     setNote(null)
+    setDateOpen(false)
     void (async () => {
       try {
         const res = await fetch(`${ENDPOINT}?placeId=${encodeURIComponent(placeId)}`, { cache: "no-store" })
@@ -99,7 +114,12 @@ export default function PropertyPricingEditor({
   // Escape closes, matching every other dismissible surface in the CRM.
   useEffect(() => {
     if (!open) return
-    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") setOpen(false) }
+    // Escape closes the calendar first when it is showing, then the editor — so one press
+    // never discards an edit the user was still in the middle of.
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== "Escape") return
+      setDateOpen((cal) => { if (cal) return false; setOpen(false); return false })
+    }
     window.addEventListener("keydown", onKey)
     return () => window.removeEventListener("keydown", onKey)
   }, [open])
@@ -178,7 +198,10 @@ export default function PropertyPricingEditor({
           aria-label="Edit property pricing"
           onClick={(e) => { if (e.target === e.currentTarget) setOpen(false) }}
         >
-          <div className="w-full max-w-[380px] rounded-xl border border-[var(--crm-border)] bg-[var(--crm-panel)] p-4 shadow-xl">
+          {/* max-h + overflow-y-auto: with the calendar open the dialog grows, and on a short
+              viewport it must SCROLL rather than push Save/Cancel off-screen. The overlay's own
+              p-4 is what the 2rem subtraction accounts for. */}
+          <div className="w-full max-w-[380px] max-h-[calc(100vh-2rem)] overflow-y-auto rounded-xl border border-[var(--crm-border)] bg-[var(--crm-panel)] p-4 shadow-xl">
             <div className="mb-3">
               <p className="text-[13px] font-semibold text-[var(--crm-text-primary)]">Property pricing</p>
               <p className="mt-[2px] truncate text-[11px] text-[var(--crm-text-muted)]">{propertyName ?? "This property"}</p>
@@ -218,9 +241,41 @@ export default function PropertyPricingEditor({
                   </div>
                   <div>
                     <span className={label}>Date checked</span>
-                    <input type="date" value={checkedAt} onChange={(e) => setCheckedAt(e.target.value)} className={`${field} mt-1 tabular-nums`} />
+                    {/* A BUTTON, NOT <input type="date">. The native input draws its calendar in
+                        the browser's TOP LAYER — outside the page's stacking context entirely —
+                        so no z-index, portal or overflow rule on this dialog can contain it, and
+                        it painted over Pricing source and the Save/Cancel row. The CRM's own
+                        DateTimePicker (Add Task, Reschedule, Get Invoice Details) exists for
+                        exactly this reason and is reused here unchanged. */}
+                    <button
+                      type="button"
+                      onClick={() => setDateOpen((v) => !v)}
+                      aria-expanded={dateOpen}
+                      className={`${field} mt-1 flex items-center justify-between text-left`}
+                    >
+                      <span className={checkedAt ? "tabular-nums" : "text-[var(--crm-text-muted)]"}>
+                        {checkedAt ? formatCheckedDateDisplay(checkedAt) : "Select date"}
+                      </span>
+                      <svg viewBox="0 0 24 24" className="h-3.5 w-3.5 flex-none text-[var(--crm-text-muted)]" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true">
+                        <rect x="3" y="4" width="18" height="18" rx="2" /><path d="M16 2v4M8 2v4M3 10h18" />
+                      </svg>
+                    </button>
                   </div>
                 </div>
+
+                {/* The calendar renders FULL WIDTH, BELOW the two-column row and IN NORMAL FLOW.
+                    In flow it pushes the dialog taller instead of covering anything, and the
+                    dialog's own max-height scrolls it — so every field plus Save/Cancel stays
+                    reachable. Full width because a calendar inside a ~170px grid cell would be
+                    unusable; the compact 2-column layout above is untouched. */}
+                {dateOpen && (
+                  <DateTimePicker
+                    value={checkedAt}
+                    dateOnly
+                    onApply={(v) => { setCheckedAt(v); setDateOpen(false) }}
+                    onCancel={() => setDateOpen(false)}
+                  />
+                )}
                 <p className="mt-1.5 text-[10px] text-[var(--crm-text-muted)]">
                   With a source, the price is recorded as verified; without one it is recorded as unverified. Either way it saves.
                 </p>

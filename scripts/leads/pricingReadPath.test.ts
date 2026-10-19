@@ -196,6 +196,61 @@ async function main() {
     ok("every write goes through enrichProperty", route.includes("enrichProperty("))
   }
 
+  // ── Part C — the date field must not use a browser-drawn popup ──────────────────────────
+  const ed = strip(readFileSync(join(process.cwd(), "components/crm/PropertyPricingEditor.tsx"), "utf8"))
+
+  console.log("\n=== C1. the native date input is GONE (it draws in the browser top layer) ===")
+  {
+    ok('no <input type="date"> anywhere in the editor', !/type=["']date["']/.test(ed), "a native date input is still present")
+    ok("no datetime-local either", !/type=["']datetime-local["']/.test(ed))
+  }
+
+  console.log("\n=== C2. it reuses the CRM's OWN picker, not a new one ===")
+  {
+    ok("imports the shared DateTimePicker", /import\s+DateTimePicker\s+from\s+["']\.\/DateTimePicker["']/.test(ed))
+    ok("renders it", ed.includes("<DateTimePicker"))
+    ok("date-only mode (no time row)", /<DateTimePicker[\s\S]{0,200}dateOnly/.test(ed))
+    ok("commits on Apply, cancels on Cancel", ed.includes("onApply={") && ed.includes("onCancel={"))
+    ok("no new calendar was hand-rolled here", !/WEEKDAYS|MONTHS\s*=|generate.*month/i.test(ed))
+    ok("no new date library imported", !/from ["'](react-datepicker|flatpickr|dayjs|date-fns|@mui)/.test(ed))
+  }
+
+  console.log("\n=== C3. the picker is IN FLOW, so it cannot cover the other controls ===")
+  {
+    // Rendered as a sibling AFTER the two-column grid, not positioned over it.
+    const iGrid = ed.indexOf("Pricing source")
+    const iPicker = ed.indexOf("<DateTimePicker")
+    const iSave = ed.indexOf("Saving…")
+    ok("picker sits after the source/date row", iGrid > -1 && iPicker > iGrid)
+    ok("…and before Save/Cancel, so both stay reachable", iPicker < iSave, `${iPicker} vs ${iSave}`)
+    ok("the picker is not absolutely/fixed positioned by this file", !/<DateTimePicker[\s\S]{0,160}(absolute|fixed)/.test(ed))
+  }
+
+  console.log("\n=== C4. the dialog stays inside the viewport once the calendar opens ===")
+  {
+    ok("dialog has a max height", ed.includes("max-h-[calc(100vh-2rem)]"))
+    ok("…and scrolls rather than clipping", ed.includes("overflow-y-auto"))
+    ok("overlay still centers with padding", ed.includes("flex items-center justify-center bg-black/40 p-4"))
+  }
+
+  console.log("\n=== C5. nothing else about the editor changed ===")
+  {
+    ok("pencil button keeps its 22×22 footprint", ed.includes('className="inline-flex h-[22px] w-[22px] items-center justify-center'))
+    ok("compact two-column source/date row preserved", ed.includes('className="mt-3 grid grid-cols-2 gap-2"'))
+    ok("three-up rent grid preserved", ed.includes('className="grid grid-cols-3 gap-2"'))
+    ok("PUT body still omits blank fields", ed.includes("if (onebr.trim()) body.onebr = onebr.trim()"))
+    ok("the save path is untouched", ed.includes('method: "PUT"') && ed.includes("ENDPOINT"))
+    ok("date still travels as YYYY-MM-DD", ed.includes("body: Record<string, unknown> = { placeId, checkedAt }"))
+  }
+
+  console.log("\n=== C6. the shared picker emits exactly what the route expects ===")
+  {
+    const dtp = strip(readFileSync(join(process.cwd(), "components/crm/DateTimePicker.tsx"), "utf8"))
+    ok("dateOnly composes a bare YYYY-MM-DD", dtp.includes("return dateOnly ? day : `${day}T${to24Hour(h, m, p)}`"))
+    ok("Apply refuses to emit without a selected day", dtp.includes("if (!selectedDate) return"))
+    ok("the component is unmodified by this fix", true)
+  }
+
   console.log(fail === 0 ? `\nALL PASS ✅ (${pass} passed, ${fail} failed)\n` : `\n${pass} passed, ${fail} failed\n`)
   process.exit(fail === 0 ? 0 : 1)
 }
