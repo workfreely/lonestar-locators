@@ -208,7 +208,11 @@ async function runPool<T>(items: T[], limit: number, worker: (item: T) => Promis
 // 9:16 thumbnail. Real item → seeked poster frame (click to play). Demo → color block.
 function Thumb({ card }: { card: Card }) {
   const ref = useRef<HTMLVideoElement>(null)
+  // `playing` means "the video element is mounted and has been started at least once" — it is what
+  // swaps the thumbnail for the player. `paused` is the ELEMENT's own state, read from its events,
+  // so the overlay icon is always truthful about what the video is doing.
   const [playing, setPlaying] = useState(false)
+  const [paused, setPaused] = useState(false)
   // ENLARGED PREVIEW — the SHARED VideoLightbox, the same one the Post Editor's Enlarge control
   // and the History thumbnails already open. State is local to the tile rather than lifted: only
   // one can be open at a time in practice, and the lightbox is `fixed` so it escapes the card's
@@ -262,16 +266,28 @@ function Thumb({ card }: { card: Card }) {
           playsInline
           preload="metadata"
           autoPlay={playing}
-          controls={playing}
-          // Native fullscreen zoomed and cropped the vertical video, so it is suppressed here the
-          // same way the Post Editor and the lightbox already suppress it, and the Enlarge control
-          // below replaces it. NOTE: controlsList is a Chromium-only extension (WICG proposal, not
-          // in the HTML spec) — Chrome and Edge hide the button, Safari and Firefox ignore the
-          // attribute entirely and keep their own fullscreen button. There is no standard way to
-          // remove just that one control; the only complete fix is abandoning `controls` for a
-          // hand-built bar, which is a much larger change than this is worth.
-          controlsList="nofullscreen"
+          // NO `controls`, DELIBERATELY — and this is the whole fix.
+          //
+          // The native control bar is rendered in the element's USER-AGENT SHADOW SUB-TREE. Nothing
+          // can be inserted into it, and its height and internal layout are browser-defined and
+          // change with player size and hover — so an absolutely-positioned icon can never be
+          // reliably aligned to it. An earlier attempt pinned one at a fixed 40px offset; it
+          // drifted on hover and sat beside the native button rather than replacing it.
+          //
+          // controlsList="nofullscreen" could not fix that either: it is a Chromium-only WICG
+          // extension (Chrome 58+/Edge 79+, ignored by EVERY Safari and Firefox version), so on
+          // those browsers the native fullscreen button stayed and there were two.
+          //
+          // Removing `controls` removes the bar, and with it the duplicate button, the alignment
+          // problem and the hover drift — in every browser, not just Chromium. A 210px-wide tile
+          // has no room for a usable scrubber anyway; playback controls live in the lightbox, where
+          // the video is big enough to use them. disablePictureInPicture stays because PiP is also
+          // reachable from the element's context menu, with or without a control bar.
           disablePictureInPicture
+          // The element's OWN paused state drives the overlay, rather than our `playing` flag —
+          // pausing (including the pause when the lightbox opens) must flip the icon back to play.
+          onPlay={() => setPaused(false)}
+          onPause={() => setPaused(true)}
           onLoadedMetadata={(e) => {
             const v = e.currentTarget
             if (playing) return // playing: let it run from the start rather than seeking away
@@ -286,44 +302,61 @@ function Thumb({ card }: { card: Card }) {
       )}
       {/* SAVED DRAFT overlay — the shared PreviewOverlay, same as the editor and
           the lightbox. It stays visible during playback (matching the editor),
-          and is pointer-events-none so the play button and the native controls
-          underneath remain clickable. */}
+          and is pointer-events-none so the controls underneath remain clickable. */}
       <PreviewOverlay layout={card.draftOverlay} />
-      {!playing && (
-        <button
-          type="button"
-          aria-label="Play preview"
-          onClick={() => {
-            // With a thumbnail there is NO video element yet — this click is what mounts it, so
-            // ref.current is null here on the first press. autoPlay on the freshly mounted
-            // element starts it; the ref call still covers the fallback case, where the element
-            // was already on the page showing its seeked frame.
+      {/* CLICK TO PLAY / CLICK TO PAUSE — one full-surface target, which is what replaces the
+          native control bar. Before the first play it also MOUNTS the player (with a thumbnail
+          there is no video element yet, so ref.current is null on that first press; autoPlay on
+          the freshly mounted element starts it, and the ref call covers the no-thumbnail case
+          where the element was already on the page showing its seeked frame).
+          z-0, so the Enlarge control below sits above it and is clickable. */}
+      <button
+        type="button"
+        aria-label={!playing || paused ? "Play preview" : "Pause preview"}
+        onClick={() => {
+          if (!playing) {
             setPlaying(true)
             ref.current?.play().catch(() => {})
-          }}
-          className="absolute inset-0 flex items-center justify-center bg-black/25 hover:bg-black/10 transition-colors"
-        >
+            return
+          }
+          const v = ref.current
+          if (!v) return
+          if (v.paused) v.play().catch(() => {})
+          else v.pause()
+        }}
+        className={`absolute inset-0 z-0 flex items-center justify-center transition-colors ${
+          !playing || paused ? "bg-black/25 hover:bg-black/10" : "bg-transparent hover:bg-black/10"
+        }`}
+      >
+        {/* The badge shows only when there is nothing playing — during playback the surface is an
+            invisible pause target, so the footage is never covered. */}
+        {(!playing || paused) && (
           <span className="h-8 w-8 rounded-full bg-white/90 text-black text-[12px] flex items-center justify-center pl-0.5">▶</span>
-        </button>
-      )}
-      {/* ENLARGE — stands in for the native fullscreen button it replaces.
-          POSITION IS CONSTRAINED, not chosen freely. Upper-RIGHT is the status badge (DRAFT) and
-          upper-LEFT is the select checkbox, so the only free corner is the bottom. It sits at
-          bottom-10 rather than bottom-1.5 to clear the native controls strip beneath it, so the
-          scrubber and volume stay fully reachable.
-          It renders ONLY while playing — exactly when `controls` is on and the native fullscreen
-          button would have existed. Before play the full-tile play button owns the surface. */}
-      {playing && card.raw?.kind !== "image" && (
+        )}
+      </button>
+      {/* ENLARGE — the one and only way to see this clip full size.
+          Its position is now STABLE BY CONSTRUCTION rather than by a measured offset: with the
+          native control bar gone there is nothing beneath it to collide with, so bottom-1.5
+          right-1.5 mirrors the checkbox's own top-1.5 left-1.5 inset and never moves — not on
+          hover, not during playback, not at any tile width.
+          Upper-RIGHT is the status badge (DRAFT) and upper-LEFT is the checkbox, so the bottom is
+          the only free corner; this takes the right of it, where a fullscreen control is expected.
+          Always available for a video card, so a clip can be expanded without playing it first. */}
+      {card.raw?.kind !== "image" && (
         <button
           type="button"
           aria-label="Enlarge video"
+          title="Enlarge"
           onClick={(e) => {
+            // The full-surface play/pause target sits beneath this button; stopping propagation
+            // keeps a click here from also toggling playback.
             e.stopPropagation()
-            // Pause the tile rather than leaving two players running behind the backdrop.
+            // Pause the tile rather than leaving two players running behind the backdrop. Null
+            // before the first play, when no element is mounted yet — harmless.
             try { ref.current?.pause() } catch { /* nothing to pause */ }
             setExpanded(true)
           }}
-          className="absolute bottom-10 right-1.5 z-10 rounded-lg bg-black/55 hover:bg-black/75 text-white p-1.5 backdrop-blur-sm transition-colors"
+          className="absolute bottom-1.5 right-1.5 z-10 rounded-lg bg-black/55 hover:bg-black/75 text-white p-1.5 backdrop-blur-sm transition-colors"
         >
           <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
             <path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7" />

@@ -140,9 +140,19 @@ console.log("\n7. the tile's enlarged preview replaces native fullscreen without
   // Isolate the Thumb component, so a match elsewhere in this 2,000-line file cannot stand in.
   const thumb = /function Thumb\(\{ card \}: \{ card: Card \}\)[\s\S]*?\n\}/.exec(c)?.[0] ?? ""
   ok("the Thumb component was found", thumb.length > 0)
+  // COMMENTS STRIPPED. Anything asserting that an ATTRIBUTE is present or absent must run against
+  // code — this file's own explanatory comments name `controls` and `controlsList`, and a raw text
+  // search matches the explanation of why they are gone.
+  const code = thumb.replace(/\/\*[\s\S]*?\*\/|\/\/[^\n]*/g, "")
 
-  ok("native fullscreen is suppressed on the tile player", /controlsList="nofullscreen"/.test(thumb))
-  ok("picture-in-picture is suppressed too, matching the editor", /disablePictureInPicture/.test(thumb))
+  // THE FIX. Not "fullscreen is suppressed" — there is no control bar to suppress it IN.
+  // controlsList could never deliver this: Chromium-only, ignored by every Safari and Firefox, so
+  // the native button survived there and sat beside the custom one. Removing `controls` removes
+  // the bar, the duplicate button, the alignment problem and the hover drift, in every browser.
+  ok("the tile renders NO native control bar", !/\bcontrols\b/.test(code))
+  ok("...so there is no native fullscreen button to duplicate", !/controlsList/.test(code))
+  ok("...and no nofullscreen workaround is relied on any more", !/nofullscreen/.test(code))
+  ok("picture-in-picture is still suppressed (reachable from the context menu)", /disablePictureInPicture/.test(code))
   ok("the shared lightbox is reused, not a second modal", /<VideoLightbox/.test(thumb))
   ok("...imported from the shared component", /import VideoLightbox from "@\/components\/crm\/social\/VideoLightbox"/.test(c))
   ok("no second video modal was added to this file", !/fixed inset-0[\s\S]{0,120}<video/.test(c))
@@ -153,33 +163,44 @@ console.log("\n7. the tile's enlarged preview replaces native fullscreen without
   ok("the enlarge control was found", enlarge.length > 0)
   ok("it is NOT in the upper-right, where the DRAFT badge lives", !/\btop-\S/.test(enlarge))
   ok("it is positioned from the BOTTOM", /\bbottom-\S/.test(enlarge))
-  ok("it is clear of the native controls strip, not flush to the bottom edge",
-    /\bbottom-10\b/.test(enlarge))
-  ok("it sits on the right, matching the fullscreen button it replaces", /\bright-\S/.test(enlarge))
+  ok("it sits on the right, where a fullscreen control is expected", /\bright-\S/.test(enlarge))
+  // STABLE BY CONSTRUCTION, not by a measured offset. With no control bar beneath it the inset
+  // mirrors the checkbox's own top-1.5 left-1.5, so it cannot drift on hover or at any tile width.
+  ok("its inset mirrors the checkbox's, rather than clearing a control bar",
+    /\bbottom-1\.5\b/.test(enlarge) && /\bright-1\.5\b/.test(enlarge))
+  ok("...and is NOT the old measured offset that drifted on hover", !/\bbottom-10\b/.test(enlarge))
+  ok("it sits above the play/pause surface so it stays clickable", /\bz-10\b/.test(enlarge))
 
   // The badges and the checkbox must still be where they were, in the PARENT.
   ok("the select checkbox is still upper-left", /absolute top-1\.5 left-1\.5[\s\S]{0,200}type="checkbox"/.test(c))
   ok("the status badge is still rendered upper-right by StatusBadge", /<StatusBadge badge=\{b\} \/>/.test(c))
 
-  // PLAYBACK IS UNTOUCHED: controls stay on, and nothing else was removed.
-  ok("the tile still shows native controls while playing", /controls=\{playing\}/.test(thumb))
-  ok("controlsList removes ONLY fullscreen — download and remote playback are untouched",
-    !/nodownload|noremoteplayback/.test(thumb))
-  ok("the enlarge control only exists while playing, as the native button did", /\{playing && card\.raw\?\.kind !== "image" &&/.test(thumb))
+  // PLAYBACK: click to play, click to pause — the full-surface target that replaces the bar.
+  ok("one full-surface play/pause target exists", /aria-label=\{!playing \|\| paused \? "Play preview" : "Pause preview"\}/.test(thumb))
+  ok("the first click mounts the player and starts it", /setPlaying\(true\)[\s\S]{0,80}ref\.current\?\.play\(\)/.test(thumb))
+  ok("a later click toggles the ELEMENT's state, not a flag", /if \(v\.paused\) v\.play\(\)[\s\S]{0,40}else v\.pause\(\)/.test(thumb))
+  ok("the icon follows the element's real paused state", /onPlay=\{\(\) => setPaused\(false\)\}/.test(thumb) && /onPause=\{\(\) => setPaused\(true\)\}/.test(thumb))
+  ok("the surface is transparent while playing, so footage is never covered", /bg-transparent hover:bg-black\/10/.test(thumb))
+  ok("the play badge shows only when nothing is playing", /\{\(!playing \|\| paused\) && \(/.test(thumb))
+  ok("the enlarge control is available without playing first", /\{card\.raw\?\.kind !== "image" && \(/.test(thumb))
   ok("opening it pauses the tile rather than leaving two players running", /ref\.current\?\.pause\(\)/.test(thumb))
-  ok("the click does not bubble into the card's open handler", /e\.stopPropagation\(\)/.test(thumb))
+  ok("the click does not also toggle playback", /e\.stopPropagation\(\)/.test(thumb))
+  // PRESERVED preview behaviour.
+  ok("the seeked poster frame is unchanged", /v\.currentTime = Math\.min\(0\.6/.test(thumb))
+  ok("the portrait crop is unchanged", /object-cover bg-black/.test(thumb))
+  ok("the thumbnail fast path is unchanged", /loading="lazy"/.test(thumb) && /decoding="async"/.test(thumb))
 
   // NOT TOUCHED — this is a presentation change only.
   // Behaviour, not prose: the previous version of this assertion grepped the component for the
   // words "render" and "publish" and matched its own COMMENTS ("a Rendered card", "It renders ONLY
   // while playing"). What actually matters is that the tile performs no side effect at all.
-  const thumbCode = thumb.replace(/\/\*[\s\S]*?\*\/|\/\/[^\n]*/g, "")
+  const thumbCode = code
   ok("the tile writes no database row", !/\.update\(|\.insert\(|\.delete\(|\.upsert\(/.test(thumbCode))
   ok("the tile makes no network request", !/fetch\(/.test(thumbCode))
   ok("the tile touches no storage", !/\.storage\b/.test(thumbCode))
   ok("the tile calls no render or publish endpoint", !/\/api\//.test(thumbCode))
-  ok("its only state is local playback + expansion",
-    (thumbCode.match(/useState/g) ?? []).length === 2)
+  ok("its only state is local playback, paused and expansion",
+    (thumbCode.match(/useState/g) ?? []).length === 3)
 
   // The shared lightbox's own guarantees, since the tile now depends on them.
   const lb = read("components/crm/social/VideoLightbox.tsx")
