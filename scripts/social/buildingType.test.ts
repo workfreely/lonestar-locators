@@ -117,13 +117,40 @@ ok("only the stable column is ever updated", (route.match(/\.update\(/g) ?? []).
   /\.update\(\{ stable: nextStable \}\)/.test(route))
 ok("pricing, sources, unresolved and property_name are never written",
   !/\.update\([\s\S]{0,120}(pricing|sources|unresolved|property_name)/.test(route))
-ok("it never creates research — the row must already exist",
-  !/\.insert\(|\.upsert\(/.test(route) && /"no_research" \}, \{ status: 404 \}/.test(route))
-ok("authorization is the database's — no service role, no security definer",
-  !/service_role|SERVICE_ROLE|supabaseAdmin|security definer/i.test(route))
+// ── CHANGED DELIBERATELY ────────────────────────────────────────────────────────────────────
+// This route USED to refuse to create a research row, and the assertion here enforced that. A
+// property added to the library today has no row, which is exactly when somebody classifies it,
+// so the refusal surfaced as the selection silently snapping back to "Not Verified" — reported
+// from production on 2800 Taylor. The route now creates the row. The rules below are what keeps
+// that narrow; they replace the blanket prohibition rather than relaxing it.
+ok("it CAN create a research row, but only by INSERT — never upsert",
+  /\.insert\(/.test(codeOnly(route)) && !/\.upsert\(/.test(codeOnly(route)))
+ok("…because an upsert would overwrite a concurrent writer's whole `stable` column",
+  !/\.upsert\(/.test(codeOnly(route)))
+ok("the owner comes from the SESSION, never the request body",
+  /owner_user_id: user\.id/.test(codeOnly(route)) && !/owner_user_id:\s*b\.|ownerUserId/.test(codeOnly(route)))
+ok("creation is gated on the CATALOG knowing the place_id",
+  /lb_property_catalog_by_ids/.test(codeOnly(route)) &&
+  /"unknown_property" \}, \{ status: 404 \}/.test(route))
+ok("clearing to Not Verified on a property with no row stays a NO-OP",
+  /if \(parsed\.value === null\) \{[\s\S]{0,200}created: false/.test(codeOnly(route)) &&
+  !/parsed\.value === null[\s\S]{0,200}\.insert\(/.test(codeOnly(route)))
+ok("a concurrent first save falls back to the MERGE, not a clobber",
+  /insertError\.code === "23505"/.test(codeOnly(route)) && /mergeExisting\(\)/.test(codeOnly(route)))
+ok("property_name on a new row comes from the catalog, not the body",
+  /property_name: catalogName/.test(codeOnly(route)) && /catalogRow\.property_name/.test(codeOnly(route)))
+
+// The route's PROSE now explains the definer RPC it calls, and this assertion is about CODE, so
+// it reads codeOnly. The bypass it exists to forbid — a service-role client that ignores RLS —
+// is still absent; lb_property_catalog_by_ids is the id-scoped, authenticated-only, 60-id-capped
+// read path every other catalog read already uses, and it grants the caller nothing they could
+// not already see on the Map.
+ok("authorization is still the database's — no service role, no admin client",
+  !/service_role|SERVICE_ROLE|supabaseAdmin/i.test(codeOnly(route)))
 ok("an unauthenticated caller is refused", /error: "unauthorized" \}, \{ status: 401 \}/.test(route))
+// Same guarantee, new shape: the 403 now travels out of the extracted merge helper.
 ok("a blocked write surfaces as 403 rather than a silent success",
-  /if \(!saved\) return NextResponse\.json\(\{ error: "write_blocked" \}/.test(route))
+  /if \(!saved\) return \{ kind: "fail", error: "write_blocked", status: 403 \}/.test(codeOnly(route)))
 ok("it touches no social_content or social_posts column",
   !/social_content|social_posts/.test(codeOnly(route)))
 

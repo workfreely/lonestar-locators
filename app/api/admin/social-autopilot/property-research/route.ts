@@ -66,8 +66,17 @@ export async function GET(request: Request) {
 // The request-scoped client carries the caller's session, so the "owner manages property research"
 // policy decides. No service role, no security-definer function, and no owner id accepted from the
 // caller: an agent with read-only sharing cannot write, and nobody can point this at another
-// owner's research. The row must already exist — this endpoint does not create research, because
-// a classification with no researched property behind it is a record of nothing.
+// owner's research.
+//
+// ── IT MAY CREATE THE ROW, AND ONLY THE ROW ─────────────────────────────────────────────────
+// A property added to the library today has no research row yet, and that is precisely when
+// somebody classifies it. This used to answer 404, which the editor showed as the classification
+// snapping back to "Not Verified" — a save that looked like a glitch. It now creates the row, but
+// only when: the place_id is one the CATALOG knows (checked through the id-scoped definer RPC, so
+// a crafted id cannot mint research), the owner comes from the SESSION, and a real classification
+// was chosen — clearing to "Not Verified" on a property with no row stays a no-op. The new row
+// carries the classification and nothing else; pricing, sources and unresolved keep their
+// defaults, so creating one cannot invent research nobody did.
 //
 // HISTORY IS AUTOMATIC: the social_property_research revision trigger watches `stable`, so every
 // change here is captured with the exact previous value and is restorable.
@@ -97,41 +106,131 @@ export async function PATCH(request: Request) {
   const parsed = normalizeBuildingType(b.buildingType)
   if (!parsed.ok) return NextResponse.json({ error: parsed.reason }, { status: 400 })
 
-  const { data: current, error: readError } = await supabase
-    .from("social_property_research")
-    .select("place_id, stable")
-    .eq("place_id", placeId)
-    .maybeSingle()
-  if (readError) {
-    console.error("[property-research] PATCH read failed:", readError.message)
-    return NextResponse.json({ error: "read_failed" }, { status: 500 })
+  // ── THE MERGE PATH — used by an existing row, and again if a concurrent first save beat us ──
+  // Extracted so the create path can fall back to it on a unique-constraint collision WITHOUT
+  // repeating the merge, which is the only thing standing between one classification and the rest
+  // of a community's research.
+  const mergeExisting = async (): Promise<
+    | { kind: "missing" }
+    | { kind: "ok"; buildingType: unknown; placeId: string }
+    | { kind: "fail"; error: string; status: number }
+  > => {
+    const { data: current, error: readError } = await supabase
+      .from("social_property_research")
+      .select("place_id, stable")
+      .eq("place_id", placeId)
+      .maybeSingle()
+    if (readError) {
+      console.error("[property-research] PATCH read failed:", readError.message)
+      return { kind: "fail", error: "read_failed", status: 500 }
+    }
+    // RLS makes an unreadable row indistinguishable from an absent one. The caller is told the
+    // same thing either way; only the create path below can act on it, and only for a place_id
+    // the catalog actually knows.
+    if (!current) return { kind: "missing" }
+
+    const stable = (current.stable ?? {}) as Record<string, unknown>
+    // CLEARING is a removal, not a null value. `remove` is what makes the key disappear instead of
+    // leaving {"buildingType": null} behind, which would read as "classified as nothing".
+    const nextStable = parsed.value === null
+      ? mergeStableResearch(stable as never, {}, { remove: [BUILDING_TYPE_KEY] })
+      : mergeStableResearch(stable as never, { [BUILDING_TYPE_KEY]: parsed.value } as never)
+
+    const { data: saved, error: writeError } = await supabase
+      .from("social_property_research")
+      .update({ stable: nextStable })
+      .eq("place_id", placeId)
+      .select("place_id, stable")
+      .maybeSingle()
+    if (writeError) {
+      console.error("[property-research] PATCH write failed:", writeError.message)
+      return { kind: "fail", error: "write_failed", status: 500 }
+    }
+    if (!saved) return { kind: "fail", error: "write_blocked", status: 403 }
+    return {
+      kind: "ok",
+      buildingType: ((saved.stable ?? {}) as Record<string, unknown>)[BUILDING_TYPE_KEY] ?? null,
+      placeId: saved.place_id,
+    }
   }
-  // RLS makes an unreadable row indistinguishable from an absent one, which is the correct answer
-  // to give either way: there is nothing here this caller may change.
-  if (!current) return NextResponse.json({ error: "no_research" }, { status: 404 })
 
-  const stable = (current.stable ?? {}) as Record<string, unknown>
-  // CLEARING is a removal, not a null value. `remove` is what makes the key disappear instead of
-  // leaving {"buildingType": null} behind, which would read as "classified as nothing".
-  const nextStable = parsed.value === null
-    ? mergeStableResearch(stable as never, {}, { remove: [BUILDING_TYPE_KEY] })
-    : mergeStableResearch(stable as never, { [BUILDING_TYPE_KEY]: parsed.value } as never)
-
-  const { data: saved, error: writeError } = await supabase
-    .from("social_property_research")
-    .update({ stable: nextStable })
-    .eq("place_id", placeId)
-    .select("place_id, stable")
-    .maybeSingle()
-  if (writeError) {
-    console.error("[property-research] PATCH write failed:", writeError.message)
-    return NextResponse.json({ error: "write_failed" }, { status: 500 })
-  }
-  if (!saved) return NextResponse.json({ error: "write_blocked" }, { status: 403 })
-
-  return NextResponse.json({
-    buildingType: ((saved.stable ?? {}) as Record<string, unknown>)[BUILDING_TYPE_KEY] ?? null,
+  const first = await mergeExisting()
+  if (first.kind === "fail") return NextResponse.json({ error: first.error }, { status: first.status })
+  if (first.kind === "ok") {
     // The caller can show how many videos this one write just described.
-    placeId: saved.place_id,
+    return NextResponse.json({ buildingType: first.buildingType, placeId: first.placeId, created: false })
+  }
+
+  // ── NO ROW YET — a NEWLY ADDED property, researched before the pipeline has ever seen it ────
+  // This endpoint used to answer 404 here, which the editor surfaced as the classification
+  // silently snapping back to "Not Verified". A property that has just been added to the library
+  // is exactly when someone classifies it, so refusing was the wrong answer.
+
+  // CLEARING STAYS A NO-OP. "Not Verified" on a property with no research is already the truth;
+  // creating an empty row to record the absence of a classification would be a record of nothing.
+  if (parsed.value === null) {
+    return NextResponse.json({ buildingType: null, placeId, created: false })
+  }
+
+  // IDENTITY GATE. The place_id must be a property the CATALOG knows, so a crafted id cannot mint
+  // research for something that does not exist. property_catalog has RLS enabled with no SELECT
+  // policy, so a request-scoped client cannot read it directly — this goes through the same
+  // id-scoped SECURITY DEFINER RPC every other catalog read uses.
+  const { data: catalogRows, error: catalogError } = await supabase.rpc("lb_property_catalog_by_ids", {
+    p_place_ids: [placeId],
   })
+  if (catalogError) {
+    console.error("[property-research] PATCH catalog lookup failed:", catalogError.message)
+    return NextResponse.json({ error: "catalog_lookup_failed" }, { status: 500 })
+  }
+  if (!Array.isArray(catalogRows) || catalogRows.length === 0) {
+    return NextResponse.json({ error: "unknown_property" }, { status: 404 })
+  }
+
+  // The property's name comes from the CATALOG row we just verified, in the same call — so the
+  // new row is self-describing, the name is the canonical one, and this route stays isolated from
+  // social_content and social_posts. Never accepted from the request body.
+  const catalogRow = (catalogRows[0] ?? {}) as Record<string, unknown>
+  const catalogName = typeof catalogRow.property_name === "string" && catalogRow.property_name.trim()
+    ? catalogRow.property_name.trim()
+    : null
+
+  const { data: created, error: insertError } = await supabase
+    .from("social_property_research")
+    .insert({
+      // FROM THE SESSION, NEVER THE BODY. The request carries no owner id and never could.
+      owner_user_id: user.id,
+      place_id: placeId,
+      property_name: catalogName,
+      // Only the classification. pricing, sources and unresolved keep their column defaults, so
+      // creating a row cannot invent research that nobody did.
+      stable: { [BUILDING_TYPE_KEY]: parsed.value },
+    })
+    .select("place_id, stable")
+    .maybeSingle()
+
+  if (!insertError && created) {
+    return NextResponse.json({
+      buildingType: ((created.stable ?? {}) as Record<string, unknown>)[BUILDING_TYPE_KEY] ?? null,
+      placeId: created.place_id,
+      created: true,
+    })
+  }
+
+  // CONCURRENT FIRST SAVE. Two editors on the same new property both see "no row" and both insert;
+  // the unique (owner_user_id, place_id) index lets exactly one win. The loser must NOT overwrite
+  // what the winner wrote — an upsert here would replace `stable` wholesale and discard it — so it
+  // re-runs the MERGE path instead, which keeps every key it was not given.
+  if (insertError && insertError.code === "23505") {
+    const second = await mergeExisting()
+    if (second.kind === "ok") {
+      return NextResponse.json({ buildingType: second.buildingType, placeId: second.placeId, created: false })
+    }
+    if (second.kind === "fail") return NextResponse.json({ error: second.error }, { status: second.status })
+    // Vanished between the collision and the re-read — report rather than loop.
+    return NextResponse.json({ error: "write_blocked" }, { status: 409 })
+  }
+
+  console.error("[property-research] PATCH create failed:", insertError?.message ?? "no row returned")
+  return NextResponse.json({ error: "create_failed" }, { status: 500 })
 }

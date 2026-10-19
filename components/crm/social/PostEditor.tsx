@@ -337,6 +337,8 @@ export default function PostEditor({ postId, from }: { postId: string; from?: st
   // own request, which is also what keeps Save Draft's body exactly what it is today.
   const [buildingType, setBuildingType] = useState("")
   const [buildingTypeState, setBuildingTypeState] = useState<"idle" | "loading" | "saving" | "saved" | "error">("idle")
+  /** Why the last save failed, in the operator's words. Null whenever the control is healthy. */
+  const [buildingTypeError, setBuildingTypeError] = useState<string | null>(null)
   const [needsReview, setNeedsReview] = useState<{ at: string; reason: string | null } | null>(null)
   const [placeId, setPlaceId] = useState("")
   // Matched property's street address, READ from property_catalog by place_id —
@@ -397,17 +399,33 @@ export default function PostEditor({ postId, from }: { postId: string; from?: st
     const previous = buildingType
     setBuildingType(next)
     setBuildingTypeState("saving")
+    setBuildingTypeError(null)
     try {
       const res = await fetch("/api/admin/social-autopilot/property-research", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ placeId, buildingType: next || null }),
       })
-      if (!res.ok) throw new Error(String(res.status))
-      const json = (await res.json()) as { buildingType?: string | null }
+      const json = (await res.json().catch(() => ({}))) as { buildingType?: string | null; error?: string }
+      if (!res.ok) {
+        // THE REASON, IN THE OPERATOR'S WORDS. Reverting on its own looked like the selection had
+        // simply bounced back — which is exactly how the "no research row" 404 presented before
+        // this endpoint learned to create one. A failed save now says why.
+        setBuildingTypeError(
+          json.error === "unknown_property" ? "This property isn’t in the catalog yet, so it can’t be classified."
+            : json.error === "not_a_building_type" ? "That isn’t one of the approved building types."
+            : res.status === 401 || res.status === 403 ? "You’re not authorized to change this property’s classification."
+            : "Couldn’t save — the classification is unchanged. Try again.",
+        )
+        // Still reverts: the control must never show a classification the database does not hold.
+        setBuildingType(previous)
+        setBuildingTypeState("error")
+        return
+      }
       setBuildingType(typeof json.buildingType === "string" ? json.buildingType : "")
       setBuildingTypeState("saved")
     } catch {
+      setBuildingTypeError("Couldn’t reach the server — the classification is unchanged.")
       setBuildingType(previous)
       setBuildingTypeState("error")
     }
@@ -1443,10 +1461,12 @@ export default function PostEditor({ postId, from }: { postId: string; from?: st
             <label className="block">
               <span className={fieldLabel}>
                 Building Type{" "}
-                <span className="normal-case text-[var(--crm-text-muted)]">
+                {/* The failure state is RED, not muted. It previously shared the muted tone with
+                    "· shared", so a save that did not happen looked identical to one that did. */}
+                <span className={`normal-case ${buildingTypeState === "error" ? "font-semibold text-red-500" : "text-[var(--crm-text-muted)]"}`}>
                   {buildingTypeState === "saving" ? "· saving…"
                     : buildingTypeState === "saved" ? "· saved"
-                    : buildingTypeState === "error" ? "· not saved"
+                    : buildingTypeState === "error" ? "· NOT SAVED"
                     : "· shared"}
                 </span>
               </span>
@@ -1461,6 +1481,9 @@ export default function PostEditor({ postId, from }: { postId: string; from?: st
                 {[...BUILDING_TYPES, ...(buildingType && !(BUILDING_TYPES as readonly string[]).includes(buildingType) ? [buildingType] : [])]
                   .map((t) => <option key={t} value={t}>{t}</option>)}
               </select>
+              {buildingTypeState === "error" && buildingTypeError && (
+                <span className="mt-1 block text-[10.5px] font-medium normal-case text-red-500">{buildingTypeError}</span>
+              )}
             </label>
             {/* UNIT TYPE — renamed from "Property Type". The LABEL is all that changed: the state,
                 the 14-value vocabulary, the propertyType API key and the social_content.property_type
