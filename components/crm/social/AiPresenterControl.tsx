@@ -5,6 +5,7 @@ import { PRESENTER, clampIntroSeconds, clampWidthPx, normalizeSide, type Present
 import {
   PRESENTER_UPLOAD, checkPresenterFormat, checkPresenterSize, labelFromFilename, presenterStorageKey,
 } from "@/lib/social/presenterUpload"
+import { CLIP_STATE_MESSAGE, isLipSyncSafe, type ClipMatchState } from "@/lib/social/presenterClipCache"
 import { supabase } from "@/lib/supabase/client"
 
 /**
@@ -58,6 +59,13 @@ export default function AiPresenterControl({
   // list is broken", and the list the operator already has stays usable while one upload fails.
   const [uploading, setUploading] = useState(false)
   const [uploadErr, setUploadErr] = useState<string | null>(null)
+  // LIP-SYNC MATCH. Recomputed from the server on every change of presenter or voice hook — never
+  // carried over, because a retained match is how a clip synced to one recording ends up on
+  // another. null while unknown, so the UI says nothing rather than guessing.
+  const [clipState, setClipState] = useState<ClipMatchState | null>(null)
+  const [matching, setMatching] = useState(false)
+  const [associating, setAssociating] = useState(false)
+  const [associateErr, setAssociateErr] = useState<string | null>(null)
   const on = !!value.presenterId
 
   // Loaded lazily — a post that never turns the feature on never pays for this request.
@@ -93,6 +101,35 @@ export default function AiPresenterControl({
       } catch { /* narration stays optional — the presenter's own voice is the fallback */ }
     })()
   }, [on, voiceClips.length])
+
+  // ── THE MATCH LOOKUP ──────────────────────────────────────────────────────────────────────
+  // Keyed on BOTH ids, so changing either one re-asks the server. The previous answer is cleared
+  // first: showing a stale "Reusing…" against a newly chosen hook would assert exactly the thing
+  // this feature exists to prevent.
+  useEffect(() => {
+    if (!on || !value.presenterId) { setClipState(null); return }
+    let live = true
+    setClipState(null)
+    setMatching(true)
+    void (async () => {
+      try {
+        const q = new URLSearchParams({ presenterId: value.presenterId! })
+        if (value.audioVoiceClipId) q.set("voiceClipId", value.audioVoiceClipId)
+        const res = await fetch(`/api/admin/social-autopilot/presenters/clips?${q.toString()}`)
+        if (!live) return
+        if (!res.ok) { setClipState(null); return }
+        const j = (await res.json()) as { state?: ClipMatchState }
+        if (live) setClipState(j.state ?? null)
+      } catch {
+        if (live) setClipState(null)
+      } finally {
+        if (live) setMatching(false)
+      }
+    })()
+    // Cleanup flips `live`, so a slow response for the PREVIOUS selection cannot land after a
+    // newer one — the classic way a stale match becomes visible.
+    return () => { live = false }
+  }, [on, value.presenterId, value.audioVoiceClipId])
 
   const patch = (p: Partial<PresenterValue>) => onChange({ ...value, ...p })
 
@@ -164,6 +201,41 @@ export default function AiPresenterControl({
       setUploadErr((e as Error).message.slice(0, 240))
     } finally {
       setUploading(false)
+    }
+  }
+
+  /**
+   * ASSOCIATE the selected presenter's clip with the selected voice recording.
+   *
+   * This is what POPULATES the cache in Phase 2a. It is an explicit operator statement rather than
+   * an inference: nothing about an uploaded WebM says which audio it was synced to, and guessing
+   * (by upload time, by filename, by "the latest hook") would manufacture exactly the mismatch the
+   * cache exists to prevent — invisibly. The server re-resolves both ids and the storage key.
+   */
+  const associate = async () => {
+    if (!value.presenterId || !value.audioVoiceClipId) return
+    setAssociateErr(null)
+    setAssociating(true)
+    try {
+      const res = await fetch("/api/admin/social-autopilot/presenters/clips", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        // IDS ONLY. The server reads the presenter's own clip path; the browser never names a
+        // storage key, so it cannot point a match at a different object.
+        body: JSON.stringify({ presenterId: value.presenterId, voiceClipId: value.audioVoiceClipId }),
+      })
+      const j = (await res.json().catch(() => ({}))) as { clip?: unknown; error?: string; detail?: string }
+      if (!res.ok || !j.clip) throw new Error(j.detail ?? j.error ?? "Could not save the match.")
+      // Re-ask the server rather than assuming: the displayed state and the state a render would
+      // use then come from the same computation.
+      setClipState(null)
+      const q = new URLSearchParams({ presenterId: value.presenterId, voiceClipId: value.audioVoiceClipId })
+      const after = await fetch(`/api/admin/social-autopilot/presenters/clips?${q.toString()}`)
+      if (after.ok) setClipState(((await after.json()) as { state?: ClipMatchState }).state ?? null)
+    } catch (e) {
+      setAssociateErr((e as Error).message.slice(0, 240))
+    } finally {
+      setAssociating(false)
     }
   }
 
@@ -298,6 +370,41 @@ export default function AiPresenterControl({
               }}
             />
           </label>
+
+          {/* ── LIP-SYNC MATCH STATE ──────────────────────────────────────────────────────────
+              Said out loud, because the failure it describes is invisible in the editor: the
+              avatar renders and plays, its mouth just does not match the words. `matched` is the
+              only state that is safe, so it is the only one styled as reassurance. */}
+          {matching ? (
+            <p className="text-[10.5px] text-[var(--crm-text-muted)]">Checking for a matching avatar clip…</p>
+          ) : clipState ? (
+            <p
+              className={`text-[10.5px] ${
+                isLipSyncSafe(clipState) ? "text-emerald-500"
+                  : clipState === "no_voice_selected" ? "text-[var(--crm-text-muted)]"
+                  : clipState === "pending" ? "text-sky-500"
+                  : "text-amber-500"
+              }`}
+            >
+              {CLIP_STATE_MESSAGE[clipState]}
+            </p>
+          ) : null}
+
+          {/* Associating a clip is only offered when there is something to associate it WITH and
+              nothing already matched — an operator should not be invited to re-state a fact the
+              cache already holds. */}
+          {!matching && (clipState === "unmatched" || clipState === "unavailable") && value.audioVoiceClipId && (
+            <button
+              type="button"
+              disabled={associating}
+              onClick={() => void associate()}
+              className="self-start rounded-md border border-[var(--crm-border)] px-2 py-1 text-[11px] font-semibold text-[var(--crm-text-secondary)] hover:text-[var(--crm-text-primary)] disabled:opacity-45"
+              title="Record that this presenter's clip was lip-synced to the selected voice hook, so it is reused automatically next time"
+            >
+              {associating ? "Saving…" : "This clip matches this voice hook"}
+            </button>
+          )}
+          {associateErr && <p className="text-[11px] text-red-400">{associateErr}</p>}
 
           <p className="text-[10.5px] text-[var(--crm-text-muted)]">Fades out after the intro.</p>
         </div>

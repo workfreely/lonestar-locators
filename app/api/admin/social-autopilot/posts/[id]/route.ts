@@ -6,6 +6,7 @@ import { isValidPostType } from "@/lib/social/postTypes"
 import { normalizeHashtag, hashtagLimitForPlatform } from "@/lib/social/hashtags"
 import { isOverlayTemplate } from "@/lib/social/composePost"
 import { renderAffectingChanges, valueChanged } from "@/lib/social/renderInvalidation"
+import { resolvePresenterClip, type PresenterClipStatus } from "@/lib/social/presenterClipCache"
 import { isSocialDestination } from "@/lib/social/destinations"
 import { ensureStoryCompanion } from "@/lib/social/storyCompanion"
 import { hasRender, isRenderedReady, type LaneFacts } from "@/lib/social/postLane"
@@ -222,7 +223,7 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
   // hashtags — so this is one query where there were two.
   const { data: storedRow } = await supabase
     .from("social_posts")
-    .select("id, platform, destination, published_at, external_post_id, render_version, source_storage_path, overlay_headline, overlay_subheadline, overlay_mode, overlay_template, audio_choice, audio_track_id, voice_hook_id, voice_cta_id")
+    .select("id, platform, destination, published_at, external_post_id, render_version, source_storage_path, overlay_headline, overlay_subheadline, overlay_mode, overlay_template, audio_choice, audio_track_id, voice_hook_id, voice_cta_id, presenter_id, presenter_audio_storage_path, presenter_clip_storage_path")
     .eq("id", id)
     .maybeSingle()
   const stored = (storedRow ?? null) as Record<string, unknown> | null
@@ -337,6 +338,57 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
       const { data: clip } = await supabase
         .from("social_voice_clips").select("storage_path").eq("id", body.presenterVoiceClipId).maybeSingle()
       patch.presenter_audio_storage_path = (clip as { storage_path?: string | null } | null)?.storage_path ?? null
+    }
+  }
+
+  // ── LIP-SYNC CLIP REUSE ───────────────────────────────────────────────────────────────────
+  // THE BUG THIS BLOCK EXISTS TO PREVENT: presenter_clip_storage_path was only ever written when
+  // the PRESENTER changed. Change the voice hook alone and the post kept the clip from the
+  // previous hook — an avatar lip-synced to recording A speaking recording B. It renders cleanly,
+  // publishes cleanly, and looks like a broken product.
+  //
+  // So whenever either half of the pair is touched, the clip is RECOMPUTED from the cache against
+  // the EFFECTIVE presenter and the EFFECTIVE audio — patch value if this request set it, stored
+  // value otherwise. resolvePresenterClip has no "keep what was there" branch, and this writes
+  // whatever it returns, including the fallback.
+  //
+  // ADDITIVE: it only runs when presenterId or presenterVoiceClipId is in the body, and with an
+  // empty cache it resolves to the presenter's own clip — byte-identical to the behaviour above.
+  if (("presenterId" in body || "presenterVoiceClipId" in body) && patch.presenter_id !== null) {
+    const effectivePresenterId = ("presenter_id" in patch
+      ? (patch.presenter_id as string | null)
+      : ((stored as { presenter_id?: string | null } | null)?.presenter_id ?? null))
+    if (effectivePresenterId) {
+      const effectiveAudio = ("presenter_audio_storage_path" in patch
+        ? (patch.presenter_audio_storage_path as string | null)
+        : ((stored as { presenter_audio_storage_path?: string | null } | null)?.presenter_audio_storage_path ?? null))
+
+      const { data: presRow } = await supabase
+        .from("social_presenters")
+        .select("clip_storage_path")
+        .eq("id", effectivePresenterId)
+        .maybeSingle()
+      const { data: clipRows } = await supabase
+        .from("social_presenter_clips")
+        .select("id, presenter_id, voice_clip_id, audio_storage_path, clip_storage_path, status")
+        .eq("presenter_id", effectivePresenterId)
+
+      const resolution = resolvePresenterClip({
+        presenterClipStoragePath: (presRow as { clip_storage_path?: string | null } | null)?.clip_storage_path ?? null,
+        selectedAudioStoragePath: effectiveAudio,
+        rows: (clipRows ?? []).map((r) => {
+          const x = r as Record<string, unknown>
+          return {
+            id: x.id as string,
+            presenterId: (x.presenter_id as string | null) ?? null,
+            voiceClipId: (x.voice_clip_id as string | null) ?? null,
+            audioStoragePath: (x.audio_storage_path as string) ?? "",
+            clipStoragePath: (x.clip_storage_path as string | null) ?? null,
+            status: x.status as PresenterClipStatus,
+          }
+        }),
+      })
+      patch.presenter_clip_storage_path = resolution.clipStoragePath
     }
   }
   // ── REEL COVER ────────────────────────────────────────────────────────────────────────────
