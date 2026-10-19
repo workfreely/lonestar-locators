@@ -89,6 +89,40 @@ export const AMENITY_BANK: readonly string[] = [
   "Mudrooms",
   "Wine Fridges",
   "Wine Storage Lockers",
+  // ── FLOORING ──────────────────────────────────────────────────────────────────────────────
+  // Singular "Flooring", matching the existing "Concrete Flooring" and Property Intelligence's
+  // own `hardwood_flooring` label — a mass noun, so the plural convention below does not apply.
+  // REAL hardwood only. PI separately carries wood_style_plank, luxury_vinyl_plank and
+  // engineered_wood, and this must never absorb them: a property that publishes wood-look plank
+  // is not a property with hardwood floors. There is deliberately no wood-look entry here; that
+  // claim belongs in research, where it carries a source.
+  "Hardwood Flooring",
+  // ── INTERIOR ARCHITECTURE ─────────────────────────────────────────────────────────────────
+  // PLURAL, per the convention documented above: a countable in-unit feature.
+  "Spiral Staircases",
+  // ── UNIT LAYOUT ───────────────────────────────────────────────────────────────────────────
+  // Renters ask for these by name, so they are searchable here as well as recorded in research.
+  //
+  // "Layout" is in the label ON PURPOSE. "Split-Level" alone is already a property-type QUALIFIER
+  // (lib/social/propertyTypes COMPOUND_TYPE_QUALIFIERS → "Split-Level Loft" and friends), and a
+  // bare "Split-Level" chip would read as a second, competing way to state the type. The suffix
+  // keeps the two readable as what they are: one describes the unit's layout, the other names the
+  // property type. composePost additionally DROPS this chip from the caption when the type
+  // already carries the qualifier, so no caption says split-level twice.
+  //
+  // TRI-LEVEL IS NOT "MULTI-LEVEL". Three levels specifically. PI's multi_level_layout says more
+  // than one floor and nothing about how many, so tri-level implies multi-level and not the
+  // reverse. They are separate chips because a renter asking for three levels is not served by a
+  // two-storey unit.
+  "Split-Level Layout",
+  "Tri-Level Layout",
+  // MULTIPLE LEVELS, COUNT NOT ASSERTED — the weakest of the three layout claims, and the one PI
+  // already carries most often (multi_level_layout, 105 properties). Distinct from both of its
+  // neighbours: a tri-level unit IS multi-level and a split-level unit IS multi-level, but neither
+  // implication runs backwards, so a renter who asked for three levels is not served by this.
+  // composePost encodes exactly that asymmetry — in a caption this chip is withheld when a
+  // stronger claim is also selected, so the caption never says the layout twice.
+  "Multi-Level Layout",
 ] as const
 
 // A loose key so trivial punctuation/spacing/case variants collapse to one canonical display value
@@ -98,9 +132,111 @@ const normalizeKey = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, "")
 
 const CANON_BY_KEY = new Map<string, string>(AMENITY_BANK.map((a) => [normalizeKey(a), a]))
 
+// ── EQUIVALENT WORDINGS ─────────────────────────────────────────────────────────────────────
+//
+// normalizeKey collapses punctuation, spacing and case, but NOT a different noun or a trailing
+// "s" — that is deliberate (see the convention note above). So "Hardwood Floors" and "Hardwood
+// Flooring" are two different keys, and once "Hardwood Flooring" joined the bank an operator who
+// had already typed "Hardwood Floors" as a custom chip would be offered BOTH: two selectable
+// options meaning one thing. Exactly one such chip exists in the library today.
+//
+// ── WHY THIS IS NOT PART OF canonicalizeAmenity ─────────────────────────────────────────────
+// parseAmenities() canonicalizes EVERY STORED VALUE on read. Teaching canonicalizeAmenity this
+// alias would therefore rewrite that saved chip to "Hardwood Flooring" the moment the record was
+// loaded, and persist the rewrite on the next save — silently editing a historical record that an
+// operator typed by hand. So the alias is a SEPARATE layer with two narrow uses:
+//
+//   amenityEquivalenceKey()    for DE-DUPLICATING THE SELECTOR, so an equivalent bank option is
+//                              not offered alongside an already-selected chip. Display only.
+//   resolveAmenityForEntry()   for a value being entered NOW, so a fresh "Hardwood Floors" lands
+//                              on the canonical spelling instead of creating a second variant.
+//
+// Neither touches what is already stored. Keys only — values are never compared raw.
+const EQUIVALENT_KEYS: Readonly<Record<string, string>> = Object.freeze({
+  [normalizeKey("Hardwood Floors")]: normalizeKey("Hardwood Flooring"),
+  [normalizeKey("Hardwood Floor")]: normalizeKey("Hardwood Flooring"),
+  [normalizeKey("Wood Flooring")]: normalizeKey("Hardwood Flooring"),
+  [normalizeKey("Spiral Staircase")]: normalizeKey("Spiral Staircases"),
+  [normalizeKey("Spiral Stairs")]: normalizeKey("Spiral Staircases"),
+  [normalizeKey("Split Level")]: normalizeKey("Split-Level Layout"),
+  [normalizeKey("Split-Level")]: normalizeKey("Split-Level Layout"),
+  [normalizeKey("Tri Level")]: normalizeKey("Tri-Level Layout"),
+  [normalizeKey("Tri-Level")]: normalizeKey("Tri-Level Layout"),
+  [normalizeKey("Multi Level")]: normalizeKey("Multi-Level Layout"),
+  [normalizeKey("Multi-Level")]: normalizeKey("Multi-Level Layout"),
+  [normalizeKey("Multi Level Layout")]: normalizeKey("Multi-Level Layout"),
+})
+
+// ── IMPLICATION, FOR CAPTIONS ONLY ──────────────────────────────────────────────────────────
+//
+// Some features are not equivalent but one ENTAILS the other: a tri-level unit is multi-level, and
+// so is a split-level unit. Both relations run one way. Equivalence cannot express that — treating
+// them as equivalent would make "Multi-Level Layout" and "Tri-Level Layout" the same chip, and a
+// renter asking for three levels would be shown two-storey units.
+//
+// So this is a SEPARATE, DIRECTED relation, and it is consulted ONLY when composing a caption: if a
+// stronger claim is selected, the weaker one it entails is withheld from the public copy. Both
+// chips stay selected, stored and in research — the property really is both, and research should
+// say so with its own applicability and provenance.
+//
+// Keyed on equivalence keys, so any alias spelling on either side is caught.
+const IMPLIED_BY: Readonly<Record<string, readonly string[]>> = Object.freeze({
+  [normalizeKey("Multi-Level Layout")]: Object.freeze([
+    normalizeKey("Tri-Level Layout"),
+    normalizeKey("Split-Level Layout"),
+  ]),
+})
+
+/**
+ * Is `weaker` already entailed by something in `selected`?
+ *
+ * Directed: tri-level implies multi-level, never the reverse. Comparison is by equivalence key, so
+ * "Multi Level" and "Multi-Level Layout" are both recognised. Caption use only — this must never
+ * decide what is stored or deselected.
+ */
+export function amenityImpliedBySelection(weaker: string | null | undefined, selected: readonly string[]): boolean {
+  const stronger = IMPLIED_BY[amenityEquivalenceKey(weaker)]
+  if (!stronger) return false
+  const keys = new Set(selected.map(amenityEquivalenceKey))
+  return stronger.some((k) => keys.has(k))
+}
+
+/**
+ * The key two amenity values share when they mean the same thing.
+ *
+ * Use it to compare — never to display, and never to decide what to store. Values with no alias
+ * return their own normalizeKey, so this is a safe drop-in wherever normalizeKey was used for
+ * equality.
+ */
+export function amenityEquivalenceKey(raw: string | null | undefined): string {
+  const k = normalizeKey((raw ?? "").replace(/\s+/g, " ").trim())
+  return EQUIVALENT_KEYS[k] ?? k
+}
+
+/** Do these two amenity values mean the same thing, however they are worded? */
+export function amenitiesEquivalent(a: string | null | undefined, b: string | null | undefined): boolean {
+  const ka = amenityEquivalenceKey(a)
+  return !!ka && ka === amenityEquivalenceKey(b)
+}
+
+/**
+ * Resolve a value the operator is entering RIGHT NOW to its canonical bank spelling, following
+ * aliases. For new input only — this is what stops a freshly typed "Hardwood Floors" becoming a
+ * second chip beside the canonical one. Unknown input falls through to canonicalizeAmenity, so a
+ * genuine custom feature keeps its wording.
+ */
+export function resolveAmenityForEntry(raw: string | null | undefined): string {
+  const t = (raw ?? "").replace(/\s+/g, " ").trim()
+  if (!t) return ""
+  return CANON_BY_KEY.get(amenityEquivalenceKey(t)) ?? canonicalizeAmenity(t)
+}
+
 /** Map a raw amenity to its canonical bank display value when it matches one (variant-insensitive);
  *  otherwise return the trimmed original (a CUSTOM feature — wording preserved, never rewritten).
- *  Inner whitespace is collapsed. Empty input → "". */
+ *  Inner whitespace is collapsed. Empty input → "".
+ *
+ *  ALIAS-BLIND ON PURPOSE — see EQUIVALENT_KEYS above. parseAmenities runs this over every stored
+ *  value, so making it alias-aware would rewrite saved chips on read. */
 export function canonicalizeAmenity(raw: string | null | undefined): string {
   const t = (raw ?? "").replace(/\s+/g, " ").trim()
   if (!t) return ""

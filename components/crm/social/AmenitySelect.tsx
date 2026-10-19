@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useMemo, useRef, useState } from "react"
-import { AMENITY_BANK, canonicalizeAmenity, sanitizeCustomAmenity } from "@/lib/social/amenities"
+import { AMENITY_BANK, amenityEquivalenceKey, canonicalizeAmenity, resolveAmenityForEntry, sanitizeCustomAmenity } from "@/lib/social/amenities"
 
 // Searchable multi-select for Amenities / Features. Selections are ORDERED, removable chips; the
 // first selection is the primary {feature} for the future overlay Template 3, and the caption uses
@@ -9,7 +9,12 @@ import { AMENITY_BANK, canonicalizeAmenity, sanitizeCustomAmenity } from "@/lib/
 // property-specific selling points (wording preserved, never AI-rewritten). Values are display
 // strings — the parent serializes/persists them (newline-joined) via the existing content PATCH.
 
-const key = (s: string) => s.toLowerCase()
+// DE-DUPLICATION IS BY MEANING, NOT SPELLING. A chip saved as "Hardwood Floors" must suppress the
+// bank's "Hardwood Flooring" from the dropdown, or the operator is offered the same feature twice.
+// amenityEquivalenceKey owns that mapping; a value with no alias returns its own key, so this is a
+// drop-in for the plain lowercase compare it replaces. It is used for COMPARISON ONLY — the saved
+// chip keeps its own wording and is never rewritten.
+const key = (s: string) => amenityEquivalenceKey(s)
 const MAX = 3 // Post Editor workflow: at most 3 amenities (the caption uses the first 3, in order)
 // Research reuses this control for OBSERVED features, where the 3-cap must not
 // apply: three marketing keywords are a curated ranking layer, never the
@@ -54,6 +59,9 @@ export default function AmenitySelect({
   // selected value.
   const canonicalOfQuery = canonicalizeAmenity(q)
   const customCandidate = sanitizeCustomAmenity(q)
+  // Typing an ALIAS of a bank entry must not offer "Add custom" — that is how a duplicate wording
+  // gets created in the first place. key() is equivalence-aware, so the bank check below now
+  // catches "Hardwood Floors" as well as "Hardwood Flooring".
   const showCustom =
     !!customCandidate &&
     !selectedKeys.has(key(canonicalizeAmenity(customCandidate) || customCandidate)) &&
@@ -61,7 +69,10 @@ export default function AmenitySelect({
 
   const add = (raw: string) => {
     if (value.length >= max) return // cap (3 for marketing, higher for research)
-    const v = canonicalizeAmenity(raw) // known variant → canonical display; unknown → trimmed custom
+    // resolveAmenityForEntry, not canonicalizeAmenity: this value is being entered NOW, so an
+    // alias ("Hardwood Floors") should land on the canonical spelling rather than become a second
+    // variant. Stored values are never passed through here.
+    const v = resolveAmenityForEntry(raw) // known variant or alias → canonical; unknown → trimmed custom
     if (!v) return
     if (selectedKeys.has(key(v))) { setQuery(""); return } // no exact duplicates
     const next = [...value, v]

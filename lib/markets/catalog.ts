@@ -84,6 +84,18 @@ export const MARKETS: Market[] = [
       "Bishop Arts District",
       "Knox-Henderson",
       "Oak Lawn",
+      // DISTINCT from Oak Lawn and Uptown, which both already sit in this list. Turtle Creek
+      // borders both and the catalog records properties under all three, so collapsing it into
+      // either would misfile them: property_catalog carries "Turtle Creek" as its own submarket
+      // (Cantabria at Turtle Creek, Parkview Turtle Creek, The Argyle) and separately as
+      // "Uptown Dallas / Turtle Creek" (Hanover Turtle Creek).
+      //
+      // Added because the gap was already producing drift: with no canonical option, the same
+      // property was filed two different ways across its own two library clips — once as a
+      // free-typed neighbourhood "Turtle Creek", once as "Oak Lawn" with "Turtle Creek" pushed
+      // into the district field. Nothing is reclassified by adding it; existing values stay
+      // exactly as saved and AreaSelect keeps rendering any off-bank value as its own option.
+      "Turtle Creek",
       "Design District",
       "Victory Park",
       "Lower Greenville",

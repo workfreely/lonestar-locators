@@ -74,10 +74,35 @@ async function main() {
     const cap = buildCaption(many, "seed-2")
     const bullets = cap.split("\n").filter((l) => /^•\s/.test(l))
     ok("exactly 3 bullets even with 6 amenities", bullets.length === 3, JSON.stringify(bullets))
+    // Optional access, not non-null assertions: with fewer than three bullets the old form threw
+    // `undefined.includes` and killed the whole suite with a stack trace, so a genuine cap
+    // regression reported as a crash instead of naming the assertion that caught it.
     ok("…and they are the FIRST three, in order",
-      bullets[0]!.includes("Skyline Views") && bullets[1]!.includes("Quartz Countertops") && bullets[2]!.includes("Resort-Style Pool"))
-    ok("the slice(0, 3) is still the only cap",
-      /features\(src\.amenities\)\.slice\(0, 3\)/.test(read("lib/social/composePost.ts")))
+      bullets.length === 3
+        && !!bullets[0]?.includes("Skyline Views")
+        && !!bullets[1]?.includes("Quartz Countertops")
+        && !!bullets[2]?.includes("Resort-Style Pool"))
+    // The GUARANTEE is "3 is the only truncation", not that the expression reads a particular way.
+    // features() is now wrapped by withoutRedundantLayout (a FILTER on one redundant layout chip,
+    // approved separately) before the slice, so a literal source match would fail while the
+    // guarantee holds. Asserted behaviourally, plus a check that no SECOND numeric cap crept in.
+    const cp = read("lib/social/composePost.ts")
+    // WHITESPACE-NORMALISED. The expression is now a multi-line nested call (two approved caption
+    // filters wrap features() before the slice), so a single-line regex tracks the formatting
+    // rather than the guarantee. Collapsing whitespace first keeps this about the behaviour.
+    const flat = cp.replace(/\s+/g, " ")
+    ok("the slice(0, 3) is still the only cap", /\.slice\(0, 3\)/.test(cp))
+    ok("...applied to the feature list in captionSections",
+      /withoutRedundantLayout\( withoutImpliedFeatures\(features\(src\.amenities\), src\.propertyType\), src\.propertyType, \)\.slice\(0, 3\)/.test(flat))
+    // EXACTLY ONE slice on the feature list — a second would be a second cap.
+    ok("the feature list is sliced exactly once",
+      (flat.match(/features\(src\.amenities\)[^;]*?\.slice\(/g) ?? []).length === 1)
+    // Four amenities with none redundant still yield the FIRST three — the filter is a no-op here.
+    // Length is checked BEFORE indexing, so a regression fails rather than throwing.
+    const noneRedundant: SourceMeta = { ...META, propertyType: "Apartment", amenities: "Skyline Views\nQuartz Countertops\nResort-Style Pool\nDog Park" }
+    const b4 = buildCaption(noneRedundant, "seed-2").split("\n").filter((l) => /^•\s/.test(l))
+    ok("...so a non-redundant list is still capped at the first three",
+      b4.length === 3 && !!b4[0]?.includes("Skyline Views") && !!b4[2]?.includes("Resort-Style Pool"))
   }
 
   console.log("\nNO AMENITIES → NO HEADING, NO STRAY BLANK LINE:")
@@ -108,7 +133,12 @@ async function main() {
     const round2 = ["Indoor Pool", "Roof Deck", "Putting Green", "Oversized Windows",
       "Private Terraces", "Wine Storage Lockers", "Guest Suite", "Basketball Court", "Coffee Bar"]
     for (const a of round2) ok(`"${a}" was added`, AMENITY_BANK.includes(a))
-    ok("the bank is 51 entries", AMENITY_BANK.length === 51)
+    // THIRD ROUND — the approved taxonomy additions. Hardwood Flooring (real hardwood only; PI
+    // keeps wood-look, LVP and engineered wood as separate keys), Spiral Staircases (plural, per
+    // the convention), and the two unit-layout chips renters ask for by name.
+    const round3 = ["Hardwood Flooring", "Spiral Staircases", "Split-Level Layout", "Tri-Level Layout", "Multi-Level Layout"]
+    for (const a of round3) ok(`"${a}" was added`, AMENITY_BANK.includes(a))
+    ok("the bank is 56 entries", AMENITY_BANK.length === 56)
 
     // THE PAIRS THAT LOOK LIKE DUPLICATES AND ARE NOT. Each pair must remain two SEPARATE chips:
     // if either collapsed into the other, a property claiming one would be credited with the other.

@@ -85,7 +85,14 @@ ok("vercel.json registers the trigger", !!entry)
 ok("...hourly", entry?.schedule === "0 * * * *")
 ok("the publish worker's schedule is untouched",
   vercel.crons.find((c) => c.path === "/api/cron/social-instagram-publish")?.schedule === "*/5 * * * *")
-ok("no other cron was changed or removed", vercel.crons.length === 8)
+// NINE, not eight. This said 8 and had been failing since social-comment-poll shipped in
+// ec83f71 ("comment automation, deployed inert"), which this suite predates. Verified before
+// changing the number rather than after: all nine entries resolve to a real route handler under
+// app/api/cron/, and each traces to its own deliberate feature commit — auto-archive /
+// archive-monthly / trial-reminders (CRM automation), meta-insights-sync, followup-tick,
+// insights-refresh, social-instagram-publish, social-comment-poll, social-autopilot-plan. None is
+// accidental, so the count was stale and the crons were not. vercel.json is NOT modified.
+ok("no other cron was changed or removed", vercel.crons.length === 9)
 // THE POINT about DST, asserted rather than only commented: the firing expression contains no
 // Central-time hour, because the posting time comes from the plan, not from when the cron fires.
 ok("the cron expression encodes NO posting hour — DST cannot drift it",

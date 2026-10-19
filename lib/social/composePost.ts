@@ -12,7 +12,7 @@
 // any of those into the editable fields as an explicit creative decision.
 
 import { buildHashtags, isCanonicalHashtag, MAX_HASHTAGS, PLATFORM_HASHTAG_LIMIT } from "@/lib/social/hashtags"
-import { parseAmenities } from "@/lib/social/amenities"
+import { parseAmenities, amenityEquivalenceKey, amenityImpliedBySelection } from "@/lib/social/amenities"
 import { normalizeSocialMarket, SOCIAL_MARKETS } from "@/lib/social/markets"
 import { propertyNoun, propertyNounPlural, normalizeToCanonical, PROPERTY_TYPES, COMPOUND_TYPE_QUALIFIERS, SOCIAL_CANONICAL_ORDER } from "@/lib/social/propertyTypes"
 
@@ -50,6 +50,47 @@ const clean = (s: string | null | undefined) => (s ?? "").replace(/\s+/g, " ").t
  *  consistently (order preserved; selection order is meaningful downstream). */
 function features(amenities: string | null | undefined): string[] {
   return parseAmenities(amenities)
+}
+
+/**
+ * Drop a "{QUALIFIER} Layout" amenity when the property TYPE already carries that qualifier.
+ *
+ * Caption only. The amenity is not deselected, not rewritten and not removed from storage — a
+ * Split-Level Loft really does have a split-level layout, and research should say so. This just
+ * stops the public caption asserting it a second time, immediately under an overlay that already
+ * says "Split-Level Loft".
+ *
+ * Comparison is by amenity EQUIVALENCE key, so "Split Level" and "Split-Level Layout" are both
+ * caught. Anything that is not a redundant layout chip passes through untouched, in order.
+ */
+export function withoutRedundantLayout(list: readonly string[], propertyType: string | null | undefined): string[] {
+  const type = (propertyType ?? "").trim()
+  if (!type) return [...list]
+  const qualifier = COMPOUND_TYPE_QUALIFIERS.find((q) => type.startsWith(`${q} `))
+  if (!qualifier) return [...list]
+  const redundant = amenityEquivalenceKey(`${qualifier} Layout`)
+  return list.filter((a) => amenityEquivalenceKey(a) !== redundant)
+}
+
+/**
+ * Withhold a feature from the caption when a STRONGER selected feature already entails it.
+ *
+ * "Tri-Level Layout" and "Multi-Level Layout" are both true of the same unit, and both are worth
+ * recording — but a caption that bullets each one states the layout twice, the weaker time with
+ * less information. So the entailed claim is dropped from the public copy and nothing else.
+ *
+ * NOT a deselection and NOT a storage change: the chips stay as the operator set them, and research
+ * keeps both with their own applicability. Order of survivors is preserved.
+ */
+export function withoutImpliedFeatures(list: readonly string[], propertyType?: string | null): string[] {
+  // THE PROPERTY TYPE IS PART OF THE CLAIM SET, not separate from it. A "Split-Level Loft" asserts
+  // a split-level layout in its type — and therefore in the overlay headline — so it entails
+  // multi-level just as a Split-Level CHIP would. Without this the caption still said the layout
+  // twice: once in the type, once as a "Multi-Level Layout" bullet.
+  const type = (propertyType ?? "").trim()
+  const qualifier = type ? COMPOUND_TYPE_QUALIFIERS.find((q) => type.startsWith(`${q} `)) : undefined
+  const claims = qualifier ? [...list, `${qualifier} Layout`] : list
+  return list.filter((a) => !amenityImpliedBySelection(a, claims))
 }
 
 // Number words we can safely map for promotional durations (weeks/months free are single/low digit).
@@ -395,7 +436,22 @@ function captionSections(src: SourceMeta, opener: string | null, ctaTail?: strin
   // a way to rebuild that form it would freeze as a manual override.
   const rawSpecial = resolveSocialSpecial(src)
   const special = legacySpecialWording ? rawSpecial : captionSpecialPhrase(rawSpecial)
-  const feats = features(src.amenities).slice(0, 3)
+  // LAYOUT IS NOT SAID TWICE. A post typed "Split-Level Loft" already carries the qualifier in its
+  // type — and therefore in the overlay headline and the hashtags — so repeating it as an
+  // Amenities bullet reads as padding rather than a second fact. The chip stays SELECTED and
+  // stored (it is true, and research keeps it); it is only withheld from this caption.
+  //
+  // Driven off COMPOUND_TYPE_QUALIFIERS rather than a hardcoded "Split-Level", so a future
+  // qualifier behaves the same way without another edit here. Applied BEFORE the slice, so
+  // dropping one promotes the next amenity into the caption instead of leaving two bullets.
+  // ORDER IS LOAD-BEARING. Implication is evaluated FIRST, against the full selection plus the
+  // type's own layout claim — if withoutRedundantLayout ran first it would already have removed the
+  // Split-Level chip, leaving nothing to entail Multi-Level, and the caption would bullet
+  // "Multi-Level Layout" under a "Split-Level Loft" overlay. Type-redundancy is removed second.
+  const feats = withoutRedundantLayout(
+    withoutImpliedFeatures(features(src.amenities), src.propertyType),
+    src.propertyType,
+  ).slice(0, 3)
   const sections: string[] = []
   if (opener) sections.push(opener)
   if (special) sections.push(`✨ ${special}`)

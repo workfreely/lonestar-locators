@@ -157,6 +157,23 @@ const POLICY: Policy[] = [
 export const LABELS: Record<string, string> = {
   abundant_natural_light: "Abundant natural light",
   attached_garage: "Attached garage",
+  // ── FLOORING: FOUR DISTINCT MATERIALS, NEVER COLLAPSED ────────────────────────────────────
+  // Property Intelligence already separates these, and the labels must keep them separated: a
+  // property that publishes wood-look plank must never be credited with real hardwood. Two were
+  // already labelled (hardwood_flooring, wood_style_plank); these two were carried by real
+  // properties with NO label, which made label() throw and ABORT the whole research run.
+  luxury_vinyl_plank: "Luxury vinyl plank flooring",
+  engineered_wood: "Engineered wood flooring",
+  // ── LAYOUT: MULTI-LEVEL IS NOT THREE LEVELS ───────────────────────────────────────────────
+  // split_level and multi_level_layout were both unlabelled and both in live use. They are kept
+  // apart deliberately, and tri_level is narrower than either: "multi-level" says more than one
+  // floor and nothing about how many, so a tri-level unit IS multi-level but a multi-level unit is
+  // NOT necessarily tri-level. The labels say so, because a research record that blurred them
+  // would answer "does this have three levels?" with evidence that cannot support it.
+  split_level: "Split-level layout",
+  multi_level_layout: "Multi-level layout (more than one floor; count not stated)",
+  tri_level: "Tri-level layout (three levels)",
+  spiral_staircase: "Spiral staircase",
   built_in_bar: "Built-in bar",
   built_in_desk: "Built-in desk",
   built_in_shelving: "Built-in shelving",
