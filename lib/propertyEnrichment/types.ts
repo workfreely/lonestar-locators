@@ -25,6 +25,22 @@ export type FieldCandidate = {
   sourceReference?: string | null // URL, Google Place ID, or internal source id — optional
   verificationStatus: VerificationStatus
   checkedAt?: string | null // ISO
+  /**
+   * An EXPLICIT, authenticated owner correction of an already-populated field.
+   *
+   * Preserve-by-default exists so no automated pass can quietly replace curated data, and
+   * that must not weaken. This flag is the one deliberate exception, and it is narrow in
+   * three independent ways, all enforced in policy.decideFieldWrite:
+   *   1. it must be set explicitly — every enrichment job leaves it undefined, so no
+   *      automated source can reach this branch even by accident;
+   *   2. the candidate's sourceType must be `manual_verified`;
+   *   3. the field must be in OWNER_CORRECTABLE_FIELDS (time-sensitive pricing only).
+   *
+   * It changes WHETHER the write happens, never how it is LABELLED: verificationStatus is
+   * recorded exactly as supplied, so an owner value without a supporting source is stored
+   * as `inferred` and never gains a verification it has not earned.
+   */
+  ownerOverride?: boolean
 }
 
 export type EnrichmentInput = {

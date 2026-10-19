@@ -45,6 +45,20 @@ export type CatalogRecord = {
   tourUrl: string | null
   applyUrl: string | null
   availabilityUrl: string | null
+  /**
+   * Owner-entered bedroom starting rents (property_catalog). The SHARED record — Social
+   * Beast's Property Research form writes the same columns, so a price entered in either
+   * product is read by both with no synchronisation.
+   *
+   * Null = not entered. The Recommended Properties card derives "2BR from $1,400" from
+   * these at RENDER time (lib/leads/bedroomPricing), so a corrected price is correct
+   * everywhere on the next read and nothing is cached onto a client-property pair.
+   */
+  onebrStartingRent: number | null
+  twobrStartingRent: number | null
+  threebrStartingRent: number | null
+  /** When the rents above were last checked. Display/staleness only; never gates rendering. */
+  pricingLastVerified: string | null
 }
 
 // Catalog access goes through the ID-scoped SECURITY DEFINER RPC
@@ -65,6 +79,13 @@ export async function fetchCatalog(
   if (ids.length === 0) return out
 
   const s = (v: unknown): string | null => (typeof v === "string" && v ? v : null)
+  // Postgres `numeric` arrives over PostgREST as a string ("1400.00"), so Number() is
+  // required; anything non-finite is treated as "not entered" rather than surfacing NaN.
+  const num = (v: unknown): number | null => {
+    if (v === null || v === undefined) return null
+    const n = Number(v)
+    return Number.isFinite(n) ? n : null
+  }
 
   // One RPC call per ≤60-id batch; a failure of any batch is swallowed (the
   // search/enrichment must never break — unenriched rows keep their behavior).
@@ -93,6 +114,12 @@ export async function fetchCatalog(
         tourUrl: s(r.tour_url),
         applyUrl: s(r.apply_url),
         availabilityUrl: s(r.availability_url),
+        // numeric → number. A non-finite or absent value becomes null rather than NaN, so
+        // the pricing layer's "not entered" branch is the one that fires.
+        onebrStartingRent: num(r.onebr_starting_rent),
+        twobrStartingRent: num(r.twobr_starting_rent),
+        threebrStartingRent: num(r.threebr_starting_rent),
+        pricingLastVerified: s(r.pricing_last_verified),
       })
     }
   }
@@ -111,7 +138,7 @@ export async function fetchCatalog(
 export async function attachCatalogRatings<T extends { property_url?: string | null; property_image_url?: string | null }>(
   rows: T[],
   supabase: SupabaseClient,
-): Promise<(T & { google_rating: number | null; property_image_url: string | null; website_url: string | null; tour_url: string | null; apply_url: string | null; availability_url: string | null; current_special: string | null; send_commission: string | null; escort_commission: string | null; bonus_flat: string | null; verified_at: string | null })[]> {
+): Promise<(T & { google_rating: number | null; property_image_url: string | null; website_url: string | null; tour_url: string | null; apply_url: string | null; availability_url: string | null; current_special: string | null; send_commission: string | null; escort_commission: string | null; bonus_flat: string | null; verified_at: string | null; onebr_starting_rent: number | null; twobr_starting_rent: number | null; threebr_starting_rent: number | null; pricing_last_verified: string | null })[]> {
   const placeIds = rows.map((r) => placeIdFromPropertyUrl(r.property_url))
   const catalog = await fetchCatalog(
     placeIds.filter((v): v is string => !!v),
@@ -144,6 +171,13 @@ export async function attachCatalogRatings<T extends { property_url?: string | n
       escort_commission: rec?.escortCommission ?? null,
       bonus_flat: rec?.bonusFlat ?? null,
       verified_at: rec?.verifiedAt ?? null,
+      // Owner-entered bedroom pricing, read-side like every other catalog field. NEVER
+      // stored on lead_recommendations / lead_favorites — property_catalog stays the single
+      // source of truth, so a price correction is reflected without touching a lead row.
+      onebr_starting_rent: rec?.onebrStartingRent ?? null,
+      twobr_starting_rent: rec?.twobrStartingRent ?? null,
+      threebr_starting_rent: rec?.threebrStartingRent ?? null,
+      pricing_last_verified: rec?.pricingLastVerified ?? null,
     }
   })
 }

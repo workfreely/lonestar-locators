@@ -348,7 +348,14 @@ async function isPlatformAdmin(): Promise<boolean> {
 
 export default async function Page() {
   const { demoMode, firstName, googleConnected, agent, signature, avgCommission, projectionMethod, timeZone, workHours, automatedTextingAuthorized, companionOwner, userId, serviceAreaSlugs, primaryMarket, licenseState, followUpTemplates } = await getProfileContext()
-  const voiceEnabled = await isPlatformAdmin()
+  // ONE owner check, read once per request. Both features gate on platform-admin today;
+  // they are named separately so either can move without dragging the other with it.
+  const isOwner = await isPlatformAdmin()
+  const voiceEnabled = isOwner
+  // Owner-only property pricing pencil on Recommended Properties cards. Presentation only —
+  // /api/admin/owner/property-pricing re-checks requirePlatformAdmin() on every call.
+  // Deliberately NOT passed in demo mode: demo fixtures must never reach a real catalog write.
+  const pricingEditorEnabled = isOwner
 
   if (demoMode) {
     return (
@@ -389,5 +396,5 @@ export default async function Page() {
     getSentGuestCards(),
   ])
 
-  return <DashboardClient leads={leads} nextActions={nextActions} favorites={favorites} recommendations={recommendations} outreach={outreach} tours={tours} sentGuestCards={sentGuestCards} agent={agent} signature={signature} avgCommission={avgCommission} projectionMethod={projectionMethod} timeZone={timeZone} workHours={workHours} automatedTextingAuthorized={automatedTextingAuthorized} voiceEnabled={voiceEnabled} companionOwner={companionOwner} userId={userId} serviceAreaSlugs={serviceAreaSlugs} primaryMarket={primaryMarket} licenseState={licenseState} followUpTemplates={followUpTemplates} />
+  return <DashboardClient leads={leads} nextActions={nextActions} favorites={favorites} recommendations={recommendations} outreach={outreach} tours={tours} sentGuestCards={sentGuestCards} agent={agent} signature={signature} avgCommission={avgCommission} projectionMethod={projectionMethod} timeZone={timeZone} workHours={workHours} automatedTextingAuthorized={automatedTextingAuthorized} voiceEnabled={voiceEnabled} companionOwner={companionOwner} userId={userId} serviceAreaSlugs={serviceAreaSlugs} primaryMarket={primaryMarket} licenseState={licenseState} followUpTemplates={followUpTemplates} pricingEditorEnabled={pricingEditorEnabled} />
 }

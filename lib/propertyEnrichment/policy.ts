@@ -184,6 +184,28 @@ export function toStoredText(value: unknown): string | null {
   return s.trim() === "" ? null : s
 }
 
+// ── OWNER-CORRECTABLE FIELDS ────────────────────────────────────────────────────────────
+// The ONLY fields an explicit owner correction may replace once populated. Deliberately
+// confined to TIME-SENSITIVE pricing: a rent or a concession is expected to change, and a
+// stale one is worse than no value, so a human who has just checked it should win. Stable
+// curated intelligence (identity, geography, amenities) is NOT here and keeps preserve-by-
+// default in full — and commission is excluded twice over, since the firewall in the writer
+// rejects it before this is ever consulted.
+export const OWNER_CORRECTABLE_FIELDS = new Set([
+  "studio_starting_rent",
+  "onebr_starting_rent",
+  "twobr_starting_rent",
+  "threebr_starting_rent",
+  "fourbr_starting_rent",
+  "fivebr_plus_starting_rent",
+  "townhome_starting_rent",
+  "penthouse_starting_rent",
+  "loft_starting_rent",
+  "current_special",
+  "pricing_last_verified",
+  "has_live_pricing",
+])
+
 export type Decision = { outcome: "write" | "skip"; reason: string }
 
 /**
@@ -205,8 +227,11 @@ export function decideFieldWrite(args: {
   candidateVerification: VerificationStatus
   currentText: string | null
   currentProvenance: FieldProvenance | null
+  /** See FieldCandidate.ownerOverride. Absent/false on every automated path. */
+  candidateOwnerOverride?: boolean
 }): Decision {
   const { field, candidateText, candidateSourceType, candidateVerification, currentText, currentProvenance } = args
+  const ownerOverride = args.candidateOwnerOverride === true
 
   // Missing research result → NEVER write / never null out an existing value.
   if (candidateText === null) return { outcome: "skip", reason: "no_value" }
@@ -235,6 +260,26 @@ export function decideFieldWrite(args: {
     ) {
       return { outcome: "skip", reason: "unchanged" }
     }
+  }
+
+  // EXPLICIT OWNER CORRECTION (targeted; does NOT weaken preserve-by-default for any
+  // automated source). A platform owner who has just checked a price and is deliberately
+  // correcting it outranks the stored value — that is the whole point of the editor, and
+  // refusing it would leave a stale rent on the card with no way to fix it.
+  //
+  // Unreachable from enrichment: `ownerOverride` is never set by any job, the sourceType
+  // must be the internal manual one, and the field set is time-sensitive pricing only.
+  // Commission never reaches here at all (the writer's firewall rejects it first).
+  //
+  // The WRITE is authorized here; the LABEL is not touched. candidateVerification flows
+  // through to the audit exactly as supplied, so an owner value with no supporting source
+  // is recorded as `inferred` rather than being promoted to `verified`.
+  if (
+    ownerOverride &&
+    candidateSourceType === "manual_verified" &&
+    OWNER_CORRECTABLE_FIELDS.has(field)
+  ) {
+    return { outcome: "write", reason: `owner_correction_${candidateVerification}` }
   }
 
   // OWNERSHIP-AWARE REFRESH (targeted; does NOT weaken preserve-by-default for stable

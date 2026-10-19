@@ -18,9 +18,21 @@ import { MAX_REASONS } from "@bc/companion-shared"
  */
 export default function ReasonsControl({
   reasons,
+  previewReasons,
   onSave,
 }: {
+  /** The SAVED reasons. This is what the editor seeds from and what onSave receives. */
   reasons: string[]
+  /**
+   * What the collapsed preview shows — the saved reasons plus any DERIVED one (today, the
+   * bedroom starting price). Defaults to `reasons`, so every existing call site is unchanged.
+   *
+   * THE TWO ARE KEPT APART ON PURPOSE. If the editor seeded from the derived list, opening
+   * it and pressing Save would write the derived price into lead_property_reasons as if the
+   * locator had typed it — and it would then be frozen there, surviving a later price
+   * correction. Editing always operates on `reasons`; `previewReasons` is display only.
+   */
+  previewReasons?: string[]
   onSave: (next: string[]) => Promise<boolean>
 }) {
   const [open, setOpen] = useState(false)
@@ -46,6 +58,9 @@ export default function ReasonsControl({
     setOpen(false)
   }
 
+  // Display only. The editor below always works from `reasons`.
+  const shown = previewReasons ?? reasons
+
   if (!open) {
     return (
       // flex-1 + min-w-0 so this half ABSORBS the row's spare width and, more
@@ -61,7 +76,7 @@ export default function ReasonsControl({
         >
           Why I chose this · Edit
         </button>
-        {reasons.length > 0 && (
+        {shown.length > 0 && (
           // The saved reasons are CONTENT, so they take the same bright treatment as
           // the Google rating figure rather than the muted tone of the control.
           //
@@ -70,7 +85,7 @@ export default function ReasonsControl({
           // preferentially shortened, and the commute reason is not special-cased.
           // The editor and the canonical row keep the full text.
           <span className="min-w-0 truncate text-[10.5px] text-[var(--crm-text-secondary)]">
-            {reasons.join(" · ")}
+            {shown.join(" · ")}
           </span>
         )}
       </div>

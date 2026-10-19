@@ -17,7 +17,11 @@ export class SupabaseEnrichmentStore implements EnrichmentStore, AttributeStore 
   async loadProperty(placeId: string): Promise<PropertySnapshot | null> {
     const { data } = await supabaseAdmin.from("property_catalog").select(READ_COLUMNS).eq("place_id", placeId).maybeSingle()
     if (!data) return null
-    const row = data as Record<string, unknown>
+    // Through `unknown`: READ_COLUMNS is built at runtime from the policy sets, so PostgREST's
+    // generated types cannot narrow the select and infer GenericStringError, which has no index
+    // signature. A direct cast is therefore rejected. TYPES ONLY — `data` is the same object and
+    // every line below is unchanged.
+    const row = data as unknown as Record<string, unknown>
     const values: Record<string, unknown> = {}
     for (const k of Object.keys(row)) {
       if (k === "place_id" || k === "updated_at" || k === "image_selection_state" || k === "image_backup_state") continue

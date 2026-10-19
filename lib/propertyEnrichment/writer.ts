@@ -194,6 +194,9 @@ function evaluate(
     candidateVerification: cand.verificationStatus,
     currentText,
     currentProvenance: provenance[cand.field] ?? null,
+    // Explicit owner correction. Undefined on every enrichment path, so this cannot widen
+    // what an automated job is allowed to replace — see FieldCandidate.ownerOverride.
+    candidateOwnerOverride: cand.ownerOverride === true,
   })
   return { decision: d.outcome, reason: d.reason, oldValue: currentText }
 }

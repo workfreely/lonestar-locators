@@ -2,7 +2,11 @@
 
 import { SectionCard } from "./LeadPanelSections"
 import ReasonsControl from "./ReasonsControl"
+import PropertyPricingEditor from "./PropertyPricingEditor"
 import PropertyThumb from "./PropertyThumb"
+import { MAX_REASONS } from "@bc/companion-shared"
+import { displayReasons } from "@/lib/leads/bedroomPricing"
+import { placeIdFromPropertyUrl } from "@/lib/propertyExplorer/types"
 import { displayAddress, formatRating, normalizeShortSpecial, isSpecialCurrent, evaluateLocatorCommission } from "@bc/companion-shared"
 import { StarRating } from "./StarRating"
 import RecommendationEngagement from "./RecommendationEngagement"
@@ -29,6 +33,8 @@ export default function BestMatches({
   onOpenSentHistory,
   reasonsByKey,
   onSaveReasons,
+  canEditPricing = false,
+  onPricingSaved,
 }: {
   lead: any
   recommendations?: any[]
@@ -47,6 +53,14 @@ export default function BestMatches({
    *  the recommendation row id — the row is deleted when the property moves to
    *  Favorites, and the reasons must outlive it. */
   onSaveReasons?: (canonicalPropertyKey: string, reasons: string[]) => Promise<boolean>
+  /**
+   * Platform-owner only: show the pricing pencil. PRESENTATION ONLY — the authorization
+   * boundary is requirePlatformAdmin() inside /api/admin/owner/property-pricing, which
+   * re-checks on every call. Hiding this never has to be relied on.
+   */
+  canEditPricing?: boolean
+  /** Bumped after a pricing save so the derived reason re-renders with the new value. */
+  onPricingSaved?: () => void
 }) {
   const leadRecommendations = (recommendations || []).filter(
     (r) => String(r.lead_id) === String(lead?.id),
@@ -72,6 +86,28 @@ export default function BestMatches({
             // or 0%. Wiring the real source later populates this without a card redesign.
             const matchScore = typeof (r as { match_score?: unknown }).match_score === "number" ? (r as { match_score: number }).match_score : null
             const showMatch = matchScore !== null && Number.isFinite(matchScore) && matchScore > 0
+
+            // The catalog identity for THIS row, resolved from its Google Maps property_url
+            // exactly as the rating/image enrichment does. Null when the URL yields no place
+            // id — the pencil is then not offered, because an editor with no confident
+            // property to write against could only guess.
+            const pricingPlaceId = placeIdFromPropertyUrl(r.property_url)
+
+            // The SAVED reasons (canonical, locator-owned) and the DISPLAY list (those plus
+            // the derived bedroom price). They are deliberately separate values: the editor
+            // writes `savedReasons`, the row renders `shownReasons`, and the price therefore
+            // never becomes stored text that a later correction would leave stale.
+            const savedReasons = reasonsByKey?.get(String(r.canonical_property_key)) ?? []
+            const shownReasons = displayReasons(
+              savedReasons,
+              {
+                onebrStartingRent: (r as { onebr_starting_rent?: number | null }).onebr_starting_rent ?? null,
+                twobrStartingRent: (r as { twobr_starting_rent?: number | null }).twobr_starting_rent ?? null,
+                threebrStartingRent: (r as { threebr_starting_rent?: number | null }).threebr_starting_rent ?? null,
+              },
+              lead?.beds,
+              MAX_REASONS,
+            )
             return (
             <div
               key={r.id}
@@ -92,7 +128,7 @@ export default function BestMatches({
                       ) : (
                         <p className="min-w-0 truncate text-[12.5px] font-semibold text-[var(--crm-text-primary)]">{r.property_name}</p>
                       )}
-                      {(onRemoveRecommendation || onMoveToFavorite) && (
+                      {(onRemoveRecommendation || onMoveToFavorite || (canEditPricing && pricingPlaceId)) && (
                         <div className="flex flex-none items-center gap-1.5">
                           {onRemoveRecommendation && (
                             <button
@@ -104,6 +140,22 @@ export default function BestMatches({
                             >
                               ✕
                             </button>
+                          )}
+                          {/* Owner-only pricing pencil — IMMEDIATELY LEFT OF THE HEART, as
+                              specified. The existing ✕ and ♡ keep their order, their
+                              handlers and their styling; this is inserted between them and
+                              matches their 22×22 footprint, so the controls row and the
+                              card height are unchanged. Rendered only when the property
+                              resolves to a catalog place_id — without one there is nothing
+                              to write against, and offering an editor that could not save
+                              (or worse, could be pointed at the wrong property) is not an
+                              option. */}
+                          {canEditPricing && pricingPlaceId && (
+                            <PropertyPricingEditor
+                              placeId={pricingPlaceId}
+                              propertyName={r.property_name}
+                              onSaved={onPricingSaved}
+                            />
                           )}
                           {onMoveToFavorite && (
                             <button
@@ -165,7 +217,11 @@ export default function BestMatches({
                     client-facing page placement is NOT affected by this control. */}
                 {onSaveReasons && r.canonical_property_key ? (
                   <ReasonsControl
-                    reasons={reasonsByKey?.get(String(r.canonical_property_key)) ?? []}
+                    // Editing always operates on the SAVED reasons…
+                    reasons={savedReasons}
+                    // …while the inline preview shows the derived list (location · price ·
+                    // amenity). Nothing here can write the price back.
+                    previewReasons={shownReasons}
                     onSave={(next) => onSaveReasons(String(r.canonical_property_key), next)}
                   />
                 ) : <span />}

@@ -114,7 +114,7 @@ function toCompanionLocator(signature: ResolvedAgentIdentity | null, agentName?:
   }
 }
 
-export default function DashboardClient({ leads, nextActions, favorites, recommendations = [], outreach = [], tours = [], sentGuestCards = [], demoMode = false, firstName = "", googleConnected = false, agent, signature = null, avgCommission = 1000, projectionMethod = DEFAULT_PROJECTION_METHOD, timeZone = DEFAULT_TIMEZONE, workHours = {}, automatedTextingAuthorized = false, voiceEnabled = false, companionOwner = "", userId = "", serviceAreaSlugs = [], primaryMarket = null, licenseState = null, followUpTemplates = {} }: { leads: any[]; nextActions: any[]; favorites: any[]; recommendations?: any[]; outreach?: any[]; tours?: any[]; sentGuestCards?: any[]; demoMode?: boolean; firstName?: string; googleConnected?: boolean; agent?: GuestCardAgent; signature?: ResolvedAgentIdentity | null; avgCommission?: number; projectionMethod?: ProjectionMethod; timeZone?: string; /** Locator Working Hours (Profile setting); {} → 9–21 default window. */ workHours?: WorkHours; /** Account-level Automated Texting authorization (private rollout), server-resolved. Gates the per-client control. */ automatedTextingAuthorized?: boolean; /** Beast Voice alpha — true only for a platform admin, resolved server-side. */ voiceEnabled?: boolean;
+export default function DashboardClient({ leads, nextActions, favorites, recommendations = [], outreach = [], tours = [], sentGuestCards = [], demoMode = false, firstName = "", googleConnected = false, agent, signature = null, avgCommission = 1000, projectionMethod = DEFAULT_PROJECTION_METHOD, timeZone = DEFAULT_TIMEZONE, workHours = {}, automatedTextingAuthorized = false, voiceEnabled = false, companionOwner = "", userId = "", serviceAreaSlugs = [], primaryMarket = null, licenseState = null, followUpTemplates = {}, pricingEditorEnabled = false }: { leads: any[]; nextActions: any[]; favorites: any[]; recommendations?: any[]; outreach?: any[]; tours?: any[]; sentGuestCards?: any[]; demoMode?: boolean; firstName?: string; googleConnected?: boolean; agent?: GuestCardAgent; signature?: ResolvedAgentIdentity | null; avgCommission?: number; projectionMethod?: ProjectionMethod; timeZone?: string; /** Locator Working Hours (Profile setting); {} → 9–21 default window. */ workHours?: WorkHours; /** Account-level Automated Texting authorization (private rollout), server-resolved. Gates the per-client control. */ automatedTextingAuthorized?: boolean; /** Beast Voice alpha — true only for a platform admin, resolved server-side. */ voiceEnabled?: boolean; /** Owner-only property pricing pencil on Recommended Properties cards — true only for a platform admin, resolved server-side. Presentation only; the API re-checks. */ pricingEditorEnabled?: boolean;
   /** Opaque "<userId>:<workspaceId>" for the signed-in locator. Beast Companion
    *  binds every stored client record to it so a different account on the same
    *  browser can never see this locator's client. Server-derived. */
@@ -4513,6 +4513,10 @@ export default function DashboardClient({ leads, nextActions, favorites, recomme
                     lead={selectedLead}
                     reasonsByKey={reasonsByKey}
                     onSaveReasons={handleSaveReasons}
+                    canEditPricing={pricingEditorEnabled}
+                    // A saved price lives on property_catalog, not on any lead row, so a
+                    // server refresh is what re-reads it — nothing local to invalidate.
+                    onPricingSaved={() => router.refresh()}
                     // Favorites wins for a legacy duplicate — the same rule the
                     // Companion payload applies, so both surfaces agree. Presentation
                     // only; the stray row is removed by the next deliberate move.
