@@ -129,16 +129,19 @@ export function concessionPhrase(a: AverageRent): string {
 
 /**
  * The exact client-facing line:
- *     Avg. Rent: $1,460/month · 10 wks free · 15-month lease
+ *     Avg. Rent: $1,460/month · 10 wks free
  *
- * The lease term stays. It is what makes the average checkable rather than asserted — a renter
- * who can see the rent, the concession and the term can follow the arithmetic, and one who
- * cannot has to take the figure on trust. The weight is carried by the STYLING, which is lighter
- * and smaller than the bullet above, rather than by removing the facts.
+ * THE LEASE TERM IS NOT DISPLAYED, and that is a display decision only. It is still required,
+ * still verified, and still divides the concession in computeAverageRent — an average without a
+ * term is not computable, so a missing term returns null and nothing renders. What changed is
+ * that the term no longer competes for the line: on a phone the three-segment version wrapped to
+ * two lines and the figure that matters, the average itself, lost the emphasis it had just been
+ * given. The term remains on the record behind the number and in the locator's own editor.
  *
  * This wording is NOT frozen. The line is formatted at render time from the frozen inputs, so a
  * copy change reaches every list, old and new, without touching a snapshot and without
- * invalidating a prepared one — the fingerprint hashes the figures, not this sentence.
+ * invalidating a prepared one — the fingerprint hashes the figures, not this sentence. That is
+ * why dropping a segment here is safe for lists already sent.
  *
  * Returns null when there is nothing to show, so a caller can render it or not on one check.
  */
@@ -148,12 +151,12 @@ export function averageRentLine(input: AverageRentInputs | null | undefined): st
 }
 
 /**
- * The same line, as its three SEGMENTS.
+ * The same line, as its SEGMENTS.
  *
  * The client card renders these as separate non-wrapping spans so a narrow screen breaks the
- * line at a separator rather than inside a phrase. Left to itself the text stranded "lease" on
- * a line of its own at 390px — the same orphan the address had, and the same fix: let the break
- * happen where the sentence already has a seam.
+ * line at a separator rather than inside a phrase. The two that remain fit one line at 375px,
+ * so the break should never be needed — but the segments stay, because the widest plausible
+ * figures ($12,480/month) still have to break somewhere safe rather than mid-number.
  *
  * averageRentLine joins them for anywhere a plain string is wanted — the workspace preview, the
  * tests — so there is one wording, in one place, whichever form a caller needs.
@@ -161,7 +164,9 @@ export function averageRentLine(input: AverageRentInputs | null | undefined): st
 export function averageRentSegments(input: AverageRentInputs | null | undefined): string[] | null {
   const a = computeAverageRent(input)
   if (!a) return null
-  return [`Avg. Rent: ${money(a.average)}/month`, concessionPhrase(a), `${a.leaseMonths}-month lease`]
+  // leaseMonths is deliberately NOT rendered — see averageRentLine. It is still what the
+  // concession was divided over, and a.leaseMonths remains available to any caller that wants it.
+  return [`Avg. Rent: ${money(a.average)}/month`, concessionPhrase(a)]
 }
 
 /**

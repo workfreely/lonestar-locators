@@ -41,17 +41,30 @@ console.log("\n=== 1. THE APPROVED EXAMPLE, AND THE CONVENTION ===")
 {
   eq("the exact client line",
     averageRentLine(ON({})),
-    "Avg. Rent: $1,460/month · 10 wks free · 15-month lease")
-  eq("the three segments, for a wrap that falls at a separator",
+    "Avg. Rent: $1,460/month · 10 wks free")
+  eq("two segments, so a wrap can only fall at the separator",
     averageRentSegments(ON({})),
-    ["Avg. Rent: $1,460/month", "10 wks free", "15-month lease"])
+    ["Avg. Rent: $1,460/month", "10 wks free"])
   ok("the joined line and the segments are one wording",
     averageRentSegments(ON({}))!.join(" · ") === averageRentLine(ON({})))
   eq("no segments when there is no average", averageRentSegments(ON({ show: false })), null)
   ok("the label is abbreviated, the facts are not",
     averageRentLine(ON({}))!.startsWith("Avg. Rent: ") &&
-    averageRentLine(ON({}))!.includes("10 wks free") &&
-    averageRentLine(ON({}))!.includes("15-month lease"))
+    averageRentLine(ON({}))!.includes("10 wks free"))
+  ok("/month is spelled out, never abbreviated", averageRentLine(ON({}))!.includes("/month") &&
+    !/\/mo\b/.test(averageRentLine(ON({}))!))
+
+  // THE LEASE TERM IS A DISPLAY REMOVAL ONLY. It still divides the concession, it is still
+  // required, and it is still on the computed record — these pin that the number did not move
+  // when the words did.
+  ok("the term is gone from the LINE", !averageRentLine(ON({}))!.includes("lease"))
+  eq("…but still drives the arithmetic", computeAverageRent(ON({}))!.average, 1460)
+  // (12 - 10*12/52) * 1725 / 12 = 1393.27 -> 1393. A shorter lease spreads the same 10 weeks
+  // over fewer months, so the average RISES — the term is doing real work in the arithmetic.
+  eq("…and a different term still gives a different answer",
+    computeAverageRent(ON({ leaseMonths: 12 }))!.average, 1393)
+  eq("…and is still carried on the record", computeAverageRent(ON({}))!.leaseMonths, 15)
+  eq("a missing term still renders nothing at all", averageRentLine(ON({ leaseMonths: null })), null)
   eq("a 52-week year is the constant", MONTHS_PER_WEEK, 12 / 52)
 
   // The convention is worth money, so it is asserted, not assumed.
