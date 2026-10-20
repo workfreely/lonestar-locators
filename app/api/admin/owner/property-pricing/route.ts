@@ -7,6 +7,7 @@ import { supabaseAdmin } from "@/lib/supabase/admin"
 import { enrichProperty } from "@/lib/propertyEnrichment/writer"
 import { SupabaseEnrichmentStore } from "@/lib/propertyEnrichment/stores/supabaseStore"
 import type { FieldCandidate, VerificationStatus } from "@/lib/propertyEnrichment/types"
+import { asCatalogWasherDryerIncluded, asCatalogWasherDryerConnections } from "@/lib/leads/washerDryer"
 
 /**
  * OWNER-ONLY property pricing — the editor behind the pencil on a Recommended Properties card.
@@ -58,7 +59,8 @@ const READ_COLUMNS =
   "place_id, property_name, address, city, state, zip, " +
   "onebr_starting_rent, twobr_starting_rent, threebr_starting_rent, " +
   "current_special, current_special_source, current_special_checked_at, pricing_last_verified, " +
-  "send_commission, escort_commission, bonus_flat"
+  "send_commission, escort_commission, bonus_flat, " +
+  "washer_dryer_included, washer_dryer_connections"
 
 function cleanPlaceId(v: unknown): string | null {
   const s = typeof v === "string" ? v.trim() : ""
@@ -129,6 +131,10 @@ export async function GET(req: NextRequest) {
     sendCommission: s(row.send_commission),
     escortCommission: s(row.escort_commission),
     bonusFlat: s(row.bonus_flat),
+    // Property-level washer/dryer, VERBATIM in the catalog's own vocabulary. Null stays null so
+    // the editor can show "Not Verified" rather than inventing a "No".
+    washerDryerIncluded: s(row.washer_dryer_included),
+    washerDryerConnections: s(row.washer_dryer_connections),
   })
 }
 
@@ -189,6 +195,26 @@ export async function PUT(req: NextRequest) {
   if ("currentSpecial" in body) {
     const s = typeof body.currentSpecial === "string" ? body.currentSpecial.trim().slice(0, 500) : ""
     if (s) { touchedPricing = true; add("current_special", s) }
+  }
+
+  // ── WASHER / DRYER, at the PROPERTY level ─────────────────────────────────────────────────
+  // Written only as one of the values the column already holds; anything else is dropped rather
+  // than stored, so the vocabulary cannot drift from one save.
+  //
+  // "Not Verified" means LEAVE IT ALONE, exactly as a blank rent does above — it is not an
+  // instruction to erase. Clearing a populated value back to unknown would need the separate
+  // ownerClear key, which is deliberately scoped to commission and is not widened here.
+  //
+  // This never reaches a client's recommendation card. The client-facing status is a different,
+  // per-(client, property) value the locator confirms in the reasons editor, because a
+  // property-level "Select Units" is not a promise about one client's floor plan.
+  if ("washerDryerIncluded" in body) {
+    const v = asCatalogWasherDryerIncluded(body.washerDryerIncluded)
+    if (v) add("washer_dryer_included", v)
+  }
+  if ("washerDryerConnections" in body) {
+    const v = asCatalogWasherDryerConnections(body.washerDryerConnections)
+    if (v) add("washer_dryer_connections", v)
   }
 
   // ── COMMISSION ────────────────────────────────────────────────────────────────────────────

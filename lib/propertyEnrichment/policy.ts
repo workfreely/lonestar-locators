@@ -216,6 +216,14 @@ export const OWNER_CORRECTABLE_FIELDS = new Set([
   "current_special",
   "pricing_last_verified",
   "has_live_pricing",
+  // Washer/dryer, recorded at the PROPERTY level. Added so an owner who has just verified a
+  // building can correct a value that is already populated — without it, preserve-by-default
+  // refuses the edit as a conflict and the stale answer stands. Narrow by the same three locks
+  // as the rest of this set: the candidate must carry ownerOverride, its sourceType must be the
+  // internal manual_verified, and the field must be listed here. The commission firewall is a
+  // separate, additional gate and is not touched.
+  "washer_dryer_included",
+  "washer_dryer_connections",
 ])
 
 export type Decision = { outcome: "write" | "skip"; reason: string }

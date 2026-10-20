@@ -77,7 +77,17 @@ console.log("\n=== 5. COMMISSION SECTION ===")
 {
   ok("three commission inputs in one row",
     /\["Send \(%\)", send, setSend/.test(ed) && /\["Escort \(%\)", escort, setEscort/.test(ed) && /\["Bonus \(\$\)", bonus, setBonus/.test(ed))
-  ok("no commission-type selector", !/commissionType|<select/.test(ed))
+  // Commission stays THREE FREE-TEXT INPUTS. The original form of this check banned <select>
+  // anywhere in the file, which was a proxy for the commission block and became wrong the moment
+  // the editor gained unrelated dropdowns (washer/dryer, Quick Special). Scoped to the block it
+  // was always about, so it still fails if a commission dropdown is ever introduced — a picker
+  // there would have to constrain the legacy TEXT values ("No", "Not Paying", "1 month") the
+  // editor shows verbatim, and converting one is meant to be a deliberate act.
+  ok("no commission-type selector", !/commissionType/.test(ed))
+  {
+    const block = ed.slice(ed.indexOf("Locator commission"))
+    ok("the commission block has no dropdown", !/<select/.test(block))
+  }
   ok("marked internal only", ed.includes("Internal only"))
   ok("change-tracking decides what is sent",
     /const changed = \(now: string, before: string\) => now\.trim\(\) !== before\.trim\(\)/.test(ed) &&
