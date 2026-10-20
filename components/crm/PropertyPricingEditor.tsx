@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react"
 import DateTimePicker from "./DateTimePicker"
 import { CATALOG_WD_INCLUDED_OPTIONS, CATALOG_WD_CONNECTIONS_OPTIONS,
-  asCatalogWasherDryerIncluded, asCatalogWasherDryerConnections } from "@/lib/leads/washerDryer"
+  asCatalogWasherDryerIncluded, asCatalogWasherDryerConnections } from "@/lib/propertyIntel/washerDryerCatalog"
 
 /**
  * Owner-only property pricing editor — the pencil on a Recommended Properties card.
@@ -392,20 +392,25 @@ export default function PropertyPricingEditor({
                     catalog's own vocabulary. "Select Units" and "Specific Floor Plans" are why
                     this is never promised to a client automatically: what the building offers is
                     not what one client's floor plan has. The client-facing pill is confirmed
-                    separately, per client, in the reasons editor. */}
+                    separately, per client, in the reasons editor.
+
+                    BOTH LABELS SAY W/D. "Appliances included" read as refrigerators and stoves —
+                    a field about washers should not make the reader guess which appliances are
+                    meant. Connections sits on the LEFT because it is the weaker fact of the two,
+                    so the pair reads from hookups up to included. */}
                 <div className="mt-3 grid grid-cols-2 gap-2">
                   <div>
-                    <span className={label}>Appliances included</span>
-                    <select value={wdIncluded} onChange={(e) => setWdIncluded(e.target.value)} className={`${field} mt-1`}>
-                      {CATALOG_WD_INCLUDED_OPTIONS.map((o) => (
+                    <span className={label}>W/D Connections</span>
+                    <select value={wdConnections} onChange={(e) => setWdConnections(e.target.value)} className={`${field} mt-1`}>
+                      {CATALOG_WD_CONNECTIONS_OPTIONS.map((o) => (
                         <option key={o.value || "none"} value={o.value}>{o.label}</option>
                       ))}
                     </select>
                   </div>
                   <div>
-                    <span className={label}>W/D connections</span>
-                    <select value={wdConnections} onChange={(e) => setWdConnections(e.target.value)} className={`${field} mt-1`}>
-                      {CATALOG_WD_CONNECTIONS_OPTIONS.map((o) => (
+                    <span className={label}>W/D Included</span>
+                    <select value={wdIncluded} onChange={(e) => setWdIncluded(e.target.value)} className={`${field} mt-1`}>
+                      {CATALOG_WD_INCLUDED_OPTIONS.map((o) => (
                         <option key={o.value || "none"} value={o.value}>{o.label}</option>
                       ))}
                     </select>

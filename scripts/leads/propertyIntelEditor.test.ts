@@ -19,7 +19,7 @@ import { join } from "node:path"
 import {
   CATALOG_WD_INCLUDED_OPTIONS, CATALOG_WD_CONNECTIONS_OPTIONS,
   asCatalogWasherDryerIncluded, asCatalogWasherDryerConnections,
-} from "@/lib/leads/washerDryer"
+} from "@/lib/propertyIntel/washerDryerCatalog"
 import { OWNER_CORRECTABLE_FIELDS, OWNER_COMMISSION_FIELDS, decideFieldWrite } from "@/lib/propertyEnrichment/policy"
 import { normalizeShortSpecial } from "@bc/companion-shared"
 
@@ -37,14 +37,21 @@ const raw = (p: string) => readFileSync(join(process.cwd(), p), "utf8")
 
 console.log("\n=== 1. THE DROPDOWNS OFFER THE CATALOG'S OWN VALUES ===")
 {
-  eq("Appliances included — five options, Not Verified first",
+  eq("W/D Included — five options, Not Verified LAST",
     CATALOG_WD_INCLUDED_OPTIONS.map((o) => o.value),
-    ["", "Yes", "Select Units", "Specific Floor Plans", "No"])
-  eq("W/D connections — four options, no Specific Floor Plans",
+    ["Yes", "No", "Select Units", "Specific Floor Plans", ""])
+  eq("W/D Connections — four options, no Specific Floor Plans",
     CATALOG_WD_CONNECTIONS_OPTIONS.map((o) => o.value),
-    ["", "Yes", "Select Units", "No"])
-  ok("the empty value reads as Not Verified on both",
-    CATALOG_WD_INCLUDED_OPTIONS[0].label === "Not Verified" && CATALOG_WD_CONNECTIONS_OPTIONS[0].label === "Not Verified")
+    ["Yes", "No", "Select Units", ""])
+  ok("the empty value reads as Not Verified on both, at the end of each menu",
+    CATALOG_WD_INCLUDED_OPTIONS.at(-1)!.label === "Not Verified" &&
+    CATALOG_WD_CONNECTIONS_OPTIONS.at(-1)!.label === "Not Verified")
+  // Menu order is presentation; the STORED vocabulary must be untouched by a reorder.
+  eq("the stored values are the same set as before, regardless of order",
+    [...CATALOG_WD_INCLUDED_OPTIONS.map((o) => o.value)].filter(Boolean).sort(),
+    ["No", "Select Units", "Specific Floor Plans", "Yes"])
+  eq("…and for connections", [...CATALOG_WD_CONNECTIONS_OPTIONS.map((o) => o.value)].filter(Boolean).sort(),
+    ["No", "Select Units", "Yes"])
 
   for (const v of ["Yes", "Select Units", "Specific Floor Plans", "No"]) {
     ok(`included accepts ${JSON.stringify(v)}`, asCatalogWasherDryerIncluded(v) === v)
@@ -90,6 +97,26 @@ console.log("\n=== 2. THE OWNER CAN CORRECT A POPULATED VALUE — AND ONLY AS AN
   }
   eq("an unrelated curated field is still preserved by default",
     decideFieldWrite({ field: "property_type", ...base, candidateOwnerOverride: true }).outcome, "skip")
+}
+
+console.log("\n=== 2b. THE LABELS SAY WASHER/DRYER, AND CONNECTIONS COMES FIRST ===")
+{
+  const ed = raw("components/crm/PropertyPricingEditor.tsx")
+  // Stripped: the comment recording WHY "Appliances included" was wrong is worth keeping, and a
+  // comment is not a label. What must not survive is the rendered word.
+  ok("no RENDERED label says 'Appliances'", !/Appliances/i.test(read("components/crm/PropertyPricingEditor.tsx")))
+  ok("both labels name W/D", /W\/D Connections/.test(ed) && /W\/D Included/.test(ed))
+  ok("Connections is rendered LEFT of Included",
+    ed.indexOf("W/D Connections") < ed.indexOf("W/D Included"))
+  ok("each label still sits with its own field",
+    /W\/D Connections<\/span>[\s\S]{0,160}setWdConnections/.test(ed) &&
+    /W\/D Included<\/span>[\s\S]{0,160}setWdIncluded/.test(ed))
+  // The database mapping is what must NOT move.
+  const route = read("app/api/admin/owner/property-pricing/route.ts")
+  ok("washerDryerConnections still writes washer_dryer_connections",
+    /asCatalogWasherDryerConnections\(body\.washerDryerConnections\)[\s\S]{0,160}add\("washer_dryer_connections", v\)/.test(route))
+  ok("washerDryerIncluded still writes washer_dryer_included",
+    /asCatalogWasherDryerIncluded\(body\.washerDryerIncluded\)[\s\S]{0,160}add\("washer_dryer_included", v\)/.test(route))
 }
 
 console.log("\n=== 3. 'NOT VERIFIED' KEEPS THE STORED VALUE ===")
