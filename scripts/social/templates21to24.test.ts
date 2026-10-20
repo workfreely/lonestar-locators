@@ -43,7 +43,10 @@ ok("T21 sits at index 20", OVERLAY_TEMPLATES[20] === "client_me_bad_credit")
 ok("T22 sits at index 21 (dropdown position 22)", OVERLAY_TEMPLATES[21] === "client_me_ex_cheated")
 ok("T23 sits at index 22 (dropdown position 23)", OVERLAY_TEMPLATES[22] === "client_me_rent_increase")
 ok("T24 sits at index 23 (dropdown position 24)", OVERLAY_TEMPLATES[23] === "client_me_roaches")
-ok("T24 is LAST, so every earlier index is untouched", OVERLAY_TEMPLATES[OVERLAY_TEMPLATES.length - 1] === "client_me_roaches")
+// WAS "T24 is LAST". Its intent was "nothing was inserted BEFORE the existing templates", which
+// is still exactly true — T25-T31 were appended after it. T24 is now the last of the ORIGINAL 24,
+// which is the invariant worth holding; being last overall never was.
+ok("T24 still closes the original 24, so every earlier index is untouched", OVERLAY_TEMPLATES[23] === "client_me_roaches")
 ok("all four have dropdown labels",
   OVERLAY_TEMPLATE_LABEL[T21] === "Client / Me — Bad Credit" && OVERLAY_TEMPLATE_LABEL[T22] === "Client / Me — My Ex Cheated"
   && OVERLAY_TEMPLATE_LABEL[T23] === "Client / Me — Rent Increase" && OVERLAY_TEMPLATE_LABEL[T24] === "Client / Me — Roaches")

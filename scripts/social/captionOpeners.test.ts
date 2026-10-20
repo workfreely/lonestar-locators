@@ -35,6 +35,15 @@ const EXPECTED: [OverlayTemplate, string][] = [
   ["would_you_live_here", "Be honest… would you pay $1,800/month? 👀"],
   ["imagine_coming_home", "Imagine calling this place home. 🏡✨"],
   ["client_me", "You tell me what you’re looking for. I’ll find it. 😎"],
+  // T25-T31. Metadata-free by design, so each is the same line for every property — which is what
+  // lets them caption any walkthrough. Verbatim the approved wording.
+  ["apartment_crush", "I wasn't even looking to move… 👀"],
+  ["engagement", "Who would you live here with? 👀"],
+  ["level_up", "You leveled up 🔥"],
+  ["them_vs_me", "Nah, I'm good 😂"],
+  ["view", "I'll never get tired of this view 😍"],
+  ["aura", "This has too much aura 🔥"],
+  ["pov_couple", "POV: Tag your love ❤️"],
 ]
 // The four Client / Me variations (T21-T24) have no OPENER: each caption is a fixed approved block
 // returned whole,

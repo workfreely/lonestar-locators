@@ -91,8 +91,15 @@ async function main() {
 
   console.log("\nONE SOURCE OF TRUTH — API, EDITOR AND LIBRARY AGREE:")
   {
-    ok("the editor's dropdown is built from OVERLAY_TEMPLATES",
-      /OVERLAY_TEMPLATES\.map\(\(t, i\) =>/.test(editor))
+    // The dropdown now renders OVERLAY_TEMPLATE_ORDER, which is a DISPLAY sequence derived from
+    // the canonical registry — not a hand-written second list. The invariant this assertion
+    // protects is unchanged: the operator can only select a registered template. That the two
+    // lists hold the same set is asserted in scripts/social/templates25to31.
+    ok("the editor's dropdown is built from the canonical display order",
+      /OVERLAY_TEMPLATE_ORDER\.map\(\(t, i\) =>/.test(editor))
+    ok("…and that order is derived from OVERLAY_TEMPLATES, not re-typed",
+      /OVERLAY_TEMPLATE_ORDER: readonly OverlayTemplate\[\] = \[\s*\n\s*\.\.\.OVERLAY_TEMPLATES\.slice/.test(
+        readFileSync(path.join(process.cwd(), "lib/social/composePost.ts"), "utf8")))
     ok("the editor hydrates through the canonical list",
       /\(OVERLAY_TEMPLATES as readonly string\[\]\)\.includes\(p\.overlayTemplate \?\? ""\)/.test(editor))
     ok("the Video Library preview validates through the canonical list too",

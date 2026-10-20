@@ -43,6 +43,50 @@
 "uc": false
 }
 },
+"apartment_crush|instagram": {
+"d": {
+"fontPx": 36,
+"lines": [
+"Starting at $1,200/month"
+],
+"side": 110,
+"topPx": 969.5
+},
+"h": {
+"fontPx": 38,
+"linePx": null,
+"lineTopPx": null,
+"lines": [
+"I wasn\u2019t even looking to move\u2026"
+],
+"ls": 8,
+"side": 110,
+"topPx": 914.5,
+"uc": false
+}
+},
+"apartment_crush|instagram_story": {
+"d": {
+"fontPx": 36,
+"lines": [
+"Starting at $1,200/month"
+],
+"side": 110,
+"topPx": 969.5
+},
+"h": {
+"fontPx": 38,
+"linePx": null,
+"lineTopPx": null,
+"lines": [
+"I wasn\u2019t even looking to move\u2026"
+],
+"ls": 8,
+"side": 110,
+"topPx": 914.5,
+"uc": false
+}
+},
 "apartment_standards|instagram": {
 "d": {
 "fontPx": 36,
@@ -80,6 +124,50 @@
 "lineTopPx": null,
 "lines": [
 "Your apartment standards went up"
+],
+"ls": 8,
+"side": 110,
+"topPx": 914.5,
+"uc": false
+}
+},
+"aura|instagram": {
+"d": {
+"fontPx": 36,
+"lines": [
+"Starting at $1,200/month"
+],
+"side": 110,
+"topPx": 969.5
+},
+"h": {
+"fontPx": 38,
+"linePx": null,
+"lineTopPx": null,
+"lines": [
+"This apartment has too much aura"
+],
+"ls": 8,
+"side": 110,
+"topPx": 914.5,
+"uc": false
+}
+},
+"aura|instagram_story": {
+"d": {
+"fontPx": 36,
+"lines": [
+"Starting at $1,200/month"
+],
+"side": 110,
+"topPx": 969.5
+},
+"h": {
+"fontPx": 38,
+"linePx": null,
+"lineTopPx": null,
+"lines": [
+"This apartment has too much aura"
 ],
 "ls": 8,
 "side": 110,
@@ -307,6 +395,50 @@
 "uc": false
 }
 },
+"engagement|instagram": {
+"d": {
+"fontPx": 36,
+"lines": [
+"Starting at $1,200/month"
+],
+"side": 110,
+"topPx": 969.5
+},
+"h": {
+"fontPx": 38,
+"linePx": null,
+"lineTopPx": null,
+"lines": [
+"Who would you live here with?"
+],
+"ls": 8,
+"side": 110,
+"topPx": 914.5,
+"uc": false
+}
+},
+"engagement|instagram_story": {
+"d": {
+"fontPx": 36,
+"lines": [
+"Starting at $1,200/month"
+],
+"side": 110,
+"topPx": 969.5
+},
+"h": {
+"fontPx": 38,
+"linePx": null,
+"lineTopPx": null,
+"lines": [
+"Who would you live here with?"
+],
+"ls": 8,
+"side": 110,
+"topPx": 914.5,
+"uc": false
+}
+},
 "hits_different|instagram": {
 "d": {
 "fontPx": 36,
@@ -388,6 +520,50 @@
 "lineTopPx": null,
 "lines": [
 "Imagine coming home to this"
+],
+"ls": 8,
+"side": 110,
+"topPx": 914.5,
+"uc": false
+}
+},
+"level_up|instagram": {
+"d": {
+"fontPx": 36,
+"lines": [
+"Starting at $1,200/month"
+],
+"side": 110,
+"topPx": 969.5
+},
+"h": {
+"fontPx": 38,
+"linePx": null,
+"lineTopPx": null,
+"lines": [
+"You leveled up"
+],
+"ls": 8,
+"side": 110,
+"topPx": 914.5,
+"uc": false
+}
+},
+"level_up|instagram_story": {
+"d": {
+"fontPx": 36,
+"lines": [
+"Starting at $1,200/month"
+],
+"side": 110,
+"topPx": 969.5
+},
+"h": {
+"fontPx": 38,
+"linePx": null,
+"lineTopPx": null,
+"lines": [
+"You leveled up"
 ],
 "ls": 8,
 "side": 110,
@@ -524,6 +700,50 @@
 "ls": 8,
 "side": 110,
 "topPx": 914.5,
+"uc": false
+}
+},
+"pov_couple|instagram": {
+"d": {
+"fontPx": 32,
+"lines": [
+"Starting at $1,200/month"
+],
+"side": 110,
+"topPx": 969
+},
+"h": {
+"fontPx": 33,
+"linePx": null,
+"lineTopPx": null,
+"lines": [
+"POV: You just moved in with the love of your life"
+],
+"ls": 8,
+"side": 110,
+"topPx": 919,
+"uc": false
+}
+},
+"pov_couple|instagram_story": {
+"d": {
+"fontPx": 32,
+"lines": [
+"Starting at $1,200/month"
+],
+"side": 110,
+"topPx": 969
+},
+"h": {
+"fontPx": 33,
+"linePx": null,
+"lineTopPx": null,
+"lines": [
+"POV: You just moved in with the love of your life"
+],
+"ls": 8,
+"side": 110,
+"topPx": 919,
 "uc": false
 }
 },
@@ -747,6 +967,50 @@
 "uc": true
 }
 },
+"them_vs_me|instagram": {
+"d": {
+"fontPx": 36,
+"lines": [
+"Me: Nah, I\u2019m good"
+],
+"side": 110,
+"topPx": 969.5
+},
+"h": {
+"fontPx": 38,
+"linePx": null,
+"lineTopPx": null,
+"lines": [
+"Them: Just get a regular apartment bro"
+],
+"ls": 8,
+"side": 110,
+"topPx": 914.5,
+"uc": false
+}
+},
+"them_vs_me|instagram_story": {
+"d": {
+"fontPx": 36,
+"lines": [
+"Me: Nah, I\u2019m good"
+],
+"side": 110,
+"topPx": 969.5
+},
+"h": {
+"fontPx": 38,
+"linePx": null,
+"lineTopPx": null,
+"lines": [
+"Them: Just get a regular apartment bro"
+],
+"ls": 8,
+"side": 110,
+"topPx": 914.5,
+"uc": false
+}
+},
 "trade_up|instagram": {
 "d": {
 "fontPx": 28,
@@ -828,6 +1092,50 @@
 "lineTopPx": null,
 "lines": [
 "What life looks like when you upgrade"
+],
+"ls": 8,
+"side": 110,
+"topPx": 914.5,
+"uc": false
+}
+},
+"view|instagram": {
+"d": {
+"fontPx": 36,
+"lines": [
+"Starting at $1,200/month"
+],
+"side": 110,
+"topPx": 969.5
+},
+"h": {
+"fontPx": 38,
+"linePx": null,
+"lineTopPx": null,
+"lines": [
+"I\u2019ll never get tired of this view"
+],
+"ls": 8,
+"side": 110,
+"topPx": 914.5,
+"uc": false
+}
+},
+"view|instagram_story": {
+"d": {
+"fontPx": 36,
+"lines": [
+"Starting at $1,200/month"
+],
+"side": 110,
+"topPx": 969.5
+},
+"h": {
+"fontPx": 38,
+"linePx": null,
+"lineTopPx": null,
+"lines": [
+"I\u2019ll never get tired of this view"
 ],
 "ls": 8,
 "side": 110,

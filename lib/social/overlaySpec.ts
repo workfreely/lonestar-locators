@@ -628,6 +628,21 @@ export function templateFamily(template: string): LayoutFamily {
     // margins, line spacing, the hookDetailPxFor price size and the shared 17px gap all come with
     // membership. No new constants and no new branch, so the preview and the FFmpeg render cannot
     // drift — both read this one function.
+    // T25-T31 join on exactly the same terms. Membership IS the whole layout change: centered
+    // placement, CENTER_HOOK sizing and fit, uppercase:false, the side margins, line spacing,
+    // hookDetailPxFor and the shared 17px gap all arrive with it, so the editor preview and the
+    // FFmpeg render read this one function and cannot drift.
+    //
+    // AURA (T30) is here because this is the family Template 7 uses — reusing its positioning was
+    // the requirement, and membership is how that is expressed. Template 7 itself is untouched.
+    //
+    // THEM VS. ME (T28) is here for a different reason and it matters: this is the SAME family
+    // Client / Me belongs to, so its two-statement exchange inherits Client / Me's exact layout,
+    // sizing, gap, sequencing and reveal timing without copying any of it — and without touching
+    // any Client / Me template to add it.
+    || template === "apartment_crush" || template === "engagement" || template === "level_up"
+    || template === "them_vs_me" || template === "view" || template === "aura"
+    || template === "pov_couple"
     || template === "your_sign" || template === "property_tour") return "center_hook_detail"
   return "hero" // market_type, market_type_centered (vertically centered in the hero branch), special_feature, unknown → hero
 }

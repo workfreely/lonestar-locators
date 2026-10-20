@@ -13,7 +13,7 @@ import { previewAspectClass } from "@/lib/social/postTypes"
 import { SiInstagram, SiTiktok, SiYoutube } from "react-icons/si"
 import type { IconType } from "react-icons"
 import { buildHashtags, normalizeHashtag, hashtagLimitFor, MAX_HASHTAGS } from "@/lib/social/hashtags"
-import { PRICE_LABEL_MODES, priceLabelMode as narrowPriceLabelMode, type PriceLabelMode, buildCaption, specialDisplay, buildTemplateHeadline, buildTemplateDetail, OVERLAY_TEMPLATES, OVERLAY_TEMPLATE_LABEL, DEFAULT_OVERLAY_TEMPLATE, type OverlayTemplate, isOverlayPreviewStale, type OverlayPreviewBaseline, type SourceMeta } from "@/lib/social/composePost"
+import { PRICE_LABEL_MODES, priceLabelMode as narrowPriceLabelMode, type PriceLabelMode, buildCaption, specialDisplay, buildTemplateHeadline, buildTemplateDetail, OVERLAY_TEMPLATES, OVERLAY_TEMPLATE_ORDER, OVERLAY_TEMPLATE_LABEL, DEFAULT_OVERLAY_TEMPLATE, type OverlayTemplate, isOverlayPreviewStale, type OverlayPreviewBaseline, type SourceMeta } from "@/lib/social/composePost"
 import SpecialSelect from "@/components/crm/social/SpecialSelect"
 import { DESTINATIONS, isSocialDestination, destinationFromLegacyPlatform, providerForPost } from "@/lib/social/destinations"
 import { computeOverlayLayout } from "@/lib/social/overlaySpec"
@@ -1647,7 +1647,10 @@ export default function PostEditor({ postId, from }: { postId: string; from?: st
               <label className="block min-w-0">
                 <span className={fieldLabel}>Overlay Template</span>
                 <select className={`${control} mt-1 cursor-pointer disabled:opacity-45 disabled:cursor-not-allowed`} value={overlayTemplate} disabled={locked} title={locked ? LOCK_HINT : undefined} onChange={(e) => changeTemplate(e.target.value as OverlayTemplate)}>
-                  {OVERLAY_TEMPLATES.map((t, i) => <option key={t} value={t}>{i + 1}. {OVERLAY_TEMPLATE_LABEL[t]}</option>)}
+                  {/* DISPLAY order, not registry order — see OVERLAY_TEMPLATE_ORDER. The registry never
+                      reorders, so saved drafts keep their template; this list decides what the
+                      operator sees and in what sequence. */}
+                  {OVERLAY_TEMPLATE_ORDER.map((t, i) => <option key={t} value={t}>{i + 1}. {OVERLAY_TEMPLATE_LABEL[t]}</option>)}
                 </select>
               </label>
               <label className="block min-w-0">

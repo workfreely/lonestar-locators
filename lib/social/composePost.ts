@@ -364,6 +364,22 @@ export function captionOpener(template: OverlayTemplate, src: SourceMeta): strin
     // T20. The caption states the PROMISE rather than repeating the dialogue — the joke is the
     // video's; the caption is the offer.
     case "client_me": return "You tell me what you’re looking for. I’ll find it. 😎"
+    // ── T25-T31 — the approved opening lines, verbatim ──────────────────────────────────────
+    // Each is the FIRST line of the generated caption; everything after it is the existing
+    // structure (details, city/market, verified pricing and specials, hashtags, CTA) untouched.
+    // Metadata-free on purpose, so they resolve for any walkthrough — unlike the openers above
+    // that return null without a city or a type.
+    case "apartment_crush": return "I wasn't even looking to move… 👀"
+    case "engagement": return "Who would you live here with? 👀"
+    case "level_up": return "You leveled up 🔥"
+    // The caption states the punchline alone; the setup is the video's. Same instinct as T20,
+    // whose caption carries the promise rather than transcribing the dialogue.
+    case "them_vs_me": return "Nah, I'm good 😂"
+    case "view": return "I'll never get tired of this view 😍"
+    // No property type in the caption — the type belongs to the on-video sentence, where the
+    // short-type rule governs it. Repeating it here would risk the long label the rule excludes.
+    case "aura": return "This has too much aura 🔥"
+    case "pov_couple": return "POV: Tag your love ❤️"
     case "real_living": return city && noun ? `Real ${noun} living in ${city}.` : null
     case "what_mo_gets_you": return city && price ? `${price} in ${city}.` : null
     // Identical to this template's own headline plus a full stop.
@@ -688,7 +704,12 @@ export const OVERLAY_TEMPLATES = ["market_type", "market_type_centered", "your_s
   "client_me_bad_credit",
   // T22-T24. Same again: Template 20's treatment, three more wordings. Appended LAST so every
   // existing index — and therefore every saved post's stored template string — is untouched.
-  "client_me_ex_cheated", "client_me_rent_increase", "client_me_roaches"] as const
+  "client_me_ex_cheated", "client_me_rent_increase", "client_me_roaches",
+  // T25-T31 (dropdown positions 20-26). APPENDED LAST, exactly like every batch before them, so
+  // every existing index — and therefore every saved post's stored overlay_template string — is
+  // untouched. They are SHOWN before the Client / Me group via OVERLAY_TEMPLATE_ORDER below:
+  // identity and display order are deliberately different things.
+  "apartment_crush", "engagement", "level_up", "them_vs_me", "view", "aura", "pov_couple"] as const
 export type OverlayTemplate = (typeof OVERLAY_TEMPLATES)[number]
 export const DEFAULT_OVERLAY_TEMPLATE: OverlayTemplate = "market_type"
 export const OVERLAY_TEMPLATE_LABEL: Record<OverlayTemplate, string> = {
@@ -716,7 +737,36 @@ export const OVERLAY_TEMPLATE_LABEL: Record<OverlayTemplate, string> = {
   client_me_ex_cheated: "Client / Me — My Ex Cheated",
   client_me_rent_increase: "Client / Me — Rent Increase",
   client_me_roaches: "Client / Me — Roaches",
+  apartment_crush: "Apartment Crush",
+  engagement: "Engagement",
+  level_up: "Level Up",
+  them_vs_me: "Them vs. Me",
+  view: "View",
+  aura: "Aura",
+  pov_couple: "POV Couple",
 }
+
+/**
+ * THE DROPDOWN ORDER — display only, and deliberately not the registry order.
+ *
+ * OVERLAY_TEMPLATES is an IDENTITY list: a post stores its template as a string, and new entries
+ * are appended so no existing entry ever moves. That rule is what keeps saved drafts valid, and it
+ * is not negotiable.
+ *
+ * But the seven conversational templates belong beside the hooks they resemble, not after the
+ * Client / Me group that happened to be added before them. Separating display from identity gives
+ * both: the array above never reorders, and the operator sees a sensible list.
+ *
+ * Positions 1-19 are the registry's own first nineteen, unchanged. Then the seven new ones, then
+ * the five Client / Me templates. Every registered template appears exactly once — asserted in
+ * scripts/social/newTemplates.test.ts, so a template added to one list and forgotten in the other
+ * cannot ship.
+ */
+export const OVERLAY_TEMPLATE_ORDER: readonly OverlayTemplate[] = [
+  ...OVERLAY_TEMPLATES.slice(0, 19),
+  "apartment_crush", "engagement", "level_up", "them_vs_me", "view", "aura", "pov_couple",
+  "client_me", "client_me_bad_credit", "client_me_ex_cheated", "client_me_rent_increase", "client_me_roaches",
+]
 
 // Template 6 (POV Upgrade) — EXPLICIT deterministic copy per canonical Property Type. The grammar
 // intentionally differs by type (NOT a generic "POV: You upgraded to a {type}" formula). When no
@@ -731,6 +781,21 @@ const POV_UPGRADE_HEADLINE: Record<string, string> = {
   Loft: "POV: You upgraded to a loft",
 }
 const POV_UPGRADE_FALLBACK = "POV: You upgraded"
+/**
+ * T30 AURA — the only property types short enough for its sentence.
+ *
+ * "This high-rise has too much aura" works; "This rental home has too much aura" does not, and a
+ * compound Social type ("Split-Level Townhome") is worse still. So the allow-list is explicit
+ * rather than derived: six canonical types in, everything else — Rental Home, compounds,
+ * non-canonical values and absent metadata alike — falls back to the typeless sentence, which is
+ * always complete and always this short.
+ *
+ * Deliberately NOT SOCIAL_CANONICAL_ORDER minus one: that list exists for a different purpose and
+ * would silently admit a seventh type the day it grows.
+ */
+export const AURA_SHORT_TYPES = ["Studio", "Apartment", "High-Rise", "Loft", "Townhome", "Penthouse"] as const
+const AURA_FALLBACK_HEADLINE = "This place has too much aura"
+
 // Template 7 (Affordable Luxury) — FIXED universal hook, no variables.
 const AFFORDABLE_LUXURY_HEADLINE = "Luxury doesn't have to be expensive"
 // Template 13 (You Wanted Luxury) — FIXED universal hook, no variables.
@@ -862,6 +927,35 @@ export function buildTemplateHeadline(template: OverlayTemplate, src: SourceMeta
     // in this template's voice. Anything outside the seven — compound, non-canonical or absent —
     // falls back to "apartment", so the sentence is always complete and always this short. The
     // article is always "a" ("a new apartment"), so withArticle is not involved.
+    // ── T25-T31 — THE CONVERSATIONAL SEVEN ──────────────────────────────────────────────────
+    // Six of them are a fixed spoken hook plus the shared optional price line, which is Template
+    // 8's established shape. No metadata is required, so they caption any walkthrough — and
+    // nothing here invents a price: buildTemplateDetail returns "" when there is no valid one and
+    // the line collapses with its gap.
+    case "apartment_crush":
+      return "I wasn’t even looking to move…"
+    case "engagement":
+      return "Who would you live here with?"
+    case "level_up":
+      return "You leveled up"
+    case "view":
+      return "I’ll never get tired of this view"
+    case "pov_couple":
+      return "POV: You just moved in with the love of your life"
+    // T30 AURA. The ONE variable, gated by AURA_SHORT_TYPES — see the constant for why the
+    // allow-list is explicit. Anything outside the six reads as the typeless sentence.
+    case "aura": {
+      const short = canonicalType && (AURA_SHORT_TYPES as readonly string[]).includes(canonicalType)
+        ? canonicalType.toLowerCase()
+        : null
+      return short ? `This ${short} has too much aura` : AURA_FALLBACK_HEADLINE
+    }
+    // T28 THEM VS. ME. Structurally a Client / Me exchange — the first statement is the HEADLINE,
+    // the reply is the DETAIL — so it joins that family in overlaySpec and inherits its layout,
+    // sizing, gap and timing wholesale. Nothing of Client / Me is copied or modified; membership
+    // IS the reference, which is what stops the two drifting apart.
+    case "them_vs_me":
+      return "Them: Just get a regular apartment bro"
     case "client_me_ex_cheated": {
       const noun = canonicalType && (SOCIAL_CANONICAL_ORDER as readonly string[]).includes(canonicalType)
         ? propertyNoun(canonicalType)
@@ -972,7 +1066,22 @@ export function buildTemplateDetail(template: OverlayTemplate, src: SourceMeta):
     // "Starting at $X/month" line applies and collapses on its own when there is no valid price.
     // That is what lets T19 caption any walkthrough, priced or not.
     case "imagine_coming_home":
+    // T25-T31 (minus Them vs. Me) take the SAME optional price line, for the same reason every
+    // template above does: startingPriceLabel resolves both label modes and already returns ""
+    // for a missing or invalid price, so the line and its gap collapse on their own. The price
+    // shown is this property's verified Starting At value — never a constant, and never invented.
+    case "apartment_crush":
+    case "engagement":
+    case "level_up":
+    case "view":
+    case "aura":
+    case "pov_couple":
       return price // T5/T8 gained the same optional price line — see the group above
+
+    // T28 THEM VS. ME fills the detail slot with the second half of its exchange, exactly as
+    // Client / Me fills it with "Me: “Say less.”" — same slot, same size, same gap, same timing.
+    case "them_vs_me":
+      return "Me: Nah, I’m good"
 
     // T18 states the price INSIDE its question ("Would you live here for $1,500/month?"), so a
     // price line below would print the same number twice — the identical reason T15/T16 take no
