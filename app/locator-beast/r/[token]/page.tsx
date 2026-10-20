@@ -172,7 +172,7 @@ const CSS = `
 .lbr-steps .lbr-n{flex:none;width:36px;height:36px;border-radius:50%;background:var(--navy);color:#fff;font-weight:800;display:flex;align-items:center;justify-content:center;font-size:16px}
 .lbr-steps b{display:block;color:var(--navy);font-size:16px;font-weight:700;line-height:1.3}
 .lbr-steps span{display:block;font-size:14px;color:var(--muted);margin-top:2px;line-height:1.4}
-.lbr-disclaimer{margin:16px 0 0;border-top:1px solid var(--line-soft);padding-top:14px;font-size:13px;color:var(--faint);line-height:1.5}
+.lbr-disclaimer{margin:16px 0 0;border-top:1px solid var(--line-soft);padding-top:14px;font-size:13px;color:var(--faint);line-height:1.5;text-align:center}
 /* Next Steps as a compact roadmap ABOVE the property cards — reuses the .lbr-steps content,
    navy circles and typography, just laid out lighter. Desktop: one horizontal 1→2→3 row so it
    reads as a lightweight roadmap and doesn't push the recommendations down. */
@@ -224,6 +224,16 @@ const CSS = `
 .lbr-shell--paused .lbr-legal div:has(> span > a[href="/privacy"]){display:none}
 /* DONE SELECTING FAVORITES — primary conversion CTA (theme token, never hard-coded). */
 .lbr-done{margin:22px 0 0;text-align:center}
+/* MOBILE STICKY FAVORITES BAR. Desktop never renders it (display:none below); the phone
+   breakpoint turns it on and hides the inline .lbr-done block so there is exactly ONE
+   "Done Selecting Favorites" on screen. env(safe-area-inset-bottom) clears the iPhone home
+   indicator and Safari's bottom chrome. A matching pad on .lbr-wrap keeps the last card and
+   its View Property button scrollable clear of the bar rather than underneath it. */
+.lbr-sticky{display:none}
+.lbr-sticky-count{font-size:14px;font-weight:700;color:var(--navy);white-space:nowrap}
+.lbr-sticky-btn{appearance:none;border:none;cursor:pointer;background:var(--navy);color:#fff;font-family:inherit;font-weight:700;font-size:15px;letter-spacing:-.01em;min-height:48px;padding:0 18px;border-radius:12px;flex:1;transition:transform .06s ease}
+.lbr-sticky-btn:active{transform:scale(.98)}
+.lbr-sticky-btn:disabled{opacity:.6;cursor:default}
 .lbr-done-count{font-size:14px;font-weight:700;color:var(--navy);margin:0 0 10px}
 .lbr-done-btn{appearance:none;border:none;cursor:pointer;background:var(--navy);color:#fff;font-family:inherit;font-weight:700;font-size:16px;letter-spacing:-.01em;min-height:54px;padding:0 30px;border-radius:14px;box-shadow:0 14px 30px -14px rgba(14,37,69,.55);transition:transform .06s ease,box-shadow .2s ease}
 .lbr-done-btn:hover{box-shadow:0 18px 36px -14px rgba(14,37,69,.6)}
@@ -413,6 +423,17 @@ const CSS = `
 .lbr-ta-srow{font-size:16px}
 .lbr-sig{margin:24px 16px 0;background:#fff;border:1px solid var(--line);border-radius:18px;box-shadow:0 6px 20px -12px rgba(14,37,69,.28);padding:24px 18px}
 .lbr-legal{padding:20px 16px 26px}
+/* ── MOBILE FAVORITES BAR ──────────────────────────────────────────────────────
+   Turn the sticky bar on and hide the inline CTA, so exactly ONE "Done Selecting
+   Favorites" exists on a phone. The bar sits above Safari's chrome via the safe-area
+   inset, and .lbr-shell gains matching bottom padding so the last card's View Property
+   button can always be scrolled clear of it rather than sitting underneath. */
+.lbr-sticky{display:flex;align-items:center;gap:12px;position:fixed;left:0;right:0;bottom:0;z-index:50;
+  padding:10px 14px calc(10px + env(safe-area-inset-bottom));
+  background:rgba(255,255,255,.96);backdrop-filter:blur(10px);
+  border-top:1px solid var(--line-soft);box-shadow:0 -8px 24px -14px rgba(14,37,69,.4)}
+.lbr-done{display:none}
+.lbr-shell{padding-bottom:calc(86px + env(safe-area-inset-bottom))}
 }
 `
 

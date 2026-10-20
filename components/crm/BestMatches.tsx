@@ -74,7 +74,7 @@ export default function BestMatches({
           {leadRecommendations.map((r) => {
             // Locator-facing status — Special (blue, compact, beside the name) +
             // Commission (green/red/neutral, on the bottom-right operational row).
-            const shortSpecial = isSpecialCurrent(r.verified_at) ? normalizeShortSpecial(r.current_special) : null
+            const shortSpecial = isSpecialCurrent(r.current_special_checked_at ?? r.verified_at) ? normalizeShortSpecial(r.current_special) : null
             const commission = evaluateLocatorCommission({
               sendCommission: r.send_commission,
               escortCommission: r.escort_commission,

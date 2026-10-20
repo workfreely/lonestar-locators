@@ -226,7 +226,7 @@ export default function RecommendationList({
   return (
     <>
     <div className="lbr-grid">
-      {properties.map((p) => {
+      {properties.map((p, i) => {
         const isFav = favorites.has(p.index)
         const isPending = pending.has(p.index)
         const hasPrice = typeof p.startingPrice === "number" && Number.isFinite(p.startingPrice)
@@ -244,7 +244,18 @@ export default function RecommendationList({
                   <img
                     src={p.imageUrl}
                     alt={p.name}
-                    loading="lazy"
+                    // THE FIRST CARD IS ABOVE THE FOLD on every phone, so it loads EAGERLY and
+                    // is fetch-prioritised; everything below stays lazy. Opening the link from
+                    // Messages, the first photo is the one the client waits on.
+                    loading={i === 0 ? "eager" : "lazy"}
+                    fetchPriority={i === 0 ? "high" : "auto"}
+                    // async decoding keeps a large JPEG from blocking paint on a slow phone.
+                    decoding="async"
+                    // The .lbr-ph box is a fixed 16:10 frame in CSS; stating the intrinsic ratio
+                    // lets the browser reserve the space before bytes arrive, so cards do not
+                    // jump as photos land. Presentational only — no URL is changed.
+                    width={1600}
+                    height={1000}
                     data-backup={p.backupImageUrl ?? ""}
                     // primary → backup → neutral: if the primary fails to load, try the
                     // canonical backup once; if that also fails (or none), hide the broken
@@ -381,6 +392,20 @@ export default function RecommendationList({
 
     {/* Done Selecting Favorites — the primary conversion CTA. Hidden at 0 favorites;
         NOT sticky. On success the Tour Availability modal opens immediately. */}
+    {/* MOBILE STICKY ACTION BAR — appears with the first favorite, mobile only.
+        It reuses the SAME `onDone` handler and the SAME favCount the full block below uses, so
+        favourites persistence, tour scheduling and submission are untouched. The full block is
+        hidden on mobile by CSS (.lbr-done{display:none}) so the two never compete; desktop is
+        unchanged and never renders the bar. */}
+    {!done && favCount > 0 && (
+      <div className="lbr-sticky" role="region" aria-label="Favorites selection">
+        <span className="lbr-sticky-count">{favCount} {favCount === 1 ? "favorite" : "favorites"}</span>
+        <button type="button" className="lbr-sticky-btn" onClick={markDone} disabled={doneBusy} aria-busy={doneBusy}>
+          {doneBusy ? "Saving…" : "Done Selecting Favorites"}
+        </button>
+      </div>
+    )}
+
     {!done && favCount > 0 && (
       <div className="lbr-done">
         <p className="lbr-done-count">{favCount} {favCount === 1 ? "favorite" : "favorites"} selected</p>

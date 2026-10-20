@@ -88,14 +88,38 @@ export type RentConcession = {
 
 /** Free period stated by a line, in the external site's own unit. Handles both "N weeks/months free"
  *  and "100% off rent for N month(s)" (identical meaning, not an inference). */
-function freePeriod(line: string): { amount: number; unit: "weeks" | "months" } | null {
+function freePeriod(line: string): { amount: number; unit: "weeks" | "months"; at: number } | null {
   const pct = line.match(/100\s*%\s*off\s*rent\s*for\s*(\d+(?:\.\d+)?)\s*(month|week)/i);
-  if (pct) return { amount: Number(pct[1]), unit: pct[2].toLowerCase().startsWith("month") ? "months" : "weeks" };
+  if (pct) return { amount: Number(pct[1]), unit: pct[2].toLowerCase().startsWith("month") ? "months" : "weeks", at: pct.index ?? 0 };
   const weeks = line.match(/\b(\d+(?:\.\d+)?)\s*(?:weeks?|wks?)\b[^.]{0,20}?\bfree\b/i);
-  if (weeks) return { amount: Number(weeks[1]), unit: "weeks" };
+  if (weeks) return { amount: Number(weeks[1]), unit: "weeks", at: weeks.index ?? 0 };
   const months = line.match(/\b(\d+(?:\.\d+)?)\s*(?:months?|mos?)\b[^.]{0,20}?\bfree\b/i);
-  if (months) return { amount: Number(months[1]), unit: "months" };
+  if (months) return { amount: Number(months[1]), unit: "months", at: months.index ?? 0 };
   return null;
+}
+
+/**
+ * Is the concession at `at` a CEILING ("up to 6 weeks free") rather than a guarantee?
+ *
+ * Scoped to the text immediately BEFORE the matched clause, not the whole string, and that
+ * scoping is the point. Master concession text routinely states a guaranteed offer and then a
+ * separate qualified one:
+ *
+ *   "100% off rent for 2 month(s) on a 12 mo lease  Other Concessions: Receive up to 2 Months Free"
+ *    └─ the clause the badge quotes — guaranteed      └─ a DIFFERENT offer, which is a ceiling
+ *
+ * Testing the whole string would label that guaranteed 2 months as "Up to", which is the mirror
+ * image of the bug this fixes: it would understate a real concession instead of overstating one.
+ *
+ * Only CEILING wording counts here. "On select units" is a condition, not a ceiling — it narrows
+ * WHO gets the offer, not HOW MUCH — and a four-word badge cannot carry it honestly, so it is
+ * left to the detailed Specials row.
+ */
+const CEILING = /\b(up\s+to|as\s+much\s+as)\b/i;
+function isCeilingAt(line: string, at: number): boolean {
+  // 24 characters is enough for "Other Concessions: Receive up to " to reach the clause it
+  // qualifies, without letting an unrelated ceiling elsewhere in the text bleed in.
+  return CEILING.test(line.slice(Math.max(0, at - 24), at));
 }
 
 /** A free period in natural wording, correctly singular/plural: "2 months free",
@@ -179,10 +203,11 @@ function withCommas(n: number): string {
  *   4. rent credit ("$1,500 credit") → "$1,500 Credit"
  * Returns null for empty / "None" / "Unknown" / unrecognized text — the caller
  * then HIDES the badge rather than showing stale or long raw language. The badge
- * states the GUARANTEED short form (no "Up to" ceiling wording): a "100% off rent
- * for N month(s)" clause is a guaranteed concession, and free-rent teaser badges
- * are shown in their headline form — the qualified/ceiling nuance belongs to the
- * detailed Specials row (selectRentConcession), not this compact overlay.
+ * states the offer AS ADVERTISED, qualifier included: "Up to 6 Weeks Free" stays
+ * "Up to 6 Weeks Free". The ceiling is preserved only when it qualifies the clause
+ * the badge is quoting — a "100% off rent for N month(s)" guarantee followed by a
+ * separate "up to" offer is still shown as the guarantee it is. Conditions that
+ * narrow WHO qualifies ("on select units") remain the detailed Specials row's job.
  */
 export function normalizeShortSpecial(raw?: string | null): string | null {
   const s = (raw ?? "").replace(/\s+/g, " ").trim();
@@ -190,14 +215,18 @@ export function normalizeShortSpecial(raw?: string | null): string | null {
   const free = freePeriod(s);
   if (free) {
     const noun = free.unit === "weeks" ? "Week" : "Month";
-    return `${free.amount} ${noun}${free.amount === 1 ? "" : "s"} Free`;
+    // THE QUALIFIER IS PART OF THE OFFER. Dropping "Up to" turned a ceiling the property
+    // advertised into a guarantee it never made — a renter reading "6 Weeks Free" had been told
+    // something the property did not say. It is preserved only when it qualifies THIS clause.
+    const prefix = isCeilingAt(s, free.at) ? "Up to " : "";
+    return `${prefix}${free.amount} ${noun}${free.amount === 1 ? "" : "s"} Free`;
   }
   const off = s.match(/\$\s*([\d,]+(?:\.\d+)?)\s*off\b/i);
-  if (off) return `$${withCommas(Number(off[1].replace(/,/g, "")))} Off`;
+  if (off) return `${isCeilingAt(s, off.index ?? 0) ? "Up to " : ""}$${withCommas(Number(off[1].replace(/,/g, "")))} Off`;
   const gift = s.match(/\$\s*([\d,]+)\s*gift\s*card/i);
-  if (gift) return `$${withCommas(Number(gift[1].replace(/,/g, "")))} Gift Card`;
+  if (gift) return `${isCeilingAt(s, gift.index ?? 0) ? "Up to " : ""}$${withCommas(Number(gift[1].replace(/,/g, "")))} Gift Card`;
   const credit = s.match(/\$\s*([\d,]+)\s*credit/i);
-  if (credit) return `$${withCommas(Number(credit[1].replace(/,/g, "")))} Credit`;
+  if (credit) return `${isCeilingAt(s, credit.index ?? 0) ? "Up to " : ""}$${withCommas(Number(credit[1].replace(/,/g, "")))} Credit`;
   return null;
 }
 

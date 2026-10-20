@@ -499,7 +499,7 @@ export default function LeadFavorites({
               // Locator-facing status — Special (blue, compact, beside the name) +
               // Commission (green/red/neutral, on the far right of the actions row). fav
               // carries the canonical property_catalog fields via attachCatalogRatings.
-              const favShortSpecial = isSpecialCurrent(fav.verified_at) ? normalizeShortSpecial(fav.current_special) : null
+              const favShortSpecial = isSpecialCurrent(fav.current_special_checked_at ?? fav.verified_at) ? normalizeShortSpecial(fav.current_special) : null
               const favCommission = evaluateLocatorCommission({
                 sendCommission: fav.send_commission,
                 escortCommission: fav.escort_commission,
