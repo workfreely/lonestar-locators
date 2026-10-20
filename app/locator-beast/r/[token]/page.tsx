@@ -313,16 +313,21 @@ const CSS = `
 .lbr-eyebrow{font-size:14.5px}
 .lbr-recs-head p{font-size:19px}
 .lbr-pname{font-size:25px}
-/* Two-line address on mobile: street line readable, city/state/ZIP slightly muted.
-   Desktop single-line (.lbr-addr-full) is unchanged. */
+/* Mobile address: ONE line whenever it fits — "Street, City, State ZIP" — wrapping
+   naturally at the comma when it does not. The street line stays readable, the
+   city/state/ZIP slightly muted. Desktop single-line (.lbr-addr-full) is unchanged. */
 .lbr-addr{font-size:18px;line-height:1.3;gap:0;margin-top:6px}
 /* Remove the location pin on mobile so name / street / city-state-ZIP / rating all
    sit on the exact same left edge. */
 .lbr-addr svg{display:none}
 .lbr-addr-full{display:none}
-.lbr-addr-stacked{display:flex;flex-direction:column;gap:2px}
+/* inline, not a column: the parts flow as one address and the line breaks only
+   where the text runs out of room. */
+.lbr-addr-stacked{display:inline}
 .lbr-addr-street{color:var(--ink);font-weight:600;font-size:18px}
-.lbr-addr-locality{color:var(--muted);font-size:17px}
+/* nowrap keeps "Frisco, TX 75034" together, so a wrap can never leave the state and
+   ZIP alone on a line of their own. */
+.lbr-addr-locality{color:var(--muted);font-size:17px;white-space:nowrap}
 .lbr-rating{font-size:18px}
 .lbr-rating-lbl{font-size:18px}
 /* Mobile star-size override (base is 14px; scale up with the rating text). */
@@ -645,7 +650,7 @@ export default async function ClientRecommendationsPage({
           <section className="lbr-steps lbr-steps--roadmap">
             <h2>Next Steps</h2>
             <ol>
-              <li><div className="lbr-n">1</div><div><b>Heart your top 2&ndash;3 favorites</b><span>Choose the ones you&rsquo;d like to tour.</span></div></li>
+              <li><div className="lbr-n">1</div><div><b>&#10084;&#65039; Your top 2&ndash;3 favorites</b><span>Choose the ones you&rsquo;d like to tour.</span></div></li>
               <li><div className="lbr-n">2</div><div><b>I&rsquo;ll get your tours scheduled</b><span>We coordinate everything for you.</span></div></li>
               <li><div className="lbr-n">3</div><div><b>List your Realtor/Locator</b><span>List me on your application for cash rebates, free movers or incentives.</span></div></li>
             </ol>

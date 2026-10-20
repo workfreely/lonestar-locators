@@ -128,9 +128,13 @@ function displayCardAddress(address: string): string {
   return cleaned || address
 }
 
-/** MOBILE two-line address: street on line 1, "City, State ZIP" on line 2 (split at
- *  the first comma). Desktop keeps the single-line displayCardAddress; both are
- *  rendered and CSS toggles which shows, so desktop formatting is unchanged. */
+/** MOBILE address, split at the first comma into the street and "City, State ZIP".
+ *  The two parts are rendered INLINE, so the address reads as one line whenever it
+ *  fits and wraps at the comma when it does not — and the locality carries
+ *  white-space:nowrap, so "Frisco, TX 75034" never breaks across lines, which is
+ *  what left a bare state and ZIP stranded on their own. Desktop keeps the
+ *  single-line displayCardAddress; both are rendered and CSS toggles which shows,
+ *  so desktop formatting is unchanged. */
 function splitCardAddress(address: string): { street: string; locality: string } {
   const cleaned = address.replace(/\s*,\s*USA\s*$/i, "").trim()
   const i = cleaned.indexOf(",")
@@ -326,11 +330,13 @@ export default function RecommendationList({
                 return (
                   <div className="lbr-addr">
                     <Pin />
-                    {/* Desktop: single line (unchanged). Mobile: stacked street / city-state-zip. */}
+                    {/* Desktop: single line (unchanged). Mobile: the same address, inline,
+                        wrapping at the comma only when the width demands it. The comma
+                        belongs to the street part so a wrap never starts a line with it. */}
                     <span className="lbr-addr-full">{displayCardAddress(p.address)}</span>
                     <span className="lbr-addr-stacked">
-                      <span className="lbr-addr-street">{street}</span>
-                      {locality && <span className="lbr-addr-locality">{locality}</span>}
+                      <span className="lbr-addr-street">{street}{locality ? "," : ""}</span>
+                      {locality && <>{" "}<span className="lbr-addr-locality">{locality}</span></>}
                     </span>
                   </div>
                 )
