@@ -71,7 +71,8 @@ import { DEFAULT_PROJECTION_METHOD, type ProjectionMethod } from "@/lib/leads/co
 import { createWorkflowActionIfNeeded } from "@/lib/workflowEngine"
 import type { TourOutcome, ApplicationStatus } from "@bc/companion-shared"
 import { supabase } from "@/lib/supabase/client"
-import { loadReasonsForLead, saveReasons as saveCanonicalReasons } from "@/lib/leads/propertyReasons"
+import { loadReasonsForLead, saveReasons as saveCanonicalReasons, saveWasherDryer } from "@/lib/leads/propertyReasons"
+import type { WasherDryerStatus } from "@/lib/leads/washerDryer"
 import { ensureCommuteReasons } from "@/lib/commute/ensureCommute"
 import { getNextFollowUpAction } from "@/lib/workflowEngine"
 import { followUpSuccessorDueAt } from "@/lib/workflow/moveDateCadence"
@@ -440,6 +441,10 @@ export default function DashboardClient({ leads, nextActions, favorites, recomme
   // Favorites and Recommendations so the two can never diverge. Keyed by
   // canonical_property_key ('pid:<place id>'), which both collections already store.
   const [reasonsByKey, setReasonsByKey] = useState<Map<string, string[]>>(new Map())
+  // The washer/dryer half of the SAME canonical rows, flattened separately rather than widening
+  // reasonsByKey — that map is read by two sections and passed to the Companion payload, and a
+  // second small map is a far smaller change than a new shape for both.
+  const [washerDryerByKey, setWasherDryerByKey] = useState<Map<string, WasherDryerStatus | null>>(new Map())
   // AI Client Insights for the active lead, cached per lead id — the ≤4 bullets
   // from ai_client_briefs (real) or getDemoBrief (demo). Read-only; fetched lazily
   // when a client is selected and passed to buildActiveClientPayload so Companion's
@@ -702,13 +707,18 @@ export default function DashboardClient({ leads, nextActions, favorites, recomme
   useEffect(() => {
     let active = true
     const id = selectedLeadId
-    if (id == null || isDemoLeadId(id)) { setReasonsByKey(new Map()); return }
+    if (id == null || isDemoLeadId(id)) { setReasonsByKey(new Map()); setWasherDryerByKey(new Map()); return }
     void (async () => {
       const map = await loadReasonsForLead(id)
       if (!active) return
       const flat = new Map<string, string[]>()
-      for (const row of map.values()) flat.set(String(row.canonical_property_key), row.reasons)
+      const wd = new Map<string, WasherDryerStatus | null>()
+      for (const row of map.values()) {
+        flat.set(String(row.canonical_property_key), row.reasons)
+        wd.set(String(row.canonical_property_key), row.washer_dryer_status ?? null)
+      }
       setReasonsByKey(flat)
+      setWasherDryerByKey(wd)
       // Then fill any missing/stale drive times. Runs AFTER the map is on screen so
       // the reasons the client already has never wait on Google, and returns
       // immediately without calling Google at all when the client has no
@@ -739,6 +749,26 @@ export default function DashboardClient({ leads, nextActions, favorites, recomme
     const okSaved = await saveCanonicalReasons(selectedLeadId, canonicalPropertyKey, next)
     if (!okSaved) return false
     setReasonsByKey((prev) => new Map(prev).set(String(canonicalPropertyKey), next))
+    return true
+  }
+
+  /**
+   * Persist the client-facing washer/dryer status for ONE client-property pair.
+   *
+   * The SAME canonical row the reasons live on, written through its own column, so saving one
+   * never disturbs the other or the commute cache. Nothing is inferred from Property
+   * Intelligence: a status reaches a client's card only because the locator chose it here.
+   * Changing it sends nothing — it only means the next list generated freezes the new value.
+   */
+  const handleSaveWasherDryer = async (canonicalPropertyKey: string, next: WasherDryerStatus | null) => {
+    if (!selectedLeadId) return false
+    if (isDemoLeadId(selectedLeadId)) {
+      setWasherDryerByKey((prev) => new Map(prev).set(String(canonicalPropertyKey), next))
+      return true
+    }
+    const okSaved = await saveWasherDryer(selectedLeadId, canonicalPropertyKey, next)
+    if (!okSaved) return false
+    setWasherDryerByKey((prev) => new Map(prev).set(String(canonicalPropertyKey), next))
     return true
   }
 
@@ -4583,6 +4613,8 @@ export default function DashboardClient({ leads, nextActions, favorites, recomme
                     // Drag to arrange. Writes only lead_recommendations.sort_order; the client
                     // sees this order on the NEXT list sent, never on one already frozen.
                     onReorder={handleReorderRecommendations}
+                    washerDryerByKey={washerDryerByKey}
+                    onSaveWasherDryer={handleSaveWasherDryer}
                   />
                   {/* The engagement summary now lives INSIDE the action row (see BestMatches),
                       beside the Sent List History button it describes. It used to render here as

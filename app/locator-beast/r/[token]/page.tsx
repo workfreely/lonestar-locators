@@ -158,6 +158,15 @@ const CSS = `
 .lbr-why-lbl{font-size:13px;font-weight:700;color:var(--navy);margin:0 0 7px}
 .lbr-why ul{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:6px}
 .lbr-why li{display:flex;gap:8px;font-size:13.5px;color:var(--ink);line-height:1.35}
+/* WASHER & DRYER pill — the same 999px treatment as .lbr-ta-badge, on the palette tokens the
+   page already defines. ALIGN-SELF IS LOad-BEARING: .lbr-body is a flex column, and the CSS
+   spec blockifies a flex item's inline-flex to flex, so without it the pill stretches to the
+   full column width and reads as a bar rather than a pill. flex-start makes it hug its text
+   again. white-space:nowrap keeps "Washer & Dryer Included" on one line. */
+.lbr-wd{display:inline-flex;align-self:flex-start;align-items:center;margin-top:10px;padding:4px 11px;
+  border-radius:999px;font-size:12.5px;font-weight:700;line-height:1.2;white-space:nowrap}
+.lbr-wd--inc{background:var(--pill-bg);color:var(--pill-tx)}
+.lbr-wd--hk{background:var(--line-soft);color:var(--ink)}
 .lbr-check{color:var(--green);flex:none;margin-top:2px}
 .lbr-cardfoot{display:flex;align-items:flex-end;justify-content:space-between;gap:12px;margin-top:16px}
 .lbr-pl{font-size:12px;color:var(--muted)}
@@ -339,6 +348,7 @@ const CSS = `
 .lbr-stars-base,.lbr-stars-fill{font-size:17px}
 .lbr-why-lbl{font-size:17px}
 .lbr-why li{font-size:18px}
+.lbr-wd{font-size:15px;padding:5px 13px;margin-top:12px}
 .lbr-pl{font-size:16px}
 .lbr-pv{font-size:19px}
 .lbr-pmo{font-size:16px}

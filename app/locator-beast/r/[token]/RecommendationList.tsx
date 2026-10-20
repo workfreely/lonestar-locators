@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react"
 import { TOUR_TYPE_LABELS, TOUR_WINDOW_LABELS, normalizeShortSpecial, starFillPercent } from "@bc/companion-shared"
 import TourAvailabilityModal, { type Availability, type InitialAvailability } from "./TourAvailability"
+import { washerDryerLabel, washerDryerPillClass } from "@/lib/leads/washerDryer"
 
 /**
  * The client-facing recommendation cards — the approved premium presentation.
@@ -30,6 +31,8 @@ export type ClientProperty = {
   startingPrice: number | null
   currentSpecial: string | null
   googleRating: number | null
+  /** Frozen client-facing washer/dryer status: "included" | "hookups". Absent = not verified. */
+  washerDryer?: string | null
   index: number
   favorited: boolean
 }
@@ -356,6 +359,16 @@ export default function RecommendationList({
                       <li key={j}><Check /><span>{r}</span></li>
                     ))}
                   </ul>
+                </div>
+              )}
+              {/* WASHER & DRYER — one compact pill, directly beneath the highlights. It renders
+                  ONLY for a status the locator confirmed for this client; "not verified" is the
+                  absence of a pill, never a greyed-out "unknown". No icon and no check mark: the
+                  highlights above already use ticks, and a second symbol here would read as a
+                  fourth reason rather than a fact about the unit. */}
+              {washerDryerLabel(p.washerDryer) && (
+                <div className={washerDryerPillClass(p.washerDryer) as string}>
+                  {washerDryerLabel(p.washerDryer)}
                 </div>
               )}
               {showFoot && (

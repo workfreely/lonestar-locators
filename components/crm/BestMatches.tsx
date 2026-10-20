@@ -15,6 +15,7 @@ import { DndContext, PointerSensor, KeyboardSensor, useSensor, useSensors, close
 import { SortableContext, useSortable, sortableKeyboardCoordinates, verticalListSortingStrategy } from "@dnd-kit/sortable"
 import { CSS } from "@dnd-kit/utilities"
 import { moveItem } from "@/lib/leads/recommendationOrder"
+import type { WasherDryerStatus } from "@/lib/leads/washerDryer"
 
 // Recommended Properties — the canonical per-client Recommendations collection
 // (lead_recommendations). Conceptually distinct from Favorite Properties:
@@ -99,6 +100,8 @@ export default function BestMatches({
   canEditPricing = false,
   onPricingSaved,
   onReorder,
+  washerDryerByKey,
+  onSaveWasherDryer,
 }: {
   lead: any
   recommendations?: any[]
@@ -131,6 +134,10 @@ export default function BestMatches({
    * grips are rendered and the list behaves exactly as before.
    */
   onReorder?: (orderedIds: (number | string)[]) => void
+  /** Client-facing washer/dryer status per canonical_property_key, for THIS client. */
+  washerDryerByKey?: Map<string, WasherDryerStatus | null>
+  /** Persist the status for ONE client-property pair. Absent → no dropdown is offered. */
+  onSaveWasherDryer?: (canonicalPropertyKey: string, next: WasherDryerStatus | null) => Promise<boolean>
 }) {
   const leadRecommendations = (recommendations || []).filter(
     (r) => String(r.lead_id) === String(lead?.id),
@@ -318,6 +325,14 @@ export default function BestMatches({
                     // amenity). Nothing here can write the price back.
                     previewReasons={shownReasons}
                     onSave={(next) => onSaveReasons(String(r.canonical_property_key), next)}
+                    // Washer/dryer rides on the SAME client-property pair as the reasons.
+                    // Supplied only here, so Favorites keeps the editor it has always had.
+                    washerDryer={washerDryerByKey?.get(String(r.canonical_property_key)) ?? null}
+                    onSaveWasherDryer={
+                      onSaveWasherDryer
+                        ? (next) => onSaveWasherDryer(String(r.canonical_property_key), next)
+                        : undefined
+                    }
                   />
                 ) : <span />}
                 {commission.state === "paying" ? (
