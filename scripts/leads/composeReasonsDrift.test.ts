@@ -97,7 +97,7 @@ async function main() {
     })
     const got = (data ?? []) as string[]
     ok("location · price · amenity, in that order",
-      JSON.stringify(got) === JSON.stringify(["7 min to Frisco", "2BR from $1,679", "Washer and Dryer"]),
+      JSON.stringify(got) === JSON.stringify(["7 min to Frisco", "2BR from $1,679/month", "Washer and Dryer"]),
       JSON.stringify(got))
   }
 
