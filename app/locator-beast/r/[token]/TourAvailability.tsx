@@ -66,6 +66,18 @@ export default function TourAvailabilityModal({
   const [error, setError] = useState<string | null>(null)
 
   const dialogRef = useRef<HTMLDivElement>(null)
+  /** The modal's own scroller. The page behind is locked, so this is the only thing that moves. */
+  const bodyRef = useRef<HTMLDivElement>(null)
+  /**
+   * The date a tap just ADDED, held until the row for it has rendered.
+   *
+   * An explicit intent flag, not a derived effect: an effect watching `selected` would also fire
+   * when a date is REMOVED, when a time window is toggled, and on any incidental re-render, and
+   * the client would be yanked around for things they did not ask for. Only toggleDate's add
+   * branch sets this, and the effect clears it immediately, so one tap produces at most one
+   * scroll.
+   */
+  const pendingScrollRef = useRef<string | null>(null)
 
   // Focus the dialog, lock background scroll, and wire Escape (desktop) to close.
   useEffect(() => {
@@ -83,9 +95,42 @@ export default function TourAvailabilityModal({
   }, [onClose])
 
   const selectedDates = useMemo(() => Array.from(selected.keys()).sort(), [selected])
+
+  /**
+   * Bring the day a client just picked into view.
+   *
+   * On a phone the calendar fills the modal, so "What times work best?" renders below the fold
+   * and the client sees nothing happen — the sticky footer stays put and the section they need is
+   * off-screen. This scrolls the MODAL'S OWN body to the row for the date they tapped.
+   *
+   * It top-aligns that row rather than using scrollIntoView: scrollIntoView walks every
+   * scrollable ancestor, and top-aligning inside the body puts the row as far from the footer as
+   * the container allows, so the chips cannot end up behind it. The scroll is also clamped by the
+   * browser, so picking the last visible date simply scrolls to the end rather than overshooting.
+   *
+   * Nothing is selected or deselected here, and the calendar is untouched — the client can scroll
+   * back up and add more dates exactly as before.
+   */
+  useEffect(() => {
+    const date = pendingScrollRef.current
+    if (!date) return
+    pendingScrollRef.current = null
+    const body = bodyRef.current
+    const row = body?.querySelector<HTMLElement>(`[data-ta-day="${date}"]`)
+    if (!body || !row) return
+    const reduced = typeof window !== "undefined" &&
+      window.matchMedia?.("(prefers-reduced-motion: reduce)").matches === true
+    const delta = row.getBoundingClientRect().top - body.getBoundingClientRect().top
+    body.scrollTo({ top: body.scrollTop + delta - 12, behavior: reduced ? "auto" : "smooth" })
+  }, [selectedDates])
   const canSubmit = selectedDates.length > 0 && !submitting
 
   function toggleDate(dateStr: string) {
+    // The intent is recorded HERE, not inside the updater. A state updater must be pure — React
+    // may call it twice or discard a render — so a ref written in there is not reliably the thing
+    // the effect later reads. ADDING only: removing a date must not move the view, because the
+    // client is looking at the calendar and the row they just dismissed is gone.
+    if (!selected.has(dateStr)) pendingScrollRef.current = dateStr
     setSelected((prev) => {
       const next = new Map(prev)
       if (next.has(dateStr)) next.delete(dateStr)
@@ -164,7 +209,7 @@ export default function TourAvailabilityModal({
           </button>
         </div>
 
-        <div className="lbr-modal-body">
+        <div className="lbr-modal-body" ref={bodyRef}>
           <div className="lbr-ta-field">
             <p className="lbr-ta-lbl">How would you like to tour?</p>
             <div className="lbr-ta-seg" role="radiogroup" aria-label="Tour type">
@@ -223,7 +268,7 @@ export default function TourAvailabilityModal({
               <p className="lbr-ta-lbl">What times work best?</p>
               <div className="lbr-ta-days">
                 {selectedDates.map((d) => (
-                  <div className="lbr-ta-day" key={d}>
+                  <div className="lbr-ta-day" key={d} data-ta-day={d}>
                     <div className="lbr-ta-dayname">{labelForDate(d)}</div>
                     <div className="lbr-ta-chips">
                       {TOUR_WINDOWS.map((w) => {

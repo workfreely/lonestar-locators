@@ -119,9 +119,29 @@ console.log("\n=== 6. THE LIVE DATA AGREES ===")
         "and r.property_image_url <> pc.property_image_url;")
       ok("no recommendation row disagrees with its catalog image", stale === "0", `${stale} still differ`)
 
-      // Historical snapshots are untouched by any of this.
-      const snaps = q("select count(*)||'/'||count(property_image_url) from public.client_recommendation_share_items;")
-      ok(`historical snapshots unchanged (${snaps} items/frozen)`, snaps.startsWith("164/"), snaps)
+      // Historical snapshots are untouched by any of this. NOT asserted as a row count —
+      // that grows every time a list is sent, and a count would fail on the next send while
+      // proving nothing. What matters is that frozen images survived INDEPENDENTLY of the
+      // live rows whose copies were cleared.
+      const independent = q("select count(*) from public.client_recommendation_share_items i " +
+        "join public.lead_recommendations r on r.id = i.source_recommendation_id " +
+        "where i.property_image_url is not null and r.property_image_url is null;")
+      ok(`frozen images outlived the cleared row copies (${independent} items)`, Number(independent) >= 9, independent)
+
+      // The Jade's own pre-fix snapshots: still present, still carrying one single image.
+      const jadeSnaps = q("select count(*)||'/'||count(distinct property_image_url) " +
+        "from public.client_recommendation_share_items " +
+        "where source_recommendation_id = 112 and property_image_url is not null;")
+      const [kept, distinct] = jadeSnaps.split("/")
+      ok(`row 112's sent lists kept their frozen photo (${kept} items)`, Number(kept) >= 9, kept)
+      ok("…and all of them froze the same one", distinct === "1", distinct)
+
+      // A snapshot taken AFTER the fix holds no copy, because the row holds none. That is only
+      // safe because the resolver coalesces to the catalog — so the client still sees a photo,
+      // and sees the CURRENT approved one. This is the hinge the whole change rests on.
+      const resolver = q("select pg_get_functiondef(oid) from pg_proc where proname = 'lb_resolve_client_recommendations';")
+      ok("the resolver falls back to the catalog image when the snapshot has none",
+        /'imageUrl',\s*coalesce\(i\.property_image_url,\s*pc\.property_image_url\)/.test(resolver))
     } catch (e) {
       console.log(`  … skipped: psql unavailable (${(e as Error).message.split("\n")[0]})`)
     }
