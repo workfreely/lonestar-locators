@@ -3619,7 +3619,28 @@ export default function DashboardClient({ leads, nextActions, favorites, recomme
             })
           }
         }
-        const recRow = { ...rowBase, rent_min: recRentMin, rent_max: recRentMax, special: recSpecial, reasons: recReasons }
+        // ── THE IMAGE IS NOT COPIED FOR A CATALOG-RESOLVED PROPERTY ─────────────────────────
+        // property_catalog owns the image for anything with a Google place id, and
+        // attachCatalogRatings already resolves it read-side for every row whose own copy is
+        // null. Storing a second copy here froze whatever the catalog happened to hold at ADD
+        // time: an approved replacement would then never reach the card, because the resolver
+        // prefers a row's own image over the catalog's (ownImage ?? rec.imageUrl). That is how
+        // The Jade kept showing an arcade-room photo hours after its catalog image was replaced.
+        //
+        // A property with NO place id — pasted by hand, or detected on an external site — keeps
+        // its own image, because nothing else knows what it looks like. That is the case the
+        // resolver's row-first rule exists for, and it is unchanged here and in Favorites, which
+        // still insert rowBase as it stands.
+        //
+        // CONSEQUENCE, STATED: a place id whose property is not yet in the catalog (or is in it
+        // with no image) now shows PropertyThumb's building icon instead of a copied thumbnail.
+        // That is the honest state — we hold no verified image — and Property Intelligence
+        // registration is how it gets one.
+        const recRow = {
+          ...rowBase,
+          property_image_url: placeIdFromPropertyUrl(rowBase.property_url) ? null : rowBase.property_image_url,
+          rent_min: recRentMin, rent_max: recRentMax, special: recSpecial, reasons: recReasons,
+        }
         const applyLocal = (row: any) => {
           if (isFav) {
             const next = [...localFavoritesRef.current, row]

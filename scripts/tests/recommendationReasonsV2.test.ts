@@ -79,7 +79,16 @@ ok("a property outside the market still earns nothing", outside?.tone !== "match
 // ── nothing already saved is touched ────────────────────────────────────────────────────────
 console.log("\nSaved reasons are never rewritten")
 const dash = readFileSync("components/crm/DashboardClient.tsx", "utf8")
-ok("reasons are computed on the INSERT row only", /const recRow = \{ \.\.\.rowBase[^}]*reasons: recReasons \}/.test(dash))
+// Matched the one-line shape of recRow, which broke the moment the row gained a property and
+// was reformatted. Re-anchored on the claim itself: the reasons are set on the INSERT row, and
+// no update path rewrites them.
+{
+  const recRowBlock = dash.slice(dash.indexOf("const recRow = {"), dash.indexOf("const applyLocal"))
+  ok("reasons are computed on the INSERT row only",
+    recRowBlock.includes("...rowBase") && /reasons: recReasons/.test(recRowBlock))
+  ok("and no update path rewrites a saved reasons column",
+    !/from\("lead_recommendations"\)\s*\.update\(\{[^}]*reasons/.test(dash))
+}
 ok("both paths pass the area detail", (dash.match(/locationArea:/g) || []).length === 2)
 // THE GUARANTEE HE ASKED FOR: no code path recomputes reasons for a row that already exists, so
 // an agent's hand-edited list cannot be overwritten by generation. The only writer is the
