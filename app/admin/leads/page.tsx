@@ -196,10 +196,17 @@ async function getFavorites() {
 // payload filter by lead_id).
 async function getRecommendations() {
   const supabase = await createClient()
+  // THE canonical order (lib/leads/recommendationOrder): sort_order ASC NULLS LAST, then
+  // created_at, then id. The SAME rule lb_prepare_client_share's fingerprint and
+  // lb_create_client_share's row_number() apply — if these drift, the locator arranges one
+  // order and the client receives another. A row never arranged has sort_order NULL and keeps
+  // its created_at position, so an untouched list is ordered exactly as it was before.
   const { data, error } = await supabase
     .from("lead_recommendations")
     .select("*")
+    .order("sort_order", { ascending: true, nullsFirst: false })
     .order("created_at", { ascending: true })
+    .order("id", { ascending: true })
 
   if (error) {
     console.error("Error fetching recommendations:", error.message)

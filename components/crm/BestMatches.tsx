@@ -11,6 +11,10 @@ import { displayAddress, formatRating, normalizeShortSpecial, isSpecialCurrent, 
 import { StarRating } from "./StarRating"
 import RecommendationEngagement from "./RecommendationEngagement"
 import { propertyWebsiteHref } from "@/lib/propertyExplorer/types"
+import { DndContext, PointerSensor, KeyboardSensor, useSensor, useSensors, closestCenter, type DragEndEvent } from "@dnd-kit/core"
+import { SortableContext, useSortable, sortableKeyboardCoordinates, verticalListSortingStrategy } from "@dnd-kit/sortable"
+import { CSS } from "@dnd-kit/utilities"
+import { moveItem } from "@/lib/leads/recommendationOrder"
 
 // Recommended Properties — the canonical per-client Recommendations collection
 // (lead_recommendations). Conceptually distinct from Favorite Properties:
@@ -24,6 +28,65 @@ import { propertyWebsiteHref } from "@/lib/propertyExplorer/types"
 // section is unchanged; only its data source moved from a static sample to the
 // canonical model. The `property_image_url` (nullable) drives the shared thumbnail.
 
+/** Six dots — the conventional vertical grip. Decorative; the button carries the label. */
+function Grip() {
+  return (
+    <svg viewBox="0 0 10 16" width="10" height="16" aria-hidden fill="currentColor">
+      <circle cx="3" cy="3" r="1.35" /><circle cx="7" cy="3" r="1.35" />
+      <circle cx="3" cy="8" r="1.35" /><circle cx="7" cy="8" r="1.35" />
+      <circle cx="3" cy="13" r="1.35" /><circle cx="7" cy="13" r="1.35" />
+    </svg>
+  )
+}
+
+/**
+ * ONE recommendation row, draggable by its handle.
+ *
+ * The card is passed through as `children` and is NOT modified — same markup, same classes, same
+ * height, same thumbnail, same reasons, same ✕ / pencil / ♡ handlers. This adds a grip to its
+ * left and applies the drag transform to the pair.
+ *
+ * Only the HANDLE carries the drag listeners, so a press anywhere on the card still reaches the
+ * control underneath it. The transform is pinned to the Y axis (x: 0) instead of pulling in
+ * @dnd-kit/modifiers for restrictToVerticalAxis — a vertical list has no use for horizontal
+ * travel, and this needs no new dependency.
+ *
+ * With reordering off (no onReorder handler, or a single-row list) the row renders exactly as it
+ * did before: no wrapper element, no grip, no listeners, no behaviour change at all.
+ */
+function SortableRecommendation({
+  id, enabled, children,
+}: { id: string; enabled: boolean; children: React.ReactNode }) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id, disabled: !enabled })
+  if (!enabled) return <>{children}</>
+  return (
+    <div
+      ref={setNodeRef}
+      style={{
+        transform: CSS.Transform.toString(transform ? { ...transform, x: 0, scaleX: 1, scaleY: 1 } : null),
+        transition,
+        // The dragged row rides above its neighbours and dims slightly, so it reads as lifted.
+        zIndex: isDragging ? 20 : undefined,
+        position: isDragging ? "relative" : undefined,
+        opacity: isDragging ? 0.85 : undefined,
+      }}
+      className="flex items-stretch gap-1"
+    >
+      <button
+        type="button"
+        aria-label="Reorder this property"
+        title="Drag to reorder"
+        {...attributes}
+        {...listeners}
+        className="flex w-4 flex-none cursor-grab touch-none items-center justify-center rounded text-[var(--crm-text-muted)] opacity-60 transition-opacity duration-[120ms] hover:opacity-100 focus-visible:opacity-100 active:cursor-grabbing"
+      >
+        <Grip />
+      </button>
+      <div className="min-w-0 flex-1">{children}</div>
+    </div>
+  )
+}
+
 export default function BestMatches({
   lead,
   recommendations = [],
@@ -35,6 +98,7 @@ export default function BestMatches({
   onSaveReasons,
   canEditPricing = false,
   onPricingSaved,
+  onReorder,
 }: {
   lead: any
   recommendations?: any[]
@@ -61,15 +125,46 @@ export default function BestMatches({
   canEditPricing?: boolean
   /** Bumped after a pricing save so the derived reason re-renders with the new value. */
   onPricingSaved?: () => void
+  /**
+   * Persist a new arrangement. Receives THIS lead's visible recommendation ids in the order the
+   * locator left them; the caller writes 1..N to lead_recommendations.sort_order. Absent → no
+   * grips are rendered and the list behaves exactly as before.
+   */
+  onReorder?: (orderedIds: (number | string)[]) => void
 }) {
   const leadRecommendations = (recommendations || []).filter(
     (r) => String(r.lead_id) === String(lead?.id),
   )
+
+  // ── ARRANGING ──────────────────────────────────────────────────────────────────────────────
+  // The incoming array is ALREADY in canonical order — the loader applies sort_order ASC NULLS
+  // LAST, created_at, id, the same rule the share fingerprint and the snapshot's row_number()
+  // use. This section renders it as given and never re-sorts; a drag reports the ids in their
+  // new order and the caller persists 1..N, so there is no second source of truth here.
+  const canReorder = typeof onReorder === "function" && leadRecommendations.length > 1
+  const rowIds = leadRecommendations.map((r) => String(r.id))
+  // A 5px threshold: a press that never travels is a CLICK and must still reach the control it
+  // landed on. Keyboard sorting comes free with dnd-kit's own coordinate getter.
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
+  )
+  function handleDragEnd(e: DragEndEvent) {
+    const { active, over } = e
+    if (!over || active.id === over.id) return
+    const from = rowIds.indexOf(String(active.id))
+    const to = rowIds.indexOf(String(over.id))
+    if (from < 0 || to < 0) return
+    onReorder?.(moveItem(leadRecommendations, from, to).map((r) => r.id))
+  }
+
   return (
     <SectionCard title="Recommended Properties" collapsible defaultOpen storageKey="best-matches">
       {leadRecommendations.length === 0 ? (
         <p className="text-[11px] text-[var(--crm-text-muted)]">No recommendations yet.</p>
       ) : (
+        <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+        <SortableContext items={rowIds} strategy={verticalListSortingStrategy}>
         <div className="space-y-1.5">
           {leadRecommendations.map((r) => {
             // Locator-facing status — Special (blue, compact, beside the name) +
@@ -109,8 +204,8 @@ export default function BestMatches({
               MAX_REASONS,
             )
             return (
+            <SortableRecommendation key={r.id} id={String(r.id)} enabled={canReorder}>
             <div
-              key={r.id}
               className="rounded-lg border border-[var(--crm-border)] bg-[var(--crm-inset)] px-3 py-2"
             >
               <div className="flex items-start gap-2.5">
@@ -236,9 +331,12 @@ export default function BestMatches({
                 )}
               </div>
             </div>
+            </SortableRecommendation>
             )
           })}
         </div>
+        </SortableContext>
+        </DndContext>
       )}
 
       {/* Recommendation actions — BELOW the cards, inside Recommended Properties (never

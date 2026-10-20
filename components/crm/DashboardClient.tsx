@@ -22,6 +22,7 @@ import { emitWorkflowActionCreated, type WorkflowToastAction } from "@/lib/workf
 import { readAgendaExpanded, writeAgendaExpanded, DEFAULT_AGENDA_EXPANDED, readDemoBannerDismissed, writeDemoBannerDismissed, readCrmWorkspace, writeCrmWorkspace, DEFAULT_CRM_WORKSPACE, type CrmWorkspace } from "@/lib/preferences"
 import { exitDemoWorkspace } from "@/lib/demo/exitDemo"
 import { isDemoLeadId, getDemoBrief } from "@/lib/demo/demoWorkspace"
+import { sortRecommendations } from "@/lib/leads/recommendationOrder"
 import FirstRunChecklist from "./FirstRunChecklist"
 import AppHeader from "./AppHeader"
 import { CRM_PRIMARY_BUTTON, CRM_SECONDARY_BUTTON } from "@/lib/crmButtonStyles"
@@ -739,6 +740,46 @@ export default function DashboardClient({ leads, nextActions, favorites, recomme
     if (!okSaved) return false
     setReasonsByKey((prev) => new Map(prev).set(String(canonicalPropertyKey), next))
     return true
+  }
+
+  /**
+   * Persist the locator's arrangement of Recommended Properties.
+   *
+   * Writes ONE column — lead_recommendations.sort_order — and nothing else. Not reasons, not
+   * pricing, not commission, not favorites, not a workflow action, and no share: arranging a
+   * list is not sending one, so no link is generated and no existing snapshot is touched. An
+   * already-frozen snapshot keeps its own sort_order for ever; the new order reaches a client
+   * only when the locator next sends a list.
+   *
+   * Every visible row is given an explicit 1..N rather than only the one that moved, so a list
+   * is either wholly arranged or wholly unarranged — never a mix whose order depends on which
+   * rows happen to still be NULL.
+   *
+   * The local array is reordered FIRST so the card lands where it was dropped with no wait, then
+   * the writes go out. A failed write is reported and the server order wins on the next load;
+   * nothing is left half-applied, because sort_order is the only thing being written.
+   */
+  const handleReorderRecommendations = async (orderedIds: (number | string)[]) => {
+    const leadId = selectedLeadIdRef.current
+    if (!leadId || orderedIds.length === 0) return
+    const positions = new Map(orderedIds.map((id, i) => [String(id), i + 1]))
+    // Optimistic: stamp the new positions on the rows this lead owns, leaving every other
+    // lead's rows untouched, and re-sort by the SAME canonical rule the loader uses.
+    setLocalRecommendations((prev: any[]) =>
+      sortRecommendations(
+        (prev || []).map((r: any) =>
+          positions.has(String(r.id)) ? { ...r, sort_order: positions.get(String(r.id)) } : r,
+        ),
+      ),
+    )
+    if (isDemoLeadId(leadId)) return // demo workspace: local only, never a DB write
+    const results = await Promise.all(
+      [...positions.entries()].map(([id, sort_order]) =>
+        supabase.from("lead_recommendations").update({ sort_order }).eq("id", id),
+      ),
+    )
+    const failed = results.find((r) => r.error)
+    if (failed?.error) console.error("[recommendations] reorder failed:", failed.error.message)
   }
 
   const localRecommendationsRef = useRef(localRecommendations)
@@ -4539,6 +4580,9 @@ export default function DashboardClient({ leads, nextActions, favorites, recomme
                     }}
                     onSendRecommendations={() => selectedLead && handleSendRecommendations(selectedLead)}
                     onOpenSentHistory={() => selectedLead && setSentHistory({ leadId: selectedLead.id, clientName: shareClientName(selectedLead) })}
+                    // Drag to arrange. Writes only lead_recommendations.sort_order; the client
+                    // sees this order on the NEXT list sent, never on one already frozen.
+                    onReorder={handleReorderRecommendations}
                   />
                   {/* The engagement summary now lives INSIDE the action row (see BestMatches),
                       beside the Sent List History button it describes. It used to render here as
