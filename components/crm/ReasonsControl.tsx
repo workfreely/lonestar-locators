@@ -213,8 +213,12 @@ export default function ReasonsControl({
         <div className="mt-2 rounded-lg border border-[var(--crm-border)] p-2">
           <label className="flex items-center gap-1.5">
             <input type="checkbox" checked={arShow} onChange={(e) => setArShow(e.target.checked)} />
+            {/* Short, but the parenthetical stays: it is the whole safeguard. "Up to 10 Weeks
+                Free on Select Homes" is a ceiling on an offer that may not apply to this floor
+                plan, move-in or term, and the figures below are only as good as the call that
+                confirmed them. */}
             <span className="text-[10px] font-semibold uppercase tracking-wide text-[var(--crm-text-muted)]">
-              Show average rent (confirmed for this client&rsquo;s move-in)
+              Show Avg. rent (must verify terms)
             </span>
           </label>
           <div className="mt-1.5 grid grid-cols-4 gap-1.5">

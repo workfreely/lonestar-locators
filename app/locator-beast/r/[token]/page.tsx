@@ -158,11 +158,16 @@ const CSS = `
 .lbr-why-lbl{font-size:13px;font-weight:700;color:var(--navy);margin:0 0 7px}
 .lbr-why ul{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:6px}
 .lbr-why li{display:flex;gap:8px;font-size:13.5px;color:var(--ink);line-height:1.35}
-/* AVERAGE RENT — nested beneath the bedroom rent it qualifies, in the page's own green. Smaller
-   than the highlight above it, because it explains that number rather than competing with it.
-   display:block so it starts its own line under the rent; it wraps naturally on a narrow screen
-   and the middot separators keep it readable when it does. */
-.lbr-avg{display:block;margin-top:3px;font-size:12px;font-weight:600;color:var(--green);line-height:1.35}
+/* AVERAGE RENT — a SUB-line of the bedroom rent, not a bullet of its own.
+   SIZE is what makes it subordinate: 11.5px against the bullet's 13.5 (14 against 18 on a
+   phone). The 500 weight is slightly heavier than the bullet's 400 and is there for legibility,
+   not emphasis — green text two points smaller goes muddy at 400, and this line carries the
+   figure a renter is actually comparing. Smaller and coloured reads as supporting; smaller and
+   faint reads as fine print, which this is not. */
+.lbr-avg{display:block;margin-top:2px;font-size:11.5px;font-weight:500;color:var(--green);line-height:1.3}
+/* Each segment holds together; the line breaks at a separator, never inside "15-month lease". */
+.lbr-avg-seg{white-space:nowrap}
+.lbr-avg-sep{white-space:normal}
 /* WASHER & DRYER pill — the same 999px treatment as .lbr-ta-badge, on the palette tokens the
    page already defines. ALIGN-SELF IS LOad-BEARING: .lbr-body is a flex column, and the CSS
    spec blockifies a flex item's inline-flex to flex, so without it the pill stretches to the
@@ -354,7 +359,7 @@ const CSS = `
 .lbr-why-lbl{font-size:17px}
 .lbr-why li{font-size:18px}
 .lbr-wd{font-size:15px;padding:5px 13px;margin-top:12px}
-.lbr-avg{font-size:15px;margin-top:5px}
+.lbr-avg{font-size:14px;margin-top:4px}
 .lbr-pl{font-size:16px}
 .lbr-pv{font-size:19px}
 .lbr-pmo{font-size:16px}

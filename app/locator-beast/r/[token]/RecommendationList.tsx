@@ -4,7 +4,7 @@ import { useEffect, useState } from "react"
 import { TOUR_TYPE_LABELS, TOUR_WINDOW_LABELS, normalizeShortSpecial, starFillPercent } from "@bc/companion-shared"
 import TourAvailabilityModal, { type Availability, type InitialAvailability } from "./TourAvailability"
 import { washerDryerLabel, washerDryerPillClass } from "@/lib/leads/washerDryer"
-import { averageRentLine } from "@/lib/leads/averageRent"
+import { averageRentSegments } from "@/lib/leads/averageRent"
 import { isPricingReason } from "@/lib/leads/bedroomPricing"
 
 /**
@@ -250,8 +250,8 @@ export default function RecommendationList({
         // The frozen result, formatted by the one function that owns this sentence. `show: true`
         // because the snapshot only carries an object at all when the locator switched it on —
         // the decision was made and frozen at send time, not re-evaluated here.
-        const avgLine = p.averageRent
-          ? averageRentLine({
+        const avgParts = p.averageRent
+          ? averageRentSegments({
               quotedRent: p.averageRent.quotedRent,
               concessionWeeks: p.averageRent.concessionWeeks,
               concessionMonths: p.averageRent.concessionMonths,
@@ -389,8 +389,15 @@ export default function RecommendationList({
                               only on the price line, and only when the locator confirmed every
                               figure — the snapshot carries the result, so nothing is recomputed
                               in the client's browser. */}
-                          {avgLine && isPricingReason(r) && (
-                            <span className="lbr-avg">{avgLine}</span>
+                          {avgParts && isPricingReason(r) && (
+                            <span className="lbr-avg">
+                              {avgParts.map((seg, k) => (
+                                <span key={k} className="lbr-avg-seg">
+                                  {k > 0 && <span className="lbr-avg-sep"> · </span>}
+                                  {seg}
+                                </span>
+                              ))}
+                            </span>
                           )}
                         </span>
                       </li>
