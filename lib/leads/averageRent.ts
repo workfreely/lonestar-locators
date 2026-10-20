@@ -110,11 +110,18 @@ export function money(n: number): string {
   return "$" + Math.round(n).toLocaleString("en-US")
 }
 
-/** "10 weeks free" · "1 week free" · "2 months free" · "1 month free". */
+/**
+ * "10 wks free" · "1 wk free" · "2 months free" · "1 month free".
+ *
+ * WEEKS are abbreviated, months are not. That is the approved wording, and it is not an
+ * oversight: a concession is quoted in weeks far more often than in months, so "wks" is the one
+ * that earns the card's width back, while "months" is already short and reads cleanly. The unit
+ * is never dropped — "10 free" would be meaningless next to a monthly rent.
+ */
 export function concessionPhrase(a: AverageRent): string {
   if (a.concessionWeeks !== null) {
     const w = a.concessionWeeks
-    return `${+w.toFixed(2)} ${w === 1 ? "week" : "weeks"} free`
+    return `${+w.toFixed(2)} ${w === 1 ? "wk" : "wks"} free`
   }
   const m = a.concessionMonths as number
   return `${+m.toFixed(2)} ${m === 1 ? "month" : "months"} free`
@@ -122,13 +129,39 @@ export function concessionPhrase(a: AverageRent): string {
 
 /**
  * The exact client-facing line:
- *     Average Rent: $1,460/month · 10 weeks free · 15-month lease
+ *     Avg. Rent: $1,460/month · 10 wks free · 15-month lease
+ *
+ * The lease term stays. It is what makes the average checkable rather than asserted — a renter
+ * who can see the rent, the concession and the term can follow the arithmetic, and one who
+ * cannot has to take the figure on trust. The weight is carried by the STYLING, which is lighter
+ * and smaller than the bullet above, rather than by removing the facts.
+ *
+ * This wording is NOT frozen. The line is formatted at render time from the frozen inputs, so a
+ * copy change reaches every list, old and new, without touching a snapshot and without
+ * invalidating a prepared one — the fingerprint hashes the figures, not this sentence.
+ *
  * Returns null when there is nothing to show, so a caller can render it or not on one check.
  */
 export function averageRentLine(input: AverageRentInputs | null | undefined): string | null {
+  const parts = averageRentSegments(input)
+  return parts ? parts.join(" · ") : null
+}
+
+/**
+ * The same line, as its three SEGMENTS.
+ *
+ * The client card renders these as separate non-wrapping spans so a narrow screen breaks the
+ * line at a separator rather than inside a phrase. Left to itself the text stranded "lease" on
+ * a line of its own at 390px — the same orphan the address had, and the same fix: let the break
+ * happen where the sentence already has a seam.
+ *
+ * averageRentLine joins them for anywhere a plain string is wanted — the workspace preview, the
+ * tests — so there is one wording, in one place, whichever form a caller needs.
+ */
+export function averageRentSegments(input: AverageRentInputs | null | undefined): string[] | null {
   const a = computeAverageRent(input)
   if (!a) return null
-  return `Average Rent: ${money(a.average)}/month · ${concessionPhrase(a)} · ${a.leaseMonths}-month lease`
+  return [`Avg. Rent: ${money(a.average)}/month`, concessionPhrase(a), `${a.leaseMonths}-month lease`]
 }
 
 /**

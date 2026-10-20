@@ -16,7 +16,7 @@ import { readFileSync, existsSync, writeFileSync, unlinkSync } from "node:fs"
 import { join } from "node:path"
 import { tmpdir } from "node:os"
 import {
-  computeAverageRent, averageRentLine, concessionPhrase, bedroomLineRentOverride,
+  computeAverageRent, averageRentLine, averageRentSegments, concessionPhrase, bedroomLineRentOverride,
   MONTHS_PER_WEEK, money, type AverageRentInputs,
 } from "@/lib/leads/averageRent"
 import { pricingReasonText, displayReasons, isPricingReason } from "@/lib/leads/bedroomPricing"
@@ -41,7 +41,17 @@ console.log("\n=== 1. THE APPROVED EXAMPLE, AND THE CONVENTION ===")
 {
   eq("the exact client line",
     averageRentLine(ON({})),
-    "Average Rent: $1,460/month · 10 weeks free · 15-month lease")
+    "Avg. Rent: $1,460/month · 10 wks free · 15-month lease")
+  eq("the three segments, for a wrap that falls at a separator",
+    averageRentSegments(ON({})),
+    ["Avg. Rent: $1,460/month", "10 wks free", "15-month lease"])
+  ok("the joined line and the segments are one wording",
+    averageRentSegments(ON({}))!.join(" · ") === averageRentLine(ON({})))
+  eq("no segments when there is no average", averageRentSegments(ON({ show: false })), null)
+  ok("the label is abbreviated, the facts are not",
+    averageRentLine(ON({}))!.startsWith("Avg. Rent: ") &&
+    averageRentLine(ON({}))!.includes("10 wks free") &&
+    averageRentLine(ON({}))!.includes("15-month lease"))
   eq("a 52-week year is the constant", MONTHS_PER_WEEK, 12 / 52)
 
   // The convention is worth money, so it is asserted, not assumed.
@@ -53,9 +63,12 @@ console.log("\n=== 1. THE APPROVED EXAMPLE, AND THE CONVENTION ===")
 
   eq("the quoted rent is carried, never replaced", a.quotedRent, 1725)
   eq("months-free form: 2 months on 12 at $1,600", computeAverageRent(ON({ concessionWeeks: null, concessionMonths: 2, quotedRent: 1600, leaseMonths: 12 }))!.average, 1333)
-  eq("one week reads singular", concessionPhrase(computeAverageRent(ON({ concessionWeeks: 1 }))!), "1 week free")
+  eq("one week reads singular", concessionPhrase(computeAverageRent(ON({ concessionWeeks: 1 }))!), "1 wk free")
   eq("one month reads singular", concessionPhrase(computeAverageRent(ON({ concessionWeeks: null, concessionMonths: 1 }))!), "1 month free")
-  eq("a fractional concession keeps its decimals", concessionPhrase(computeAverageRent(ON({ concessionWeeks: 6.5 }))!), "6.5 weeks free")
+  // Weeks abbreviate, months do not — the approved wording, asserted so neither drifts.
+  eq("months stay spelled out", concessionPhrase(computeAverageRent(ON({ concessionWeeks: null, concessionMonths: 2 }))!), "2 months free")
+  ok("the unit is never dropped", /\b(wk|wks|month|months) free$/.test(concessionPhrase(computeAverageRent(ON({}))!)))
+  eq("a fractional concession keeps its decimals", concessionPhrase(computeAverageRent(ON({ concessionWeeks: 6.5 }))!), "6.5 wks free")
   eq("thousands separated, whole dollars", money(1459.62), "$1,460")
 }
 
@@ -178,7 +191,8 @@ console.log("\n=== 5. NOTHING IS INFERRED FROM THE ADVERTISED SPECIAL ===")
   // And on the client page, the average line is built from the frozen object alone.
   const page = read("app/locator-beast/r/[token]/RecommendationList.tsx")
   ok("the client page derives the average only from the frozen object",
-    /averageRentLine\(\{\s*quotedRent: p\.averageRent/.test(page) && !/averageRentLine[\s\S]{0,200}currentSpecial/.test(page))
+    /averageRentSegments\(\{\s*quotedRent: p\.averageRent/.test(page) &&
+    !/averageRentSegments[\s\S]{0,200}currentSpecial/.test(page))
   const mig = raw(MIG)
   // A derivation would have to READ the special inside an expression — a substring, a regexp, a
   // cast. Neighbouring names in an INSERT column list are not that, so match the shape of a read.
@@ -229,7 +243,7 @@ console.log("\n=== 7. THE CONTROL, AND WHERE IT LIVES ===")
   ok("the collapsed card row says nothing about average rent", !/averageRent|arShow|Average Rent/.test(collapsed))
   const bm = raw("components/crm/BestMatches.tsx")
   ok("the workspace card renders no average-rent element",
-    !bm.includes("lbr-avg") && !bm.includes("Average Rent:"))
+    !bm.includes("lbr-avg") && !bm.includes("averageRentLine") && !/Avg\.?\s*Rent:/i.test(bm))
 
   const dc = read("components/crm/DashboardClient.tsx")
   const arStart = dc.indexOf("const handleSaveAverageRent")
@@ -248,19 +262,32 @@ console.log("\n=== 8. THE CLIENT PAGE ===")
 {
   const list = read("app/locator-beast/r/[token]/RecommendationList.tsx")
   ok("the line is nested inside the PRICE highlight, not added as a fourth",
-    /avgLine && isPricingReason\(r\)/.test(list))
+    /avgParts && isPricingReason\(r\)/.test(list))
   ok("the client page never recalculates — it formats the frozen result",
-    /p\.averageRent\s*\?\s*averageRentLine\(/.test(list))
-  ok("no average is shown without a frozen object", /const avgLine = p\.averageRent/.test(list))
+    /p\.averageRent\s*\?\s*averageRentSegments\(/.test(list))
+  ok("each segment is rendered unbreakable, so a wrap falls at a separator",
+    /lbr-avg-seg/.test(list) && /\.lbr-avg-seg\{white-space:nowrap\}/.test(raw("app/locator-beast/r/[token]/page.tsx")))
+  ok("no average is shown without a frozen object", /const avgParts = p\.averageRent/.test(list))
   ok("the existing pricing disclaimer is still there",
     /Pricing and availability subject to change\./.test(raw("app/locator-beast/r/[token]/RecommendationList.tsx")))
   ok("the washer/dryer pill is still rendered", /washerDryerLabel\(p\.washerDryer\)/.test(list))
 
   const css = raw("app/locator-beast/r/[token]/page.tsx")
   ok("the line uses the page's own green token", /\.lbr-avg\{[^}]*color:var\(--green\)/.test(css))
-  ok("it is smaller than the highlight above it", /\.lbr-avg\{[^}]*font-size:12px/.test(css))
+  {
+    const sz = (re: RegExp) => { const m = re.exec(css); return m ? parseFloat(m[1]) : NaN }
+    const avgDesktop = sz(/\.lbr-avg\{[^}]*font-size:([\d.]+)px/)
+    const liDesktop = sz(/\.lbr-why li\{[^}]*font-size:([\d.]+)px/)
+    const avgMobile = sz(/\.lbr-avg\{font-size:([\d.]+)px/)
+    const liMobile = sz(/\.lbr-why li\{font-size:([\d.]+)px\}/)
+    ok(`it is smaller than the highlight above it (${avgDesktop} < ${liDesktop})`, avgDesktop < liDesktop)
+    ok(`…and on mobile too (${avgMobile} < ${liMobile})`, avgMobile < liMobile)
+    // SIZE carries the subordination (asserted above). The 500 weight is for legibility at the
+    // reduced size, not emphasis — so what matters is that it stays below a heading weight.
+    ok("its weight stays below heading weight", /\.lbr-avg\{[^}]*font-weight:500/.test(css))
+  }
   ok("it starts its own line beneath the rent", /\.lbr-avg\{[^}]*display:block/.test(css))
-  ok("it scales up on mobile like the rest of the card", /\.lbr-avg\{font-size:15px/.test(css))
+  ok("it scales up on mobile like the rest of the card", /@media[\s\S]*\.lbr-avg\{font-size:1[0-9]px/.test(css))
   ok("no new colour literal", !/\.lbr-avg\{[^}]*#[0-9a-f]{3,8}/i.test(css))
 }
 
