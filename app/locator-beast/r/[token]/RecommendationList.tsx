@@ -43,9 +43,9 @@ function websiteHref(url: string | null | undefined): string | null {
   return /^https?:\/\/[^\s]+$/i.test(u) ? u : null
 }
 
-function Heart({ filled }: { filled: boolean }) {
+function Heart({ filled, size = 21 }: { filled: boolean; size?: number }) {
   return (
-    <svg viewBox="0 0 24 24" width="21" height="21" aria-hidden
+    <svg viewBox="0 0 24 24" width={size} height={size} aria-hidden
       fill={filled ? "#e0245e" : "none"} stroke={filled ? "#e0245e" : "#0e2545"} strokeWidth="1.9"
       strokeLinecap="round" strokeLinejoin="round">
       <path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.6l-1-1a5.5 5.5 0 0 0-7.8 7.8l8.8 8.8 8.8-8.8a5.5 5.5 0 0 0 0-7.8Z" />
@@ -398,16 +398,34 @@ export default function RecommendationList({
 
     {/* Done Selecting Favorites — the primary conversion CTA. Hidden at 0 favorites;
         NOT sticky. On success the Tour Availability modal opens immediately. */}
-    {/* MOBILE STICKY ACTION BAR — appears with the first favorite, mobile only.
-        It reuses the SAME `onDone` handler and the SAME favCount the full block below uses, so
+    {/* MOBILE STICKY ACTION BAR — mobile only, visible from the moment the page opens.
+        It is present at ZERO favorites too: the bar is how a client learns the hearts are the
+        mechanism, so showing it only after the first favorite hid the instruction from exactly
+        the person who still needed it. At zero it states what to do and the button is disabled;
+        from the first favorite it reports the running count and the button turns live. No extra
+        instructional copy — Next Steps already carries that.
+
+        It reuses the SAME `markDone` handler and the SAME favCount the full block below uses, so
         favourites persistence, tour scheduling and submission are untouched. The full block is
         hidden on mobile by CSS (.lbr-done{display:none}) so the two never compete; desktop is
         unchanged and never renders the bar. */}
-    {!done && favCount > 0 && (
+    {!done && (
       <div className="lbr-sticky" role="region" aria-label="Favorites selection">
-        <span className="lbr-sticky-count">{favCount} {favCount === 1 ? "favorite" : "favorites"}</span>
-        <button type="button" className="lbr-sticky-btn" onClick={markDone} disabled={doneBusy} aria-busy={doneBusy}>
-          {doneBusy ? "Saving…" : "Done Selecting Favorites"}
+        {/* aria-live: the count changes without a navigation, so a screen reader is told. */}
+        <span className="lbr-sticky-count" aria-live="polite">
+          <Heart filled={favCount > 0} size={15} />
+          {favCount === 0
+            ? "Choose your favorite properties"
+            : `${favCount} ${favCount === 1 ? "favorite" : "favorites"} selected`}
+        </span>
+        <button
+          type="button"
+          className="lbr-sticky-btn"
+          onClick={markDone}
+          disabled={doneBusy || favCount === 0}
+          aria-busy={doneBusy}
+        >
+          {doneBusy ? "Saving…" : <>Done Selecting Favorites <Arrow /></>}
         </button>
       </div>
     )}

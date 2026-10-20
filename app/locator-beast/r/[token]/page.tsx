@@ -230,10 +230,15 @@ const CSS = `
    indicator and Safari's bottom chrome. A matching pad on .lbr-wrap keeps the last card and
    its View Property button scrollable clear of the bar rather than underneath it. */
 .lbr-sticky{display:none}
-.lbr-sticky-count{font-size:14px;font-weight:700;color:var(--navy);white-space:nowrap}
-.lbr-sticky-btn{appearance:none;border:none;cursor:pointer;background:var(--navy);color:#fff;font-family:inherit;font-weight:700;font-size:15px;letter-spacing:-.01em;min-height:48px;padding:0 18px;border-radius:12px;flex:1;transition:transform .06s ease}
+.lbr-sticky-count{display:flex;align-items:center;justify-content:center;gap:6px;font-size:14px;font-weight:700;color:var(--navy);white-space:nowrap}
+.lbr-sticky-count svg{flex:none}
+.lbr-sticky-btn{display:flex;align-items:center;justify-content:center;gap:8px;width:100%;appearance:none;border:none;cursor:pointer;background:var(--navy);color:#fff;font-family:inherit;font-weight:700;font-size:15px;letter-spacing:-.01em;min-height:48px;padding:0 18px;border-radius:12px;transition:transform .06s ease,background .15s ease,color .15s ease}
 .lbr-sticky-btn:active{transform:scale(.98)}
-.lbr-sticky-btn:disabled{opacity:.6;cursor:default}
+/* Disabled is a DIFFERENT surface, not a faded navy: at zero favorites the button must
+   read as not-yet-available at a glance, and a translucent navy still reads as a live
+   primary action. :active is neutralised so a tap gives no affordance either. */
+.lbr-sticky-btn:disabled{background:var(--line);color:var(--muted);cursor:default;opacity:1}
+.lbr-sticky-btn:disabled:active{transform:none}
 .lbr-done-count{font-size:14px;font-weight:700;color:var(--navy);margin:0 0 10px}
 .lbr-done-btn{appearance:none;border:none;cursor:pointer;background:var(--navy);color:#fff;font-family:inherit;font-weight:700;font-size:16px;letter-spacing:-.01em;min-height:54px;padding:0 30px;border-radius:14px;box-shadow:0 14px 30px -14px rgba(14,37,69,.55);transition:transform .06s ease,box-shadow .2s ease}
 .lbr-done-btn:hover{box-shadow:0 18px 36px -14px rgba(14,37,69,.6)}
@@ -433,12 +438,17 @@ const CSS = `
    Favorites" exists on a phone. The bar sits above Safari's chrome via the safe-area
    inset, and .lbr-shell gains matching bottom padding so the last card's View Property
    button can always be scrolled clear of it rather than sitting underneath. */
-.lbr-sticky{display:flex;align-items:center;gap:12px;position:fixed;left:0;right:0;bottom:0;z-index:50;
+.lbr-sticky{display:flex;flex-direction:column;align-items:stretch;gap:8px;position:fixed;left:0;right:0;bottom:0;z-index:50;
   padding:10px 14px calc(10px + env(safe-area-inset-bottom));
   background:rgba(255,255,255,.96);backdrop-filter:blur(10px);
   border-top:1px solid var(--line-soft);box-shadow:0 -8px 24px -14px rgba(14,37,69,.4)}
+.lbr-sticky-count{font-size:15px}
+.lbr-sticky-btn{font-size:16px}
 .lbr-done{display:none}
-.lbr-shell{padding-bottom:calc(86px + env(safe-area-inset-bottom))}
+/* Clearance for the two-row bar, so the last card's View Property button can always be
+   scrolled clear of it rather than sitting underneath. Measured: ~22 count + 8 gap +
+   48 button + 20 padding + 1 border. */
+.lbr-shell{padding-bottom:calc(118px + env(safe-area-inset-bottom))}
 }
 `
 
