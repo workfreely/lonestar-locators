@@ -113,8 +113,8 @@ async function main() {
       "2", // lead 94's beds
       MAX_REASONS,
     )
-    eq("three reasons, in order", shown, ["1 min to Uptown", "2BR from $1,400", "Washer and Dryer"])
-    eq("joined exactly as ReasonsControl renders it", shown.join(" · "), "1 min to Uptown · 2BR from $1,400 · Washer and Dryer")
+    eq("three reasons, in order", shown, ["1 min to Uptown", "2BR from $1,400/month", "Washer and Dryer"])
+    eq("joined exactly as ReasonsControl renders it", shown.join(" · "), "1 min to Uptown · 2BR from $1,400/month · Washer and Dryer")
     eq("the SAVED reasons are unchanged", saved, ["1 min to Uptown", "Washer and Dryer"])
   }
 

@@ -158,6 +158,11 @@ const CSS = `
 .lbr-why-lbl{font-size:13px;font-weight:700;color:var(--navy);margin:0 0 7px}
 .lbr-why ul{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:6px}
 .lbr-why li{display:flex;gap:8px;font-size:13.5px;color:var(--ink);line-height:1.35}
+/* AVERAGE RENT — nested beneath the bedroom rent it qualifies, in the page's own green. Smaller
+   than the highlight above it, because it explains that number rather than competing with it.
+   display:block so it starts its own line under the rent; it wraps naturally on a narrow screen
+   and the middot separators keep it readable when it does. */
+.lbr-avg{display:block;margin-top:3px;font-size:12px;font-weight:600;color:var(--green);line-height:1.35}
 /* WASHER & DRYER pill — the same 999px treatment as .lbr-ta-badge, on the palette tokens the
    page already defines. ALIGN-SELF IS LOad-BEARING: .lbr-body is a flex column, and the CSS
    spec blockifies a flex item's inline-flex to flex, so without it the pill stretches to the
@@ -349,6 +354,7 @@ const CSS = `
 .lbr-why-lbl{font-size:17px}
 .lbr-why li{font-size:18px}
 .lbr-wd{font-size:15px;padding:5px 13px;margin-top:12px}
+.lbr-avg{font-size:15px;margin-top:5px}
 .lbr-pl{font-size:16px}
 .lbr-pv{font-size:19px}
 .lbr-pmo{font-size:16px}

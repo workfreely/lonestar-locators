@@ -73,8 +73,16 @@ console.log("\n=== 3. THE PILL ===")
   ok("it hugs its text inside the card's flex column", /\.lbr-wd\{[^}]*align-self:flex-start/.test(css))
 
   const list = read("app/locator-beast/r/[token]/RecommendationList.tsx")
-  ok("it renders immediately after the highlights block",
-    /lbr-why[\s\S]{0,400}?washerDryerLabel\(p\.washerDryer\)/.test(list))
+  // Structure, not character distance: the pill is the next thing after the highlights block
+  // closes. The previous form allowed 400 characters between the two and broke the moment the
+  // average-rent line was nested inside the list — a budget is not a relationship.
+  {
+    const whyEnd = list.indexOf('{reasons.length > 0 && (')
+    const pillAt = list.indexOf('washerDryerLabel(p.washerDryer) && (')
+    const footAt = list.indexOf('showFoot && (')
+    ok("it renders after the highlights block and before the card foot",
+      whyEnd > 0 && pillAt > whyEnd && footAt > pillAt)
+  }
   ok("nothing renders when the status is unset", /washerDryerLabel\(p\.washerDryer\) && \(/.test(list))
   ok("no icon, tick or warning glyph in the pill",
     !/washerDryerPillClass[\s\S]{0,200}(<Check|<svg|⚠|✓|✔)/.test(list))
@@ -104,7 +112,11 @@ console.log("\n=== 5. SAVING ONE FIELD NEVER ERASES ANOTHER ===")
 {
   const pr = read("lib/leads/propertyReasons.ts")
   const saveReasons = pr.slice(pr.indexOf("export async function saveReasons"), pr.indexOf("export async function saveWasherDryer"))
-  const saveWd = pr.slice(pr.indexOf("export async function saveWasherDryer"))
+  // Bounded: saveAverageRent now follows, and an unbounded slice counted ITS upsert too.
+  const wdStart = pr.indexOf("export async function saveWasherDryer")
+  const wdEnd = pr.indexOf("export async function saveAverageRent")
+  ok("the washer/dryer writer was located", wdStart > 0 && wdEnd > wdStart)
+  const saveWd = pr.slice(wdStart, wdEnd)
   ok("saveReasons still sends only reasons", !saveWd.includes("") || !/reasons,/.test(saveWd.split("upsert(")[1]?.split(")")[0] ?? ""))
   ok("saveReasons does not send washer_dryer_status", !saveReasons.includes("washer_dryer_status"))
   ok("saveWasherDryer does not send reasons", !/\breasons\b/.test(saveWd.split("upsert(")[1]?.split("{ onConflict")[0] ?? ""))

@@ -16,6 +16,7 @@ import { SortableContext, useSortable, sortableKeyboardCoordinates, verticalList
 import { CSS } from "@dnd-kit/utilities"
 import { moveItem } from "@/lib/leads/recommendationOrder"
 import type { WasherDryerStatus } from "@/lib/leads/washerDryer"
+import { bedroomLineRentOverride, type AverageRentInputs } from "@/lib/leads/averageRent"
 
 // Recommended Properties — the canonical per-client Recommendations collection
 // (lead_recommendations). Conceptually distinct from Favorite Properties:
@@ -102,6 +103,8 @@ export default function BestMatches({
   onReorder,
   washerDryerByKey,
   onSaveWasherDryer,
+  averageRentByKey,
+  onSaveAverageRent,
 }: {
   lead: any
   recommendations?: any[]
@@ -138,6 +141,10 @@ export default function BestMatches({
   washerDryerByKey?: Map<string, WasherDryerStatus | null>
   /** Persist the status for ONE client-property pair. Absent → no dropdown is offered. */
   onSaveWasherDryer?: (canonicalPropertyKey: string, next: WasherDryerStatus | null) => Promise<boolean>
+  /** The confirmed average-rent figures per canonical_property_key, for THIS client. */
+  averageRentByKey?: Map<string, AverageRentInputs>
+  /** Persist all five figures for ONE pair. Absent → no average-rent control is offered. */
+  onSaveAverageRent?: (canonicalPropertyKey: string, next: AverageRentInputs) => Promise<boolean>
 }) {
   const leadRecommendations = (recommendations || []).filter(
     (r) => String(r.lead_id) === String(lead?.id),
@@ -200,6 +207,9 @@ export default function BestMatches({
             // writes `savedReasons`, the row renders `shownReasons`, and the price therefore
             // never becomes stored text that a later correction would leave stale.
             const savedReasons = reasonsByKey?.get(String(r.canonical_property_key)) ?? []
+            // When a confirmed quote is being shown, the preview quotes that unit too, so the
+            // workspace shows the locator exactly the line the client will read.
+            const quoteOverride = bedroomLineRentOverride(averageRentByKey?.get(String(r.canonical_property_key)))
             const shownReasons = displayReasons(
               savedReasons,
               {
@@ -209,6 +219,7 @@ export default function BestMatches({
               },
               lead?.beds,
               MAX_REASONS,
+              quoteOverride,
             )
             return (
             <SortableRecommendation key={r.id} id={String(r.id)} enabled={canReorder}>
@@ -331,6 +342,12 @@ export default function BestMatches({
                     onSaveWasherDryer={
                       onSaveWasherDryer
                         ? (next) => onSaveWasherDryer(String(r.canonical_property_key), next)
+                        : undefined
+                    }
+                    averageRent={averageRentByKey?.get(String(r.canonical_property_key)) ?? null}
+                    onSaveAverageRent={
+                      onSaveAverageRent
+                        ? (next) => onSaveAverageRent(String(r.canonical_property_key), next)
                         : undefined
                     }
                   />

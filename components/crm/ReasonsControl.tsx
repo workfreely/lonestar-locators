@@ -3,6 +3,7 @@
 import { useState } from "react"
 import { MAX_REASONS } from "@bc/companion-shared"
 import { WASHER_DRYER_OPTIONS, asWasherDryerStatus, type WasherDryerStatus } from "@/lib/leads/washerDryer"
+import { averageRentLine, type AverageRentInputs } from "@/lib/leads/averageRent"
 
 /**
  * "Why I chose this · Edit" — the locator-side editor for one recommendation's
@@ -23,6 +24,8 @@ export default function ReasonsControl({
   onSave,
   washerDryer,
   onSaveWasherDryer,
+  averageRent,
+  onSaveAverageRent,
 }: {
   /** The SAVED reasons. This is what the editor seeds from and what onSave receives. */
   reasons: string[]
@@ -44,6 +47,12 @@ export default function ReasonsControl({
    */
   washerDryer?: WasherDryerStatus | null
   onSaveWasherDryer?: (next: WasherDryerStatus | null) => Promise<boolean>
+  /**
+   * OPTIONAL average-rent control, on the same terms as the washer/dryer one: both props or
+   * neither, so Favorites and every other caller are untouched.
+   */
+  averageRent?: AverageRentInputs | null
+  onSaveAverageRent?: (next: AverageRentInputs) => Promise<boolean>
 }) {
   const [open, setOpen] = useState(false)
   const [draft, setDraft] = useState<string[]>(reasons)
@@ -52,11 +61,36 @@ export default function ReasonsControl({
   const [wdDraft, setWdDraft] = useState<WasherDryerStatus | null>(washerDryer ?? null)
   const showWasherDryer = typeof onSaveWasherDryer === "function"
 
+  // ── AVERAGE RENT ──────────────────────────────────────────────────────────────────────────
+  // Four figures a person confirms, held as TEXT while editing so a half-typed "17" is not read
+  // as a $17 rent, and converted once on save.
+  const showAverageRent = typeof onSaveAverageRent === "function"
+  const txt = (v: number | null | undefined) => (v === null || v === undefined ? "" : String(v))
+  const [arRent, setArRent] = useState(txt(averageRent?.quotedRent))
+  const [arWeeks, setArWeeks] = useState(txt(averageRent?.concessionWeeks))
+  const [arMonths, setArMonths] = useState(txt(averageRent?.concessionMonths))
+  const [arTerm, setArTerm] = useState(txt(averageRent?.leaseMonths))
+  const [arShow, setArShow] = useState(averageRent?.show === true)
+  const arDraft: AverageRentInputs = {
+    quotedRent: arRent.trim() === "" ? null : Number(arRent),
+    concessionWeeks: arWeeks.trim() === "" ? null : Number(arWeeks),
+    concessionMonths: arMonths.trim() === "" ? null : Number(arMonths),
+    leaseMonths: arTerm.trim() === "" ? null : Number(arTerm),
+    show: arShow,
+  }
+  // The EXACT line the client would see — computed by the same function the client page uses, so
+  // the locator is previewing the real thing rather than an approximation of it. Null means the
+  // figures do not yet justify a line, which is the preview that matters most.
+  const arPreview = averageRentLine({ ...arDraft, show: true })
+
   function begin() {
     // Seed from the CURRENT saved value every time it opens, so a cancelled edit
     // never leaks into the next one.
     setDraft(reasons.length ? reasons : [""])
     setWdDraft(washerDryer ?? null)
+    setArRent(txt(averageRent?.quotedRent)); setArWeeks(txt(averageRent?.concessionWeeks))
+    setArMonths(txt(averageRent?.concessionMonths)); setArTerm(txt(averageRent?.leaseMonths))
+    setArShow(averageRent?.show === true)
     setError(null)
     setOpen(true)
   }
@@ -70,8 +104,16 @@ export default function ReasonsControl({
     // actually CHANGED, so pressing Save after editing reasons alone never touches it.
     const wdChanged = showWasherDryer && wdDraft !== (washerDryer ?? null)
     const okWd = okSaved && wdChanged ? await onSaveWasherDryer!(wdDraft) : true
+    const arChanged = showAverageRent && (
+      arDraft.quotedRent !== (averageRent?.quotedRent ?? null) ||
+      arDraft.concessionWeeks !== (averageRent?.concessionWeeks ?? null) ||
+      arDraft.concessionMonths !== (averageRent?.concessionMonths ?? null) ||
+      arDraft.leaseMonths !== (averageRent?.leaseMonths ?? null) ||
+      arDraft.show !== (averageRent?.show === true)
+    )
+    const okAr = okSaved && arChanged ? await onSaveAverageRent!(arDraft) : true
     setSaving(false)
-    if (!okSaved || !okWd) { setError("Couldn't save. Please try again."); return }
+    if (!okSaved || !okWd || !okAr) { setError("Couldn't save. Please try again."); return }
     setOpen(false)
   }
 
@@ -160,6 +202,43 @@ export default function ReasonsControl({
               <option key={o.value || "none"} value={o.value}>{o.label}</option>
             ))}
           </select>
+        </div>
+      )}
+      {/* AVERAGE RENT — four figures the locator CONFIRMS for this client, and the switch that
+          lets them see it. Nothing is read from the advertised special: "Up to 10 Weeks Free on
+          Select Homes" is a ceiling on an offer that may not apply to this floor plan, move-in
+          or term. The preview is the real client-facing line, so an incomplete entry shows the
+          locator exactly what it shows a client — nothing. */}
+      {showAverageRent && (
+        <div className="mt-2 rounded-lg border border-[var(--crm-border)] p-2">
+          <label className="flex items-center gap-1.5">
+            <input type="checkbox" checked={arShow} onChange={(e) => setArShow(e.target.checked)} />
+            <span className="text-[10px] font-semibold uppercase tracking-wide text-[var(--crm-text-muted)]">
+              Show average rent (confirmed for this client&rsquo;s move-in)
+            </span>
+          </label>
+          <div className="mt-1.5 grid grid-cols-4 gap-1.5">
+            {([["Quoted rent", arRent, setArRent, "1,725"],
+               ["Weeks free", arWeeks, setArWeeks, "10"],
+               ["Months free", arMonths, setArMonths, "—"],
+               ["Lease (mo)", arTerm, setArTerm, "15"]] as const).map(([lbl, val, set, ph]) => (
+              <div key={lbl}>
+                <span className="block text-[9.5px] font-semibold uppercase tracking-wide text-[var(--crm-text-muted)]">{lbl}</span>
+                <input
+                  value={val}
+                  inputMode="decimal"
+                  placeholder={ph}
+                  onChange={(e) => set(e.target.value)}
+                  className="mt-0.5 w-full rounded-md border border-[var(--crm-border)] bg-[var(--crm-panel)] px-1.5 py-1 text-[11px] tabular-nums text-[var(--crm-text-primary)] outline-none focus:border-[var(--crm-text-muted)]"
+                />
+              </div>
+            ))}
+          </div>
+          <p className="mt-1.5 text-[10px] text-[var(--crm-text-muted)]">
+            {arPreview
+              ? <span className="font-semibold text-emerald-600">{arPreview}</span>
+              : "Enter the quoted rent, the confirmed concession (weeks or months, not both) and the lease term."}
+          </p>
         </div>
       )}
       {error && <p className="mt-1.5 text-[10.5px] font-medium text-red-500">{error}</p>}

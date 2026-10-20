@@ -96,7 +96,10 @@ export function startingRentFor(pricing: CatalogPricing, bedrooms: BedroomCount)
  * this number does not evidence.
  */
 export function pricingReasonText(bedrooms: BedroomCount, rent: number): string {
-  return `${bedrooms}BR from $${Math.round(rent).toLocaleString("en-US")}`
+  // "/month" so the figure states its own unit. Without it a client comparing this line to the
+  // average-rent line beneath has to assume the two are the same period; with it, they read as
+  // one statement. Mirrored in lb_compose_recommendation_reasons; a drift test holds them level.
+  return `${bedrooms}BR from $${Math.round(rent).toLocaleString("en-US")}/month`
 }
 
 /**
@@ -130,13 +133,30 @@ export function displayReasons(
   pricing: CatalogPricing,
   beds: string | null | undefined,
   maxReasons: number,
+  /**
+   * The CONFIRMED quote for the qualifying unit, when the average-rent line is being shown.
+   *
+   * It replaces the catalog starting rent on this line only, so both numbers on the card
+   * describe the same apartment — a discount on one unit beside the starting price of another
+   * is not a comparison a client can use. Null (the default) keeps every existing call
+   * unchanged and the catalog figure in place.
+   *
+   * The catalog is never written to. This is a display substitution, nothing more.
+   */
+  quotedRentOverride?: number | null,
 ): string[] {
   const saved = (savedReasons ?? []).filter((r) => typeof r === "string" && r.trim() !== "")
 
   const bedrooms = requestedBedrooms(beds)
   if (bedrooms === null) return [...saved]
 
-  const rent = startingRentFor(pricing, bedrooms)
+  const override = typeof quotedRentOverride === "number" && Number.isFinite(quotedRentOverride) && quotedRentOverride > 0
+    ? quotedRentOverride
+    : null
+  // A confirmed quote stands in for the catalog figure; without one, nothing changes. A quote
+  // alone is also enough to show the line, even for a bedroom count the catalog has no price
+  // for — the locator verified an actual unit, which is better evidence than a missing column.
+  const rent = override ?? startingRentFor(pricing, bedrooms)
   if (rent === null) return [...saved]
 
   // Already stated — by us on a previous render, or by the locator by hand.

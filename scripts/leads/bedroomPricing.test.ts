@@ -62,9 +62,9 @@ eq("NaN → null", startingRentFor({ ...NONE, onebrStartingRent: Number.NaN }, 1
 eq("numeric string still reads", startingRentFor({ ...NONE, onebrStartingRent: "1350" as unknown as number }, 1), 1350)
 
 console.log("\n=== pricingReasonText — the approved copy ===")
-eq("1BR", pricingReasonText(1, 1350), "1BR from $1,350")
-eq("2BR (the owner's example)", pricingReasonText(2, 1400), "2BR from $1,400")
-eq("3BR", pricingReasonText(3, 1850), "3BR from $1,850")
+eq("1BR", pricingReasonText(1, 1350), "1BR from $1,350/month")
+eq("2BR (the owner's example)", pricingReasonText(2, 1400), "2BR from $1,400/month")
+eq("3BR", pricingReasonText(3, 1850), "3BR from $1,850/month")
 ok('says "from" — a STARTING rent, not a move-in quote', pricingReasonText(2, 1400).includes("from"))
 ok("no cents", !/\.\d/.test(pricingReasonText(2, 1400.49)))
 ok("never mentions bathrooms", !/bath|ba\b/i.test(pricingReasonText(2, 1400)))
@@ -73,9 +73,9 @@ console.log("\n=== displayReasons — the owner's worked example ===")
 eq(
   "location · price · amenity, in that order",
   displayReasons(["1 min to Uptown", "Washer and Dryer"], FULL, "2", MAX),
-  ["1 min to Uptown", "2BR from $1,400", "Washer and Dryer"],
+  ["1 min to Uptown", "2BR from $1,400/month", "Washer and Dryer"],
 )
-ok("price lands in slot 2", displayReasons(["1 min to Uptown", "Washer and Dryer"], FULL, "2", MAX)[PRICING_SLOT_INDEX] === "2BR from $1,400")
+ok("price lands in slot 2", displayReasons(["1 min to Uptown", "Washer and Dryer"], FULL, "2", MAX)[PRICING_SLOT_INDEX] === "2BR from $1,400/month")
 
 console.log("\n=== displayReasons — the saved array is NEVER mutated ===")
 {
@@ -112,15 +112,15 @@ console.log("\n=== displayReasons — THREE-SLOT LIMIT: never evict, never a fou
 console.log("\n=== displayReasons — duplicate prevention ===")
 eq(
   "our own derived text is not added twice",
-  displayReasons(["1 min to Uptown", "2BR from $1,400"], FULL, "2", MAX),
-  ["1 min to Uptown", "2BR from $1,400"],
+  displayReasons(["1 min to Uptown", "2BR from $1,400/month"], FULL, "2", MAX),
+  ["1 min to Uptown", "2BR from $1,400/month"],
 )
 eq(
   "a HAND-TYPED price in a different format also blocks it",
-  displayReasons(["2 BR from $1400"], FULL, "2", MAX),
-  ["2 BR from $1400"],
+  displayReasons(["2 BR from $1400/month"], FULL, "2", MAX),
+  ["2 BR from $1400/month"],
 )
-ok("isPricingReason recognises loose formatting", isPricingReason("2 BR from $1400") && isPricingReason("1BR from $1,350"))
+ok("isPricingReason recognises loose formatting", isPricingReason("2 BR from $1400/month") && isPricingReason("1BR from $1,350/month"))
 ok("isPricingReason does NOT fire on ordinary reasons", !isPricingReason("1 min to Uptown") && !isPricingReason("Washer and Dryer") && !isPricingReason("Within your budget"))
 
 console.log("\n=== displayReasons — a price change is reflected on the next render ===")
@@ -128,14 +128,14 @@ console.log("\n=== displayReasons — a price change is reflected on the next re
   const saved = ["1 min to Uptown", "Washer and Dryer"]
   const before = displayReasons(saved, { ...FULL, twobrStartingRent: 1400 }, "2", MAX)
   const after = displayReasons(saved, { ...FULL, twobrStartingRent: 1525 }, "2", MAX)
-  ok("old price rendered before", before[1] === "2BR from $1,400")
-  ok("new price rendered after, with no write anywhere", after[1] === "2BR from $1,525")
+  ok("old price rendered before", before[1] === "2BR from $1,400/month")
+  ok("new price rendered after, with no write anywhere", after[1] === "2BR from $1,525/month")
   eq("the saved reasons are identical across both renders", saved, ["1 min to Uptown", "Washer and Dryer"])
 }
 
 console.log("\n=== displayReasons — degenerate inputs stay safe ===")
-eq("no saved reasons at all → price alone", displayReasons([], FULL, "2", MAX), ["2BR from $1,400"])
-eq("blank strings are dropped, not counted toward the limit", displayReasons(["", "  ", "1 min to Uptown"], FULL, "2", MAX), ["1 min to Uptown", "2BR from $1,400"])
+eq("no saved reasons at all → price alone", displayReasons([], FULL, "2", MAX), ["2BR from $1,400/month"])
+eq("blank strings are dropped, not counted toward the limit", displayReasons(["", "  ", "1 min to Uptown"], FULL, "2", MAX), ["1 min to Uptown", "2BR from $1,400/month"])
 
 console.log(fail === 0 ? `\nALL ${pass} CHECKS PASSED.\n` : `\n${fail} of ${pass + fail} FAILED.\n`)
 process.exit(fail === 0 ? 0 : 1)

@@ -4,6 +4,8 @@ import { useEffect, useState } from "react"
 import { TOUR_TYPE_LABELS, TOUR_WINDOW_LABELS, normalizeShortSpecial, starFillPercent } from "@bc/companion-shared"
 import TourAvailabilityModal, { type Availability, type InitialAvailability } from "./TourAvailability"
 import { washerDryerLabel, washerDryerPillClass } from "@/lib/leads/washerDryer"
+import { averageRentLine } from "@/lib/leads/averageRent"
+import { isPricingReason } from "@/lib/leads/bedroomPricing"
 
 /**
  * The client-facing recommendation cards — the approved premium presentation.
@@ -33,6 +35,12 @@ export type ClientProperty = {
   googleRating: number | null
   /** Frozen client-facing washer/dryer status: "included" | "hookups". Absent = not verified. */
   washerDryer?: string | null
+  /**
+   * The frozen average-rent result, already computed by lb_compose_average_rent — or absent when
+   * the locator did not confirm one. The client page never recalculates it; the snapshot is the
+   * authority for what this client was told.
+   */
+  averageRent?: { average: number; quotedRent: number; concessionWeeks: number | null; concessionMonths: number | null; leaseMonths: number } | null
   index: number
   favorited: boolean
 }
@@ -239,6 +247,18 @@ export default function RecommendationList({
         const hasPrice = typeof p.startingPrice === "number" && Number.isFinite(p.startingPrice)
         const hasRating = typeof p.googleRating === "number" && Number.isFinite(p.googleRating)
         const reasons = (p.reasons ?? []).filter((r) => (r ?? "").trim().length > 0).slice(0, 3)
+        // The frozen result, formatted by the one function that owns this sentence. `show: true`
+        // because the snapshot only carries an object at all when the locator switched it on —
+        // the decision was made and frozen at send time, not re-evaluated here.
+        const avgLine = p.averageRent
+          ? averageRentLine({
+              quotedRent: p.averageRent.quotedRent,
+              concessionWeeks: p.averageRent.concessionWeeks,
+              concessionMonths: p.averageRent.concessionMonths,
+              leaseMonths: p.averageRent.leaseMonths,
+              show: true,
+            })
+          : null
         // Verified website target; null → image + name stay non-clickable.
         const siteHref = websiteHref(p.websiteUrl)
         const showFoot = hasPrice || !!siteHref
@@ -351,12 +371,29 @@ export default function RecommendationList({
                   <span className="lbr-rating-lbl">Google Rating</span>
                 </div>
               )}
+              {/* The frozen figures, rendered through the SAME formatter the workspace previews
+                  with, so the locator saw this exact sentence before sending it. */}
               {reasons.length > 0 && (
                 <div className="lbr-why">
                   <p className="lbr-why-lbl">Why I chose this for you</p>
                   <ul>
                     {reasons.map((r, j) => (
-                      <li key={j}><Check /><span>{r}</span></li>
+                      <li key={j}>
+                        <Check />
+                        <span>
+                          {r}
+                          {/* AVERAGE RENT — nested UNDER the bedroom rent it qualifies, not a
+                              fourth highlight. It belongs to that number: the rent above is what
+                              the lease says, this is what the concession makes it work out to,
+                              and separating them would invite reading either one alone. Rendered
+                              only on the price line, and only when the locator confirmed every
+                              figure — the snapshot carries the result, so nothing is recomputed
+                              in the client's browser. */}
+                          {avgLine && isPricingReason(r) && (
+                            <span className="lbr-avg">{avgLine}</span>
+                          )}
+                        </span>
+                      </li>
                     ))}
                   </ul>
                 </div>

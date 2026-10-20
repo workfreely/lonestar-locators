@@ -7,7 +7,7 @@ import { supabaseAdmin } from "@/lib/supabase/admin"
 import { enrichProperty } from "@/lib/propertyEnrichment/writer"
 import { SupabaseEnrichmentStore } from "@/lib/propertyEnrichment/stores/supabaseStore"
 import type { FieldCandidate, VerificationStatus } from "@/lib/propertyEnrichment/types"
-import { asCatalogWasherDryerIncluded, asCatalogWasherDryerConnections } from "@/lib/leads/washerDryer"
+import { asCatalogWasherDryerIncluded, asCatalogWasherDryerConnections } from "@/lib/propertyIntel/washerDryerCatalog"
 
 /**
  * OWNER-ONLY property pricing — the editor behind the pencil on a Recommended Properties card.

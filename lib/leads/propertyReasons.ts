@@ -1,5 +1,6 @@
 import { supabase } from "@/lib/supabase/client"
 import { asWasherDryerStatus, type WasherDryerStatus } from "@/lib/leads/washerDryer"
+import type { AverageRentInputs } from "@/lib/leads/averageRent"
 
 // The canonical client-property reasons layer.
 //
@@ -28,6 +29,12 @@ export type PropertyReasonsRow = {
   commute_anchor_place_id: string | null
   /** Client-facing washer/dryer status for this pair; null = not verified. */
   washer_dryer_status: WasherDryerStatus | null
+  /** The four CONFIRMED average-rent figures and the locator's display decision. */
+  avg_rent_quoted_rent: number | null
+  avg_rent_concession_weeks: number | null
+  avg_rent_concession_months: number | null
+  avg_rent_lease_months: number | null
+  avg_rent_show: boolean
 }
 
 /** Stable map key. Never just the property — the client is half the identity. */
@@ -42,21 +49,50 @@ export async function loadReasonsForLead(leadId: number | string): Promise<Reaso
   const map: ReasonsMap = new Map()
   const { data, error } = await supabase
     .from("lead_property_reasons")
-    .select("lead_id, canonical_property_key, reasons, commute_minutes, commute_anchor_place_id, washer_dryer_status")
+    .select("lead_id, canonical_property_key, reasons, commute_minutes, commute_anchor_place_id, washer_dryer_status, " +
+            "avg_rent_quoted_rent, avg_rent_concession_weeks, avg_rent_concession_months, " +
+            "avg_rent_lease_months, avg_rent_show")
     .eq("lead_id", leadId)
   if (error) {
     console.error("[property-reasons] load failed:", error.message)
     return map
   }
-  for (const row of (data ?? []) as PropertyReasonsRow[]) {
+  // Through `unknown`: the column list is built by concatenation now that it spans three lines,
+  // which defeats PostgREST's literal-type inference and leaves `data` as GenericStringError[].
+  // The runtime shape is unchanged; only the compiler lost sight of it.
+  for (const row of (data ?? []) as unknown as PropertyReasonsRow[]) {
     map.set(pairKey(row.lead_id, row.canonical_property_key), {
       ...row,
       reasons: Array.isArray(row.reasons) ? row.reasons : [],
       // Fails closed: anything that is not one of the two known statuses reads as not verified.
       washer_dryer_status: asWasherDryerStatus(row.washer_dryer_status),
+      avg_rent_quoted_rent: num(row.avg_rent_quoted_rent),
+      avg_rent_concession_weeks: num(row.avg_rent_concession_weeks),
+      avg_rent_concession_months: num(row.avg_rent_concession_months),
+      avg_rent_lease_months: num(row.avg_rent_lease_months),
+      avg_rent_show: row.avg_rent_show === true,
     })
   }
   return map
+}
+
+/** Postgres numeric arrives as a string; anything unreadable is simply absent. */
+function num(v: unknown): number | null {
+  if (v === null || v === undefined || v === "") return null
+  const n = Number(v)
+  return Number.isFinite(n) ? n : null
+}
+
+/** The average-rent inputs for one pair, in the shape computeAverageRent expects. */
+export function averageRentFor(map: ReasonsMap, leadId: number | string, propertyKey: PropertyKey | null | undefined): AverageRentInputs {
+  const row = map.get(pairKey(leadId, propertyKey))
+  return {
+    quotedRent: row?.avg_rent_quoted_rent ?? null,
+    concessionWeeks: row?.avg_rent_concession_weeks ?? null,
+    concessionMonths: row?.avg_rent_concession_months ?? null,
+    leaseMonths: row?.avg_rent_lease_months ?? null,
+    show: row?.avg_rent_show ?? false,
+  }
 }
 
 /** The washer/dryer status for one pair, or null when it has not been confirmed. */
@@ -137,6 +173,52 @@ export async function saveWasherDryer(
     )
   if (error) {
     console.error("[property-reasons] washer/dryer save failed:", error.message)
+    return false
+  }
+  return true
+}
+
+/**
+ * Write the average-rent figures for ONE client-property pair.
+ *
+ * The same row, the same unique index, its own columns — so this cannot disturb the reasons, the
+ * washer/dryer status or the commute cache, and they cannot disturb it. All five travel together
+ * because they describe one quote: saving a new rent without its term would leave a coherent
+ * pair of figures describing two different offers.
+ *
+ * Nulls are real values here. Clearing the quote is how a locator retracts an average, and the
+ * composer then renders nothing regardless of the toggle.
+ */
+export async function saveAverageRent(
+  leadId: number | string,
+  propertyKey: PropertyKey | null | undefined,
+  input: AverageRentInputs,
+): Promise<boolean> {
+  if (!propertyKey) {
+    console.error("[property-reasons] refusing to save average rent: no canonical_property_key")
+    return false
+  }
+  const weeks = num(input.concessionWeeks)
+  const months = num(input.concessionMonths)
+  const { error } = await supabase
+    .from("lead_property_reasons")
+    .upsert(
+      {
+        lead_id: leadId,
+        canonical_property_key: propertyKey,
+        avg_rent_quoted_rent: num(input.quotedRent),
+        // The CHECK refuses both at once; sending only the one that was entered keeps the write
+        // from ever tripping it, and keeps the stored row unambiguous.
+        avg_rent_concession_weeks: months !== null ? null : weeks,
+        avg_rent_concession_months: weeks !== null ? null : months,
+        avg_rent_lease_months: num(input.leaseMonths),
+        avg_rent_show: input.show === true,
+        updated_at: new Date().toISOString(),
+      },
+      { onConflict: "lead_id,canonical_property_key" },
+    )
+  if (error) {
+    console.error("[property-reasons] average rent save failed:", error.message)
     return false
   }
   return true
