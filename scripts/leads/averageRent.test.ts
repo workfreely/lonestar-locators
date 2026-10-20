@@ -282,9 +282,16 @@ console.log("\n=== 8. THE CLIENT PAGE ===")
     const liMobile = sz(/\.lbr-why li\{font-size:([\d.]+)px\}/)
     ok(`it is smaller than the highlight above it (${avgDesktop} < ${liDesktop})`, avgDesktop < liDesktop)
     ok(`…and on mobile too (${avgMobile} < ${liMobile})`, avgMobile < liMobile)
-    // SIZE carries the subordination (asserted above). The 500 weight is for legibility at the
-    // reduced size, not emphasis — so what matters is that it stays below a heading weight.
-    ok("its weight stays below heading weight", /\.lbr-avg\{[^}]*font-weight:500/.test(css))
+    // WEIGHT now carries the emphasis, by owner decision: on a real iPhone the average was
+    // losing to the larger starting rent above it, and a client who reads only the bigger number
+    // overpays in their own head. 700 — deliberately the SAME weight as the W/D pill, which is
+    // the emphasis level that was asked for, so the two are pinned together here rather than
+    // left to drift apart. Size still subordinates (asserted above): the line is bolder than its
+    // neighbours but never bigger, so it reads as the qualifier it is.
+    const avgWeight = /\.lbr-avg\{[^}]*font-weight:(\d+)/.exec(css)?.[1]
+    const pillWeight = /\.lbr-wd\{[^}]*font-weight:(\d+)/.exec(css)?.[1]
+    ok(`it is bold (${avgWeight})`, avgWeight === "700")
+    ok(`…at the same weight as the W/D pill (${pillWeight})`, avgWeight === pillWeight)
   }
   ok("it starts its own line beneath the rent", /\.lbr-avg\{[^}]*display:block/.test(css))
   ok("it scales up on mobile like the rest of the card", /@media[\s\S]*\.lbr-avg\{font-size:1[0-9]px/.test(css))

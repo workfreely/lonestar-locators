@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useMemo, useRef, useState } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import {
   TOUR_TYPE_LABELS,
   TOUR_WINDOWS,
@@ -64,6 +64,15 @@ export default function TourAvailabilityModal({
   const [view, setView] = useState<Date>(() => new Date(today.getFullYear(), today.getMonth(), 1))
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  /**
+   * The availability the SERVER confirmed it stored. Set only on a 200 that carried ok:true, so
+   * the thank-you screen is evidence of a save rather than of a tap — a 409 on a revoked share,
+   * or a network failure, leaves this null and the client back on the form with the error.
+   *
+   * It is also what Done hands upward, so the summary the client returns to is the record the
+   * server actually holds.
+   */
+  const [sent, setSent] = useState<Availability | null>(null)
 
   const dialogRef = useRef<HTMLDivElement>(null)
   /** The modal's own scroller. The page behind is locked, so this is the only thing that moves. */
@@ -78,6 +87,29 @@ export default function TourAvailabilityModal({
    * scroll.
    */
   const pendingScrollRef = useRef<string | null>(null)
+  /**
+   * The in-flight latch for submit.
+   *
+   * A REF, not the `submitting` state, and not the button's disabled attribute. Both of those
+   * only take effect after React re-renders, so several taps landing in the same frame all read
+   * `submitting === false` from the same closure and each fires its own request — three taps
+   * produced three POSTs before this existed. A ref is written synchronously, so the second tap
+   * sees the first one's latch immediately.
+   */
+  const inFlightRef = useRef(false)
+  /** The Done button, focused when the form it replaced disappears. */
+  const doneBtnRef = useRef<HTMLButtonElement>(null)
+
+  /**
+   * Leave the modal. Once the server has confirmed, EVERY exit commits — Done, the X, Escape and
+   * the overlay all report the saved availability upward. Dismissing a confirmed submission
+   * without recording it would show the client "Choose Tour Availability" again for something
+   * the server already stored, and invite them to send it twice.
+   */
+  const dismiss = useCallback(() => {
+    if (sent) onSubmitted(sent)
+    else onClose()
+  }, [sent, onSubmitted, onClose])
 
   // Focus the dialog, lock background scroll, and wire Escape (desktop) to close.
   useEffect(() => {
@@ -85,14 +117,24 @@ export default function TourAvailabilityModal({
     document.body.style.overflow = "hidden"
     dialogRef.current?.focus()
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onClose()
+      if (e.key === "Escape") dismiss()
     }
     document.addEventListener("keydown", onKey)
     return () => {
       document.body.style.overflow = prevOverflow
       document.removeEventListener("keydown", onKey)
     }
-  }, [onClose])
+  }, [dismiss])
+
+  /**
+   * Move focus to Done when the confirmation replaces the form. Without this, focus is sitting
+   * on the Send button at the moment that button is unmounted, which drops it to <body> — a
+   * keyboard or screen-reader client is then stranded outside the dialog with no way back to
+   * its only control. role="status" announces the message; this gives them the action.
+   */
+  useEffect(() => {
+    if (sent) doneBtnRef.current?.focus()
+  }, [sent])
 
   const selectedDates = useMemo(() => Array.from(selected.keys()).sort(), [selected])
 
@@ -161,6 +203,11 @@ export default function TourAvailabilityModal({
   }
 
   async function submit() {
+    // DUPLICATE GUARD — see inFlightRef. Checked and set in the same synchronous step, so a
+    // burst of taps yields exactly one request; `sent` additionally stops a confirmed
+    // submission ever being sent a second time.
+    if (inFlightRef.current || sent) return
+    inFlightRef.current = true
     setSubmitting(true)
     setError(null)
     const dates = selectedDates.map((date) => ({ date, windows: Array.from(selected.get(date)!) }))
@@ -170,11 +217,18 @@ export default function TourAvailabilityModal({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ token, tourType, dates }),
       })
-      if (!res.ok) throw new Error("failed")
-      onSubmitted({ tourType, dates })
+      // The route answers 409 with ok:false for a revoked/disabled share, which res.ok already
+      // rejects; reading the body too means a 200 that did not actually store anything cannot
+      // reach the thank-you screen either.
+      const body = res.ok ? ((await res.json().catch(() => null)) as { ok?: boolean } | null) : null
+      if (!res.ok || body?.ok !== true) throw new Error("failed")
+      setSubmitting(false)
+      setSent({ tourType, dates })
+      // The latch stays CLOSED on success: `sent` now guards the path, and the form is gone.
     } catch {
       setError("Something went wrong sending your availability. Please try again.")
       setSubmitting(false)
+      inFlightRef.current = false // a failure must be retryable
     }
   }
 
@@ -191,7 +245,7 @@ export default function TourAvailabilityModal({
   const atFirstMonth = view.getFullYear() === today.getFullYear() && view.getMonth() === today.getMonth()
 
   return (
-    <div className="lbr-modal-overlay" onMouseDown={onClose}>
+    <div className="lbr-modal-overlay" onMouseDown={dismiss}>
       <div
         className="lbr-modal"
         role="dialog"
@@ -201,10 +255,33 @@ export default function TourAvailabilityModal({
         ref={dialogRef}
         onMouseDown={(e) => e.stopPropagation()}
       >
+        {/* CONFIRMED. Replaces the form entirely rather than stacking on top of it: the client
+            has finished, and leaving a live calendar behind a success panel invites a second
+            submission of something already stored. Reuses the modal's own shell, body and
+            footer-button styles — no new component, and Edit still reaches the same form from
+            the summary underneath. */}
+        {sent ? (
+          <div className="lbr-ta-done" role="status" aria-live="polite">
+            <svg className="lbr-ta-done-ic" viewBox="0 0 24 24" width="34" height="34" aria-hidden
+                 fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <circle cx="12" cy="12" r="10" />
+              <path d="M8 12.4l2.8 2.8L16.2 9.4" />
+            </svg>
+            <h2 id="lbr-ta-title" className="lbr-ta-done-h">Thank You!</h2>
+            <p className="lbr-ta-done-p">Your tour availability has been submitted.</p>
+            <p className="lbr-ta-done-sub">
+              I&rsquo;ll review your favorites and availability, then reach out to coordinate your tours.
+            </p>
+            <button type="button" className="lbr-ta-send lbr-ta-done-btn" onClick={dismiss} ref={doneBtnRef}>
+              Done
+            </button>
+          </div>
+        ) : (
+        <>
         <div className="lbr-modal-head">
           <div className="lbr-modal-grab" aria-hidden />
           <h2 id="lbr-ta-title" className="lbr-modal-title">Let&rsquo;s Schedule Your Tours</h2>
-          <button type="button" className="lbr-modal-x" onClick={onClose} aria-label="Close">
+          <button type="button" className="lbr-modal-x" onClick={dismiss} aria-label="Close">
             <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round"><path d="M6 6l12 12M18 6L6 18" /></svg>
           </button>
         </div>
@@ -300,6 +377,8 @@ export default function TourAvailabilityModal({
             {submitting ? "Sending…" : "Send My Availability"}
           </button>
         </div>
+        </>
+        )}
       </div>
     </div>
   )

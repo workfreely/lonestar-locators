@@ -164,10 +164,26 @@ const CSS = `
    not emphasis — green text two points smaller goes muddy at 400, and this line carries the
    figure a renter is actually comparing. Smaller and coloured reads as supporting; smaller and
    faint reads as fine print, which this is not. */
-.lbr-avg{display:block;margin-top:2px;font-size:11.5px;font-weight:500;color:var(--green);line-height:1.3}
+/* 700 — the same weight as the W/D pill. On a real phone the concession-adjusted average was
+   losing to the larger starting rent directly above it, and a client who reads only the bigger
+   number overpays in their own head. Size, colour, position and the segment wrapping below are
+   deliberately unchanged: the weight alone carries the new emphasis. */
+.lbr-avg{display:block;margin-top:2px;font-size:11.5px;font-weight:700;color:var(--green);line-height:1.3}
 /* Each segment holds together; the line breaks at a separator, never inside "15-month lease". */
 .lbr-avg-seg{white-space:nowrap}
 .lbr-avg-sep{white-space:normal}
+/* THANK YOU — the confirmed state, inside the same modal shell. Centred, generous, and short:
+   it says what happened and what happens next, then gets out of the way. The Done button reuses
+   .lbr-ta-send so the control the client just pressed keeps the same shape and weight. */
+.lbr-ta-done{display:flex;flex-direction:column;align-items:center;text-align:center;
+  padding:34px 24px 24px;gap:0}
+.lbr-ta-done-ic{color:var(--green);margin-bottom:14px}
+.lbr-ta-done-h{margin:0 0 8px;font-size:21px;font-weight:700;color:var(--navy);line-height:1.25}
+.lbr-ta-done-p{margin:0 0 8px;font-size:15px;color:var(--ink);line-height:1.45}
+/* The forward-looking line is deliberately quieter than the confirmation above it: it is a
+   promise about what happens next, not the fact being confirmed. */
+.lbr-ta-done-sub{margin:0 0 22px;font-size:13.5px;color:var(--muted);line-height:1.5;max-width:34ch}
+.lbr-ta-done-btn{width:100%}
 /* WASHER & DRYER pill — the same 999px treatment as .lbr-ta-badge, on the palette tokens the
    page already defines. ALIGN-SELF IS LOad-BEARING: .lbr-body is a flex column, and the CSS
    spec blockifies a flex item's inline-flex to flex, so without it the pill stretches to the

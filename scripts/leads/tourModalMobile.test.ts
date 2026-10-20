@@ -102,12 +102,70 @@ console.log("\n=== 6. NOTHING ELSE IN THE FLOW MOVED ===")
 {
   ok("the submission endpoint is unchanged", /fetch\("\/api\/r\/tour-availability"/.test(src))
   ok("the payload shape is unchanged", /\{ token, tourType, dates \}/.test(src))
-  ok("onSubmitted still reports what was sent", /onSubmitted\(\{ tourType, dates \}\)/.test(src))
+  // onSubmitted now carries the SERVER-CONFIRMED record rather than the form's local state —
+  // same contract to the caller, sourced from the thing the server acknowledged.
+  ok("onSubmitted still reports what was sent", /if \(sent\) onSubmitted\(sent\)/.test(src))
   ok("the calendar still renders every day of the month", /daysInMonth/.test(src))
   ok("past dates are still disabled", /const past = ds < todayStr/.test(src))
   ok("Escape still closes", /e\.key === "Escape"/.test(src))
   for (const forbidden of ["lead_favorites", "crm_status", "lead_next_actions", "social_", "property_catalog"]) {
     ok(`the modal never touches ${forbidden}`, !src.includes(forbidden))
+  }
+}
+
+console.log("\n=== 7. THE CONFIRMATION ONLY APPEARS WHEN THE SERVER SAID YES ===")
+{
+  ok("the confirmed record is its own state", /const \[sent, setSent\] = useState<Availability \| null>\(null\)/.test(src))
+  // A 200 is not enough: the route answers ok:false for a revoked share, and a 200 that stored
+  // nothing must not produce a thank-you screen either.
+  ok("the response BODY is checked, not just the status",
+    /if \(!res\.ok \|\| body\?\.ok !== true\) throw new Error\("failed"\)/.test(src))
+  ok("…and only then is the confirmation shown", /setSent\(\{ tourType, dates \}\)/.test(src))
+  ok("a failure shows the error and keeps the form", /setError\("Something went wrong sending your availability/.test(src))
+  ok("the panel is rendered from that state alone", /\{sent \? \(/.test(src))
+  ok("it replaces the form rather than covering it", /\) : \(\s*<>/.test(src))
+}
+
+console.log("\n=== 8. ONE TAP, ONE REQUEST ===")
+{
+  // THE BUG THIS PINS: `submitting` is state, so several taps landing in the same frame each
+  // read the same stale `false` from their own closure and each fired a POST. Four taps
+  // produced four requests. A ref is written synchronously, so the second tap sees the first.
+  ok("the latch is a ref, not state", /const inFlightRef = useRef\(false\)/.test(src))
+  ok("it is checked and set in one synchronous step",
+    /if \(inFlightRef\.current \|\| sent\) return\s*\n\s*inFlightRef\.current = true/.test(src))
+  ok("a confirmed submission can never be resent", /\|\| sent\) return/.test(src))
+  ok("a FAILURE releases the latch, so a retry works", /inFlightRef\.current = false/.test(src))
+  // Success deliberately leaves it closed — `sent` guards from then on.
+  const submitFn = src.slice(src.indexOf("async function submit"), src.indexOf("const grid ="))
+  ok("success does NOT release it", submitFn.split("inFlightRef.current = false").length === 2)
+}
+
+console.log("\n=== 9. LEAVING THE CONFIRMATION ALWAYS COMMITS ===")
+{
+  // Dismissing a confirmed submission without recording it would show the client
+  // "Choose Tour Availability" again for something the server already holds.
+  ok("one dismiss path for every exit", /const dismiss = useCallback\(\(\) => \{\s*\n\s*if \(sent\) onSubmitted\(sent\)\s*\n\s*else onClose\(\)/.test(src))
+  ok("Done uses it", /className="lbr-ta-send lbr-ta-done-btn" onClick=\{dismiss\}/.test(src))
+  ok("the X uses it", /className="lbr-modal-x" onClick=\{dismiss\}/.test(src))
+  ok("the overlay uses it", /className="lbr-modal-overlay" onMouseDown=\{dismiss\}/.test(src))
+  ok("Escape uses it", /if \(e\.key === "Escape"\) dismiss\(\)/.test(src))
+  ok("focus follows the form it replaced", /if \(sent\) doneBtnRef\.current\?\.focus\(\)/.test(src))
+  ok("the panel announces itself", /role="status" aria-live="polite"/.test(src))
+}
+
+console.log("\n=== 10. THE APPROVED WORDING, AND NOTHING EXTRA ===")
+{
+  ok("heading", /<h2 id="lbr-ta-title" className="lbr-ta-done-h">Thank You!<\/h2>/.test(src))
+  ok("confirmation line", />Your tour availability has been submitted\.</.test(src))
+  ok("what happens next", /I&rsquo;ll review your favorites and availability, then reach out to coordinate your tours\./.test(src))
+  ok("the action is Done", />\s*Done\s*<\/button>/.test(src))
+  ok("the check uses the page's green token", /\.lbr-ta-done-ic\{color:var\(--green\)/.test(css))
+  ok("the button reuses the existing send control", /className="lbr-ta-send lbr-ta-done-btn"/.test(src))
+  // No new vocabulary: nothing here should claim a tour is booked.
+  for (const forbidden of ["confirmed", "scheduled", "booked", "appointment"]) {
+    ok(`the confirmation never says "${forbidden}"`,
+      !new RegExp(forbidden, "i").test(src.slice(src.indexOf('className="lbr-ta-done"'), src.indexOf("lbr-modal-head"))))
   }
 }
 
