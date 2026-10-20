@@ -84,14 +84,23 @@ console.log("\n2. ALLOW COMMENTS IS A DEFAULT, NOT AN OVERRIDE:")
 
 console.log("\n3. THE DIALOG APPLIES THE DEFAULTS, AND APPLIES THEM ONCE:")
 {
-  ok("disclosure + your brand default ON together", /setDisclosureOn\(true\); setYourBrand\(true\); setBrandedContent\(false\)/.test(dialog))
-  ok("comments default from the CAPABILITY, not a literal true", /setAllowComment\(!d\.capabilities\.commentDisabled\)/.test(dialog))
+  // THESE TWO ASSERTIONS USED TO PIN THE OPPOSITE, and that is the point of this comment.
+  //
+  // They were written to lock in a change that defaulted the commercial disclosure ON with
+  // "Your brand" ticked, and pre-checked Allow Comment whenever the creator permitted comments.
+  // The reasoning was reasonable — every video we post does promote the locating service — but
+  // TikTok's Content Sharing Guidelines require the disclosure to be "turned off" by default and
+  // say "none should be checked by default" of the interaction toggles, because the creator has
+  // to be the one declaring it. A test that pins a non-compliant default protects it, so the
+  // audit risk survived in a green suite for weeks. Full rules: scripts/social/tiktokCompliance.
+  ok("disclosure and both of its boxes default OFF", /setDisclosureOn\(false\); setYourBrand\(false\); setBrandedContent\(false\)/.test(dialog))
+  ok("comments default OFF, like duet and stitch — the creator turns them on", /setAllowComment\(false\)/.test(dialog) && !/setAllowComment\(!d\.capabilities\.commentDisabled\)/.test(dialog))
   ok("duet and stitch still default off", /setAllowDuet\(false\)\s*\n\s*setAllowStitch\(false\)/.test(dialog))
   ok("privacy is still never pre-selected", /setPrivacy\(""\)/.test(dialog) && !/setPrivacy\("SELF_ONLY"\)/.test(dialog))
 
   ok("defaults are gated on a first initialisation for this post", /const firstForThisPost = initialisedFor\.current !== postId/.test(dialog))
   ok("…and the gate wraps the reset, so a reopen does not clear choices", /if \(firstForThisPost\) \{ setPrivacy\(""\)/.test(dialog))
-  ok("…and wraps the interaction defaults too", /if \(firstForThisPost\) \{[\s\S]{0,400}setAllowComment\(!d\.capabilities\.commentDisabled\)/.test(dialog))
+  ok("…and wraps the interaction defaults too", /if \(firstForThisPost\) \{[\s\S]{0,400}setAllowComment\(false\)/.test(dialog))
   ok("the marker is set after initialising", /initialisedFor\.current = postId/.test(dialog))
   ok("a reopen still re-clamps comments if the creator has since disabled them",
     /else if \(d\.capabilities\.commentDisabled\) \{[\s\S]{0,300}setAllowComment\(false\)/.test(dialog))

@@ -10,6 +10,8 @@ import {
   resolveDirectPostSelection,
   resolveContentDisclosure,
   planSingleChunk,
+  mp4DurationSeconds,
+  withinCreatorDuration,
   initTikTokDirectPost,
   uploadTikTokVideoSingleChunk,
   fetchTikTokPostStatus,
@@ -133,6 +135,13 @@ export async function POST(req: NextRequest) {
     const bytes = await blob.arrayBuffer()
     const chunk = planSingleChunk(bytes.byteLength)
 
+    // TikTok requires the client to check the video against THIS creator's own limit before
+    // posting. Read from the bytes we are about to upload, not from a stored source duration —
+    // trimming and a presenter intro both change the rendered length. An unreadable header
+    // yields null, which is allowed through; TikTok validates length itself.
+    const durationSeconds = mp4DurationSeconds(bytes)
+    const durationOk = withinCreatorDuration(durationSeconds, info.max_video_post_duration_sec)
+
     // A DRY RUN stops here — everything needed for the post is proven, nothing is created on TikTok.
     if (!isRealPost) {
       return NextResponse.json({
@@ -159,8 +168,19 @@ export async function POST(req: NextRequest) {
         title,
         titleLength: title.length,
         videoSize: bytes.byteLength,
+        durationSeconds,
+        durationOk,
         chunk,
       })
+    }
+
+    // Enforced on the real post too, not just surfaced in the dry run: the dialog disables the
+    // button, and this is the backstop for anything that reaches the route another way.
+    if (!durationOk) {
+      return NextResponse.json({
+        error: "video_too_long",
+        detail: `This video is ${Math.round(durationSeconds ?? 0)}s, longer than the ${info.max_video_post_duration_sec}s this TikTok account allows.`,
+      }, { status: 409 })
     }
 
     // REAL POST (mode === "post"): init → upload the single chunk → one status check.

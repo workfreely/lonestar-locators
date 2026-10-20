@@ -26,7 +26,14 @@ type DryRun = {
   title: string
   titleLength: number
   videoSize: number
+  durationSeconds: number | null
+  durationOk: boolean
 }
+
+// TikTok's own policy pages, linked from the consent declaration above the Post button.
+const BRANDED_CONTENT_POLICY_URL = "https://www.tiktok.com/legal/page/global/bc-policy/en"
+const MUSIC_USAGE_CONFIRMATION_URL = "https://www.tiktok.com/legal/page/global/music-usage-confirmation/en"
+const policyLink = "underline underline-offset-2 hover:text-[var(--crm-text-primary)]"
 
 const PRIVACY_LABEL: Record<string, string> = {
   SELF_ONLY: "Private (only me)",
@@ -86,14 +93,14 @@ export default function TikTokPostConfirm({ postId, open, onClose }: { postId: s
   const [allowDuet, setAllowDuet] = useState(false)
   const [allowStitch, setAllowStitch] = useState(false)
 
-  // Commercial Content Disclosure (TikTok Content Sharing Guidelines). Now defaults to ON with
-  // "Your brand" selected: every video Social Beast posts promotes the locating service itself,
-  // which is exactly what TikTok's own-brand disclosure describes, and the published post is
-  // labelled "Promotional content" as a result.
+  // Commercial Content Disclosure (TikTok Content Sharing Guidelines): OFF by default, and the
+  // creator turns it on themselves.
   //
-  // Branded Content stays OFF — it means a paid third-party promotion, which these are not, and
-  // TikTok forbids it on a SELF_ONLY post anyway. Disclosure ON with neither box ticked is refused
-  // server-side, so the pair of defaults has to be set together to be valid.
+  // It briefly defaulted to ON with "Your brand" pre-selected, on the reasoning that every video
+  // Social Beast posts promotes the locating service. The reasoning is sound and the resulting
+  // label would usually be right — but the guidelines require the disclosure to be "turned off"
+  // by default, because the point is that the CREATOR declares it rather than the tool declaring
+  // it for them. A pre-made declaration is not a declaration.
   const [disclosureOn, setDisclosureOn] = useState(false)
   const [yourBrand, setYourBrand] = useState(false)
   const [brandedContent, setBrandedContent] = useState(false)
@@ -115,7 +122,11 @@ export default function TikTokPostConfirm({ postId, open, onClose }: { postId: s
     if (brandedContentBlocked && brandedContent) setBrandedContent(false)
   }, [brandedContentBlocked, brandedContent])
   const disclosureIncomplete = disclosureOn && !yourBrand && !brandedContent
-  const postBlocked = disclosureIncomplete || !privacy
+  // TikTok requires the length to be checked against THIS creator's limit before posting. The
+  // server reads it from the bytes and reports both numbers; an unreadable header gives
+  // durationOk === true, so an odd container never silently blocks a valid video.
+  const tooLong = data ? data.durationOk === false : false
+  const postBlocked = disclosureIncomplete || !privacy || tooLong
 
   const [posting, setPosting] = useState(false)
   const [result, setResult] = useState<{ publishId: string; status: string; failReason: string | null } | null>(null)
@@ -128,7 +139,7 @@ export default function TikTokPostConfirm({ postId, open, onClose }: { postId: s
     // Privacy is deliberately NOT pre-selected: TikTok requires an explicit choice. It is cleared
     // only on a first initialisation, so reopening keeps a choice already made.
     const firstForThisPost = initialisedFor.current !== postId
-    if (firstForThisPost) { setPrivacy(""); setDisclosureOn(true); setYourBrand(true); setBrandedContent(false) }
+    if (firstForThisPost) { setPrivacy(""); setDisclosureOn(false); setYourBrand(false); setBrandedContent(false) }
     try {
       // Single dry-run: resolves token + Creator Info + caption + video size WITHOUT posting.
       const res = await fetch(PUBLISH, {
@@ -146,8 +157,10 @@ export default function TikTokPostConfirm({ postId, open, onClose }: { postId: s
       const d = json as DryRun
       setData(d)
       if (firstForThisPost) {
-        // Comments ON unless the creator has them disabled — the capability decides, not us.
-        setAllowComment(!d.capabilities.commentDisabled)
+        // ALL THREE START OFF. TikTok: "Users must manually turn on these interaction settings
+        // and none should be checked by default." Allow Comment used to start on whenever the
+        // creator permitted comments, which is a different thing from the creator choosing it.
+        setAllowComment(false)
         setAllowDuet(false)
         setAllowStitch(false)
         initialisedFor.current = postId
@@ -364,13 +377,25 @@ export default function TikTokPostConfirm({ postId, open, onClose }: { postId: s
 
             {/* Bottom — full width: status, consent, validation, actions */}
             <div className="flex flex-col gap-2 border-t border-[var(--crm-border)] pt-3">
-              <div className="text-[11px] text-[var(--crm-text-muted)]">Video ready · {fmtBytes(data.videoSize)} · {data.transferMethod}</div>
+              <div className="text-[11px] text-[var(--crm-text-muted)]">
+                Video ready · {fmtBytes(data.videoSize)}
+                {data.durationSeconds !== null && <> · {Math.round(data.durationSeconds)}s of {data.capabilities.maxVideoPostDurationSec}s allowed</>}
+                {" · "}{data.transferMethod}
+              </div>
 
-              {/* Consent declaration — immediately above the final Post button. */}
+              {/* Consent declaration — immediately above the final Post button. The policy names
+                  are LINKS to TikTok's own pages, which the guidelines require: a creator cannot
+                  agree to a policy they have no way to read. Same wording as before, and still
+                  switched by whether Branded Content is selected. */}
               <div className="text-[10.5px] text-[var(--crm-text-muted)]">
-                {brandedContent
-                  ? "By posting, you agree to TikTok's Branded Content Policy and Music Usage Confirmation."
-                  : "By posting, you agree to TikTok's Music Usage Confirmation."}
+                By posting, you agree to TikTok&rsquo;s{" "}
+                {brandedContent && (
+                  <>
+                    <a href={BRANDED_CONTENT_POLICY_URL} target="_blank" rel="noreferrer noopener" className={policyLink}>Branded Content Policy</a>
+                    {" and "}
+                  </>
+                )}
+                <a href={MUSIC_USAGE_CONFIRMATION_URL} target="_blank" rel="noreferrer noopener" className={policyLink}>Music Usage Confirmation</a>.
               </div>
 
               {disclosureIncomplete && (
@@ -378,6 +403,11 @@ export default function TikTokPostConfirm({ postId, open, onClose }: { postId: s
               )}
               {!disclosureIncomplete && !privacy && (
                 <div className="text-[11px] text-amber-600 dark:text-amber-400">Select a privacy option before posting.</div>
+              )}
+              {tooLong && (
+                <div className="text-[11px] text-amber-600 dark:text-amber-400">
+                  This video is {Math.round(data.durationSeconds ?? 0)}s. This TikTok account allows up to {data.capabilities.maxVideoPostDurationSec}s.
+                </div>
               )}
 
               <div className="flex items-center justify-end gap-2 pt-1">

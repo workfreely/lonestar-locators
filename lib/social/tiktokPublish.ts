@@ -76,6 +76,93 @@ export function planSingleChunk(videoSize: number): { chunkSize: number; totalCh
   return { chunkSize: videoSize, totalChunkCount: 1 }
 }
 
+/**
+ * The video's duration in seconds, read from the MP4 container we are about to upload.
+ *
+ * TikTok's Content Sharing Guidelines require the client to check the video length against the
+ * creator's `max_video_post_duration_sec` BEFORE posting. We already hold the exact bytes in
+ * memory, so the length is read from them rather than from a database column that describes the
+ * SOURCE clip — the rendered post is not the source: trimming and a presenter intro both change
+ * its length, so the stored value would be the wrong number to enforce.
+ *
+ * Walks the top-level boxes to `moov`, then its children to `mvhd`, and divides duration by
+ * timescale. No ffprobe, no subprocess, no new dependency — an MP4 header is a handful of
+ * big-endian integers at a known offset.
+ *
+ * Returns null when the header cannot be read. The caller treats that as "unknown" and lets the
+ * post proceed: TikTok validates length itself and is the real backstop, so a container quirk
+ * should not block a creator whose video is fine. It never returns a WRONG number — only a
+ * number it actually read, or null.
+ */
+export function mp4DurationSeconds(buffer: ArrayBuffer): number | null {
+  const view = new DataView(buffer)
+  const typeAt = (off: number) =>
+    String.fromCharCode(view.getUint8(off), view.getUint8(off + 1), view.getUint8(off + 2), view.getUint8(off + 3))
+
+  /** Find a direct child box by type within [start, end). Returns its CONTENT offset and end. */
+  function findBox(start: number, end: number, want: string): { body: number; end: number } | null {
+    let off = start
+    while (off + 8 <= end) {
+      const size = view.getUint32(off)
+      const type = typeAt(off + 4)
+      // size 0 means "to end of file"; size 1 means a 64-bit size follows the type.
+      let header = 8
+      let boxEnd: number
+      if (size === 1) {
+        if (off + 16 > end) return null
+        const big = view.getBigUint64(off + 8)
+        if (big > BigInt(Number.MAX_SAFE_INTEGER)) return null
+        header = 16
+        boxEnd = off + Number(big)
+      } else {
+        boxEnd = size === 0 ? end : off + size
+      }
+      if (boxEnd <= off || boxEnd > end) return null
+      if (type === want) return { body: off + header, end: boxEnd }
+      off = boxEnd
+    }
+    return null
+  }
+
+  try {
+    const moov = findBox(0, view.byteLength, "moov")
+    if (!moov) return null
+    const mvhd = findBox(moov.body, moov.end, "mvhd")
+    if (!mvhd) return null
+    const version = view.getUint8(mvhd.body)
+    // version/flags(4) then: v0 → creation(4) modification(4) timescale(4) duration(4)
+    //                        v1 → creation(8) modification(8) timescale(4) duration(8)
+    let timescale: number
+    let duration: number
+    if (version === 1) {
+      timescale = view.getUint32(mvhd.body + 4 + 16)
+      const d = view.getBigUint64(mvhd.body + 4 + 20)
+      if (d > BigInt(Number.MAX_SAFE_INTEGER)) return null
+      duration = Number(d)
+    } else {
+      timescale = view.getUint32(mvhd.body + 4 + 8)
+      duration = view.getUint32(mvhd.body + 4 + 12)
+    }
+    if (!timescale || !Number.isFinite(duration) || duration <= 0) return null
+    return duration / timescale
+  } catch {
+    return null
+  }
+}
+
+/**
+ * Is this video short enough for this creator? Pure, so the rule is testable without a network.
+ *
+ * An UNKNOWN duration (null) is allowed through deliberately — see mp4DurationSeconds. A known
+ * duration must be within the creator's own limit, which TikTok returns per account and which the
+ * UI must never hard-code.
+ */
+export function withinCreatorDuration(durationSeconds: number | null, maxSeconds: number): boolean {
+  if (durationSeconds === null) return true
+  if (!Number.isFinite(maxSeconds) || maxSeconds <= 0) return true
+  return durationSeconds <= maxSeconds
+}
+
 export type DirectPostInitParams = {
   title: string
   privacyLevel: TikTokPrivacyLevel
