@@ -12,7 +12,8 @@ import { isDemoLeadId } from "@/lib/demo/demoWorkspace"
 import { upcomingTourForFavorite } from "@/lib/leads/upcomingTour"
 import { favoriteMoveBlock } from "@/lib/leads/propertyCollections"
 import { isClientFavorite } from "@/lib/leads/favoriteOrigin"
-import { HiOutlineEnvelope, HiOutlineCalendarDays, HiCheck } from "react-icons/hi2"
+import { HiOutlineEnvelope, HiOutlineCalendarDays, HiCheck, HiOutlineDocumentText } from "react-icons/hi2"
+import { favoriteSecondaryAction } from "@/lib/leads/favoriteActions"
 import { propertyWebsiteHref } from "@/lib/propertyExplorer/types"
 import { displayAddress, formatRating, normalizeShortSpecial, isSpecialCurrent, evaluateLocatorCommission } from "@bc/companion-shared"
 import { StarRating } from "./StarRating"
@@ -412,6 +413,18 @@ export default function LeadFavorites({
               )
               const isApplicationProperty = !!checkAppAction
               const checkAppOpen = !!checkAppAction && !(checkAppAction.completed === true || checkAppAction.status === "completed")
+              // The ONE second action on the property row, resolved here so the markup cannot
+              // drift into offering both. Check Application outranks Schedule Tour: it is the
+              // later workflow state and the one awaiting an answer.
+              const secondaryAction = favoriteSecondaryAction({
+                checkApplicationOpen: checkAppOpen,
+                canCheckApplication: !!onCheckApplication,
+                hasScheduledTour: !!scheduledTour,
+                canScheduleTour: !!onScheduleTour,
+                hasScheduleTarget: !!schedTarget,
+              })
+              const showCheckApp = secondaryAction === "check_application"
+              const showScheduleTour = secondaryAction === "schedule_tour"
               const applicationStatus = (lead.application_status ?? null) as any
               // This property's open Confirm Lease (created on Approved, property-
               // scoped to the Top Pick). Approved → Confirm Lease → Lease Signed.
@@ -655,7 +668,9 @@ export default function LeadFavorites({
                       no longer gated behind having scheduled a tour. Both are scoped to
                       THIS exact Favorite (property_id). While the schedule confirm/date
                       sub-flow is open for this card, that flow takes the row. */}
-                  {(onSendGuestCard || (onScheduleTour && schedTarget)) && (
+                  {/* The row renders when ANY of its actions can — Check Application included,
+                      so an applied property still gets the line even with no Guest Card control. */}
+                  {(onSendGuestCard || (onScheduleTour && schedTarget) || (checkAppOpen && onCheckApplication)) && (
                     <div className="mt-2 pt-2 border-t border-[var(--crm-border-soft)]">
                       {schedFavId !== fav.id ? (
                         /* Operational block, stacked: the action row first, Commission on
@@ -686,16 +701,35 @@ export default function LeadFavorites({
                               <HiOutlineEnvelope className="text-[13px]" aria-hidden /> Send Guest Card
                             </button>
                           ) : null}
-                          {/* Subtle, non-interactive divider — only when both actions show. */}
-                          {(gcSent || onSendGuestCard) && !scheduledTour && onScheduleTour && schedTarget && (
+                          {/* ONE SECOND ACTION, CHOSEN BY WORKFLOW STATE — never both.
+                              Schedule Tour and Check Application belong to different moments:
+                              you schedule before a tour, you check an application after one was
+                              submitted. Check Application wins when it is open, because it is
+                              the later state and the one that still needs an answer. They are
+                              already near-exclusive in practice (Schedule Tour hides once a tour
+                              exists, and an open check_application implies a tour happened), but
+                              stating the precedence means a card can never offer both. */}
+                          {(gcSent || onSendGuestCard) && (showCheckApp || showScheduleTour) && (
                             <span aria-hidden className="h-3 w-px bg-[var(--crm-border)]" />
                           )}
+                          {showCheckApp && (
+                            <button
+                              type="button"
+                              onClick={() => onCheckApplication!(lead, { action: checkAppAction })}
+                              className="inline-flex items-center gap-1.5 text-[var(--crm-accent)] hover:underline"
+                            >
+                              <HiOutlineDocumentText className="text-[13px]" aria-hidden /> Check Application
+                            </button>
+                          )}
                           {/* Schedule Tour (only when no tour is scheduled yet). */}
-                          {!scheduledTour && onScheduleTour && schedTarget && (
+                          {showScheduleTour && (
                             <button
                               type="button"
                               onClick={() => {
-                                window.open(schedTarget, "_blank", "noopener,noreferrer")
+                                // Non-null by construction: favoriteSecondaryAction returns
+                                // "schedule_tour" only when hasScheduleTarget is true. The old
+                                // inline guard narrowed this; the resolver does it less visibly.
+                                window.open(schedTarget!, "_blank", "noopener,noreferrer")
                                 // Pass the EXACT scheduler URL we just opened so the
                                 // Companion can bind Autofill to THIS property tab/origin
                                 // (never the active tab). schedTarget is the tour_url/
@@ -841,24 +875,15 @@ export default function LeadFavorites({
                     </div>
                   )}
 
-                  {/* Application submitted → Check Application (property-scoped to the
-                      Top Pick). Surfaced while an open check_application exists; the
-                      state line advances Applied → Application Pending as outcomes
-                      are recorded, and the button reopens the same decision. */}
-                  {checkAppOpen && onCheckApplication && (
+                  {/* THE BUTTON MOVED UP to the property action row, beside Guest Card Sent,
+                      where Schedule Tour sits on other cards. What remains here is the state
+                      LINE, and it renders only when there IS a state to show — an applied
+                      property with no label would otherwise leave a bordered empty row and cost
+                      the card height this change exists to reclaim. The action, its modal and
+                      the application data are untouched. */}
+                  {checkAppOpen && onCheckApplication && favState && (
                     <div className="mt-2 pt-2 border-t border-[var(--crm-border-soft)]">
-                      <div className="flex items-center justify-between gap-2">
-                        <p className="text-[10.5px] font-semibold text-emerald-600">
-                          {favState}
-                        </p>
-                        <button
-                          type="button"
-                          onClick={() => onCheckApplication(lead, { action: checkAppAction })}
-                          className="flex-none text-[10.5px] font-semibold text-[var(--crm-accent)] hover:underline"
-                        >
-                          Check Application
-                        </button>
-                      </div>
+                      <p className="text-[10.5px] font-semibold text-emerald-600">{favState}</p>
                     </div>
                   )}
 
