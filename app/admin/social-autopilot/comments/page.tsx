@@ -19,6 +19,12 @@ import { sendGate } from "@/lib/social/commentSendPolicy"
 // documented permissions are instagram_business_basic + instagram_business_manage_comments. The
 // comments scope covers reading, public replies AND private replies.
 //
+// ── WHAT THIS SCREEN MAY NOT DO ─────────────────────────────────────────────────────────────
+// It may not print a safeguard's value as a literal. Three lines here once did — the status pill,
+// "Automatic public replies" and "Maximum comment age" — and after the switches were armed the
+// screen reported automation off while it was live. Every status below is read; an unreadable
+// setting renders as "unknown", never as "off".
+//
 // ── THE TABLES EXIST ────────────────────────────────────────────────────────────────────────
 // 20261014000000_comment_automation IS applied: all seven tables are present. The safe() wrapper
 // below is kept anyway, because tolerating an unreadable relation is the right behaviour in
@@ -76,6 +82,38 @@ export default async function CommentsPage() {
     globalUnreadable = true
   }
 
+  // ── THE PER-ACCOUNT SETTINGS, READ RATHER THAN HARDCODED ────────────────────────────────
+  // The Automation panel used to print "Automatic public replies: Off" and "Maximum comment age:
+  // 24 hours" as literal strings. Both were true when written; after public replies were switched
+  // on, the first became a confident lie and the second stayed right only by coincidence. A screen
+  // that states a safeguard's value must read it.
+  //
+  // Keyed on the Instagram connection, because these settings are per-account. Unreadable is kept
+  // DISTINCT from off for the same reason as the global switch: "we do not know" must not render
+  // as a confident "Off".
+  const igConnectionId = connections.find((a) => a.provider === "instagram")?.id ?? null
+  let publicRepliesEnabled = false
+  let accountEnabled = false
+  let maxCommentAgeMinutes: number | null = null
+  let accountSettingsUnreadable = false
+  if (igConnectionId) {
+    try {
+      const { data, error } = await supabase
+        .from("comment_account_settings")
+        .select("enabled, public_replies_enabled, max_comment_age_minutes")
+        .eq("connection_id", igConnectionId)
+        .maybeSingle()
+      if (error) accountSettingsUnreadable = true
+      else {
+        publicRepliesEnabled = data?.public_replies_enabled === true
+        accountEnabled = data?.enabled === true
+        maxCommentAgeMinutes = typeof data?.max_comment_age_minutes === "number" ? data.max_comment_age_minutes : null
+      }
+    } catch {
+      accountSettingsUnreadable = true
+    }
+  }
+
   const comments = await safe<CommentRow[]>(
     () =>
       supabase
@@ -119,6 +157,10 @@ export default async function CommentsPage() {
       globalEnabled={globalEnabled}
       globalUnreadable={globalUnreadable}
       sendingEnabled={sendingEnabled}
+      accountEnabled={accountEnabled}
+      publicRepliesEnabled={publicRepliesEnabled}
+      maxCommentAgeMinutes={maxCommentAgeMinutes}
+      accountSettingsUnreadable={accountSettingsUnreadable}
     />
   )
 }

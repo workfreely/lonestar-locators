@@ -86,8 +86,51 @@ function outcomeOf(c: CommentRow): { text: string; tone: string; hint?: string }
   return { text: "no action", tone: mute }
 }
 
+/** Minutes as the operator thinks of them. Exact hours read as hours; anything else stays minutes
+ *  rather than being rounded into a figure that looks like a configured value and is not. */
+function formatAge(minutes: number | null, unreadable: boolean): string {
+  if (unreadable) return "Unknown"
+  if (minutes === null) return "Not set"
+  if (minutes % 1440 === 0) { const d = minutes / 1440; return d === 1 ? "24 hours" : `${d} days` }
+  if (minutes % 60 === 0) { const h = minutes / 60; return h === 1 ? "1 hour" : `${h} hours` }
+  return minutes === 1 ? "1 minute" : `${minutes} minutes`
+}
+
+type AutomationStatus = { text: string; tone: string; dot: string }
+
+/**
+ * What the status pill says. Every gate has to agree before this may claim the system is live,
+ * because any single one being off means nothing reaches Instagram.
+ *
+ * The three states are deliberately distinct. "Unknown" is not "off": a setting we could not read
+ * is a fault to investigate, and printing a confident "off" would hide it. "Dry run" is not "off"
+ * either — detection and logging are running, which is exactly what an operator needs to see
+ * before arming. Only all-gates-open earns "live".
+ */
+export function automationStatus(input: {
+  globalEnabled: boolean
+  globalUnreadable: boolean
+  accountEnabled: boolean
+  accountSettingsUnreadable: boolean
+  hasCommentsScope: boolean
+  sendingEnabled: boolean
+}): AutomationStatus {
+  const muted = { tone: "text-[var(--crm-text-muted)]", dot: "bg-[var(--crm-text-muted)]" }
+  if (input.globalUnreadable || input.accountSettingsUnreadable) {
+    return { text: "Automation unknown", ...muted }
+  }
+  const armed = input.globalEnabled && input.accountEnabled && input.hasCommentsScope
+  if (!armed) return { text: "Automation off", ...muted }
+  if (!input.sendingEnabled) {
+    return { text: "Automation on · dry run", tone: "text-amber-700 dark:text-amber-400", dot: "bg-amber-500" }
+  }
+  return { text: "Automation live", tone: "text-emerald-700 dark:text-emerald-400", dot: "bg-emerald-500" }
+}
+
 export default function CommentsClient({
   accounts, rules, rulesArePreview, comments, globalEnabled, globalUnreadable = false, sendingEnabled = false,
+  accountEnabled = false, publicRepliesEnabled = false, maxCommentAgeMinutes = null,
+  accountSettingsUnreadable = false,
 }: {
   accounts: AccountRow[]
   rules: RuleRow[]
@@ -100,10 +143,26 @@ export default function CommentsClient({
   /** SOCIAL_COMMENT_SEND_ENABLED, read server-side. The switch that decides whether anything
    *  actually reaches Meta — separate from every database toggle. */
   sendingEnabled?: boolean
+  /** comment_account_settings.enabled for the Instagram connection. */
+  accountEnabled?: boolean
+  /** comment_account_settings.public_replies_enabled. Was once printed as a literal "Off". */
+  publicRepliesEnabled?: boolean
+  /** comment_account_settings.max_comment_age_minutes. Null when unknown. */
+  maxCommentAgeMinutes?: number | null
+  /** The per-account settings could not be READ — distinct from their being off. */
+  accountSettingsUnreadable?: boolean
 }) {
   const [view, setView] = useState<"inbox" | "rules" | "automation">("inbox")
 
   const ig = accounts.find((a) => a.provider === "instagram") ?? null
+  const automation = automationStatus({
+    globalEnabled,
+    globalUnreadable,
+    accountEnabled,
+    accountSettingsUnreadable,
+    hasCommentsScope: (ig?.scopes ?? []).includes("instagram_business_manage_comments"),
+    sendingEnabled,
+  })
   const tt = accounts.find((a) => a.provider === "tiktok") ?? null
 
   // Returning commenters — only resolvable when a stable provider id exists, which is the same
@@ -147,9 +206,15 @@ export default function CommentsClient({
           {tab("rules", "Reply Bank")}
           {tab("automation", "Automation")}
         </div>
-        <span className="inline-flex items-center gap-1.5 text-[11.5px] text-[var(--crm-text-muted)] whitespace-nowrap">
-          <span className="w-1.5 h-1.5 rounded-full bg-[var(--crm-text-muted)]" aria-hidden="true" />
-          Automation off
+        {/* THE STATUS PILL ANSWERS ONE QUESTION: can this send right now? It was a literal
+            "Automation off", which survived the switches being armed and told the operator the
+            opposite of the truth while live DMs were going out. It now derives from every gate
+            that has to agree — the workspace switch, the account switch, the comments scope and
+            SOCIAL_COMMENT_SEND_ENABLED — because any one of them being off means nothing sends.
+            "Unknown" is its own state: a setting we could not read must never render as "off". */}
+        <span className={`inline-flex items-center gap-1.5 text-[11.5px] whitespace-nowrap ${automation.tone}`}>
+          <span className={`w-1.5 h-1.5 rounded-full ${automation.dot}`} aria-hidden="true" />
+          {automation.text}
         </span>
       </div>
 
@@ -405,8 +470,8 @@ export default function CommentsClient({
 
           <div className={`${label} mt-4 mb-1`}>Settings</div>
           {[
-            ["Automatic public replies", "Off"],
-            ["Maximum comment age", "24 hours"],
+            ["Automatic public replies", accountSettingsUnreadable ? "Unknown" : publicRepliesEnabled ? "On" : "Off"],
+            ["Maximum comment age", formatAge(maxCommentAgeMinutes, accountSettingsUnreadable)],
           ].map(([k, v]) => (
             <div key={k} className="flex items-center justify-between gap-3 py-[7px] border-t border-[var(--crm-border)] text-[12.5px]">
               <span className="text-[var(--crm-text-primary)]">{k}</span>
