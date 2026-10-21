@@ -189,8 +189,16 @@ console.log("\n5. RE-AUTHORIZATION IS SAFE, AND REUSES THE ONE FLOW:")
     !/\(d\.status === "error" \|\| d\.expired\) && <a href=\{CONNECT\}/.test(comp))
   ok("Re-authorize Comments uses the EXISTING connect route, not a new OAuth path",
     /href=\{CONNECT\}[^>]*REAUTHORIZE_COMMENTS_TITLE/.test(comp.replace(/\s+/g, " ")))
-  ok("…and appears only while the scope is missing, or when attention is needed",
-    /\(!d\.commentsScopeGranted \|\| d\.autoReply\.state === "attention"\) &&/.test(comp))
+  // TIGHTENED, NOT LOOSENED. This previously accepted `|| state === "attention"`, which made the
+  // button appear for ANY unresolved action. A failed send is not fixed by re-granting a permission
+  // we already hold, and on 21 Oct 2026 two permission-refused DMs put this button on screen as the
+  // apparent remedy for a problem it could not touch. The condition must now name a PERMISSION
+  // problem specifically, and the assertion also forbids the old disjunct returning.
+  ok("…appears only when the permission is missing or reported revoked",
+    /\(!d\.commentsScopeGranted \|\| d\.autoReply\.state === "permission_needed"\) &&/.test(comp))
+  ok("…and NEVER merely because an action failed (no `attention` disjunct)",
+    !/d\.autoReply\.state === "attention"\) &&\s*\(/.test(comp) &&
+    !/commentsScopeGranted \|\| d\.autoReply\.state === "attention"/.test(comp))
   ok("there is exactly ONE Instagram authorization URL in the component",
     (comp.match(/accounts\/instagram\/connect/g) ?? []).length === 1)
   // The real property: the disconnect handler must not route into the authorization flow. The

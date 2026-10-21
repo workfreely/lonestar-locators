@@ -35,6 +35,7 @@ import {
 } from "@/lib/social/commentKeywords"
 import {
   featureGate, sendGate, privateReplyWindow, classifySendAttempt, isOutsideWindowError,
+  failureRecord,
 } from "@/lib/social/commentSendPolicy"
 import type { CommentSender, SenderContext, SendResult } from "@/lib/social/commentSender"
 import type { BucUsage } from "@/lib/social/commentRateLimit"
@@ -318,9 +319,11 @@ export async function processComment(
       await store.logAction({
         commentId: row.id, kind: "private_reply", status: res.status, reason,
         externalId: attempt.externalId ?? null,
-        // No provider message is stored: Meta's errors can echo the request, and the request
-        // carried a token. The classification is the durable record.
-        error: res.status === "sent" ? null : reason,
+        // The classification PLUS Meta's numeric code and subcode. Still no provider message, body,
+        // header or request: those can echo a bearer token. The numbers cannot, and without them
+        // code 190 (dead token) is indistinguishable from code 200 (app not permitted) — two
+        // failures with different remedies. See failureRecord.
+        error: res.status === "sent" ? null : failureRecord(reason, attempt),
       })
     }
   }
@@ -376,7 +379,7 @@ export async function processComment(
     await store.logAction({
       commentId: row.id, kind: "public_reply", status, reason: cls.reason,
       externalId: attempt.externalId ?? null,
-      error: status === "sent" ? null : cls.reason,
+      error: status === "sent" ? null : failureRecord(cls.reason, attempt),
     })
   }
 

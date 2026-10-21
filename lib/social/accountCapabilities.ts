@@ -90,6 +90,15 @@ export type AutoReplyAttention = {
   unresolvedActions: number
   /** Commenters claimed for a DM whose outcome was never established. Never retried automatically. */
   danglingClaims: number
+  /**
+   * The most common classified reason among those unresolved actions, for the detail line.
+   *
+   * SAFE BY CONSTRUCTION: this is our own classification vocabulary (permission, rate_limited,
+   * rejected, outside_window, transport_error…), never Meta's message. The ledger now appends
+   * numeric codes to the stored string, so this is read from the leading word only and no code,
+   * token or provider text can reach the UI through it.
+   */
+  topReason?: string | null
 }
 
 /**
@@ -116,8 +125,12 @@ export function autoReplyCapability(
   attention: AutoReplyAttention = { unresolvedActions: 0, danglingClaims: 0 },
 ): Capability {
   const needsEyes = attention.unresolvedActions > 0 || attention.danglingClaims > 0
+  // "2 action(s) ... need review" said that something needed looking at but not what, so every
+  // cause looked alike — a dead token and a refused permission read identically. The classified
+  // reason is appended when we have one.
+  const reasonSuffix = attention.topReason ? ` · ${attention.topReason.replace(/_/g, " ")}` : ""
   const eyesDetail = needsEyes
-    ? ` · ${attention.unresolvedActions} action(s) and ${attention.danglingClaims} message claim(s) need review`
+    ? ` · ${attention.unresolvedActions} action(s) and ${attention.danglingClaims} message claim(s) need review${reasonSuffix}`
     : ""
 
   if (gate.reason === "unknown_state") {

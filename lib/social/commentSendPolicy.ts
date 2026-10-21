@@ -176,6 +176,35 @@ export function classifySendAttempt(a: SendAttempt): Classification {
 }
 
 /**
+ * The durable failure record: a classification, plus Meta's NUMBERS and nothing else.
+ *
+ * ── WHY NUMBERS ONLY, AND WHY THIS IS SAFE ────────────────────────────────────────────────
+ * The ledger previously stored the classification alone. That was a deliberate choice — Meta's
+ * error *messages* can echo the request, and the request carried a bearer token, so persisting the
+ * provider's text risked writing a credential into a table the admin UI renders. That reasoning
+ * still holds and is why nothing here touches `error.message`, the response body, headers or the
+ * request.
+ *
+ * It does not hold for `error.code` and `error.error_subcode`. They are small integers from a
+ * closed vocabulary; they cannot carry a token, a URL or a person's data. And without them an
+ * operator cannot tell code 190 (our token is dead) from code 200 (the app is not permitted) —
+ * two failures with completely different remedies that both render as the single word
+ * "permission". Blind triage was the real cost of storing nothing.
+ *
+ * The shape stays greppable and stable: `<reason>` alone when Meta reported no numbers, otherwise
+ * `<reason> code=<n>` and ` subcode=<n>` when present.
+ */
+export function failureRecord(reason: string, a: SendAttempt): string {
+  const num = (v: unknown): number | null => (typeof v === "number" && Number.isFinite(v) ? v : null)
+  const code = num(a.errorCode)
+  const subcode = num(a.errorSubcode)
+  let out = reason
+  if (code !== null) out += ` code=${code}`
+  if (subcode !== null) out += ` subcode=${subcode}`
+  return out
+}
+
+/**
  * Meta subcode 2534037 and friends mean the comment is too old for a private reply. Recognised so
  * the ledger can say `outside_window` rather than a generic rejection — the operator should be able
  * to tell "we were too late" apart from "we are not allowed".

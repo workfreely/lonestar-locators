@@ -57,7 +57,7 @@ function ago(iso: string | null): string {
  * "nothing happened" is always explained — most importantly `no_stable_id`, which is the honest
  * case where we could not identify the person well enough to message them safely.
  */
-function outcomeOf(c: CommentRow): { text: string; tone: string; hint?: string } {
+export function outcomeOf(c: CommentRow): { text: string; tone: string; hint?: string } {
   const dm = c.comment_actions?.find((a) => a.kind === "private_reply")
   const pub = c.comment_actions?.find((a) => a.kind === "public_reply")
   const bad = "bg-[color-mix(in_srgb,var(--crm-danger)_16%,transparent)] text-[var(--crm-danger)]"
@@ -65,11 +65,45 @@ function outcomeOf(c: CommentRow): { text: string; tone: string; hint?: string }
   const good = "bg-[color-mix(in_srgb,var(--crm-accent)_16%,transparent)] text-[var(--crm-accent)]"
   const mute = "bg-[var(--crm-card)] text-[var(--crm-text-muted)]"
 
-  if (dm?.status === "uncertain" || pub?.status === "uncertain") return { text: "uncertain — review", tone: warn }
+  // ── WHAT ACTUALLY HAPPENED, BOTH LEGS AT ONCE ───────────────────────────────────────────
+  // This used to test `failed` on either leg before asking whether the other had succeeded, so a
+  // refused DM followed by a correctly-posted bio-link reply collapsed to a bare "failed". That is
+  // the fallback WORKING, and the label said nothing happened — which is how a healthy system gets
+  // mistaken for a broken one. Every combination now reads as itself, and a partial success says
+  // which part succeeded.
+  //
+  // Order: uncertain first (it is the only state a human must resolve, because an uncertain DM is
+  // never retried), then the mixed outcomes, then the clean ones.
+  if (dm?.status === "uncertain" || pub?.status === "uncertain") {
+    return {
+      text: pub?.status === "sent" ? "DM uncertain · public reply sent" : "uncertain — review",
+      tone: warn,
+      hint: "An uncertain send is never retried automatically, because it may already have been delivered.",
+    }
+  }
+  if (dm?.status === "failed" && pub?.status === "sent") {
+    return {
+      text: "DM failed · public reply sent",
+      tone: warn,
+      hint: "The private message was refused, so the public reply used link-in-bio wording and claimed no DM.",
+    }
+  }
+  if (dm?.status === "failed" && pub?.status === "failed") return { text: "both failed", tone: bad }
+  if (dm?.status === "sent" && pub?.status === "failed") {
+    return { text: "DM sent · public reply failed", tone: warn }
+  }
   if (dm?.status === "failed" || pub?.status === "failed") return { text: "failed", tone: bad }
   if (dm?.status === "sent" && pub?.status === "sent") return { text: "DM + public reply", tone: good }
   if (dm?.status === "sent") return { text: "DM sent", tone: good }
-  if (pub?.status === "sent") return { text: "public reply", tone: good }
+  // A public reply with no DM leg of its own: skipped, or never attempted. Named so it does not
+  // read as a full success when half the intended response did not happen.
+  if (pub?.status === "sent") {
+    return {
+      text: dm?.status === "skipped" ? "public reply only" : "public reply",
+      tone: good,
+      hint: dm?.status === "skipped" ? `No private message: ${(dm.reason ?? "skipped").replace(/_/g, " ")}.` : undefined,
+    }
+  }
   // A held comment is awaiting a human — shown before any action reason, because the hold is why
   // no action exists.
   if (c.hold_reason) return { text: `held — ${c.hold_reason.replace(/_/g, " ")}`, tone: warn }

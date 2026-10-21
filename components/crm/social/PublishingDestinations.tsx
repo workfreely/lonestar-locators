@@ -466,12 +466,17 @@ export default function PublishingDestinations({
                     {capabilityRow("Instagram Publishing", d.publishing)}
                     {capabilityRow("Instagram Auto Reply", d.autoReply, (
                       <>
-                        {/* Shown ONLY while the scope is missing. Once granted it has nothing left
-                            to grant, and the Reconnect control above covers re-authorization — so
-                            the action disappears rather than lingering as a thing to wonder about.
-                            `attention` keeps it visible, because that is the state where a scope
-                            may have been revoked and re-granting is the fix. */}
-                        {(!d.commentsScopeGranted || d.autoReply.state === "attention") && (
+                        {/* Shown ONLY while the permission is actually missing — or reported
+                            revoked, which is the same thing arriving from the other direction.
+                            It used to also appear on any `attention`, on the theory that attention
+                            might mean a revoked scope. In practice attention is usually a FAILED
+                            SEND, and a failed send is not fixed by re-granting a permission we
+                            already hold: offering this as the remedy sent the operator to an OAuth
+                            round trip that changed nothing. A genuine revocation still surfaces
+                            here, because `commentsScopeGranted` is false in that case, and the
+                            ledger now records Meta's numeric code so code 190 (token dead) is
+                            legible instead of hiding inside the word "permission". */}
+                        {(!d.commentsScopeGranted || d.autoReply.state === "permission_needed") && (
                           <a href={CONNECT} className={`${btn} flex-1 text-center`} title={REAUTHORIZE_COMMENTS_TITLE}>
                             {REAUTHORIZE_COMMENTS_LABEL}
                           </a>

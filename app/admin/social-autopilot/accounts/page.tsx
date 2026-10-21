@@ -149,17 +149,38 @@ export default async function SocialAutopilotAccountsPage({ searchParams }: { se
     }
     const { data: acts } = await supabase
       .from("comment_actions")
-      .select("status, social_comments!inner(connection_id)")
+      .select("status, reason, social_comments!inner(connection_id)")
       .in("status", ["failed", "uncertain"])
     // PostgREST returns an embedded relation as an ARRAY even for a to-one join, so this is
     // normalised rather than asserted — an object cast here compiles and then reads undefined.
-    type ActRow = { social_comments: { connection_id: string }[] | { connection_id: string } | null }
+    type ActRow = {
+      reason: string | null
+      social_comments: { connection_id: string }[] | { connection_id: string } | null
+    }
+    // Tally the classified reasons so the detail line can name the dominant cause. `reason` is our
+    // own vocabulary, not Meta's text; the first word is taken so the numeric code the ledger now
+    // appends to `error` can never travel into the UI through here.
+    const reasonTally = new Map<string, Map<string, number>>()
     for (const r of (acts ?? []) as ActRow[]) {
       const rel = r.social_comments
       const cid = Array.isArray(rel) ? rel[0]?.connection_id : rel?.connection_id
       if (!cid) continue
       const a = attentionOf.get(cid) ?? { unresolvedActions: 0, danglingClaims: 0 }
       a.unresolvedActions++
+      attentionOf.set(cid, a)
+      const word = (r.reason ?? "").trim().split(/\s+/)[0]
+      if (!word) continue
+      const t = reasonTally.get(cid) ?? new Map<string, number>()
+      t.set(word, (t.get(word) ?? 0) + 1)
+      reasonTally.set(cid, t)
+    }
+    for (const [cid, t] of reasonTally) {
+      const a = attentionOf.get(cid)
+      if (!a) continue
+      let top: string | null = null
+      let best = 0
+      for (const [word, n] of t) if (n > best) { top = word; best = n }
+      a.topReason = top
       attentionOf.set(cid, a)
     }
   }
