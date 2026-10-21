@@ -15,29 +15,23 @@ function ok(label: string, cond: boolean, detail = "") {
 const page = readFileSync("app/locator-beast/r/[token]/page.tsx", "utf8")
 const ogImage = readFileSync("app/locator-beast/r/[token]/opengraph-image.tsx", "utf8")
 
-console.log("\n1. THE FREE-SERVICE LINE — exact wording, exact placement:")
-ok("the approved sentence appears verbatim",
-  page.includes("My service is completely free to you!"))
-ok("it appears exactly once", (page.match(/My service is completely free to you!/g) ?? []).length === 1)
-ok("it sits INSIDE the list intro block (lbr-recs-head)",
-  /lbr-recs-head[^]*?My service is completely free to you![^]*?<\/div>/.test(page))
-ok("…directly AFTER the count line",
-  page.indexOf("{countLine}") < page.indexOf("My service is completely free to you!"))
-ok("…and BEFORE Next Steps",
-  page.indexOf("My service is completely free to you!") < page.indexOf("<h2>Next Steps</h2>"))
+console.log("\n1. THE FREE-SERVICE LINE WAS REMOVED, AND LEFT NOTHING BEHIND:")
+// It shipped on 21 Oct and was withdrawn the same day. These assertions are kept rather than
+// deleted: the wording, the class and the two CSS rules must ALL stay gone, and a partial removal
+// — the markup pulled but the styling left, or vice versa — is the failure worth catching.
+ok("the sentence is gone", !page.includes("My service is completely free to you!"))
+ok("the lbr-free class is gone from the markup", !/className="lbr-free"/.test(page))
+ok("its base CSS rule is gone", !/\.lbr-recs-head p\.lbr-free\{/.test(page))
+ok("…and so is the desktop override", (page.match(/lbr-free/g) ?? []).length === 0)
+ok("no empty <p> was left in its place",
+  !/<p className="lbr-free">\s*<\/p>/.test(page) && !/<p><\/p>/.test(page))
 
-console.log("\n2. IT IS A FOOTNOTE, NOT A SECTION:")
-ok("rendered as a <p>, not a heading or a card",
-  /<p className="lbr-free">My service is completely free to you!<\/p>/.test(page))
-ok("no new <section> was introduced for it",
-  !/<section[^>]*>\s*\{?\/?\*?[^]{0,80}My service is completely free/.test(page))
-ok("its base size is SMALLER than the count line beside it", (() => {
-  const base = /\.lbr-recs-head p\{[^}]*font-size:(\d+(?:\.\d+)?)px/.exec(page)
-  const free = /\.lbr-recs-head p\.lbr-free\{[^}]*font-size:(\d+(?:\.\d+)?)px/.exec(page)
-  return !!base && !!free && parseFloat(free[1]) < parseFloat(base[1])
-})())
-ok("it is defined mobile-first with a desktop bump, like its sibling",
-  (page.match(/\.lbr-recs-head p\.lbr-free\{/g) ?? []).length === 2)
+console.log("\n2. THE BLOCK IT SAT IN IS INTACT:")
+ok("the count line still renders", page.includes("<p>{countLine}</p>"))
+ok("the heading still renders", page.includes("<h2>Your Recommendations</h2>"))
+ok("lbr-recs-head still closes immediately after the count line",
+  /<h2>Your Recommendations<\/h2>\s*<p>\{countLine\}<\/p>\s*<\/div>/.test(page))
+ok("Next Steps still follows it", page.indexOf("{countLine}") < page.indexOf("<h2>Next Steps</h2>"))
 
 console.log("\n3. THE PREVIEW TITLE — changed; the IMAGE deliberately is not:")
 ok('the title line is now "Your Locator"', /const genericTitle = "Your Locator"/.test(page))
