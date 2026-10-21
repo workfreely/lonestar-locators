@@ -61,6 +61,11 @@ const GROUPS: { label: string; fields: Field[] }[] = [
         note: "Sent 2 hours after the end of the client's last confirmed tour that day. Multiple same-day tours count as one session and use the plural version below.",
       },
       { key: "post_tour_multi", name: "Post-Tour Follow-Up (multiple tours)" },
+      {
+        key: "tour_confirmed_reminder",
+        name: "Tour Confirmed — Realtor/Locator reminder",
+        note: "Sent BY HAND after a tour is confirmed, before the client applies. Nothing sends this automatically. Edit it to name only the incentive you actually offered this client.",
+      },
     ],
   },
   {

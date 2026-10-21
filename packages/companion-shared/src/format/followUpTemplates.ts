@@ -65,7 +65,14 @@ export type FollowUpTemplateKey =
   // Fires from the client-driven "Resume Your Search" event on a paused /r page.
   // Content-only key; the Resume event + its own registry sequence (resume_search)
   // decide when/whether it is ever sent — this layer only owns the wording.
-  | "resume_search";
+  | "resume_search"
+  // ── MANUAL ONLY — no sequence step, so nothing can dispatch it ──────────────
+  // Sent BY HAND after a tour is confirmed and before the client applies. It is
+  // deliberately absent from SEQUENCES (lib/followup/sequences.ts): the engine
+  // sends STEPS, not templates, so a key with no step is wording the locator can
+  // reach and the Follow-Up Agent cannot. Intro-only mode refuses everything but
+  // new_lead t1/t2 independently of this.
+  | "tour_confirmed_reminder";
 
 /**
  * The canonical DEFAULT wording. Each value is the EXACT current text with the
@@ -129,6 +136,12 @@ export const DEFAULT_FOLLOW_UP_TEMPLATES: Record<FollowUpTemplateKey, string> = 
   application_status: "Have you heard anything back on your application yet?",
   resume_search:
     "Hey {first_name}! I got your request to continue your apartment search. Has anything changed since we last talked or would you like me to update your list?",
+  // MANUAL. The incentives are named as a MENU, not a promise: no per-client incentive exists
+  // before a lease closes (leads.invoice_rebate_type is an invoicing field, empty on every
+  // lead), so committing to one here could promise something never offered. The locator trims
+  // it to whatever was actually offered before sending.
+  tour_confirmed_reminder:
+    "You\u2019re all set! \uD83D\uDE0A\n\nOne quick reminder! When applying, be sure to select Realtor/Locator and list \u2018Jay Morris with AptAmigo\u2019 to qualify for your cash rebate, free movers, or other incentives!",
 };
 
 /**
@@ -162,6 +175,9 @@ export const TEMPLATE_TOKENS: Record<FollowUpTemplateKey, readonly string[]> = {
   post_tour_multi: [],
   application_status: [],
   resume_search: ["first_name"],
+  // None: the default is fully static. The agent variable menu still offers the six
+  // standard tokens if the locator wants to personalise it.
+  tour_confirmed_reminder: [],
 };
 
 /**
@@ -236,6 +252,9 @@ export const TEMPLATE_CHAR_LIMITS: Record<FollowUpTemplateKey, number> = {
   post_tour_multi: 140,
   application_status: 140,
   resume_search: 200,
+  // The default is 190 characters. 240 leaves room to name a specific incentive
+  // without the editor refusing the edit.
+  tour_confirmed_reminder: 240,
 };
 
 /**
