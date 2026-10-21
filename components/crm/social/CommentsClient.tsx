@@ -29,9 +29,11 @@ export type CommentRow = {
   commented_at: string | null
   matched_keyword: string | null
   hold_reason: string | null
+  /** The platform's own id for this comment — the key our replies are linked by. */
+  external_comment_id: string | null
   external_media_id: string | null
   social_commenters: { provider_user_id: string; username: string | null; profile_url: string | null; dm_sent_at: string | null } | null
-  comment_actions: { kind: string; status: string; reason: string | null }[]
+  comment_actions: { kind: string; status: string; reason: string | null; external_id?: string | null }[]
   social_posts: { post_name: string | null } | null
 }
 
@@ -57,6 +59,57 @@ function ago(iso: string | null): string {
  * "nothing happened" is always explained — most importantly `no_stable_id`, which is the honest
  * case where we could not identify the person well enough to message them safely.
  */
+/** A comment with our own reply attached, when we posted one. */
+export type Conversation = CommentRow & {
+  reply: { body: string | null; status: string; externalId: string } | null
+}
+
+/**
+ * Fold our own replies into the comment they answer.
+ *
+ * ── THE LINK IS AN INSTAGRAM ID, NEVER A TIMESTAMP ──────────────────────────────────────────
+ * comment_actions.external_id holds the id Instagram returned when it accepted our public reply,
+ * and that id is the reply's own external_comment_id when the poller later ingests it. So the
+ * parent→reply edge is the platform's own, verified at both ends. Matching on proximity or time
+ * would eventually attach the wrong reply to the wrong person, which on this screen means telling
+ * the operator we said something to someone we did not.
+ *
+ * ── WHY OUR REPLIES DISAPPEAR AS TOP-LEVEL ROWS ─────────────────────────────────────────────
+ * Each posted reply is ingested as an ordinary comment from our own account, so the Inbox showed
+ * it twice: once as the conversation and once as a standalone row reading "own account — skipped".
+ * A reply that is shown inside its parent is removed from the top level; one we cannot place stays
+ * visible, because silently dropping a row would hide real activity.
+ *
+ * The reply BODY may be absent — a reply Instagram accepted but has not yet handed back to the
+ * poller has an id and no text. That renders as the status alone rather than inventing wording.
+ */
+/** Colour for a reply's delivery status. Sent is the only good outcome; the rest want a look. */
+function replyTone(status: string): string {
+  if (status === "sent") return "bg-[color-mix(in_srgb,var(--crm-accent)_16%,transparent)] text-[var(--crm-accent)]"
+  if (status === "failed") return "bg-[color-mix(in_srgb,var(--crm-danger)_16%,transparent)] text-[var(--crm-danger)]"
+  if (status === "uncertain") return "bg-[color-mix(in_srgb,#d9a441_18%,transparent)] text-[#d9a441]"
+  return "bg-[var(--crm-card)] text-[var(--crm-text-muted)]"
+}
+
+export function groupConversations(comments: CommentRow[]): Conversation[] {
+  const byExternalId = new Map<string, CommentRow>()
+  for (const c of comments) if (c.external_comment_id) byExternalId.set(c.external_comment_id, c)
+
+  const replyOf = new Map<string, Conversation["reply"]>()
+  const nested = new Set<string>()
+  for (const c of comments) {
+    const action = c.comment_actions?.find((a) => a.kind === "public_reply" && a.external_id)
+    if (!action?.external_id) continue
+    const posted = byExternalId.get(action.external_id)
+    replyOf.set(c.id, { body: posted?.body ?? null, status: action.status, externalId: action.external_id })
+    if (posted) nested.add(posted.id)
+  }
+
+  return comments
+    .filter((c) => !nested.has(c.id))
+    .map((c) => ({ ...c, reply: replyOf.get(c.id) ?? null }))
+}
+
 export function outcomeOf(c: CommentRow): { text: string; tone: string; hint?: string } {
   const dm = c.comment_actions?.find((a) => a.kind === "private_reply")
   const pub = c.comment_actions?.find((a) => a.kind === "public_reply")
@@ -189,6 +242,16 @@ export default function CommentsClient({
   dmEnabled?: boolean
 }) {
   const [view, setView] = useState<"inbox" | "rules" | "automation">("inbox")
+  // Which conversations are expanded. Collapsed is the default because the Inbox is scanned, not
+  // read: the point of the row is to answer "who, what did they want, did we answer" at a glance.
+  const [expanded, setExpanded] = useState<ReadonlySet<string>>(new Set())
+  const toggle = (id: string) =>
+    setExpanded((prev) => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
 
   const ig = accounts.find((a) => a.provider === "instagram") ?? null
   const automation = automationStatus({
@@ -267,13 +330,13 @@ export default function CommentsClient({
               <table className="w-full border-collapse text-[12.5px]">
                 <thead>
                   <tr>
-                    {["", "Commenter", "Comment", "Post", "Match", "Outcome", "When", ""].map((h, i) => (
+                    {["", "Commenter", "Conversation", "Post", "Match", "Outcome", "When", ""].map((h, i) => (
                       <th key={i} className={`${label} text-left px-2 pb-2 whitespace-nowrap`}>{h}</th>
                     ))}
                   </tr>
                 </thead>
                 <tbody>
-                  {comments.map((c) => {
+                  {groupConversations(comments).map((c) => {
                     const person = c.social_commenters
                     // Provider URL first; a constructed one only from a handle we consider safe.
                     const href = resolveProfileUrl(c.provider, {
@@ -321,7 +384,42 @@ export default function CommentsClient({
                           </div>
                           </div>
                         </td>
-                        <td className="px-2 py-2 align-top text-[var(--crm-text-secondary)]">{c.body ?? "—"}</td>
+                        {/* ONE CONVERSATION, ONE CELL. The comment and the reply we posted to it
+                            sit together, because they are one exchange — and because our reply used
+                            to occupy a second top-level row that read "own account — skipped",
+                            which described the DM leg of our own comment and told the operator
+                            nothing about the conversation. Collapsed to one line each; the whole
+                            cell is a button, so a long comment opens in place. */}
+                        <td className="px-2 py-2 align-top text-[var(--crm-text-secondary)] max-w-[34rem]">
+                          {(() => {
+                            const isOpen = expanded.has(c.id)
+                            const clamp = isOpen ? "" : "overflow-hidden text-ellipsis whitespace-nowrap"
+                            const hasMore = (c.body ?? "").length > 64 || !!c.reply
+                            return (
+                              <button
+                                type="button"
+                                onClick={() => hasMore && toggle(c.id)}
+                                aria-expanded={isOpen}
+                                className={`w-full text-left ${hasMore ? "cursor-pointer" : "cursor-default"}`}
+                                title={hasMore ? (isOpen ? "Collapse" : "Expand") : undefined}
+                              >
+                                <div className={clamp}>{c.body ?? "—"}</div>
+                                {c.reply && (
+                                  <div className="flex items-start gap-1.5 mt-[3px] text-[11.5px] text-[var(--crm-text-muted)]">
+                                    <span aria-hidden className="flex-none">↳</span>
+                                    {/* The reply we ACTUALLY posted. A reply Instagram accepted but
+                                        has not handed back yet has an id and no text, so the status
+                                        stands alone rather than inventing wording. */}
+                                    <span className={`min-w-0 ${clamp}`}>
+                                      {c.reply.body ?? <em>reply posted — text not ingested yet</em>}
+                                    </span>
+                                    <span className={`${pill} flex-none ${replyTone(c.reply.status)}`}>{c.reply.status}</span>
+                                  </div>
+                                )}
+                              </button>
+                            )
+                          })()}
+                        </td>
                         <td className="px-2 py-2 align-top text-[var(--crm-text-muted)] whitespace-nowrap">
                           {/* THREE CASES, AND THE THIRD IS THE COMMON ONE.
                               A Social Beast post is named. Otherwise the comment is on media we

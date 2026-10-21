@@ -119,9 +119,12 @@ export default async function CommentsPage() {
       supabase
         .from("social_comments")
         .select(
-          "id, provider, body, author_username, permalink, commented_at, matched_keyword, hold_reason, external_media_id, " +
+          // external_comment_id and the action's external_id are what link a reply to the comment
+          // it answers — the platform's own ids, so the Inbox never has to guess from timestamps.
+          "id, provider, body, author_username, permalink, commented_at, matched_keyword, hold_reason, " +
+          "external_media_id, external_comment_id, " +
             "social_commenters(provider_user_id, username, profile_url, dm_sent_at), " +
-            "comment_actions(kind, status, reason), social_posts(post_name)",
+            "comment_actions(kind, status, reason, external_id), social_posts(post_name)",
         )
         .order("commented_at", { ascending: false })
         .limit(100) as never,
