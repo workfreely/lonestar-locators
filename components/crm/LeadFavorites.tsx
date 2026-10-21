@@ -573,9 +573,30 @@ export default function LeadFavorites({
                     )
                     return (
                       <div className="min-w-0 flex-1">
-                        {/* Name row — property name (typography unchanged) + top-right controls. */}
+                        {/* Name row — property name (typography unchanged) + top-right controls.
+                            TOP PICK SITS WITH THE NAME, not on the status line. It answers "which
+                            property is this lead moving on", which is a property of the property —
+                            the same fact whether the card currently reads Guest Card Sent, Check
+                            Application or Payment. It used to be a "★ Top Pick · " prefix repeated
+                            on all seven status lines, so it changed position as the lead advanced
+                            and disappeared entirely in states that render no status line.
+                            It is DERIVED, never stored per favourite: isTopPick compares this
+                            favourite's id against leads.top_pick_favorite_id, which the Tour
+                            Follow-Up and application workflows own. Nothing here writes it. */}
                         <div className="flex items-center justify-between gap-2">
-                          {nameEl}
+                          <div className="min-w-0 flex items-center gap-1.5">
+                            {nameEl}
+                            {isTopPick && (
+                              <span
+                                className="flex-none inline-flex items-center gap-[3px] rounded
+                                           border border-emerald-600/40 bg-emerald-600/12
+                                           px-1.5 py-[1px] text-[10px] font-semibold text-emerald-600"
+                                title="Top Pick — the property this lead is moving on. Set by the Tour Follow-Up outcome."
+                              >
+                                <span aria-hidden>★</span>Top Pick
+                              </span>
+                            )}
+                          </div>
                           {favControls}
                         </div>
                         {/* Address row — address left, Special (compact, current/verified
@@ -808,7 +829,7 @@ export default function LeadFavorites({
                   {applyAction && onStartApplication && (
                     <div className="mt-2 pt-2 border-t border-[var(--crm-border-soft)]">
                       <div className="flex items-center justify-between gap-2">
-                        <p className="text-[10.5px] font-semibold text-emerald-600">★ Top Pick · {favState}</p>
+                        <p className="text-[10.5px] font-semibold text-emerald-600">{favState}</p>
                         <button
                           type="button"
                           onClick={() => onStartApplication(lead, applyAction)}
@@ -828,7 +849,7 @@ export default function LeadFavorites({
                     <div className="mt-2 pt-2 border-t border-[var(--crm-border-soft)]">
                       <div className="flex items-center justify-between gap-2">
                         <p className="text-[10.5px] font-semibold text-emerald-600">
-                          {isTopPick && "★ Top Pick · "}{favState}
+                          {favState}
                         </p>
                         <button
                           type="button"
@@ -847,7 +868,7 @@ export default function LeadFavorites({
                     <div className="mt-2 pt-2 border-t border-[var(--crm-border-soft)]">
                       <div className="flex items-center justify-between gap-2">
                         <p className="text-[10.5px] font-semibold text-emerald-600">
-                          {isTopPick && "★ Top Pick · "}{favState}
+                          {favState}
                         </p>
                         <button
                           type="button"
@@ -866,7 +887,7 @@ export default function LeadFavorites({
                     <div className="mt-2 pt-2 border-t border-[var(--crm-border-soft)]">
                       <div className="flex items-center justify-between gap-2">
                         <p className="text-[10.5px] font-semibold text-emerald-600">
-                          {isTopPick && "★ Top Pick · "}{favState}
+                          {favState}
                         </p>
                         <button
                           type="button"
@@ -886,7 +907,7 @@ export default function LeadFavorites({
                     <div className="mt-2 pt-2 border-t border-[var(--crm-border-soft)]">
                       <div className="flex items-center justify-between gap-2">
                         <p className="text-[10.5px] font-semibold text-emerald-600">
-                          {isTopPick && "★ Top Pick · "}{favState}
+                          {favState}
                         </p>
                         <button
                           type="button"
@@ -906,7 +927,7 @@ export default function LeadFavorites({
                     <div className="mt-2 pt-2 border-t border-[var(--crm-border-soft)]">
                       <div className="flex items-center justify-between gap-2">
                         <p className="text-[10.5px] font-semibold text-emerald-600">
-                          {isTopPick && "★ Top Pick · "}{favState}
+                          {favState}
                         </p>
                         <button
                           type="button"
@@ -926,7 +947,7 @@ export default function LeadFavorites({
                     <div className="mt-2 pt-2 border-t border-[var(--crm-border-soft)]">
                       <div className="flex items-center justify-between gap-2">
                         <p className="text-[10.5px] font-semibold text-emerald-600">
-                          {isTopPick && "★ Top Pick · "}{favState}
+                          {favState}
                         </p>
                         <button
                           type="button"
@@ -944,7 +965,6 @@ export default function LeadFavorites({
                   {!tour && !tfAction && !applyAction && !checkAppOpen && !confirmLeaseOpen && !getInvoiceOpen && !sendInvoiceOpen && !commissionPaidOpen && !sendRebateOpen && favState && (
                     <div className="mt-2 pt-2 border-t border-[var(--crm-border-soft)]">
                       <p className="text-[11px] font-medium text-[var(--crm-text-muted)]">
-                        {isTopPick && <span className="font-semibold text-emerald-600">★ Top Pick · </span>}
                         {favState}
                       </p>
                     </div>
