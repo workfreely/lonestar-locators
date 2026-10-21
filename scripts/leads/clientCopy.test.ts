@@ -47,6 +47,27 @@ ok("…with the generic image fallback unchanged", /: "Your Custom List"/.test(o
 ok("the on-page eyebrow still reads 'Custom List for <First>'",
   /Custom List for \$\{firstName\}/.test(page))
 
+console.log("\n4b. THE BOTTOM CLEARANCE ONLY EXISTS WHEN THE STICKY BAR DOES:")
+// RecommendationList renders the mobile favorites bar only while favorites are still being
+// chosen ({!done && …}), but .lbr-shell reserved its 118px of clearance unconditionally. Once a
+// client tapped Done Selecting Favorites the bar vanished and the reserved space stayed —
+// measured at 375x812: 118px of empty page below the legal footer on a long list, 0px after.
+ok("the clearance is scoped to the bar's presence",
+  /\.lbr-shell:has\(\.lbr-sticky\)\{padding-bottom:calc\(118px \+ env\(safe-area-inset-bottom\)\)\}/.test(page))
+ok("the UNCONDITIONAL clearance is gone",
+  !/^\.lbr-shell\{padding-bottom:calc\(118px/m.test(page))
+ok("with no bar the page still clears the home indicator",
+  /\.lbr-shell\{padding-bottom:env\(safe-area-inset-bottom\)\}/.test(page))
+ok("both rules live inside the mobile breakpoint, so desktop is untouched", (() => {
+  const i = page.indexOf("@media (max-width:640px)")
+  const j = page.indexOf(".lbr-shell:has(.lbr-sticky)")
+  return i > 0 && j > i
+})())
+ok("the desktop shell keeps its original 40px bottom margin",
+  /\.lbr-shell\{max-width:1300px;margin:26px auto 40px/.test(page))
+ok("the bar itself is unchanged — same height contract",
+  /\.lbr-sticky\{display:flex[^}]*position:fixed/.test(page))
+
 console.log("\n5. NOTHING ELSE ON THE PAGE MOVED:")
 for (const [label, needle] of [
   ["favorites instructions", "Your top 2&ndash;3 favorites"],

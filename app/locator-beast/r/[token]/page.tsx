@@ -488,8 +488,22 @@ const CSS = `
 .lbr-done{display:none}
 /* Clearance for the two-row bar, so the last card's View Property button can always be
    scrolled clear of it rather than sitting underneath. Measured: ~22 count + 8 gap +
-   48 button + 20 padding + 1 border. */
-.lbr-shell{padding-bottom:calc(118px + env(safe-area-inset-bottom))}
+   48 button + 20 padding + 1 border.
+
+   SCOPED TO WHEN THE BAR IS ACTUALLY THERE. RecommendationList renders it only while
+   favorites are still being chosen ({!done && …}), but this clearance applied
+   unconditionally — so once a client tapped Done Selecting Favorites, or landed on
+   Availability Sent, 118px of reserved space stayed behind with nothing in it.
+   Measured at 375x812: 120px of empty page below the legal footer, and ~154px on a
+   real iPhone once the home-indicator inset is added.
+
+   :has() tracks the bar REACTIVELY, which a server-rendered class could not: the bar
+   disappears the moment the client taps Done, with no reload. This stylesheet already
+   relies on :has() for the legal-link rules above. */
+.lbr-shell:has(.lbr-sticky){padding-bottom:calc(118px + env(safe-area-inset-bottom))}
+/* No bar: the page ends naturally after the footer's own 26px, plus the home-indicator
+   inset so the last line never sits under it. */
+.lbr-shell{padding-bottom:env(safe-area-inset-bottom)}
 }
 `
 
