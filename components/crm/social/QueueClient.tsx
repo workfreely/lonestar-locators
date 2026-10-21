@@ -33,7 +33,13 @@ const FILTER_STATUS: Partial<Record<Filter, PostStatus>> = {
 }
 
 const STATUS_STYLE: Record<PostStatus, string> = {
-  draft: "text-[var(--crm-text-muted)] bg-[var(--crm-card)]",
+  // DRAFT matches the Video Library's DRAFT badge: the same emerald-700/90 ground and white text
+  // that BADGE_CLASS.green gives it there (BADGE_TONE.DRAFT === "green", lib/social/postLane).
+  // One status, one appearance — a draft should not read as two different things depending on
+  // which screen you are looking at. Deliberately the literal rather than an import: Queue's map
+  // is keyed by PostStatus and the Library's by CardBadge, so sharing the map would mean coupling
+  // two unrelated vocabularies to change one colour. Every OTHER status here is untouched.
+  draft: "text-white bg-emerald-700/90",
   rendering: "text-amber-700 bg-amber-500/12 dark:text-amber-400",
   ready: "text-sky-700 bg-sky-500/12 dark:text-sky-400",
   scheduled: "text-emerald-700 bg-emerald-500/12 dark:text-emerald-400",
