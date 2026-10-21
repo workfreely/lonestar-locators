@@ -18,7 +18,7 @@
 // ever holding the commenter's Instagram-scoped id. We still refuse to, because the id is what
 // makes "one DM per person, ever" enforceable; see lib/social/commentIdentity.ts.
 
-import { sendGate, type SendAttempt, type EnvLike } from "@/lib/social/commentSendPolicy"
+import { sendGate, dmGate, type SendAttempt, type EnvLike } from "@/lib/social/commentSendPolicy"
 import { parseBucUsage, type BucUsage } from "@/lib/social/commentRateLimit"
 
 const GRAPH = "https://graph.instagram.com/v21.0"
@@ -123,6 +123,11 @@ export const liveSender: CommentSender = {
   },
 
   async sendPrivateReply(ctx, externalCommentId, text) {
+    // DEFENCE IN DEPTH. The runner already refuses before taking a claim, so reaching here with
+    // private replies paused would be a bug — and this is the line that keeps that bug from
+    // becoming an HTTP request to Meta. Checked before the send gate because it is the narrower
+    // refusal of the two.
+    if (!dmGate(process.env as EnvLike).active) return refused()
     if (!sendGate(process.env as EnvLike).active) return refused()
     return post(
       `${GRAPH}/${encodeURIComponent(ctx.igUserId)}/messages`,

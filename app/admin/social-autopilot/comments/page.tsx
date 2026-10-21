@@ -4,7 +4,7 @@ import { ensurePlatformAdminPage } from "@/lib/auth/ensurePlatformAdminPage"
 import { createClient } from "@/lib/supabase/server"
 import CommentsClient, { type CommentRow, type RuleRow, type AccountRow } from "@/components/crm/social/CommentsClient"
 import { COMMENT_KEYWORDS } from "@/lib/social/commentKeywords"
-import { sendGate } from "@/lib/social/commentSendPolicy"
+import { sendGate, dmGate } from "@/lib/social/commentSendPolicy"
 
 // Social Beast → Comments (Automated Lead Capture). Platform-admin gated, like every sibling tab.
 //
@@ -147,6 +147,10 @@ export default async function CommentsPage() {
   // database toggle while SOCIAL_COMMENT_SEND_ENABLED kept the senders inert — an operator would
   // have no way to tell "armed" from "dry run", which is the one distinction that matters here.
   const sendingEnabled = sendGate(process.env).active
+  // Private replies are paused separately from sending. Shown explicitly, because a screen that
+  // said "Sending: Live" while the private leg was off would be the same class of lie this page
+  // was just corrected for.
+  const dmEnabled = dmGate(process.env).active
 
   return (
     <CommentsClient
@@ -157,6 +161,7 @@ export default async function CommentsPage() {
       globalEnabled={globalEnabled}
       globalUnreadable={globalUnreadable}
       sendingEnabled={sendingEnabled}
+      dmEnabled={dmEnabled}
       accountEnabled={accountEnabled}
       publicRepliesEnabled={publicRepliesEnabled}
       maxCommentAgeMinutes={maxCommentAgeMinutes}

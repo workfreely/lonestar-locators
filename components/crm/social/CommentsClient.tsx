@@ -164,7 +164,7 @@ export function automationStatus(input: {
 export default function CommentsClient({
   accounts, rules, rulesArePreview, comments, globalEnabled, globalUnreadable = false, sendingEnabled = false,
   accountEnabled = false, publicRepliesEnabled = false, maxCommentAgeMinutes = null,
-  accountSettingsUnreadable = false,
+  accountSettingsUnreadable = false, dmEnabled = false,
 }: {
   accounts: AccountRow[]
   rules: RuleRow[]
@@ -185,6 +185,8 @@ export default function CommentsClient({
   maxCommentAgeMinutes?: number | null
   /** The per-account settings could not be READ — distinct from their being off. */
   accountSettingsUnreadable?: boolean
+  /** SOCIAL_COMMENT_DM_ENABLED. Private replies are paused independently of public ones. */
+  dmEnabled?: boolean
 }) {
   const [view, setView] = useState<"inbox" | "rules" | "automation">("inbox")
 
@@ -499,6 +501,23 @@ export default function CommentsClient({
             </span>
             <span className="text-[var(--crm-text-muted)] text-right" title="TikTok does not offer comment replies on this API.">
               Unavailable
+            </span>
+          </div>
+
+          {/* PRIVATE REPLIES, SEPARATELY. Meta refused these on 21 Oct 2026 while accepting public
+              replies, so the private leg is paused on its own switch. Stated plainly: an operator
+              reading "Sending: Live" must not conclude that DMs are going out. */}
+          <div className="flex items-center justify-between gap-3 py-2.5 border-t border-[var(--crm-border)]">
+            <div>
+              <div className="text-[13px] font-semibold text-[var(--crm-text-primary)]">Private messages</div>
+              <div className="text-[11.5px] text-[var(--crm-text-muted)] mt-[2px]">
+                {dmEnabled
+                  ? "Comment-triggered private replies are attempted."
+                  : "Paused. No private-message request is made, and the public reply uses link-in-bio wording."}
+              </div>
+            </div>
+            <span className={`${pill} border border-[var(--crm-border)] ${dmEnabled ? "text-emerald-600 dark:text-emerald-400" : "text-[var(--crm-text-muted)]"}`}>
+              {dmEnabled ? "On" : "Paused"}
             </span>
           </div>
 

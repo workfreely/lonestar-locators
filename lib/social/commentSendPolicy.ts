@@ -35,6 +35,32 @@ export function featureGate(env: EnvLike): FeatureGate {
     : { active: false, reason: "automation_disabled" }
 }
 
+export type DmGate = { active: boolean; reason: "ok" | "dm_disabled" }
+
+/**
+ * MAY WE ATTEMPT A PRIVATE REPLY AT ALL?
+ *
+ * ── WHY THIS EXISTS, AND WHY IT FAILS CLOSED ──────────────────────────────────────────────
+ * On 21 Oct 2026 Meta refused the first two live private replies with a permission error while
+ * accepting both public replies on the same token and scope. Repeatedly re-attempting a call the
+ * platform keeps refusing is how an account attracts restrictions, so private replies are paused
+ * while public replies — which work — keep running.
+ *
+ * The existing switches could not express that. SOCIAL_COMMENT_SEND_ENABLED stops BOTH legs,
+ * global_enabled stops the whole feature, and public_replies_enabled stops only the public half.
+ * There was no way to say "public yes, private no", which is exactly the state we need.
+ *
+ * UNSET MEANS OFF. Every other gate here is opt-in and this one is too, so the pause survives a
+ * deploy, a rollback and a fresh environment without anyone having to remember it. Turning private
+ * replies back on is a deliberate act — set SOCIAL_COMMENT_DM_ENABLED=true — which is the right
+ * shape for a capability that is currently refused by the provider.
+ */
+export function dmGate(env: EnvLike): DmGate {
+  return armed(env.SOCIAL_COMMENT_DM_ENABLED)
+    ? { active: true, reason: "ok" }
+    : { active: false, reason: "dm_disabled" }
+}
+
 export type SendGate = { active: boolean; reason: "ok" | "sending_disabled" }
 
 /** The sending gate. Off ⇒ the pipeline still runs and logs, but no call reaches Meta. */

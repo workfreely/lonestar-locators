@@ -36,6 +36,7 @@ import {
 import {
   featureGate, sendGate, privateReplyWindow, classifySendAttempt, isOutsideWindowError,
   failureRecord,
+  dmGate,
 } from "@/lib/social/commentSendPolicy"
 import type { CommentSender, SenderContext, SendResult } from "@/lib/social/commentSender"
 import type { BucUsage } from "@/lib/social/commentRateLimit"
@@ -272,7 +273,13 @@ export async function processComment(
     existing: commenter,
   })
 
-  if (!window.withinWindow) {
+  // PRIVATE REPLIES PAUSED. Checked FIRST, before the window test and before the atomic claim, so
+  // no claim is taken, no token is read and sendPrivateReply is never reached. The comment is still
+  // stored, still keyword-matched and still gets its public reply — only the private leg stops.
+  if (!dmGate(env).active) {
+    dm = { attempted: false, status: "skipped", reason: "dm_disabled" }
+    await store.logAction({ commentId: row.id, kind: "private_reply", status: "skipped", reason: "dm_disabled", externalId: null, error: null })
+  } else if (!window.withinWindow) {
     // Refused BEFORE the claim. Claiming someone for a send that cannot succeed would mark them
     // spoken for, and an unresolved claim is never released — it could lock out a real DM for ever.
     dm = { attempted: false, status: "skipped", reason: `outside_window:${window.reason}` }

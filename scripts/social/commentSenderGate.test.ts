@@ -123,17 +123,39 @@ async function main() {
     ok("the comment is fully processed and stored", out.result === "processed" && out.stored)
     ok("the keyword is matched for real", out.matchedKeyword === "LIST")
     // The two findings that answer the question directly.
-    ok("NO DM LEFT THE PROCESS", out.dm?.attempted === false && out.dm?.reason === "sending_disabled")
+    // The DM now refuses on the NARROWER gate: private replies are paused outright (Meta refused
+    // the first two live ones on 21 Oct 2026), and that check runs before the sending gate. The
+    // property under test is unchanged — nothing left the process — so the assertion keeps its
+    // teeth and simply names the refusal that actually applies.
+    ok("NO DM LEFT THE PROCESS", out.dm?.attempted === false && out.dm?.reason === "dm_disabled")
     ok("NO PUBLIC REPLY LEFT THE PROCESS", out.publicReply?.reason === "sending_disabled")
     ok("ZERO outbound HTTP requests were attempted by the whole pipeline",
       attempted.length === 0, attempted.join(", "))
     ok("NO CLAIM was taken, so the dry run locks nobody out of a future DM", claims === 0)
     ok("the ledger still records both intentions, so the operator sees what WOULD have happened",
-      actions.filter((a) => a.reason === "sending_disabled").length === 2)
+      actions.filter((a) => a.reason === "dm_disabled" || a.reason === "sending_disabled").length === 2)
+    ok("…and the two intentions are named distinctly, not collapsed into one reason",
+      actions.some((a) => a.kind === "private_reply" && a.reason === "dm_disabled") &&
+      actions.some((a) => a.kind === "public_reply" && a.reason === "sending_disabled"))
 
-    // The control. The same pipeline with the gate ON must reach the network — otherwise every
-    // assertion above would pass simply because the test harness is broken.
+    // TODAY'S PRODUCTION SHAPE: sending armed, private replies paused. Exactly one request must
+    // leave — the public reply — and it must not be the private endpoint. This is the assertion
+    // that would catch the pause silently lapsing.
     process.env.SOCIAL_COMMENT_SEND_ENABLED = "true"
+    delete process.env.SOCIAL_COMMENT_DM_ENABLED
+    attempted.length = 0
+    const paused = await processComment({ ...c, externalCommentId: "c-paused" }, store, liveSender)
+    ok("PAUSED: exactly ONE request leaves the process", attempted.length === 1, attempted.join(", "))
+    ok("PAUSED: and it is the public /replies edge, never /messages",
+      attempted.every((u) => u.includes("/replies") && !u.includes("/messages")), attempted.join(", "))
+    ok("PAUSED: the DM was not attempted", paused.dm?.attempted === false && paused.dm?.reason === "dm_disabled")
+    ok("PAUSED: the public reply WAS attempted", paused.publicReply?.attempted === true)
+
+    // The control. The same pipeline with BOTH gates ON must reach the network — otherwise every
+    // assertion above would pass simply because the test harness is broken. The private gate is
+    // armed explicitly here, because it is off by default in production.
+    process.env.SOCIAL_COMMENT_SEND_ENABLED = "true"
+    process.env.SOCIAL_COMMENT_DM_ENABLED = "true"
     attempted.length = 0
     const on = await processComment({ ...c, externalCommentId: "c-live-2" }, store, liveSender)
     ok("CONTROL: with the gate ON the same comment DOES reach the network",
@@ -149,6 +171,8 @@ async function main() {
     ok("the access token never appears in any request URL",
       !attempted.some((u) => u.includes("token-value")), attempted.join(", "))
   }
+
+  delete process.env.SOCIAL_COMMENT_DM_ENABLED
 
   console.log("\n4. THE KILL SWITCH BEATS THE SENDING GATE:")
   {

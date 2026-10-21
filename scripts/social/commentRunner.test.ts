@@ -19,8 +19,17 @@ const ok = (l: string, c: boolean, d = "") => {
 
 const NOW = Date.parse("2026-10-17T12:00:00Z")
 const minsAgo = (m: number) => new Date(NOW - m * 60_000).toISOString()
-const ON = { SOCIAL_COMMENT_AUTOMATION_ENABLED: "true", SOCIAL_COMMENT_SEND_ENABLED: "true" }
-const DRY = { SOCIAL_COMMENT_AUTOMATION_ENABLED: "true" }
+// SOCIAL_COMMENT_DM_ENABLED is explicit here because the private leg is PAUSED BY DEFAULT in
+// production (Meta refused the first two live private replies on 21 Oct 2026). These cases exist to
+// exercise the DM machinery — the atomic claim, outcome resolution, the conditional public reply —
+// so they arm it deliberately rather than inheriting a default. The default itself, and the
+// guarantee that no private request is made while paused, are covered by dmPause.test.ts.
+const ON = {
+  SOCIAL_COMMENT_AUTOMATION_ENABLED: "true",
+  SOCIAL_COMMENT_SEND_ENABLED: "true",
+  SOCIAL_COMMENT_DM_ENABLED: "true",
+}
+const DRY = { SOCIAL_COMMENT_AUTOMATION_ENABLED: "true", SOCIAL_COMMENT_DM_ENABLED: "true" }
 
 const LIVE_GATE: GateState = {
   settingsReadOk: true, globalEnabled: true, accountEnabled: true,
@@ -317,7 +326,7 @@ async function main() {
 
   console.log("\n7. THE GATES — nothing runs on missing information:")
   {
-    const offEnv = { SOCIAL_COMMENT_SEND_ENABLED: "true" } // kill switch absent
+    const offEnv = { SOCIAL_COMMENT_SEND_ENABLED: "true", SOCIAL_COMMENT_DM_ENABLED: "true" } // kill switch absent
     const s = fakeStore(), m = mockSender({ status: 200, externalId: "x", usage: null })
     const r = await run(comment(), s, m, offEnv)
     ok("the KILL SWITCH off makes the pipeline fully inert", r.result === "inert")
