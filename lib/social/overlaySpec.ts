@@ -643,6 +643,10 @@ export function templateFamily(template: string): LayoutFamily {
     || template === "apartment_crush" || template === "engagement" || template === "level_up"
     || template === "them_vs_me" || template === "view" || template === "aura"
     || template === "pov_couple"
+    // T32 ROOMIE joins on the same terms: membership IS the layout, so its "2 bed apartment…" /
+    // "Only $800/month per roomie" pair gets the identical centred placement, sizing, side
+    // margins and 17px gap every other hook+detail template has.
+    || template === "roomie"
     || template === "your_sign" || template === "property_tour") return "center_hook_detail"
   return "hero" // market_type, market_type_centered (vertically centered in the hero branch), special_feature, unknown → hero
 }

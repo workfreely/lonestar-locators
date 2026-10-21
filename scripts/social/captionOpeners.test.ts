@@ -44,6 +44,8 @@ const EXPECTED: [OverlayTemplate, string][] = [
   ["view", "I'll never get tired of this view 😍"],
   ["aura", "This has too much aura 🔥"],
   ["pov_couple", "POV: Tag your love ❤️"],
+  // T32. Metadata-free like the rest; the per-person figure lives on the VIDEO, never here.
+  ["roomie", "Tag your future roomie 👀🏡"],
 ]
 // The four Client / Me variations (T21-T24) have no OPENER: each caption is a fixed approved block
 // returned whole,

@@ -1,7 +1,7 @@
 /**
- * TEMPLATES 25-31 — the seven conversational additions, and the twenty-four they must not disturb.
+ * TEMPLATES 25-32 — the eight conversational additions, and the twenty-four they must not disturb.
  *
- *   npx tsx scripts/social/templates25to31.test.ts
+ *   npx tsx scripts/social/templates25to32.test.ts
  *
  * Two halves, and the second is the one that earns its keep.
  *
@@ -20,6 +20,7 @@ import { join } from "node:path"
 import {
   OVERLAY_TEMPLATES, OVERLAY_TEMPLATE_ORDER, OVERLAY_TEMPLATE_LABEL, AURA_SHORT_TYPES,
   buildTemplateHeadline, buildTemplateDetail, captionOpener, buildCaption,
+  roomiePerPersonDollars, formatRoomieSplit, startingPriceLabel,
   type OverlayTemplate, type SourceMeta,
 } from "@/lib/social/composePost"
 import { templateFamily } from "@/lib/social/overlaySpec"
@@ -39,6 +40,9 @@ const meta = (o: Partial<SourceMeta> = {}): SourceMeta => ({
 } as SourceMeta)
 
 const NEW7 = ["apartment_crush", "engagement", "level_up", "them_vs_me", "view", "aura", "pov_couple"] as const
+/** T32 Roomie is kept separate from NEW7: it is the only one whose detail is COMPUTED, so the
+ *  price-line assertions written for the other six do not describe it. */
+const ROOMIE = "roomie" as OverlayTemplate
 
 /** The original twenty-four, in their original registry order. Written out literally: a list
  *  derived from the thing it is checking would agree with any corruption of it. */
@@ -53,8 +57,8 @@ const ORIGINAL_24 = [
 console.log("\n=== 1. THE ORIGINAL 24 ARE UNTOUCHED ===")
 {
   eq("every original id is still registered, in its original index", OVERLAY_TEMPLATES.slice(0, 24), ORIGINAL_24)
-  eq("the registry grew to 31 by APPENDING", OVERLAY_TEMPLATES.length, 31)
-  eq("…and the seven new ids are the appended tail", OVERLAY_TEMPLATES.slice(24), [...NEW7])
+  eq("the registry grew to 32 by APPENDING", OVERLAY_TEMPLATES.length, 32)
+  eq("…and the eight new ids are the appended tail", OVERLAY_TEMPLATES.slice(24), [...NEW7, "roomie"])
   ok("no id is duplicated", new Set(OVERLAY_TEMPLATES).size === OVERLAY_TEMPLATES.length)
   ok("every registered template has a label", OVERLAY_TEMPLATES.every((t) => !!OVERLAY_TEMPLATE_LABEL[t]))
   // The original labels, spot-checked at the boundaries that a careless edit would hit.
@@ -75,8 +79,8 @@ console.log("\n=== 1. THE ORIGINAL 24 ARE UNTOUCHED ===")
 
 console.log("\n=== 2. DISPLAY ORDER IS SEPARATE FROM IDENTITY ===")
 {
-  eq("the dropdown lists all 31", OVERLAY_TEMPLATE_ORDER.length, 31)
-  eq("…each exactly once", new Set(OVERLAY_TEMPLATE_ORDER).size, 31)
+  eq("the dropdown lists all 32", OVERLAY_TEMPLATE_ORDER.length, 32)
+  eq("…each exactly once", new Set(OVERLAY_TEMPLATE_ORDER).size, 32)
   // The two lists must contain the SAME set — a template added to one and forgotten in the other
   // would either vanish from the dropdown or appear with no identity.
   eq("the order holds exactly the registered set",
@@ -84,11 +88,11 @@ console.log("\n=== 2. DISPLAY ORDER IS SEPARATE FROM IDENTITY ===")
   eq("positions 1-19 are the registry's own first nineteen",
     OVERLAY_TEMPLATE_ORDER.slice(0, 19), OVERLAY_TEMPLATES.slice(0, 19))
   const at = (n: number) => OVERLAY_TEMPLATE_LABEL[OVERLAY_TEMPLATE_ORDER[n - 1]]
-  eq("20-26 are the seven new templates, in the approved order",
-    [at(20), at(21), at(22), at(23), at(24), at(25), at(26)],
-    ["Apartment Crush", "Engagement", "Level Up", "Them vs. Me", "View", "Aura", "POV Couple"])
-  eq("27-31 are the Client / Me group, shifted down intact",
-    [at(27), at(28), at(29), at(30), at(31)],
+  eq("20-27 are the eight new templates, in the approved order",
+    [at(20), at(21), at(22), at(23), at(24), at(25), at(26), at(27)],
+    ["Apartment Crush", "Engagement", "Level Up", "Them vs. Me", "View", "Aura", "POV Couple", "Roomie"])
+  eq("28-32 are the Client / Me group, shifted down intact",
+    [at(28), at(29), at(30), at(31), at(32)],
     ["Client / Me", "Client / Me — Bad Credit", "Client / Me — My Ex Cheated",
      "Client / Me — Rent Increase", "Client / Me — Roaches"])
   // A saved draft stores the STRING. Reordering the display cannot reach it.
@@ -245,6 +249,89 @@ console.log("\n=== 8. TYPOGRAPHY IS UNCHANGED — LIBRE BASKERVILLE, NO BODONI =
   ok("no new font constant was added", !/new FontFace|@font-face/i.test(spec))
   ok("the seven reuse an EXISTING family rather than declaring geometry",
     NEW7.every((t) => templateFamily(t) === "center_hook_detail"))
+}
+
+console.log("\n=== 9. ROOMIE SPLITS THE ENTERED PRICE, OR SHOWS NOTHING ===")
+{
+  const at = (budgetRange: string | null, propertyType: string | null = "Apartment") =>
+    buildTemplateDetail(ROOMIE, meta({ budgetRange, propertyType } as never))
+
+  // The four approved examples, exactly as specified.
+  eq("$1,400 → $700", at("1400"), "Only $700/month per roomie")
+  eq("$1,600 → $800", at("1600"), "Only $800/month per roomie")
+  eq("$1,750 → $875", at("1750"), "Only $875/month per roomie")
+  eq("$2,000 → $1,000", at("2000"), "Only $1,000/month per roomie")
+  // Thousands separator, NOT the compact "$1K" form a headline rent would get. A per-person split
+  // is a precise claim; "$1K per roomie" reads as an approximation of one.
+  ok("a four-figure split is not compacted", at("2000").includes("$1,000") && !at("2000").includes("$1K"))
+
+  // CEIL, so the figure never understates what a roommate would actually pay. Whole dollars: an
+  // overlay is read at arm's length in a second, and every other money figure here rounds too.
+  eq("the third approved example", at("1999"), "Only $1,000/month per roomie")
+  eq("odd rent rounds UP", at("1705"), "Only $853/month per roomie")
+  eq("…and another", at("1625"), "Only $813/month per roomie")
+  eq("…and an odd three-figure rent", at("999"), "Only $500/month per roomie")
+  ok("no split ever shows cents", ["1400", "1600", "1705", "999", "1333", "1999"].every((p) => !at(p).includes(".")))
+  eq("the helper ceils rather than rounds", roomiePerPersonDollars(meta({ budgetRange: "1999" } as never)), 1000)
+  eq("…and leaves an even split alone", roomiePerPersonDollars(meta({ budgetRange: "1600" } as never)), 800)
+  eq("formatting adds a separator above a thousand", formatRoomieSplit(1000), "$1,000")
+  eq("…and leaves three figures plain", formatRoomieSplit(800), "$800")
+
+  // ── NEGATIVE, ZERO, MISSING AND INVALID ALL PRODUCE NOTHING ────────────────────────────────
+  // -500 is the case that matters. The shared lowestPrice matches digit runs and IGNORES a
+  // leading minus, so it reads 500 — which is how every priced template has always behaved.
+  // Roomie refuses it WITHOUT touching that parser, because tightening it would silently change
+  // templates that are already deployed and approved.
+  for (const bad of ["-500", "-1600", "$-500", " -500", "-0", "0", "abc", "", "$", "  ", null, undefined]) {
+    eq(`budgetRange=${JSON.stringify(bad) ?? "undefined"} shows no figure`, at(bad as never), "")
+    eq(`…and yields no amount`, roomiePerPersonDollars(meta({ budgetRange: bad } as never)), null)
+  }
+  ok("-500 never becomes $250", at("-500") === "" && !at("-500").includes("250"))
+
+  // THE SHARED PARSER IS UNTOUCHED, so every existing template still behaves exactly as deployed.
+  eq("startingPriceLabel(-500) is unchanged", startingPriceLabel("-500", "starting_at"), "Starting at $500/month")
+  eq("startingPriceLabel(1600) is unchanged", startingPriceLabel("1600", "starting_at"), "Starting at $1,600/month")
+  ok("lowestPrice itself was not modified", (read("lib/social/composePost.ts").match(/function lowestPrice/g) ?? []).length === 1)
+  ok("…and the strictness lives only in Roomie's own guard",
+    /function hasNegativeLeadingAmount/.test(read("lib/social/composePost.ts")))
+
+  // A HYPHEN LATER IN THE STRING IS A RANGE, NOT A NEGATION — en-dash ranges must keep resolving.
+  eq("a hyphen range still resolves", at("1200-1800"), "Only $600/month per roomie")
+  eq("an en-dash range still resolves", at("$1,200 – $1,800"), "Only $600/month per roomie")
+  eq("a thousands separator still parses", at("1,600"), "Only $800/month per roomie")
+
+  // IT READS THE OPERATOR'S ENTERED FIELD AND NOTHING ELSE. No catalog, no derived rent, no new
+  // pricing field — the same budgetRange every other priced template reads.
+  const src = read("lib/social/composePost.ts")
+  ok("no two-bedroom pricing field was introduced", !/twoBedroomRent/.test(src))
+  ok("the split reads budgetRange", /lowestPrice\(src\.budgetRange\)/.test(src))
+  ok("…via the shared parser, not a second one", (src.match(/function lowestPrice/g) ?? []).length === 1)
+  ok("no catalog lookup was added", !/property_catalog|twobr_starting_rent/.test(src))
+
+  // Headline: the existing short-type formatting, with Studio excluded because a studio has no
+  // bedroom — "2 bed studio" is a contradiction, not an awkward label.
+  const head = (propertyType: string | null) =>
+    buildTemplateHeadline(ROOMIE, meta({ propertyType } as never))
+  for (const t of ["Apartment", "High-Rise", "Loft", "Townhome", "Penthouse"]) {
+    eq(`${t} reads naturally`, head(t), `2 bed ${t.toLowerCase()}…`)
+  }
+  for (const t of ["Studio", "Rental Home", "Split-Level Townhome", null]) {
+    eq(`${JSON.stringify(t)} falls back`, head(t), "2 bed place…")
+  }
+  ok("no long label reaches the headline", !head("Rental Home").toLowerCase().includes("rental home"))
+
+  // Caption, layout and typography all come from the existing system.
+  eq("the caption opening", captionOpener(ROOMIE, meta()), "Tag your future roomie 👀🏡")
+  ok("the caption states no figure, so it cannot contradict the video",
+    !/\$[\d,]+/.test(buildCaption(meta(), "seed", ROOMIE)))
+  eq("it reuses the shared hook+detail layout", templateFamily("roomie"), "center_hook_detail")
+  eq("…the same one POV Couple uses", templateFamily("roomie"), templateFamily("pov_couple"))
+
+  // PREVIEW AND RENDER CANNOT DISAGREE: the editor computes this text once and stores it in
+  // overlay_headline/overlay_subheadline, and renderPost renders those stored columns.
+  const renderPost = read("lib/social/renderPost.ts")
+  ok("the renderer renders the STORED overlay text", /overlay_headline as string \| null/.test(renderPost))
+  ok("…so there is one calculation, not two", !/buildTemplateDetail/.test(renderPost))
 }
 
 console.log(fail === 0 ? `\nALL PASS ✅ (${pass} passed, ${fail} failed)\n` : `\n${pass} passed, ${fail} failed\n`)

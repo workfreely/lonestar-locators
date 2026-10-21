@@ -380,6 +380,9 @@ export function captionOpener(template: OverlayTemplate, src: SourceMeta): strin
     // short-type rule governs it. Repeating it here would risk the long label the rule excludes.
     case "aura": return "This has too much aura 🔥"
     case "pov_couple": return "POV: Tag your love ❤️"
+    // No figure in the caption — the split belongs on the video, where the verified-rent rule
+    // governs it. A price here could outlive the data that justified it.
+    case "roomie": return "Tag your future roomie 👀🏡"
     case "real_living": return city && noun ? `Real ${noun} living in ${city}.` : null
     case "what_mo_gets_you": return city && price ? `${price} in ${city}.` : null
     // Identical to this template's own headline plus a full stop.
@@ -709,7 +712,9 @@ export const OVERLAY_TEMPLATES = ["market_type", "market_type_centered", "your_s
   // every existing index — and therefore every saved post's stored overlay_template string — is
   // untouched. They are SHOWN before the Client / Me group via OVERLAY_TEMPLATE_ORDER below:
   // identity and display order are deliberately different things.
-  "apartment_crush", "engagement", "level_up", "them_vs_me", "view", "aura", "pov_couple"] as const
+  "apartment_crush", "engagement", "level_up", "them_vs_me", "view", "aura", "pov_couple",
+  // T32 (dropdown position 27). Appended, like every batch before it.
+  "roomie"] as const
 export type OverlayTemplate = (typeof OVERLAY_TEMPLATES)[number]
 export const DEFAULT_OVERLAY_TEMPLATE: OverlayTemplate = "market_type"
 export const OVERLAY_TEMPLATE_LABEL: Record<OverlayTemplate, string> = {
@@ -744,6 +749,7 @@ export const OVERLAY_TEMPLATE_LABEL: Record<OverlayTemplate, string> = {
   view: "View",
   aura: "Aura",
   pov_couple: "POV Couple",
+  roomie: "Roomie",
 }
 
 /**
@@ -764,7 +770,7 @@ export const OVERLAY_TEMPLATE_LABEL: Record<OverlayTemplate, string> = {
  */
 export const OVERLAY_TEMPLATE_ORDER: readonly OverlayTemplate[] = [
   ...OVERLAY_TEMPLATES.slice(0, 19),
-  "apartment_crush", "engagement", "level_up", "them_vs_me", "view", "aura", "pov_couple",
+  "apartment_crush", "engagement", "level_up", "them_vs_me", "view", "aura", "pov_couple", "roomie",
   "client_me", "client_me_bad_credit", "client_me_ex_cheated", "client_me_rent_increase", "client_me_roaches",
 ]
 
@@ -795,6 +801,72 @@ const POV_UPGRADE_FALLBACK = "POV: You upgraded"
  */
 export const AURA_SHORT_TYPES = ["Studio", "Apartment", "High-Rise", "Loft", "Townhome", "Penthouse"] as const
 const AURA_FALLBACK_HEADLINE = "This place has too much aura"
+
+/**
+ * T32 ROOMIE — the entered starting price, split two ways.
+ *
+ *     per_roommate = ceil(entered monthly starting rent / 2)
+ *
+ * THE INPUT IS THE OPERATOR'S OWN "Starting At" VALUE for this video. Nothing is looked up,
+ * derived from a catalog, or inferred from the footage: choosing a two-bedroom video and entering
+ * its correct rent is a human decision, and this does the arithmetic on what was entered.
+ *
+ * CEIL, not round, so the figure never understates what a roommate would actually pay. On whole
+ * dollar inputs the two agree — half of an integer is always .0 or .5, and ceil and round match on
+ * both — but the intent is worth encoding rather than inheriting by coincidence.
+ *
+ * Whole dollars, no cents: an overlay is read at arm's length in a second, and every other money
+ * figure on these videos rounds the same way.
+ *
+ * What the number means, since the overlay has no room to say it: two roommates splitting BASE
+ * rent equally. Not per-room leasing, and not inclusive of utilities or fees.
+ */
+export function roomiePerPersonDollars(src: SourceMeta): number | null {
+  if (hasNegativeLeadingAmount(src.budgetRange)) return null
+  const n = lowestPrice(src.budgetRange)
+  if (n === null || !Number.isFinite(n) || n <= 0) return null
+  return Math.ceil(n / 2)
+}
+
+/**
+ * Does the entered price lead with a MINUS SIGN?
+ *
+ * ROOMIE-SPECIFIC, and deliberately not a change to lowestPrice. That parser matches digit runs
+ * and ignores a leading "-", so "-500" reads as 500 — which is how EVERY priced template has
+ * always behaved ("Starting at $500/month"). Tightening it would silently change the output of
+ * templates that are already deployed and approved, so the strictness lives here instead, where
+ * only Roomie reads it.
+ *
+ * It inspects only the text BEFORE the first digit. A hyphen later in the string is a RANGE
+ * ("1200-1800", "$1,200 – $1,800"), not a negation, and must keep working — the en-dash ranges in
+ * this system would otherwise stop resolving.
+ */
+function hasNegativeLeadingAmount(raw: string | null | undefined): boolean {
+  const text = String(raw ?? "")
+  const firstDigit = text.search(/\d/)
+  if (firstDigit < 0) return false
+  return text.slice(0, firstDigit).includes("-")
+}
+
+/** "$800" / "$1,000". Whole dollars with a thousands separator.
+ *
+ *  Deliberately not formatPriceDisplay: that compacts a round figure above COMPACT_PRICE_MIN to
+ *  "$1K", which is right for a headline rent and wrong for a per-person split — "$1K per roomie"
+ *  reads as an approximation of a precise claim. */
+export function formatRoomieSplit(dollars: number): string {
+  return `$${dollars.toLocaleString("en-US")}`
+}
+
+/**
+ * The bedroom-bearing short property types, for Roomie's headline.
+ *
+ * AURA_SHORT_TYPES minus Studio, and the omission is the point: a studio has no bedroom, so
+ * "2 bed studio" is a contradiction rather than an awkward label. Anything outside this list —
+ * Studio, Rental Home, a compound Social type, or no type at all — falls back to the typeless
+ * sentence, which stays short and stays true.
+ */
+export const ROOMIE_SHORT_TYPES = ["Apartment", "High-Rise", "Loft", "Townhome", "Penthouse"] as const
+const ROOMIE_FALLBACK_HEADLINE = "2 bed place…"
 
 // Template 7 (Affordable Luxury) — FIXED universal hook, no variables.
 const AFFORDABLE_LUXURY_HEADLINE = "Luxury doesn't have to be expensive"
@@ -950,6 +1022,14 @@ export function buildTemplateHeadline(template: OverlayTemplate, src: SourceMeta
         : null
       return short ? `This ${short} has too much aura` : AURA_FALLBACK_HEADLINE
     }
+    // T32 ROOMIE. One variable, gated by ROOMIE_SHORT_TYPES — see the constant for why Studio is
+    // excluded rather than merely discouraged.
+    case "roomie": {
+      const short = canonicalType && (ROOMIE_SHORT_TYPES as readonly string[]).includes(canonicalType)
+        ? canonicalType.toLowerCase()
+        : null
+      return short ? `2 bed ${short}…` : ROOMIE_FALLBACK_HEADLINE
+    }
     // T28 THEM VS. ME. Structurally a Client / Me exchange — the first statement is the HEADLINE,
     // the reply is the DETAIL — so it joins that family in overlaySpec and inherits its layout,
     // sizing, gap and timing wholesale. Nothing of Client / Me is copied or modified; membership
@@ -1077,6 +1157,14 @@ export function buildTemplateDetail(template: OverlayTemplate, src: SourceMeta):
     case "aura":
     case "pov_couple":
       return price // T5/T8 gained the same optional price line — see the group above
+
+    // T32 ROOMIE states the per-person split, computed from the VERIFIED two-bedroom rent alone.
+    // No verified rent, no figure: the line collapses with its gap exactly as a missing price does
+    // elsewhere, and nothing substitutes a different bedroom's price to fill it.
+    case "roomie": {
+      const perPerson = roomiePerPersonDollars(src)
+      return perPerson === null ? "" : `Only ${formatRoomieSplit(perPerson)}${PER_MONTH_SUFFIX} per roomie`
+    }
 
     // T28 THEM VS. ME fills the detail slot with the second half of its exchange, exactly as
     // Client / Me fills it with "Me: “Say less.”" — same slot, same size, same gap, same timing.
