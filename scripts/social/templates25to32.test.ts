@@ -90,11 +90,24 @@ console.log("\n=== 2. DISPLAY ORDER IS SEPARATE FROM IDENTITY ===")
   const at = (n: number) => OVERLAY_TEMPLATE_LABEL[OVERLAY_TEMPLATE_ORDER[n - 1]]
   eq("20-27 are the eight new templates, in the approved order",
     [at(20), at(21), at(22), at(23), at(24), at(25), at(26), at(27)],
-    ["Apartment Crush", "Engagement", "Level Up", "Them vs. Me", "View", "Aura", "POV Couple", "Roomie"])
+    ["Apartment Crush", "Live With", "Level Up", "Them vs. Me", "View", "Aura", "POV Couple", "Roomie"])
   eq("28-32 are the Client / Me group, shifted down intact",
     [at(28), at(29), at(30), at(31), at(32)],
     ["Client / Me", "Client / Me — Bad Credit", "Client / Me — My Ex Cheated",
      "Client / Me — Rent Increase", "Client / Me — Roaches"])
+  // THE RENAME AT POSITION 21 IS DISPLAY-ONLY. The id is what drafts store, so it must not move.
+  eq("position 21 is labelled Live With", OVERLAY_TEMPLATE_LABEL[OVERLAY_TEMPLATE_ORDER[20]], "Live With")
+  eq("…while its permanent id is still 'engagement'", OVERLAY_TEMPLATE_ORDER[20], "engagement")
+  eq("…at its original registry index", OVERLAY_TEMPLATES[25], "engagement")
+  eq("…with its overlay question unchanged",
+    buildTemplateHeadline("engagement" as OverlayTemplate, meta()), "Who would you live here with?")
+  eq("…and its caption opening unchanged",
+    captionOpener("engagement" as OverlayTemplate, meta()), "Who would you live here with? 👀")
+  eq("…and its price line unchanged",
+    buildTemplateDetail("engagement" as OverlayTemplate, meta()), "Starting at $1,650/month")
+  ok("the old label is gone from the registry",
+    !Object.values(OVERLAY_TEMPLATE_LABEL).includes("Engagement"))
+
   // A saved draft stores the STRING. Reordering the display cannot reach it.
   ok("every original id still resolves after the reorder",
     ORIGINAL_24.every((t) => (OVERLAY_TEMPLATES as readonly string[]).includes(t)))

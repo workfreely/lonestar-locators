@@ -743,7 +743,9 @@ export const OVERLAY_TEMPLATE_LABEL: Record<OverlayTemplate, string> = {
   client_me_rent_increase: "Client / Me — Rent Increase",
   client_me_roaches: "Client / Me — Roaches",
   apartment_crush: "Apartment Crush",
-  engagement: "Engagement",
+  // DISPLAY NAME ONLY. The id stays "engagement" — it is what every saved draft stores, so
+  // renaming it would orphan them. The overlay question and caption opening are unchanged.
+  engagement: "Live With",
   level_up: "Level Up",
   them_vs_me: "Them vs. Me",
   view: "View",
