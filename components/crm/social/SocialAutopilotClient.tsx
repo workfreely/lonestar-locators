@@ -24,6 +24,7 @@ import { captureLibraryThumb, thumbStoragePath, THUMB_CONTENT_TYPE } from "@/lib
 import { uploadLabel } from "@/lib/social/uploadLabel"
 import { parseAmenities, serializeAmenities } from "@/lib/social/amenities"
 import { PRICE_LABEL_MODES, priceLabelMode as narrowPriceLabelMode, type PriceLabelMode } from "@/lib/social/composePost"
+import { tiktokCaptionFor, tiktokDownloadName, canPublishManually, TIKTOK_UPLOAD_URL } from "@/lib/social/manualTikTok"
 
 // Public-post overrides once stored on a source (social_content.details.preparedPost). Retained
 // for the Item shape / backward compatibility; the editor lives in PostEditor now, not here.
@@ -118,6 +119,10 @@ type RenderedPost = {
   market: string | null
   createdAt: string | null
   updatedAt: string | null
+  /** The APPROVED caption exactly as saved — never recomposed here. */
+  caption: string | null
+  /** Saved hashtags, appended the way a post already carries them. */
+  hashtags: string[]
 }
 
 // Per-file upload state (batch upload progress).
@@ -170,6 +175,103 @@ const BADGE_CLASS: Record<string, string> = {
   emerald: "bg-emerald-600/90",
   sky:     "bg-sky-600/90",
 }
+/**
+ * Download Video · Copy Caption · Open TikTok Upload.
+ *
+ * ── THE SIGNED URL IS REUSED, NOT MINTED ────────────────────────────────────────────────────
+ * `renderedPreviewUrl` is already a signed Storage URL for this owner, produced by signMedia on
+ * the posts route — the same one the tile plays. Adding a download endpoint would mean a second
+ * way to hand out the same bytes, with its own auth guard to get wrong.
+ *
+ * ── AN EXPIRED URL IS THE EXPECTED FAILURE ──────────────────────────────────────────────────
+ * Those URLs last 30 minutes, so a library left open over lunch WILL have stale ones. The fetch
+ * is checked rather than trusted: on a non-OK response the card says the link expired and asks
+ * for a refresh, instead of saving a 400-byte XML error with an .mp4 extension — which is what an
+ * unchecked anchor download produces, and it looks like a corrupt video.
+ */
+function ManualTikTokActions({ post }: { post: RenderedPost }) {
+  const [state, setState] = useState<"idle" | "downloading" | "copied" | "expired" | "error">("idle")
+
+  async function download() {
+    if (!post.renderedPreviewUrl) return
+    setState("downloading")
+    try {
+      const res = await fetch(post.renderedPreviewUrl)
+      // A signed URL that has expired still answers — with an error document. Saving that as .mp4
+      // is the failure this check exists to prevent.
+      if (!res.ok) { setState(res.status === 400 || res.status === 403 ? "expired" : "error"); return }
+      const blob = await res.blob()
+      if (!blob.size) { setState("error"); return }
+      const href = URL.createObjectURL(blob)
+      const a = document.createElement("a")
+      a.href = href
+      a.download = tiktokDownloadName({
+        propertyName: post.propertyName,
+        overlayTemplate: post.overlayTemplate,
+        renderVersion: post.renderVersion,
+      })
+      document.body.appendChild(a)
+      a.click()
+      a.remove()
+      URL.revokeObjectURL(href)
+      setState("idle")
+    } catch {
+      setState("error")
+    }
+  }
+
+  async function copyCaption() {
+    const text = tiktokCaptionFor({ caption: post.caption, hashtags: post.hashtags })
+    if (!text) { setState("error"); return }
+    try {
+      await navigator.clipboard.writeText(text)
+      setState("copied")
+      setTimeout(() => setState((s) => (s === "copied" ? "idle" : s)), 1800)
+    } catch {
+      setState("error")
+    }
+  }
+
+  const btn =
+    "flex-1 text-[11px] font-semibold px-2 py-1 rounded-md border border-[var(--crm-border)] " +
+    "text-[var(--crm-text-secondary)] hover:text-[var(--crm-text-primary)] disabled:opacity-50"
+
+  return (
+    <div onClick={(e) => e.stopPropagation()}>
+      <div className="flex items-center gap-1.5">
+        <button type="button" className={btn} onClick={download} disabled={state === "downloading"}>
+          {state === "downloading" ? "Downloading…" : "Download"}
+        </button>
+        <button type="button" className={btn} onClick={copyCaption} disabled={!post.caption}>
+          {state === "copied" ? "Copied ✓" : "Copy Caption"}
+        </button>
+        {/* Opening the page posts nothing and proves nothing, so it records nothing. */}
+        <a
+          href={TIKTOK_UPLOAD_URL}
+          target="_blank"
+          rel="noopener noreferrer"
+          className={`${btn} text-center`}
+        >
+          TikTok ↗
+        </a>
+      </div>
+      {state === "expired" && (
+        <div className="mt-1 text-[10.5px] text-[#d9a441]">
+          That link expired. Refresh the library and try again.
+        </div>
+      )}
+      {state === "error" && (
+        <div className="mt-1 text-[10.5px] text-[var(--crm-danger)]">
+          Could not get the video. Open the post and download it there.
+        </div>
+      )}
+      {!post.caption && (
+        <div className="mt-1 text-[10.5px] text-[var(--crm-text-muted)]">This post has no saved caption.</div>
+      )}
+    </div>
+  )
+}
+
 function StatusBadge({ badge }: { badge: CardBadge }) {
   return (
     <span className={`absolute top-1.5 right-1.5 z-10 text-[9.5px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded text-white ${BADGE_CLASS[BADGE_TONE[badge]]}`}>
@@ -514,6 +616,7 @@ export default function SocialAutopilotClient() {
             hasRender?: boolean; isRenderedReady?: boolean; approvedAt?: string | null; draftSavedAt?: string | null
             renderStatus?: string | null
             renderedPreviewUrl?: string | null; renderVersion?: number | null
+            caption?: string | null; hashtags?: string[] | null
             sourceStoragePath?: string | null; publishedAt?: string | null; externalPostUrl?: string | null
             createdAt?: string | null
             source: { propertyName: string | null; displayName: string | null; market?: string | null } | null
@@ -548,6 +651,8 @@ export default function SocialAutopilotClient() {
               propertyName: p.source?.propertyName ?? null,
               market: p.source?.market ?? null,
               createdAt: p.createdAt ?? null, updatedAt: p.updatedAt ?? null,
+              caption: p.caption ?? null,
+              hashtags: Array.isArray(p.hashtags) ? p.hashtags : [],
             })
           }
           const sid = p.sourceContentId
@@ -1359,6 +1464,16 @@ export default function SocialAutopilotClient() {
                       >
                         Open Post
                       </button>
+                      {/* MANUAL TIKTOK — three plain actions, no OAuth, no API, no approval.
+                          TikTok's inbox upload needs the `video.upload` scope we do not hold (we
+                          hold video.publish, which is Direct Post and still unapproved), so the
+                          honest shortest path is: hand over the file, hand over the caption, open
+                          the page. Shown only when a rendered artifact actually exists. Opening
+                          the page is NOT a publish and writes no status — a video is marked
+                          published only by something that saw it published. */}
+                      {canPublishManually({ renderedPreviewUrl: c.post.renderedPreviewUrl }) && (
+                        <ManualTikTokActions post={c.post} />
+                      )}
                       {c.post.externalPostUrl && (
                         <a
                           href={c.post.externalPostUrl}
