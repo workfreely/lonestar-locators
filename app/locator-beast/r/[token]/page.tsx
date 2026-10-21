@@ -50,10 +50,14 @@ export async function generateMetadata({
   // crawlers get it without running client JS. The visual is the per-share
   // opengraph-image.tsx (Next wires og:image/twitter:image from it automatically),
   // family-consistent with the Smart Form preview.
-  // Kept short deliberately: this is the line iMessage prints UNDER the image, where
-  // it is truncated with an ellipsis rather than wrapped. "Jay Morris | Your Custom
-  // List" is 31 characters and survives the narrowest preview width.
-  const genericTitle = "Your Custom List"
+  // Kept short deliberately: this is the line iMessage prints UNDER the image, where it is
+  // truncated with an ellipsis rather than wrapped. "Jay Morris | Your Locator" is 25
+  // characters — shorter than the 31 this replaced, so it still survives the narrowest width.
+  //
+  // ONLY THIS LINE CHANGES. The preview IMAGE still reads "<First>'s Custom List"
+  // (opengraph-image.tsx) — the personalised half. This is the duplicate text printed beneath
+  // it, so naming the locator here stops the two lines repeating the same words.
+  const genericTitle = "Your Locator"
   const base = {
     metadataBase: new URL(CANONICAL_ORIGIN),
     title: genericTitle,
@@ -120,6 +124,8 @@ const CSS = `
 .lbr-recs-head{margin-bottom:18px}
 .lbr-recs-head h2{font-size:27px;font-weight:800;color:var(--navy);letter-spacing:-.02em;margin:0}
 .lbr-recs-head p{margin:5px 0 0;font-size:14px;color:var(--muted)}
+/* Smaller and lighter than the count line above it — a footnote, not a second heading. */
+.lbr-recs-head p.lbr-free{margin-top:3px;font-size:12.5px;font-weight:600;opacity:.85}
 .lbr-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:20px}
 /* CARD (approved design) */
 .lbr-card{background:#fff;border:1px solid var(--line);border-radius:18px;overflow:hidden;display:flex;flex-direction:column;box-shadow:0 10px 30px -22px rgba(14,37,69,.4)}
@@ -352,6 +358,7 @@ const CSS = `
 .lbr-recs-head h2{font-size:28px}
 .lbr-eyebrow{font-size:14.5px}
 .lbr-recs-head p{font-size:19px}
+.lbr-recs-head p.lbr-free{font-size:14.5px}
 .lbr-pname{font-size:25px}
 /* Mobile address: ONE line whenever it fits — "Street, City, State ZIP" — wrapping
    naturally at the comma when it does not. The street line stays readable, the
@@ -689,6 +696,10 @@ export default async function ClientRecommendationsPage({
           <div className="lbr-recs-head">
             <h2>Your Recommendations</h2>
             <p>{countLine}</p>
+            {/* A footnote, deliberately: it reassures without competing with the list itself.
+                Placed inside lbr-recs-head so it inherits that block's spacing and cannot open a
+                gap above Next Steps on a phone. */}
+            <p className="lbr-free">My service is completely free to you!</p>
           </div>
 
           {/* NEXT STEPS — same content/circles, now a compact roadmap ABOVE the cards so the
