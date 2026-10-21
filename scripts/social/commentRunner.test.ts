@@ -36,7 +36,7 @@ function fakeStore(over: {
   commenter?: { dmSentAt?: string | null; dmClaimedAt?: string | null; lastPublicReplyAt?: string | null }
   claimWins?: boolean
   connection?: null
-  variants?: string[]
+  variants?: { body: string; claimsDm: boolean }[]
   permissionsOk?: boolean
 } = {}) {
   const actions: Logged[] = []
@@ -188,9 +188,78 @@ async function main() {
       rn.dm?.status === "uncertain" && noid.resolves[0].markSent === false)
   }
 
+  console.log("\n5b. THE PUBLIC REPLY FOLLOWS THE DM OUTCOME, ACROSS ALL FOUR CASES:")
+  {
+    // Both buckets configured, so the runner must CHOOSE rather than fall back. That is the
+    // difference this section exists to prove: an empty bucket proves nothing about selection.
+    const BIO = "Want to set up a tour? Link in my bio!"
+    const DM = "Just sent you a DM! \u{1F60A}"
+    const both = [
+      { body: BIO, claimsDm: false },
+      { body: DM, claimsDm: true },
+    ]
+    const publicTextFor = async (dmResult: SendResult, opts: Record<string, unknown> = {}) => {
+      const st = fakeStore({ variants: both, ...opts })
+      const mk = mockSender(dmResult)
+      await run(comment(), st, mk)
+      return mk.sent.find((x) => x.kind === "public")?.text ?? null
+    }
+
+    // 1. ACCEPTED — the only case that may announce a DM.
+    ok("an ACCEPTED DM announces the DM",
+      (await publicTextFor({ status: 200, externalId: "msg-1", usage: null })) === DM)
+
+    // 2. FAILED — a rejection is not an acceptance.
+    ok("a FAILED DM uses the bio-link bucket",
+      (await publicTextFor({ status: 400, usage: null })) === BIO)
+
+    // 3. UNCERTAIN — the case that matters most. The message may well have ARRIVED, but we cannot
+    //    say so, and we must not retry. Claiming a DM here would be a guess presented as a fact.
+    for (const [label, r] of [
+      ["a 500", { status: 500, usage: null } as SendResult],
+      ["a timeout", { status: null, transportError: true, usage: null } as SendResult],
+      ["a 200 with no message id", { status: 200, externalId: null, usage: null } as SendResult],
+    ] as const) {
+      ok(`an UNCERTAIN DM (${label}) uses the bio-link bucket and claims nothing`,
+        (await publicTextFor(r)) === BIO)
+    }
+
+    // 4. DISABLED / NEVER ATTEMPTED — no send, so nothing to announce.
+    const noDm = await publicTextFor(
+      { status: 200, externalId: "msg-1", usage: null },
+      { commenter: { dmSentAt: new Date().toISOString() } },
+    )
+    ok("a commenter already DM'd (no new send) uses the bio-link bucket", noDm === BIO)
+
+    // The DM-claiming line must be UNREACHABLE without an acceptance, however the bank is built.
+    const onlyDmClaiming = [{ body: DM, claimsDm: true }]
+    for (const r of [
+      { status: 400, usage: null } as SendResult,
+      { status: 500, usage: null } as SendResult,
+      { status: null, transportError: true, usage: null } as SendResult,
+    ]) {
+      const st = fakeStore({ variants: onlyDmClaiming }), mk = mockSender(r)
+      await run(comment(), st, mk)
+      const t = mk.sent.find((x) => x.kind === "public")?.text
+      ok("…and with ONLY DM-claiming variants configured, a non-accepted DM still claims nothing",
+        t === APPROVED_PUBLIC_FALLBACK)
+      break
+    }
+
+    // The approved private wording is unchanged and carries the link as its own paragraph.
+    const st = fakeStore({ variants: both }), mk = mockSender({ status: 200, externalId: "msg-1", usage: null })
+    await run(comment(), st, mk)
+    const dmText = mk.sent.find((x) => x.kind === "dm")?.text ?? ""
+    ok("the DM opens with the approved wording", dmText.startsWith(APPROVED_DM_BODY))
+    ok("…and the branded link follows as a separate paragraph", dmText.includes("\n\n") && dmText.includes("utm_medium=comment"))
+    ok("…and the approved sentence is never reworded", dmText.split("\n\n")[0] === APPROVED_DM_BODY)
+  }
+
   console.log("\n5. A PUBLIC REPLY MAY NEVER CLAIM A DM THAT DID NOT SEND:")
   {
-    const variants = ["Just sent you a DM! 📩 Check your inbox."]
+    // The DM-claiming line now declares itself via claimsDm; the runner filters on that flag
+    // rather than on which keyword matched.
+    const variants = [{ body: "Just sent you a DM! 📩 Check your inbox.", claimsDm: true }]
     for (const [label, dmResult] of [
       ["a failed DM", { status: 400, usage: null } as SendResult],
       ["an uncertain DM (500)", { status: 500, usage: null } as SendResult],
@@ -210,7 +279,7 @@ async function main() {
     const s = fakeStore({ variants }), m = mockSender({ status: 200, externalId: "msg-1", usage: null })
     await run(comment(), s, m)
     ok("an ACCEPTED DM may use the DM-claiming variant",
-      m.sent.find((x) => x.kind === "public")?.text === variants[0])
+      m.sent.find((x) => x.kind === "public")?.text === variants[0].body)
 
     // An empty reply bank must degrade to something true, not something specific.
     const s2 = fakeStore({ variants: [] }), m2 = mockSender({ status: 200, externalId: "msg-1", usage: null })

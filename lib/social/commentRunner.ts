@@ -108,8 +108,13 @@ export type CommentStore = {
     commentId: string; kind: ActionKind; status: ActionStatus
     reason: string | null; externalId: string | null; error: string | null
   }): Promise<void>
-  /** Variations for a keyword's public reply. Empty is normal and handled. */
-  publicReplyVariants(connectionId: string, keyword: string): Promise<string[]>
+  /**
+   * Variations for a keyword's public reply, each carrying whether it CLAIMS A DM.
+   *
+   * The flag is returned rather than filtered in the store because the choice depends on what the
+   * platform did with the DM, which the store does not know. Empty is normal and handled.
+   */
+  publicReplyVariants(connectionId: string, keyword: string): Promise<{ body: string; claimsDm: boolean }[]>
 }
 
 export type ProcessOutcome = {
@@ -339,14 +344,22 @@ export async function processComment(
   } else {
     // publicReplyKind reads the PLATFORM'S confirmation, not our intention. A queued, failed or
     // uncertain DM is not an acceptance, so all three take the fallback that claims nothing.
+    // TWO BUCKETS, AND THE PLATFORM DECIDES WHICH. `dmAccepted` is Meta's acceptance, never our
+    // intention: a disabled, failed, timed-out or uncertain send is not an acceptance, so all four
+    // take the bio-link bucket. Only an accepted DM may be announced.
+    //
+    // Variants are filtered on their own claims_dm flag rather than by keyword convention, so a
+    // DM-claiming line can never be served when no DM was sent — the one error this whole feature
+    // must not make. The filter is total: every variant is in exactly one bucket.
     const kind = publicReplyKind(dmAccepted)
-    let text = APPROVED_PUBLIC_FALLBACK
-    if (kind === "dm_sent") {
-      const variants = await store.publicReplyVariants(conn.connectionId, keyword.keyword)
-      // NO CONFIGURED VARIANT ⇒ THE FALLBACK. The fallback never claims a DM, so an empty reply
-      // bank degrades to something merely less specific rather than to something untrue.
-      text = pickVariant(variants, c.externalCommentId) ?? APPROVED_PUBLIC_FALLBACK
-    }
+    const wantClaimsDm = kind === "dm_sent"
+    const variants = await store.publicReplyVariants(conn.connectionId, keyword.keyword)
+    const eligible = variants.filter((v) => v.claimsDm === wantClaimsDm).map((v) => v.body)
+    // NO CONFIGURED VARIANT ⇒ THE FALLBACK. The fallback never claims a DM, so an empty bucket
+    // degrades to something merely less specific rather than to something untrue. That matters
+    // most in the dm_sent bucket: with nothing configured there, a successful DM simply gets the
+    // bio-link wording instead of a false claim.
+    const text = pickVariant(eligible, c.externalCommentId) ?? APPROVED_PUBLIC_FALLBACK
     const ctx: SenderContext = { igUserId: conn.ownProviderUserId, accessToken: conn.accessToken }
     const attempt = await sender.sendPublicReply(ctx, c.externalCommentId, text)
     usage = attempt.usage ?? usage

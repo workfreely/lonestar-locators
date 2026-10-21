@@ -289,10 +289,12 @@ export function createCommentStore(db: Db): CommentStore {
       const ruleId = (rule as { id?: string } | null)?.id
       if (!ruleId) return []
       const { data } = await db
-        .from("comment_reply_variants").select("body").eq("rule_id", ruleId)
-      return ((data ?? []) as { body: string | null }[])
-        .map((r) => (r.body ?? "").trim())
-        .filter(Boolean)
+        .from("comment_reply_variants").select("body, claims_dm").eq("rule_id", ruleId)
+      // claims_dm defaults to FALSE when absent or null: a variant whose intent we cannot read is
+      // treated as not claiming a DM, which is the direction that cannot say something untrue.
+      return ((data ?? []) as { body: string | null; claims_dm: boolean | null }[])
+        .map((r) => ({ body: (r.body ?? "").trim(), claimsDm: r.claims_dm === true }))
+        .filter((v) => v.body.length > 0)
     },
   }
 }
