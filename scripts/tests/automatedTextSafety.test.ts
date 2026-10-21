@@ -63,6 +63,18 @@ const t2Run = (over: Partial<RunSnapshot> = {}): RunSnapshot => ({
   ...over,
 })
 
+/** The same run sitting on TEXT 1 — needed now that Text 1 and Text 2 behave differently. */
+const t1Run = (over: Partial<RunSnapshot> = {}): RunSnapshot => ({
+  sequenceKey: "new_lead",
+  stepKey: "t1",
+  stepIndex: 0,
+  status: "due",
+  mode: "auto",
+  baselineInboundAt: null, // a brand-new lead has never texted in
+  nextEligibleAt: T1_SENT,
+  ...over,
+})
+
 const conv = (over: Partial<ConversationSnapshot> = {}): ConversationSnapshot => ({
   lastInboundAt: null,
   lastManualOutboundAt: null,
@@ -73,8 +85,17 @@ const share: ShareSnapshot = { sentAt: null, doneSelectingAt: null, favoritedCou
 /** `reason` exists on every decision EXCEPT "send" — narrow instead of casting. */
 const reasonOf = (d: ReturnType<typeof evaluateSend>) => ("reason" in d ? d.reason : null)
 
-const decide = (c: ConversationSnapshot, l: LeadSnapshot = lead(), r: RunSnapshot = t2Run()) =>
-  evaluateSend(NOW, l, c, share, r)
+// INTRO-ONLY MODE is the production default and refuses everything but new_lead t1/t2. Cases that
+// exercise OTHER steps pass ALL_SEQ so they still reach the rule under test; the restriction itself
+// is proved in scripts/tests/introOnlyMode.test.ts.
+const ALL_SEQ = { ...process.env, FOLLOWUP_ALL_SEQUENCES_ENABLED: "true" } as NodeJS.ProcessEnv
+
+const decide = (
+  c: ConversationSnapshot,
+  l: LeadSnapshot = lead(),
+  r: RunSnapshot = t2Run(),
+  env: NodeJS.ProcessEnv = process.env,
+) => evaluateSend(NOW, l, c, share, r, env)
 
 async function main() {
   console.log("\nAUTOMATED TEXT SAFETY\n")
@@ -95,7 +116,7 @@ async function main() {
     // deliberately EXEMPT from handoff — see the lifecycle pass — so t2 can no
     // longer serve as the witness for this, and asserting on it would be
     // asserting the old spec.
-    const d = decide(conv({ lastManualOutboundAt: T1_SENT }), lead(), t2Run({ stepKey: "contact_fu1", stepIndex: 2 }))
+    const d = decide(conv({ lastManualOutboundAt: T1_SENT }), lead(), t2Run({ stepKey: "contact_fu1", stepIndex: 2 }), ALL_SEQ)
     check(
       "…whereas an unfiltered outbound timestamp still suppresses a full-gated step (the fix is load-bearing)",
       d.action !== "send" && reasonOf(d) === "manual_conversation",
@@ -186,15 +207,34 @@ async function main() {
     )[0].provenance === "automated_outbound",
   )
 
-  // ─── PROOF 2 — an ordinary reply still allows Text 2 ───────────────────────
-  console.log("\nProof 2 — an ordinary client reply after Text 1 still allows Text 2")
+  // ─── PROOF 2 — an ordinary reply now SKIPS Text 2, as a reply and not as an opt-out ───────
+  //
+  // BEHAVIOUR DELIBERATELY CHANGED. This proof used to assert that Text 2 still sends after an
+  // ordinary reply, because the opening pair is consent_only. Text 2 IS the location question, and
+  // asking it of someone who has already started talking is the redundancy intro-only mode exists
+  // to prevent — so it is now skipped.
+  //
+  // THE ORIGINAL SAFETY POINT IS PRESERVED, AND IT IS THE REASON CODE THAT CARRIES IT. These are
+  // ORDINARY replies, not opt-outs: "stop by the office tomorrow" contains the word "stop" and must
+  // never be read as STOP. So the assertion checks reason === "client_replied" and explicitly NOT
+  // "opt_out" — a regression that started treating these as opt-outs would still fail here.
+  console.log("\nProof 2 — an ordinary client reply after Text 1 SKIPS Text 2 (as a reply, not an opt-out)")
   for (const reply of ["sounds good!", "yes please", "I'm looking downtown", "stop by the office tomorrow", "can we cancel the 3pm tour?"]) {
     const d = decide(conv({ lastInboundAt: "2026-09-23T18:59:45.000Z" }), lead())
-    check(`"${reply}" → Text 2 still sends`, d.action === "send", JSON.stringify(d))
+    check(`"${reply}" → Text 2 is skipped`, d.action === "cancel", JSON.stringify(d))
+    check(`"${reply}" → skipped as a REPLY, never as an opt-out`,
+      reasonOf(d) === "client_replied", JSON.stringify(d))
   }
+  // The pair is no longer uniformly reply-insensitive: Text 1 still is, Text 2 is not. Asserting
+  // BOTH halves keeps the exception honest — if someone later made Text 1 yield to a reply too, the
+  // greeting would stop going out and the first assertion here would catch it.
   check(
-    "the opening pair is reply-insensitive because t1/t2 are consent_only",
-    decide(conv({ lastInboundAt: "2026-09-23T18:59:45.000Z" })).action === "send",
+    "TEXT 1 is still reply-insensitive (the greeting goes out regardless)",
+    decide(conv({ lastInboundAt: "2026-09-23T18:59:45.000Z" }), lead(), t1Run()).action === "send",
+  )
+  check(
+    "TEXT 2 is NOT reply-insensitive any more",
+    decide(conv({ lastInboundAt: "2026-09-23T18:59:45.000Z" })).action === "cancel",
   )
   {
     // Contrast: a FULL-gated step IS cancelled by the same reply. Proves the
@@ -203,6 +243,7 @@ async function main() {
       conv({ lastInboundAt: "2026-09-23T18:59:45.000Z" }),
       lead(),
       t2Run({ stepKey: "contact_fu1", stepIndex: 2 }),
+      ALL_SEQ,
     )
     check(
       "a full-gated contact follow-up IS cancelled by the same reply",
@@ -248,11 +289,11 @@ async function main() {
     // FULL-gated automation. It no longer holds Text 2, because the opening pair
     // is one thought split in two and a locator texting inside that 30-45s window
     // is greeting the client, not answering the location question.
-    const d = decide(conv({ lastManualOutboundAt: "2026-09-23T18:59:50.000Z" }), lead(), t2Run({ stepKey: "contact_fu1", stepIndex: 2 }))
+    const d = decide(conv({ lastManualOutboundAt: "2026-09-23T18:59:50.000Z" }), lead(), t2Run({ stepKey: "contact_fu1", stepIndex: 2 }), ALL_SEQ)
     check("a human text suppresses a full-gated step", d.action !== "send" && reasonOf(d) === "manual_conversation", JSON.stringify(d))
   }
   {
-    const d = decide(conv({ lastManualOutboundAt: "2026-09-23T18:59:50.000Z" }))
+    const d = decide(conv({ lastManualOutboundAt: "2026-09-23T18:59:50.000Z" }), lead(), t2Run(), ALL_SEQ)
     check("…and does NOT hold Text 2 (consent-only is exempt)", d.action === "send", JSON.stringify(d))
   }
   {
@@ -260,6 +301,7 @@ async function main() {
       conv({ lastManualOutboundAt: "2026-09-23T18:59:50.000Z" }),
       lead(),
       t2Run({ stepKey: "contact_fu1", stepIndex: 2 }),
+      ALL_SEQ,
     )
     check("…and reschedules a morning-gated routine step", d.action === "reschedule" && reasonOf(d) === "manual_conversation", JSON.stringify(d))
   }
@@ -269,6 +311,7 @@ async function main() {
       conv({ lastManualOutboundAt: "2026-09-23T10:00:00.000Z" }),
       lead(),
       t2Run({ baselineInboundAt: "2026-09-23T12:00:00.000Z" }),
+      ALL_SEQ,
     ).action === "send",
   )
 

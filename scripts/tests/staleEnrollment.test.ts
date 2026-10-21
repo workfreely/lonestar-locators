@@ -32,6 +32,12 @@ import {
 } from "../../lib/followup/cadence"
 import { DONE_SELECTING_GRACE_MS } from "../../lib/followup/pacing"
 
+// INTRO-ONLY MODE IS THE PRODUCTION DEFAULT and refuses every step but new_lead t1/t2. This
+// suite exercises STALENESS across the gated sequences, so it arms the full set deliberately —
+// otherwise every run here cancels with reason "intro_only" and the staleness bounds under test
+// are never reached. The restriction itself is proved in scripts/tests/introOnlyMode.test.ts.
+process.env.FOLLOWUP_ALL_SEQUENCES_ENABLED = "true"
+
 let pass = 0
 let fail = 0
 const ok = (label: string, cond: boolean, detail = "") => {

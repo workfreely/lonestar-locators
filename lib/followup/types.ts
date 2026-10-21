@@ -51,6 +51,9 @@ export type FollowUpReason =
   | "future_move_wait"
   | "no_move_date"
   | "not_eligible_yet"
+  // Intro-only mode: this step is not on the allowlist, so the run stands down for good. A CANCEL,
+  // never a hold — the restriction is a policy decision, not a temporary condition to wait out.
+  | "intro_only"
   // The client put their SEARCH on hold (leads.held_at). A HOLD, never a cancel:
   // Resume Search must re-evaluate current state, not re-enroll from scratch.
   | "on_hold"

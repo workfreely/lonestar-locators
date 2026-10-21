@@ -14,6 +14,7 @@ import type {
 import { LIFECYCLE_SEQUENCES, applicableSequence, getStep, resolveStepBody } from "./sequences"
 import { nextAllowedTime, nextMorningEligible, withinAllowedHours, withinMorningWindow, withinHandoffWindow } from "./pacing"
 import { isStaleStep } from "./staleness"
+import { introOnlyMode, permittedInIntroOnly } from "./introOnly"
 
 // Sequences whose routine steps must land in the client-local morning window.
 // New-Lead t1/t2 (immediate opening), Done-Selecting (event-relative, 10-min
@@ -57,6 +58,11 @@ export function evaluateSend(
   conv: ConversationSnapshot,
   share: ShareSnapshot,
   run: RunSnapshot,
+  // INJECTED, not read from the global. Every other input to this gate arrives as a snapshot so a
+  // case can be stated exactly; the intro-only flag has to work the same way or the restriction
+  // becomes the one rule that cannot be tested per case. Defaults to the process environment, so
+  // the two production callers are unchanged.
+  env: NodeJS.ProcessEnv = process.env,
 ): SendDecision {
   const step = getStep(run.sequenceKey, run.stepKey)
   if (!step) return { action: "cancel", reason: "stale" }
@@ -86,6 +92,15 @@ export function evaluateSend(
   //    nothing to supersede INTO: this client is not to be texted at all.
   if (run.mode === "stopped") return { action: "cancel", reason: "stopped" }
   if (!lead.smsOptIn) return { action: "cancel", reason: "opt_out" }
+
+  // 2b) INTRO-ONLY MODE. An allowlist, checked for EVERY sequence — so list_sent, post_tour,
+  //     application_status, done_selecting, future_move, resume_search and tour are refused here
+  //     too, not merely absent for a new lead. Placed with the hard stops because it has their
+  //     character: this step is not to be sent at all, so there is nothing to wait for. CANCEL
+  //     releases the lifecycle slot; holding would pin it and block future enrollment.
+  if (introOnlyMode(env) && !permittedInIntroOnly(run.sequenceKey, run.stepKey)) {
+    return { action: "cancel", reason: "intro_only" }
+  }
 
   // 3) LIFECYCLE SUPERSESSION / STAGE INVALIDATION. Runs even while suppressed —
   //    see the precedence note above.
@@ -156,9 +171,15 @@ export function evaluateSend(
   }
 
   // 5c) CONVERSATION OVERRIDES AUTOMATION — full-gated steps: ANY inbound since
-  //     the baseline cancels the run. The consent_only opening pair intentionally
-  //     ignores ordinary replies (only opt-out, handled at 2, stops it).
-  if (step.gate === "full" && newer(conv.lastInboundAt, run.baselineInboundAt)) {
+  //     the baseline cancels the run.
+  //
+  //     TEXT 2 NOW YIELDS TOO. The opening pair was deliberately consent_only: one thought split
+  //     in two, where a reply to the greeting should not swallow the location question. But Text 2
+  //     IS that question, and asking someone who has already started talking is exactly the
+  //     redundancy we want to avoid. Text 1 keeps its original behaviour; only Text 2 yields.
+  //     Opt-out still stops both, at 2) above.
+  const replyStops = step.gate === "full" || (run.sequenceKey === "new_lead" && run.stepKey === "t2")
+  if (replyStops && newer(conv.lastInboundAt, run.baselineInboundAt)) {
     return { action: "cancel", reason: "client_replied" }
   }
 

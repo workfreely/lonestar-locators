@@ -154,29 +154,45 @@ ok(evaluateSend(MORNING, lead(), conv(), share(), run({ mode: "paused" })).actio
 ok(evaluateSend(MORNING, lead(), conv(), share(), run({ mode: "stopped" })).reason === "stopped", "stopped → cancel(stopped)")
 ok(evaluateSend(MORNING, lead({ smsOptIn: false }), conv(), share(), run()).reason === "opt_out", "opt-out → cancel(opt_out)")
 
+// INTRO-ONLY MODE IS THE PRODUCTION DEFAULT, and it refuses every step except new_lead t1/t2.
+// The cases below exist to exercise the gate's OTHER machinery — supersession, objectives, windows,
+// manual handoff, the list ladder — so they arm the full sequence set deliberately rather than
+// inheriting a default that would cancel them all with reason "intro_only". The restriction itself,
+// and the system-wide proof that nothing else can send, live in scripts/tests/introOnlyMode.test.ts.
+const ALL_SEQ = { ...process.env, FOLLOWUP_ALL_SEQUENCES_ENABLED: "true" } as NodeJS.ProcessEnv
+
 console.log("GATE — double-text exception vs conversation override")
-// t2 is consent_only: an ordinary reply between t1 and t2 does NOT cancel it.
+// BEHAVIOUR DELIBERATELY CHANGED (intro-only mode). This previously asserted that t2 SENDS
+// despite an ordinary reply, because the opening pair is consent_only — one thought split in two,
+// where a reply to the greeting should not swallow the location question. That is no longer
+// wanted: Text 2 IS the location question, and asking someone who has already started talking is
+// the redundancy the change exists to prevent. Text 1 keeps its original behaviour, asserted
+// immediately below, so the exception has not simply been removed.
 const t2 = run({ stepKey: "t2", stepIndex: 1, baselineInboundAt: null })
 const replyBetween = conv({ lastInboundAt: "2026-09-23T14:25:00Z" })
-ok(evaluateSend(MORNING, lead(), replyBetween, share(), t2).action === "send", "consent_only Text2 still SENDS despite an ordinary reply")
+ok(evaluateSend(MORNING, lead(), replyBetween, share(), t2).action === "cancel", "Text 2 is SKIPPED when the client replied after Text 1")
+ok(evaluateSend(MORNING, lead(), replyBetween, share(), t2).reason === "client_replied", "…and the audit trail says why")
+// Text 1 is still exempt: the greeting goes out even if something inbound arrived first.
+const t1Reply = run({ stepKey: "t1", stepIndex: 0, baselineInboundAt: null })
+ok(evaluateSend(MORNING, lead(), replyBetween, share(), t1Reply).action === "send", "Text 1 still sends — only Text 2 yields to a reply")
 // A full-gated contact FU cancels on any inbound since baseline.
 const cfu1 = run({ stepKey: "contact_fu1", stepIndex: 2, baselineInboundAt: "2026-09-23T00:00:00Z" })
-ok(evaluateSend(MORNING, lead(), replyBetween, share(), cfu1).reason === "client_replied", "full step cancels on client reply")
+ok(evaluateSend(MORNING, lead(), replyBetween, share(), cfu1, ALL_SEQ).reason === "client_replied", "full step cancels on client reply")
 
 console.log("GATE — supersede / objective / window / manual")
 // list_sent run but the client already did Done Selecting → supersede.
 const listRun = run({ sequenceKey: "list_sent", stepKey: "fu1", baselineInboundAt: "2026-09-23T00:00:00Z" })
-ok(evaluateSend(MORNING, lead(), conv(), share({ sentAt: "x", doneSelectingAt: "y" }), listRun).reason === "sequence_superseded", "list_sent superseded by done_selecting")
+ok(evaluateSend(MORNING, lead(), conv(), share({ sentAt: "x", doneSelectingAt: "y" }), listRun, ALL_SEQ).reason === "sequence_superseded", "list_sent superseded by done_selecting")
 // list_sent with favorites but not done → objective satisfied (engaged).
-ok(evaluateSend(MORNING, lead(), conv(), share({ sentAt: "x", favoritedCount: 1 }), listRun).reason === "objective_completed", "list ladder stops when client engaged (favorited)")
+ok(evaluateSend(MORNING, lead(), conv(), share({ sentAt: "x", favoritedCount: 1 }), listRun, ALL_SEQ).reason === "objective_completed", "list ladder stops when client engaged (favorited)")
 // list_sent FU1, no engagement, but it's afternoon → reschedule to morning.
-ok(evaluateSend(AFTERNOON, lead(), conv(), share({ sentAt: "x" }), listRun).reason === "outside_window", "routine step outside window → reschedule")
+ok(evaluateSend(AFTERNOON, lead(), conv(), share({ sentAt: "x" }), listRun, ALL_SEQ).reason === "outside_window", "routine step outside window → reschedule")
 // list_sent FU1, morning, no engagement → SEND.
-const sendDec = evaluateSend(MORNING, lead(), conv(), share({ sentAt: "x" }), listRun)
+const sendDec = evaluateSend(MORNING, lead(), conv(), share({ sentAt: "x" }), listRun, ALL_SEQ)
 ok(sendDec.action === "send" && sendDec.action === "send" && sendDec.body.length > 0, "list FU1 sends in morning with a body")
 // manual locator text after baseline → reschedule.
 const manual = conv({ lastManualOutboundAt: "2026-09-23T13:00:00Z" })
-ok(evaluateSend(MORNING, lead(), manual, share({ sentAt: "x" }), run({ sequenceKey: "list_sent", stepKey: "fu1", baselineInboundAt: "2026-09-23T00:00:00Z" })).reason === "manual_conversation", "manual outbound forces reschedule")
+ok(evaluateSend(MORNING, lead(), manual, share({ sentAt: "x" }), run({ sequenceKey: "list_sent", stepKey: "fu1", baselineInboundAt: "2026-09-23T00:00:00Z" }), ALL_SEQ).reason === "manual_conversation", "manual outbound forces reschedule")
 
 console.log("QUIET HOURS — boundaries (client America/Chicago), DST + cross-TZ")
 const at = (iso: string) => new Date(iso)
@@ -209,7 +225,7 @@ const nlT1 = run({ sequenceKey: "new_lead", stepKey: "t1" })
 ok(evaluateSend(at("2026-09-24T02:00:00Z"), lead(), conv(), share(), nlT1).reason === "quiet_hours", "New-Lead Text 1 at 9PM defers (quiet_hours, incl. event-driven opening)")
 ok(evaluateSend(at("2026-09-23T15:00:00Z"), lead(), conv(), share(), nlT1).action === "send", "New-Lead Text 1 at 10AM sends")
 const lFu1 = run({ sequenceKey: "list_sent", stepKey: "fu1", baselineInboundAt: "2026-09-23T00:00:00Z" })
-ok(evaluateSend(at("2026-09-23T13:00:00Z"), lead(), conv(), share({ sentAt: "x" }), lFu1).reason === "quiet_hours", "routine step at 8AM → quiet_hours (before allowed hours)")
+ok(evaluateSend(at("2026-09-23T13:00:00Z"), lead(), conv(), share({ sentAt: "x" }), lFu1, ALL_SEQ).reason === "quiet_hours", "routine step at 8AM → quiet_hours (before allowed hours)")
 
 console.log("RECONCILE")
 ok(inboundStopsRun(run({ stepKey: "t2" })).stop === false, "inbound does NOT stop consent_only Text2")

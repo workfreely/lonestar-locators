@@ -17,6 +17,12 @@ import { HANDOFF_WINDOW_MS } from "../../lib/followup/pacing"
 import { maxOverdueMs } from "../../lib/followup/staleness"
 import type { ConversationSnapshot, LeadSnapshot, RunSnapshot, ShareSnapshot, SequenceKey } from "../../lib/followup/types"
 
+// INTRO-ONLY MODE is the production default and refuses every step but new_lead t1/t2. This suite
+// exercises LIFECYCLE supersession, pauses and holds across the gated sequences, so it arms the
+// full set deliberately — otherwise every case cancels with "intro_only" before reaching the rule
+// under test. The restriction is proved in scripts/tests/introOnlyMode.test.ts.
+process.env.FOLLOWUP_ALL_SEQUENCES_ENABLED = "true"
+
 let pass = 0
 let fail = 0
 function check(name: string, cond: boolean, detail = "") {
