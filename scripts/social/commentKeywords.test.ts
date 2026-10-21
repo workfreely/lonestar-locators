@@ -203,9 +203,14 @@ console.log("\n8. A PUBLIC REPLY NEVER CLAIMS AN UNSENT DM:")
 
 console.log("\n9. THE APPROVED DM AND ITS LEAD-FORM LINK:")
 {
+  // WORDING REPLACED by the approved copy. The previous text introduced the service; this one
+  // asks for the form, which is what the DM is actually for. The link is appended by the caller
+  // as its own paragraph, so it is deliberately NOT part of this constant.
   ok("the DM wording is exact",
-    APPROVED_DM_BODY === "Hey, it’s Jay! 😊 Thanks for commenting! My apartment locating service is free. Let’s find you a place! 🏡")
-  ok("…and uses curly apostrophes, not straight ones", APPROVED_DM_BODY.includes("it’s") && !APPROVED_DM_BODY.includes("it's"))
+    APPROVED_DM_BODY === "I got you! Fill out this quick form. I’ll send over your best options! 🔑")
+  ok("…and uses curly apostrophes, not straight ones",
+    APPROVED_DM_BODY.includes("I’ll") && !APPROVED_DM_BODY.includes("I'll"))
+  ok("…and never contains the link itself", !APPROVED_DM_BODY.includes("http"))
 
   const link = leadFormLink({ origin: "https://locatorbeast.com", username: "jay-morris", platformSlug: "ig", keyword: "TOWN", mediaId: "17900000000000000" })
   ok("uses the existing branded /ig link", link.startsWith("https://locatorbeast.com/jay-morris/ig?"))

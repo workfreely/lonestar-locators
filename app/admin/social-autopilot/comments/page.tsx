@@ -4,6 +4,7 @@ import { ensurePlatformAdminPage } from "@/lib/auth/ensurePlatformAdminPage"
 import { createClient } from "@/lib/supabase/server"
 import CommentsClient, { type CommentRow, type RuleRow, type AccountRow } from "@/components/crm/social/CommentsClient"
 import { COMMENT_KEYWORDS } from "@/lib/social/commentKeywords"
+import { sendGate } from "@/lib/social/commentSendPolicy"
 
 // Social Beast → Comments (Automated Lead Capture). Platform-admin gated, like every sibling tab.
 //
@@ -103,6 +104,12 @@ export default async function CommentsPage() {
       }))
     : rules
 
+  // THE SWITCH THAT ACTUALLY DECIDES. Read server-side, because it is an environment variable and
+  // the browser must never be asked to guess it. Without this the screen could read "On" for every
+  // database toggle while SOCIAL_COMMENT_SEND_ENABLED kept the senders inert — an operator would
+  // have no way to tell "armed" from "dry run", which is the one distinction that matters here.
+  const sendingEnabled = sendGate(process.env).active
+
   return (
     <CommentsClient
       accounts={connections}
@@ -111,6 +118,7 @@ export default async function CommentsPage() {
       comments={comments}
       globalEnabled={globalEnabled}
       globalUnreadable={globalUnreadable}
+      sendingEnabled={sendingEnabled}
     />
   )
 }

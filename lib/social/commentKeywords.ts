@@ -171,9 +171,15 @@ export function leadFormLink(input: {
   return u.toString()
 }
 
-/** The approved private message. EXACT WORDING — never reword, expand or append to the sentence. */
+/**
+ * The approved private message. EXACT WORDING — never reword, expand or append to the sentence.
+ *
+ * The branded lead-form link is appended by the caller as a SEPARATE paragraph (see
+ * commentRunner), not spliced into the sentence, so the copy and the URL can each be reviewed on
+ * their own and neither can silently change the other.
+ */
 export const APPROVED_DM_BODY =
-  "Hey, it’s Jay! 😊 Thanks for commenting! My apartment locating service is free. Let’s find you a place! 🏡"
+  "I got you! Fill out this quick form. I’ll send over your best options! 🔑"
 
 /**
  * The approved public reply used when a DM was NOT sent — because messaging is not authorised, or

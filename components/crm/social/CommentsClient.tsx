@@ -87,7 +87,7 @@ function outcomeOf(c: CommentRow): { text: string; tone: string; hint?: string }
 }
 
 export default function CommentsClient({
-  accounts, rules, rulesArePreview, comments, globalEnabled, globalUnreadable = false,
+  accounts, rules, rulesArePreview, comments, globalEnabled, globalUnreadable = false, sendingEnabled = false,
 }: {
   accounts: AccountRow[]
   rules: RuleRow[]
@@ -97,6 +97,9 @@ export default function CommentsClient({
   /** The setting could not be READ — distinct from it being off. Both are not-enabled; only one
    *  is a fault, and saying "Off" when we do not know would be a confidence we have not earned. */
   globalUnreadable?: boolean
+  /** SOCIAL_COMMENT_SEND_ENABLED, read server-side. The switch that decides whether anything
+   *  actually reaches Meta — separate from every database toggle. */
+  sendingEnabled?: boolean
 }) {
   const [view, setView] = useState<"inbox" | "rules" | "automation">("inbox")
 
@@ -185,6 +188,21 @@ export default function CommentsClient({
                           {c.provider === "tiktok" ? <SiTiktok size={13} aria-label="TikTok" /> : <SiInstagram size={13} aria-label="Instagram" />}
                         </td>
                         <td className="px-2 py-2 align-top">
+                          <div className="flex items-start gap-2">
+                          {/* INITIAL-LETTER AVATAR, not a photo. Instagram's comment payload gives
+                              a username and an id and no profile picture for an ordinary
+                              commenter, and profile_url is a PROFILE PAGE rather than an image —
+                              rendering it in an <img> would show a broken frame on every row.
+                              A letter is derived from data we already hold, so it cannot 404,
+                              cannot leak a third party's photo, and needs no extra API call. */}
+                          <span aria-hidden
+                                className="mt-[1px] flex-none grid place-items-center rounded-full
+                                           w-[22px] h-[22px] text-[10.5px] font-bold
+                                           bg-[var(--crm-card)] border border-[var(--crm-border)]
+                                           text-[var(--crm-text-secondary)]">
+                            {(name.replace(/^@/, "").trim()[0] ?? "?").toUpperCase()}
+                          </span>
+                          <div className="min-w-0">
                           {/* A profile we could not resolve is shown as INERT TEXT. Opening the
                               wrong person's account is worse than offering no link at all. */}
                           {href ? (
@@ -199,10 +217,33 @@ export default function CommentsClient({
                           {seen > 1 && (
                             <span className="block text-[10.5px] text-[var(--crm-text-muted)]">{seen} comments</span>
                           )}
+                          </div>
+                          </div>
                         </td>
                         <td className="px-2 py-2 align-top text-[var(--crm-text-secondary)]">{c.body ?? "—"}</td>
                         <td className="px-2 py-2 align-top text-[var(--crm-text-muted)] whitespace-nowrap">
-                          {c.social_posts?.post_name ?? "—"}
+                          {/* THREE CASES, AND THE THIRD IS THE COMMON ONE.
+                              A Social Beast post is named. Otherwise the comment is on media we
+                              did not publish, so there is no post to name — we show what we
+                              actually hold: the permalink if Instagram gave us one, else a
+                              shortened media id. Never a guessed match: `post_id` is NULL on
+                              every imported comment and inferring one from a timestamp or a
+                              caption would attach a real comment to the wrong post. */}
+                          {c.social_posts?.post_name ? (
+                            c.social_posts.post_name
+                          ) : c.permalink ? (
+                            <a href={c.permalink} target="_blank" rel="noopener noreferrer"
+                               className="text-[11px] text-[var(--crm-accent)] hover:underline">
+                              View post
+                            </a>
+                          ) : c.external_media_id ? (
+                            <span className="text-[11px] text-[var(--crm-text-muted)] font-mono"
+                                  title={`Instagram media ${c.external_media_id} — not published through Social Beast`}>
+                              …{c.external_media_id.slice(-6)}
+                            </span>
+                          ) : (
+                            <span className="text-[var(--crm-text-muted)]">—</span>
+                          )}
                         </td>
                         <td className="px-2 py-2 align-top">
                           {c.matched_keyword ? (
@@ -307,6 +348,24 @@ export default function CommentsClient({
             </div>
             <span className={`${pill} border border-[var(--crm-border)] ${globalEnabled && !globalUnreadable ? "text-emerald-600 dark:text-emerald-400" : "text-[var(--crm-text-muted)]"}`}>
               {globalUnreadable ? "Unknown" : globalEnabled ? "On" : "Off"}
+            </span>
+          </div>
+
+          {/* SENDING — the switch that actually decides, shown beside the one that does not.
+              Every row above can read "Enabled" while SOCIAL_COMMENT_SEND_ENABLED keeps the
+              senders inert; without this an operator has no way to tell an armed system from a
+              dry run, and would reasonably conclude replies were going out when none were. */}
+          <div className="flex items-center justify-between gap-3 py-2.5 border-t border-[var(--crm-border)]">
+            <div>
+              <div className="text-[13px] font-semibold text-[var(--crm-text-primary)]">Sending</div>
+              <div className="text-[11.5px] text-[var(--crm-text-muted)] mt-[2px]">
+                {sendingEnabled
+                  ? "Replies and messages can reach Instagram."
+                  : "Nothing reaches Instagram. Matches are detected and logged, but every send is skipped."}
+              </div>
+            </div>
+            <span className={`${pill} border border-[var(--crm-border)] ${sendingEnabled ? "text-emerald-600 dark:text-emerald-400" : "text-[var(--crm-text-muted)]"}`}>
+              {sendingEnabled ? "Live" : "Dry run"}
             </span>
           </div>
 
