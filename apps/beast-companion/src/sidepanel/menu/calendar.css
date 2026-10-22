@@ -1,0 +1,153 @@
+/* THE COMPANION'S CALENDAR — owned by DateField.tsx, which imports this file.
+ *
+ * These rules used to live in menu/menu.css and worked anywhere only because Vite bundles every
+ * CSS import into one sheet: the calendar was styled wherever it appeared purely because the menu
+ * happened to be in the build. Now the Add/Edit Task sheet uses it too, and that was a silent
+ * dependency waiting to break — code-split the menu, or move that one import, and the task sheet's
+ * calendar would have rendered as unstyled buttons with no error anywhere. The component owns its
+ * styles now.
+ *
+ * Nothing below is changed from the menu version. The two MODIFIERS at the end are additive and
+ * opt-in, so Out of Office — which passes neither — renders byte-identically to before.
+ */
+/* ── Date field + calendar ───────────────────────────────────────────────────
+   The extension's port of the CRM DateTimePicker day grid (dateOnly mode). The
+   popover is absolutely positioned and right-aligned so it cannot push the menu
+   wider than the 384px panel, and it opens UPWARD-friendly (max-height + scroll)
+   because the Return date row sits mid-popover. */
+.bc-cal { position: relative; flex: none; }
+.bc-cal-trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  width: 134px;
+  padding: 5px 8px;
+  border: 1px solid var(--lb-border);
+  border-radius: 7px;
+  background: var(--lb-surface);
+  color: var(--lb-text-primary);
+  font-family: inherit;
+  font-size: 12.5px;
+  font-weight: 600;
+  cursor: pointer;
+  text-align: left;
+}
+.bc-cal-trigger:hover:not(:disabled) { background: var(--lb-surface-elevated); }
+.bc-cal-trigger:focus-visible { outline: 2px solid var(--lb-accent); outline-offset: -1px; }
+.bc-cal-trigger:disabled { opacity: 0.55; cursor: not-allowed; }
+.bc-cal-trigger.is-empty .bc-cal-value { color: var(--lb-text-secondary); font-weight: 500; }
+.bc-cal-value { flex: 1; font-variant-numeric: tabular-nums; }
+
+.bc-cal-pop {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  z-index: 20;
+  width: 212px;
+  padding: 9px;
+  border: 1px solid var(--lb-border);
+  border-radius: 11px;
+  background: var(--lb-surface-elevated);
+  box-shadow: 0 16px 40px -14px rgba(0, 0, 0, 0.55);
+}
+.bc-cal-nav {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 6px;
+}
+.bc-cal-navbtn {
+  width: 22px;
+  height: 22px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--lb-text-secondary);
+  font-size: 15px;
+  line-height: 1;
+  cursor: pointer;
+}
+.bc-cal-navbtn:hover { background: var(--lb-surface); color: var(--lb-text-primary); }
+.bc-cal-navbtn:focus-visible { outline: 2px solid var(--lb-accent); outline-offset: -1px; }
+.bc-cal-month {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--lb-text-primary);
+}
+.bc-cal-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 1px; }
+.bc-cal-weekdays { margin-bottom: 2px; }
+.bc-cal-wd {
+  height: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 9.5px;
+  font-weight: 700;
+  color: var(--lb-text-secondary);
+}
+.bc-cal-cell {
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--lb-text-secondary);
+  font-family: inherit;
+  font-size: 11.5px;
+  font-weight: 600;
+  cursor: pointer;
+  font-variant-numeric: tabular-nums;
+}
+.bc-cal-cell.is-blank { cursor: default; }
+.bc-cal-cell:not(.is-blank):not(:disabled):hover { background: var(--lb-surface); color: var(--lb-text-primary); }
+.bc-cal-cell:focus-visible { outline: 2px solid var(--lb-accent); outline-offset: -2px; }
+.bc-cal-cell.is-today { box-shadow: inset 0 0 0 1px var(--lb-border); color: var(--lb-text-primary); }
+.bc-cal-cell.is-selected { background: var(--lb-accent); color: #fff; }
+.bc-cal-cell.is-selected:hover { background: var(--lb-accent); color: #fff; }
+.bc-cal-cell:disabled { opacity: 0.3; cursor: not-allowed; }
+
+.bc-cal-foot {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 7px;
+  padding-top: 7px;
+  border-top: 1px solid var(--lb-border);
+}
+.bc-cal-link {
+  border: 0;
+  background: transparent;
+  padding: 0;
+  color: var(--lb-text-secondary);
+  font-family: inherit;
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.bc-cal-link:hover { color: var(--lb-text-primary); }
+.bc-cal-link:focus-visible { outline: 2px solid var(--lb-accent); outline-offset: 2px; }
+
+/* ── Modifiers ───────────────────────────────────────────────────────────────
+   Opt-in only. A DateField that asks for neither is unchanged. */
+
+/* UPWARD. The task sheet is anchored to the BOTTOM of the panel, so its date row sits low and a
+   downward popover would open past the viewport edge — in the DOM, but unreachable. Flipping the
+   anchor is the whole fix; nothing else about the popover changes. */
+.bc-cal--up .bc-cal-pop {
+  top: auto;
+  bottom: calc(100% + 6px);
+}
+
+/* LARGER. Comfortable targets for a date the locator is deliberately picking, rather than the
+   compact row the menu needs. Still inside the 384px panel: 256 + 2x14px sheet padding = 284px. */
+.bc-cal--lg .bc-cal-pop { width: 256px; padding: 11px; }
+.bc-cal--lg .bc-cal-cell { height: 31px; font-size: 12.5px; }
+.bc-cal--lg .bc-cal-wd { height: 20px; font-size: 11px; }
+.bc-cal--lg .bc-cal-month { font-size: 13px; }
+.bc-cal--lg .bc-cal-navbtn { width: 26px; height: 26px; font-size: 17px; }
+.bc-cal--lg .bc-cal-grid { gap: 2px; }

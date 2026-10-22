@@ -201,6 +201,45 @@ console.log("\n6b. SHARED RANKING AND EVERY OTHER SURFACE ARE UNTOUCHED:")
   for (const f of mustNotChange) ok(`untouched — ${f}`, !changed.includes(f), "MODIFIED")
 }
 
+console.log("\n6c. THE TASK SHEET'S CALENDAR — stylesheet facts:")
+{
+  // Behaviour is tested where the component lives (apps/beast-companion, npm run test:datefield);
+  // these are the stylesheet and wiring facts, asserted here because that project deliberately
+  // keeps @types/node out of its `types`.
+  const css = readFileSync("apps/beast-companion/src/sidepanel/menu/calendar.css", "utf8")
+  const panel = readFileSync("apps/beast-companion/src/sidepanel/ProductionPanel.tsx", "utf8")
+  const field = readFileSync("apps/beast-companion/src/sidepanel/menu/DateField.tsx", "utf8")
+  const menu = readFileSync("apps/beast-companion/src/sidepanel/menu/menu.css", "utf8")
+
+  ok("the component owns its stylesheet", /import "\.\/calendar\.css";/.test(field))
+  ok("menu.css no longer carries calendar rules — no silent dependency left", !/\.bc-cal/.test(menu))
+  ok("…and the rules survived the move", (css.match(/\.bc-cal/g) ?? []).length > 25)
+
+  const w = /\.bc-cal--lg \.bc-cal-pop \{[^}]*width: (\d+)px/.exec(css)?.[1]
+  ok(`the large popover is ${w}px, inside the 384px panel with 14px sheet padding each side`,
+    !!w && Number(w) + 28 <= 384, `${w}px + 28 > 384`)
+  ok("…and is the approved ~256px", w === "256")
+  const h = /\.bc-cal--lg \.bc-cal-cell \{[^}]*height: (\d+)px/.exec(css)?.[1]
+  ok(`date targets are ${h}px — within the approved 30–32px`, !!h && Number(h) >= 30 && Number(h) <= 32)
+  ok("the popover stays right-aligned, so it cannot widen the panel", /\.bc-cal-pop \{[\s\S]*?right: 0/.test(css))
+  ok("the upward modifier flips the anchor and nothing else",
+    /\.bc-cal--up \.bc-cal-pop \{\s*top: auto;\s*bottom: calc\(100% \+ 6px\);\s*\}/.test(css))
+  ok("both modifiers are opt-in, so Out of Office is unchanged",
+    /\.bc-cal--up \.bc-cal-pop/.test(css) && /\.bc-cal--lg \.bc-cal-pop/.test(css))
+
+  ok("the task sheet uses DateField, not a native date input",
+    /<DateField[\s\S]{0,260}placement="up"[\s\S]{0,80}size="lg"/.test(panel))
+  ok("…and the native Due Date input is gone", !/Due Date \*[\s\S]{0,160}type="date"/.test(panel))
+  ok("the value contract is preserved both ways",
+    /value=\{taskDate \|\| null\}/.test(panel) && /onChange=\{\(next\) => setTaskDate\(next \?\? ""\)\}/.test(panel))
+  ok("SCHEDULE TOUR is untouched — still its native input", /Tour Date \*[\s\S]{0,200}type="date"/.test(panel))
+  const tour = readFileSync("apps/beast-companion/src/sidepanel/tour/TourModeView.tsx", "utf8")
+  ok("TOUR MODE is untouched — still native with colorScheme dark", /type="date"/.test(tour) && /colorScheme: "dark"/.test(tour))
+  const ooo = readFileSync("apps/beast-companion/src/sidepanel/menu/OutOfOfficeControl.tsx", "utf8")
+  ok("OUT OF OFFICE passes neither modifier, so it renders exactly as before",
+    /<DateField/.test(ooo) && !/placement=|size=/.test(ooo))
+}
+
 console.log("\n7. THE AGENDA IS UNTOUCHED:")
 ok("Follow Up keeps its existing icon", getActionIcon("Follow Up") === "💬")
 ok("the new types fall back to the existing default glyph",

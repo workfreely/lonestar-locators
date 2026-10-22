@@ -8,6 +8,7 @@ import { runAutofillForScheduler, reinjectAutofillIntoTab, detectTourSelectionIn
 import { useTourMode } from "./tour/useTourMode";
 import type { AutofillPayload } from "@bc/companion-shared";
 import { TourTimeField } from "./lead/TourTimeField";
+import { DateField } from "./menu/DateField";
 import { DISCONNECTED, type CompanionConnection } from "./connection";
 
 /**
@@ -2082,16 +2083,27 @@ export function ProductionPanel() {
                   stays as it is.
                 </p>
               ) : null}
-              <label style={SHEET_FIELD_LABEL}>
+              {/* The Companion's OWN calendar, not Chrome's. The native input opened a light
+                  picker with up/down steppers that matched nothing else here; this is the same
+                  dark, left/right-navigating grid Out of Office already uses — enlarged, and
+                  opening UPWARD because this sheet sits at the bottom of the panel.
+                  The VALUE contract is unchanged: "YYYY-MM-DD" in, "YYYY-MM-DD" out, so
+                  localTourToUtc, splitLocalDateTime and the time field are untouched. DateField
+                  composes its dates from LOCAL parts and never serialises a Date, which also
+                  removes the off-by-one-day risk the native input carried. */}
+              <div style={SHEET_FIELD_LABEL as CSSProperties}>
                 Due Date *
-                <input
-                  type="date"
-                  value={taskDate}
-                  onChange={(e) => setTaskDate(e.target.value)}
-                  onClick={openNativePicker}
-                  style={SHEET_INPUT_STYLE}
-                />
-              </label>
+                <div style={{ marginTop: 4 }}>
+                  <DateField
+                    value={taskDate || null}
+                    onChange={(next) => setTaskDate(next ?? "")}
+                    label="Due Date"
+                    placeholder="Pick a date"
+                    placement="up"
+                    size="lg"
+                  />
+                </div>
+              </div>
               <label style={SHEET_FIELD_LABEL}>
                 Due Time *
                 <TourTimeField value={taskTime} onChange={setTaskTime} />

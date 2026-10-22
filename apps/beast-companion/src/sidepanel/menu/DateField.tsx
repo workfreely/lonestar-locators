@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { formatDateDisplay } from "@bc/companion-shared";
+import "./calendar.css";
 
 /**
  * Date field + calendar for the Companion — the extension's port of the CRM's
@@ -55,6 +56,8 @@ export function DateField({
   placeholder = "Pick a date",
   disabled = false,
   label,
+  placement = "down",
+  size = "sm",
 }: {
   /** Committed value, "YYYY-MM-DD" or null. */
   value: string | null;
@@ -65,6 +68,11 @@ export function DateField({
   placeholder?: string;
   disabled?: boolean;
   label?: string;
+  /** Which way the calendar opens. "up" for a field low on screen — a bottom sheet, where a
+   *  downward popover would open past the viewport edge. Defaults to the menu's behaviour. */
+  placement?: "down" | "up";
+  /** "lg" gives comfortable date targets for a deliberate pick. Defaults to the compact menu row. */
+  size?: "sm" | "lg";
 }) {
   const [open, setOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
@@ -113,7 +121,10 @@ export function DateField({
   }
 
   return (
-    <div className="bc-cal" ref={rootRef}>
+    <div
+      className={`bc-cal${placement === "up" ? " bc-cal--up" : ""}${size === "lg" ? " bc-cal--lg" : ""}`}
+      ref={rootRef}
+    >
       {/* The whole field is the trigger — clicking anywhere on it opens the
           calendar, rather than only a small icon hit area. */}
       <button
