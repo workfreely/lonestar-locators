@@ -22,6 +22,9 @@ const PLATFORM_ICONS: Record<string, IconType> = {
   tiktok: FaTiktok,
   youtube: FaYoutube,
   google: FaGoogle,
+  // Same Facebook mark as the ordinary Facebook row — it IS Facebook traffic. The LABEL and the
+  // colour carry the distinction, not a different brand logo.
+  facebook_second_chance: FaFacebook,
   email: FaEnvelope,
 }
 
@@ -31,6 +34,9 @@ const PLATFORM_COLORS: Record<string, string> = {
   tiktok: "#111318",
   youtube: "#FF0000",
   google: "#4285F4",
+  // The sky used by the CRM's "FB 2nd Chance" badge (lib/leads/sourceStyles), so the share row and
+  // the lead badge read as the same thing in both places.
+  facebook_second_chance: "#0ea5e9",
   email: "#6b7280",
 }
 
@@ -98,8 +104,13 @@ export default function SharePanel({ slug, workspaceId }: { slug: string | null;
               only — the public route enforces the same workspace ID server-side, so hiding the
               button is convenience, not the control. */}
           {SHARE_PLATFORMS.filter((p) => slugAllowedForWorkspace(p.slug, workspaceId)).map((platform) => {
-            const Icon = PLATFORM_ICONS[platform.id]
-            const color = PLATFORM_COLORS[platform.id]
+            // FALLBACKS, because a missing entry here used to take down the WHOLE PAGE: an
+            // unmapped id made Icon `undefined`, and rendering <undefined /> throws "Element type
+            // is invalid", which React cannot recover from — the editor died with a client-side
+            // exception rather than one row looking wrong. A share entry is data; a neutral glyph
+            // is the right failure for data that has no icon yet.
+            const Icon = PLATFORM_ICONS[platform.id] ?? HiOutlineGlobeAlt
+            const color = PLATFORM_COLORS[platform.id] ?? "#6b7280"
             return (
               <Card key={platform.id} className="flex items-center gap-3">
                 <span

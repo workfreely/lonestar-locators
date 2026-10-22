@@ -195,6 +195,35 @@ console.log("\n7b. THE SHARE BUTTON ACTUALLY REACHES THE ADMIN — the bug that 
     /slugAllowedForWorkspace\(p\.slug, workspaceId\)/.test(sp))
 }
 
+console.log("\n7c. EVERY SHARE ROW CAN ACTUALLY RENDER — the crash this caused:")
+{
+  // A SHARE_PLATFORMS entry whose id is missing from PLATFORM_ICONS made `Icon` undefined, and
+  // rendering <undefined /> throws "Element type is invalid" — which React cannot recover from, so
+  // the WHOLE editor died with a client-side exception instead of one row looking wrong. The entry
+  // shipped in 36a74c9 and was unreachable until the workspace-id fix let the row render.
+  const sp = readFileSync("app/smart-lead-form/_components/editor/panels/SharePanel.tsx", "utf8")
+  const mapKeys = (name: string): string[] => {
+    const m = new RegExp(`const ${name}[^=]*= \\{([\\s\\S]*?)\\n\\}`).exec(sp)?.[1] ?? ""
+    return [...m.matchAll(/^\s{2}([A-Za-z_][A-Za-z0-9_]*):/gm)].map((x) => x[1])
+  }
+  const icons = mapKeys("PLATFORM_ICONS")
+  const colors = mapKeys("PLATFORM_COLORS")
+  ok("(sanity) the icon map was actually parsed", icons.length >= 6, icons.join(","))
+  for (const p of SHARE_PLATFORMS) {
+    ok(`every share row has an ICON — ${p.id}`, icons.includes(p.id), `missing from PLATFORM_ICONS`)
+    ok(`every share row has a COLOR — ${p.id}`, colors.includes(p.id), `missing from PLATFORM_COLORS`)
+  }
+  ok("a missing icon can never again crash the page (fallback component)",
+    /PLATFORM_ICONS\[platform\.id\] \?\? \w+/.test(sp))
+  ok("…and a missing colour falls back too",
+    /PLATFORM_COLORS\[platform\.id\] \?\? "#[0-9a-f]{6}"/.test(sp))
+  ok("the fallback icon is a real imported component",
+    (() => {
+      const fb = /PLATFORM_ICONS\[platform\.id\] \?\? (\w+)/.exec(sp)?.[1] ?? ""
+      return !!fb && new RegExp(`import \\{[^}]*\\b${fb}\\b[^}]*\\} from`).test(sp)
+    })())
+}
+
 console.log("\n8. EXISTING SHARE LINKS ARE UNCHANGED:")
 for (const [slug, utm] of [["fb", "facebook"], ["ig", "instagram"], ["tt", "tiktok"], ["yt", "youtube"], ["google", "google"], ["email", "email"], ["qr", "qr"], ["direct", "direct"]] as const) {
   ok(`/${slug} still → ${utm}`, SOURCE_SLUG_TO_UTM[slug] === utm)
