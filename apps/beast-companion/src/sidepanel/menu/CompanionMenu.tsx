@@ -51,6 +51,7 @@ export function CompanionMenu({
   onPickTheme,
   connection,
   onEditClient,
+  onAddTask,
   canEditClient = false,
   editClientFirstName,
   onEditTemplates,
@@ -68,6 +69,8 @@ export function CompanionMenu({
   // Edit Client — posts the "edit-client" verb so the CRM opens its Add Lead modal
   // in edit mode for the active client. Hidden entirely when no client is active.
   onEditClient?: () => void;
+  /** Opens the Companion's own Add Task sheet for the active client. */
+  onAddTask?: () => void;
   canEditClient?: boolean;
   // Active client's first name — DISPLAY ONLY, for the dynamic label. The verb,
   // workflow, CRM modal, and client-id resolution are unchanged.
@@ -129,8 +132,26 @@ export function CompanionMenu({
           </button>
         )}
 
+        {/* ADD TASK — directly below Edit Client Profile. It lives in the menu rather than the
+            panel so the everyday client view gains no new button; the sheet it opens is the one
+            that already existed. Shown only with an active client, since a task needs one. */}
+        {onAddTask && (
+          <button
+            ref={canEditClient ? undefined : firstItemRef}
+            type="button"
+            className="bc-pop-item"
+            role="menuitem"
+            onClick={() => {
+              onAddTask();
+              onClose();
+            }}
+          >
+            <span className="bc-pop-label">Add Task</span>
+          </button>
+        )}
+
         <button
-          ref={canEditClient ? undefined : firstItemRef}
+          ref={canEditClient || onAddTask ? undefined : firstItemRef}
           type="button"
           className="bc-pop-item"
           role="menuitem"

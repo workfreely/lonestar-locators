@@ -195,6 +195,31 @@
   font-weight: 600;
   color: var(--lb-text-primary);
 }
+/* The edit glyph on the Due row. Deliberately quiet — it sits in the flow of a line that already
+   exists, borrows that line's secondary colour, and only strengthens on hover/focus. A visible
+   focus ring, because it is a real control and keyboard users need to find it. */
+.lp-due-edit {
+  margin-left: 6px;
+  padding: 0 3px;
+  border: 0;
+  background: transparent;
+  font-size: 12px;
+  line-height: 1;
+  color: var(--lb-text-secondary);
+  cursor: pointer;
+  border-radius: 4px;
+  opacity: 0.75;
+  transition: opacity 0.15s ease, color 0.15s ease;
+}
+.lp-due-edit:hover {
+  opacity: 1;
+  color: var(--lb-text-primary);
+}
+.lp-due-edit:focus-visible {
+  outline: 2px solid var(--lb-accent, #2563eb);
+  outline-offset: 2px;
+  opacity: 1;
+}
 /* Last Action's "Completed:" line — mirrors the Due line's label/value hierarchy
    (same margin-top, size, and subtle-label + bold-value split) but in green: a
    lighter/subtle-green label and a bold, stronger-green timestamp. */

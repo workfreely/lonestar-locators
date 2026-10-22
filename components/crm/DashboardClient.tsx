@@ -2704,6 +2704,7 @@ export default function DashboardClient({ leads, nextActions, favorites, recomme
         payload.verb !== "complete-follow-up" &&
         payload.verb !== "complete-setup-tour" &&
         payload.verb !== "add-task" &&
+        payload.verb !== "edit-task" &&
         payload.verb !== "open-guest-card" &&
         payload.verb !== "open-tour-follow-up" &&
         payload.verb !== "open-apply" &&
@@ -3402,11 +3403,65 @@ export default function DashboardClient({ leads, nextActions, favorites, recomme
         if (!title || !taskDate || !taskTime) return
         const now = new Date().toISOString()
         const dueAt = localTourToUtc(taskDate, taskTime, timeZone ?? undefined)
-        createManualTask({ lead, title, dueAt, now }).then((created) => {
+        // Optional — the sheet's Notes field. Absent/blank stays null, exactly as before.
+        const taskNotes = String(payload.notes ?? "").trim() || null
+        createManualTask({ lead, title, dueAt, notes: taskNotes, now }).then((created) => {
           if (!created) return
           setLocalNextActions((prev) => [...prev, created])
           postCompanionActiveClient({ ...lead }, [...localNextActionsRef.current, created])
         })
+        return
+      }
+
+      // Beast Companion "Edit Task" — change an EXISTING action rather than adding another.
+      //
+      // Routed through /api/admin/leads/task, which re-reads the row under the caller's session,
+      // re-checks the workspace and applies lib/leads/taskEditPolicy. The rename refusal for a
+      // workflow action is decided THERE, not here: this panel and the Companion sheet both only
+      // disable an input, and neither is a place a rule can be enforced.
+      //
+      // NOT optimistic. A task edit is a correction, and a correction that silently failed would
+      // leave the locator believing a date had moved — so local state changes only once the server
+      // has confirmed the new row, and a failure surfaces as an error.
+      if (payload.verb === "edit-task") {
+        const taskId = payload.taskId
+        if (taskId === undefined || taskId === null || taskId === "") return
+        const taskDate = String(payload.taskDate ?? "").trim()
+        const taskTime = String(payload.taskTime ?? "").trim()
+        const body: Record<string, unknown> = { taskId }
+        // Only fields the sheet actually submitted are sent; an absent key means "leave it alone",
+        // so moving a date can never blank a title or wipe notes written elsewhere.
+        if (taskDate && taskTime) body.dueAt = localTourToUtc(taskDate, taskTime, timeZone ?? undefined)
+        if (payload.title !== undefined) body.title = String(payload.title ?? "").trim()
+        if (payload.notes !== undefined) body.notes = String(payload.notes ?? "")
+        void (async () => {
+          try {
+            const res = await fetch("/api/admin/leads/task", {
+              method: "PATCH",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify(body),
+            })
+            const json = await res.json().catch(() => null)
+            if (!res.ok || !json?.task) {
+              console.error("[edit-task] refused:", json?.reason ?? res.status, json?.error ?? "")
+              window.alert(json?.error ?? "That change could not be saved.")
+              return
+            }
+            const saved = json.task
+            setLocalNextActions((prev) =>
+              prev.map((a: any) => (String(a.id) === String(saved.id) ? { ...a, ...saved } : a))
+            )
+            postCompanionActiveClient(
+              { ...lead },
+              localNextActionsRef.current.map((a: any) =>
+                String(a.id) === String(saved.id) ? { ...a, ...saved } : a
+              )
+            )
+          } catch (err) {
+            console.error("[edit-task] failed:", err)
+            window.alert("That change could not be saved.")
+          }
+        })()
         return
       }
 

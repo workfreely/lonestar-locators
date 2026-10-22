@@ -447,6 +447,8 @@ export function buildActiveClientPayload(
       // Per-property actions (Send Guest Card, guest cards) carry the property so
       // the panel can label "Send Guest Card — {property}".
       propertyName: str(a.property_name),
+      // Workflow identity — null for a manual task. Decides whether the panel offers a title edit.
+      actionKey: str(a.action_key),
       statusLabel:
         // Pre-list contact chase (retired contacted_follow_up + Contact FU1/2/3):
         // the resting "No Answer" / "Waiting for Reply" status, same as before.

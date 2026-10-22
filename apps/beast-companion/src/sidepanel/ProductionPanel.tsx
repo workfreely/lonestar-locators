@@ -119,6 +119,37 @@ function externalEnrichKey(cp: CurrentProperty): string {
 const PREF_TEXT_TOP3_KEY = "lb-pref-text-top-3";
 const PREF_VOICE_SCRIPT_KEY = "lb-pref-ai-voice-script";
 
+/**
+ * A stored UTC instant → the locator's LOCAL wall-clock date + time, in THEIR saved zone.
+ *
+ * The exact inverse of the localTourToUtc the CRM applies when saving, so an edit that changes
+ * nothing round-trips to the same instant. Deliberately the locator's zone and never the browser's:
+ * a locator travelling, or a Companion open on a second machine, must still see and set the time
+ * the client was promised. Intl is used directly rather than importing the app's date helpers —
+ * the Companion bundles only @bc/companion-shared, and moving that helper into the shared package
+ * to reuse it here would touch the tour flow this change has no business in.
+ */
+function splitLocalDateTime(iso: string | null, timeZone: string | null): { date: string; time: string } {
+  if (!iso) return { date: "", time: "" };
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return { date: "", time: "" };
+  try {
+    const parts = new Intl.DateTimeFormat("en-CA", {
+      timeZone: timeZone || undefined,
+      year: "numeric", month: "2-digit", day: "2-digit",
+      hour: "2-digit", minute: "2-digit", hourCycle: "h23",
+    }).formatToParts(d);
+    const get = (t: string) => parts.find((p) => p.type === t)?.value ?? "";
+    const date = `${get("year")}-${get("month")}-${get("day")}`;
+    const time = `${get("hour")}:${get("minute")}`;
+    return /^\d{4}-\d{2}-\d{2}$/.test(date) ? { date, time } : { date: "", time: "" };
+  } catch {
+    // An unrecognised zone must not break the sheet — it opens blank, which the save gate treats
+    // as "nothing to submit" rather than as a silent change.
+    return { date: "", time: "" };
+  }
+}
+
 export function ProductionPanel() {
   const [connection, setConnection] = useState<CompanionConnection>(DISCONNECTED);
   const [active, setActive] = useState<ActiveClientPayload | null>(null);
@@ -283,6 +314,11 @@ export function ProductionPanel() {
   const [taskTitle, setTaskTitle] = useState<string>("");
   const [taskDate, setTaskDate] = useState<string>(""); // "YYYY-MM-DD"
   const [taskTime, setTaskTime] = useState<string>(""); // "HH:mm"
+  const [taskNotes, setTaskNotes] = useState<string>("");
+  // EDIT MODE. Null = the sheet is adding; set = it is editing that existing row. `actionKey` is
+  // the workflow identity: non-null means the title is the workflow's, not the locator's, so the
+  // field is read-only here AND the server refuses a rename regardless of what this sends.
+  const [taskEdit, setTaskEdit] = useState<null | { taskId: string | number; actionKey: string | null }>(null);
 
   // ── SW connection status (token auth — not yet built) ─────────────────────
   useEffect(() => {
@@ -500,6 +536,8 @@ export function ProductionPanel() {
   useEffect(() => {
     if (addTaskConfirm && String(activeLeadId) !== String(addTaskConfirm.leadId)) {
       setAddTaskConfirm(null);
+      setTaskEdit(null);
+      setTaskNotes("");
       setTaskTitle("");
       setTaskDate("");
       setTaskTime("");
@@ -1208,9 +1246,33 @@ export function ProductionPanel() {
     const lead = active?.lead;
     if (!lead || lead.id === undefined || lead.id === null) return;
     const name = formatPersonName(lead.firstName) || "this client";
-    setTaskTitle("");
+    // "Follow Up" by default — it is the task a locator reaches for most, it is already a
+    // first-class title elsewhere (its own SMS template and the same 💬 the automatic follow-ups
+    // use), and it is still a plain text field anyone can overwrite.
+    setTaskTitle("Follow Up");
     setTaskDate("");
     setTaskTime(DEFAULT_TIME_VALUE);
+    setTaskNotes("");
+    setTaskEdit(null);
+    setAddTaskConfirm({ leadId: lead.id, name });
+  };
+
+  // Edit the lead's CURRENT open action — the pencil beside the Next Action due date. Opens the
+  // SAME sheet, pre-filled, so there is one task dialog rather than two that can drift apart.
+  const onEditTask = () => {
+    const lead = active?.lead;
+    // The SAME open action the Next Action card shows (LeadPanelView picks it the same way), so
+    // the pencil always edits the row the locator is looking at.
+    const a = (active?.nextActions ?? []).find((x) => !x.completed) ?? null;
+    if (!lead || lead.id === undefined || lead.id === null) return;
+    if (!a || a.id === undefined || a.id === null) return;
+    const name = formatPersonName(lead.firstName) || "this client";
+    setTaskTitle(a.title ?? "");
+    const { date, time } = splitLocalDateTime(a.dueAt ?? null, active?.timeZone ?? null);
+    setTaskDate(date);
+    setTaskTime(time || DEFAULT_TIME_VALUE);
+    setTaskNotes(a.notes ?? "");
+    setTaskEdit({ taskId: a.id, actionKey: a.actionKey ?? null });
     setAddTaskConfirm({ leadId: lead.id, name });
   };
 
@@ -1222,23 +1284,42 @@ export function ProductionPanel() {
     const c = addTaskConfirm;
     const title = taskTitle.trim();
     if (!c || !title || !taskDate || !taskTime) return;
+    const editing = taskEdit;
     setAddTaskConfirm(null);
     const store = (globalThis as unknown as { chrome?: any }).chrome?.storage?.local;
     if (store) {
       store.set({
-        "lb-workflow-verb": {
-          nonce: `${Date.now()}-${Math.random()}`,
-          leadId: c.leadId,
-          verb: "add-task",
-          title,
-          taskDate,
-          taskTime,
-        },
+        "lb-workflow-verb": editing
+          ? {
+              nonce: `${Date.now()}-${Math.random()}`,
+              leadId: c.leadId,
+              verb: "edit-task",
+              taskId: editing.taskId,
+              // A WORKFLOW action's title is never submitted — not because the field is disabled
+              // (that is only what the locator sees) but because sending it at all would be asking
+              // for a rename the server is required to refuse. The schedule and notes are the two
+              // things that legitimately move.
+              ...(editing.actionKey ? {} : { title }),
+              taskDate,
+              taskTime,
+              notes: taskNotes,
+            }
+          : {
+              nonce: `${Date.now()}-${Math.random()}`,
+              leadId: c.leadId,
+              verb: "add-task",
+              title,
+              taskDate,
+              taskTime,
+              notes: taskNotes,
+            },
       });
     }
     setTaskTitle("");
     setTaskDate("");
     setTaskTime("");
+    setTaskNotes("");
+    setTaskEdit(null);
   };
 
   // The confirmation name comes from the CAPTURED pending contact, so it never
@@ -1593,6 +1674,7 @@ export function ProductionPanel() {
         onConfirmPayment={onConfirmPayment}
         onSendRebate={onSendRebate}
         onAddTask={onAddTask}
+        onEditTask={onEditTask}
         onBackToCrm={onBackToCrm}
         timeZone={active?.timeZone ?? null}
         automatedTexting={active?.automatedTexting}
@@ -1952,7 +2034,9 @@ export function ProductionPanel() {
           }}
         >
           <div onClick={(e) => e.stopPropagation()} style={SHEET_STYLE}>
-            <p style={SHEET_QUESTION_STYLE}>Add a task for {addTaskConfirm.name}</p>
+            <p style={SHEET_QUESTION_STYLE}>
+              {taskEdit ? `Edit task for ${addTaskConfirm.name}` : `Add a task for ${addTaskConfirm.name}`}
+            </p>
             {/* Task title + local date/time. Same Done/Apply time control and
                 whole-field native date picker as Schedule Tour. Nothing is saved
                 until "Add Task" (title + date + time all required; time pre-filled). */}
@@ -1964,10 +2048,21 @@ export function ProductionPanel() {
                   value={taskTitle}
                   onChange={(e) => setTaskTitle(e.target.value)}
                   placeholder="e.g. Call to confirm budget"
-                  autoFocus
-                  style={SHEET_INPUT_STYLE}
+                  autoFocus={!taskEdit}
+                  // An automatic workflow action's name belongs to the workflow: renaming one
+                  // resurrects a duplicate stage action and can strand the lead. Read-only here is
+                  // the EXPLANATION; the server refuses the rename either way.
+                  readOnly={!!taskEdit?.actionKey}
+                  disabled={!!taskEdit?.actionKey}
+                  style={{ ...SHEET_INPUT_STYLE, ...(taskEdit?.actionKey ? { opacity: 0.6 } : null) }}
                 />
               </label>
+              {taskEdit?.actionKey ? (
+                <p style={{ margin: "-4px 0 0", fontSize: 11.5, lineHeight: 1.35, opacity: 0.7 }}>
+                  This is an automatic step — you can move its date and add notes, but its name
+                  stays as it is.
+                </p>
+              ) : null}
               <label style={SHEET_FIELD_LABEL}>
                 Due Date *
                 <input
@@ -1982,6 +2077,16 @@ export function ProductionPanel() {
                 Due Time *
                 <TourTimeField value={taskTime} onChange={setTaskTime} />
               </label>
+              <label style={SHEET_FIELD_LABEL}>
+                Notes
+                <textarea
+                  value={taskNotes}
+                  onChange={(e) => setTaskNotes(e.target.value)}
+                  placeholder="Optional — context for this task"
+                  rows={2}
+                  style={{ ...SHEET_INPUT_STYLE, resize: "vertical", minHeight: 48 }}
+                />
+              </label>
             </div>
             <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
               <button
@@ -1990,9 +2095,13 @@ export function ProductionPanel() {
                 disabled={!taskTitle.trim() || !taskDate || !taskTime}
                 style={{ ...SHEET_PRIMARY_BTN, ...((!taskTitle.trim() || !taskDate || !taskTime) ? SHEET_BTN_DISABLED : null) }}
               >
-                Add Task
+                {taskEdit ? "Save Changes" : "Add Task"}
               </button>
-              <button type="button" onClick={() => setAddTaskConfirm(null)} style={SHEET_CANCEL_BTN}>
+              <button
+                type="button"
+                onClick={() => { setAddTaskConfirm(null); setTaskEdit(null); setTaskNotes(""); }}
+                style={SHEET_CANCEL_BTN}
+              >
                 Cancel
               </button>
             </div>

@@ -265,6 +265,7 @@ export function LeadPanelBody({
   onConfirmPayment,
   onSendRebate,
   onAddTask,
+  onEditTask,
   timeZone,
 }: {
   lead: LeadSummaryDTO;
@@ -316,6 +317,8 @@ export function LeadPanelBody({
   // "+ Add Task" — opens the custom-task sheet (title + date/time) for THIS
   // client. Omitted in fixtures, where the button falls back to the demo note.
   onAddTask?: () => void;
+  /** Opens the task sheet in EDIT mode for this open action. */
+  onEditTask?: () => void;
 }) {
   const tz = timeZone ?? PREVIEW_TIME_ZONE;
   const openAction = nextActions.find((a) => !a.completed) ?? null;
@@ -643,6 +646,20 @@ export function LeadPanelBody({
             </div>
             <div className="lp-due">
               Due: <span className="lp-due-val">{fmtDue(openAction.dueAt, tz)}</span>
+              {/* EDIT — a bare glyph on the row that already exists, not a new control or section.
+                  It opens the same task sheet, pre-filled. For an automatic step the sheet moves
+                  the date only; the name and everything that decides the workflow stay put. */}
+              {onEditTask && (
+                <button
+                  type="button"
+                  onClick={onEditTask}
+                  className="lp-due-edit"
+                  aria-label="Edit this task's due date"
+                  title="Edit due date"
+                >
+                  ✎
+                </button>
+              )}
             </div>
             {/* The old in-card "← Back to CRM" link was removed — Back to CRM now
                 lives in the Search Mode header (shown while the active tab is a Smart

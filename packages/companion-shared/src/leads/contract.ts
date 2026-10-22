@@ -99,6 +99,16 @@ export const nextActionSchema = z.object({
    * ordinary actions, which stay Pending/Overdue.
    */
   statusLabel: z.string().nullish(),
+  /**
+   * The canonical workflow identity (setup_tour, check_application, follow_up_1 …), or null for a
+   * manual task the locator created.
+   *
+   * It must be DECLARED here or it does not exist: zod strips unknown keys, which is exactly how
+   * completedVia was silently discarded above. The panel uses it to decide whether a task's title
+   * may be edited — on identity, never on the display label, which is translated for humans and is
+   * not what any workflow rule matches on.
+   */
+  actionKey: z.string().nullish(),
   /** Optional extension point — reserved, not collected today. */
   outcome: z.string().nullish(),
 });

@@ -119,6 +119,7 @@ export function PanelApp({
   onConfirmPayment,
   onSendRebate,
   onAddTask,
+  onEditTask,
   onBackToCrm,
   timeZone,
   automatedTexting,
@@ -214,6 +215,8 @@ export function PanelApp({
   // "+ Add Task" opens the custom-task sheet (title + date/time). Omitted in the
   // dev harness (fixtures), where the button falls back to the inert demo note.
   onAddTask?: () => void;
+  /** Opens the same task sheet in EDIT mode for the lead's current open action. */
+  onEditTask?: () => void;
   // Phase 3 — focus the existing CRM tab from the list-building workflow.
   onBackToCrm?: () => void;
   // Saved locator IANA timezone for Due/Completed formatting (falls back inside
@@ -419,6 +422,7 @@ export function PanelApp({
                 onConfirmPayment={onConfirmPayment}
                 onSendRebate={onSendRebate}
                 onAddTask={onAddTask}
+                onEditTask={onEditTask}
                 timeZone={timeZone}
               />
             ) : (
@@ -448,6 +452,7 @@ export function PanelApp({
           onPickTheme={pickTheme}
           connection={connection}
           onEditClient={onEditClient}
+          onAddTask={onAddTask}
           canEditClient={canEditClient}
           editClientFirstName={lead?.firstName ?? null}
           onEditTemplates={onEditTemplates}
