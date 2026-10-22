@@ -449,6 +449,11 @@ export function buildActiveClientPayload(
       propertyName: str(a.property_name),
       // Workflow identity — null for a manual task. Decides whether the panel offers a title edit.
       actionKey: str(a.action_key),
+      // The locator's own reminder, as the ROW says it is: createManualTask stamps action_key null
+      // + action_type "manual". Anything else is the workflow's, and a row that claims neither is
+      // treated as the workflow's — fail closed, so a stray row can never be mistaken for a
+      // personal reminder and demoted out of the headline.
+      isManual: !a.action_key && String(a.action_type ?? "").toLowerCase() === "manual",
       statusLabel:
         // Pre-list contact chase (retired contacted_follow_up + Contact FU1/2/3):
         // the resting "No Answer" / "Waiting for Reply" status, same as before.
@@ -464,6 +469,23 @@ export function buildActiveClientPayload(
   // that exact primary — so the Companion can no longer disagree with the CRM surfaces
   // (previously it ignored the automatic action except as a zero-open-row fallback).
   // PASS THE LEAD'S FULL ROW SET, completed rows included.
+  //
+  // ── ONE ORDER, TWO QUESTIONS ────────────────────────────────────────────────────────────────
+  // This ORDER is canonical and every surface receives it. The Companion's Next Action CARD then
+  // picks its headline from it with one extra rule: when an open workflow action exists it is the
+  // headline, and a manual reminder is shown in the row beneath instead of replacing it.
+  //
+  // So in one situation the Companion's headline and the Agenda's primary differ ON PURPOSE: a
+  // manual reminder that is overdue (or due sooner) while the leasing step is not yet due. That is
+  // not the old disagreement this comment was written about — the Companion ignoring the automatic
+  // action — and it is not drift. The two surfaces answer different questions. The Agenda is a due
+  // queue: "what needs me today?", and a reminder coming due is legitimately its business. The card
+  // is a client workspace: "where is this client in the pipeline?", which is the leasing step.
+  //
+  // The ordering below stays untouched for exactly that reason: the Agenda keeps surfacing overdue
+  // reminders, the Kanban badge stays stage-derived, and the card's rule is presentation only. Any
+  // attempt to express this in rankLeadActions instead would have to demote overdue reminders for
+  // every surface, which is how an overdue reminder stops appearing on the Agenda at all.
   //
   // This used to pass `openRaw` (completed stripped), which silently disabled the
   // two gates that suppress a redundant automatic action — `finalFollowUpCompleted`
@@ -507,6 +529,9 @@ export function buildActiveClientPayload(
           notes: null,
           completed: false,
           completedAt: null,
+          // THE STAGE'S OWN ACTION. It carries no action_key (there is no row behind it), which is
+          // precisely why isManual has to be stated rather than inferred.
+          isManual: false,
         },
         ...orderedOpen,
       ]
@@ -534,6 +559,8 @@ export function buildActiveClientPayload(
           completed: false,
           completedAt: null,
           propertyName: gcPrimary.detail,
+          // An aggregate of email_guest_card rows — workflow work, not a personal reminder.
+          isManual: false,
         },
         ...actions.slice(1),
       ]

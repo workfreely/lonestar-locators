@@ -109,6 +109,19 @@ export const nextActionSchema = z.object({
    * not what any workflow rule matches on.
    */
   actionKey: z.string().nullish(),
+  /**
+   * Is this the LOCATOR'S OWN reminder rather than a step of the leasing workflow?
+   *
+   * Derived server-side, because it cannot be inferred here. actionKey alone is not enough: the
+   * DTO also emits SYNTHETIC workflow entries — the computed stage action, and the aggregated
+   * guest-card row — which carry no action_key and would otherwise be indistinguishable from a
+   * manual task. Sniffing their id prefixes in the panel would be guessing at a fact the server
+   * already knows.
+   *
+   * Nullish for forward/backward compatibility; absent is read as "not manual", which keeps an
+   * older payload behaving exactly as it does today.
+   */
+  isManual: z.boolean().nullish(),
   /** Optional extension point — reserved, not collected today. */
   outcome: z.string().nullish(),
 });

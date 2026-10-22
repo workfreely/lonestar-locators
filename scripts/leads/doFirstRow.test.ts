@@ -16,20 +16,34 @@ const lpv = readFileSync("apps/beast-companion/src/sidepanel/lead/LeadPanelView.
 const css = readFileSync("apps/beast-companion/src/sidepanel/lead/panel.css", "utf8")
 const panel = readFileSync("apps/beast-companion/src/sidepanel/ProductionPanel.tsx", "utf8")
 
-// The row's own selection + label rule, mirrored from LeadPanelView so it can be exercised.
-type A = { id: number; completed: boolean; actionKey: string | null; dueAt: string | null; title: string }
+// The card's selection + label rule, mirrored from LeadPanelView so it can be exercised directly.
+type A = { id: number | string; completed: boolean; actionKey: string | null; isManual?: boolean | null; dueAt: string | null; title: string }
+function headlineFor(actions: A[]) {
+  const open = actions.filter((a) => !a.completed)
+  return open.find((a) => !a.isManual) ?? open[0] ?? null
+}
 function rowFor(actions: A[]) {
-  const openAction = actions.find((a) => !a.completed) ?? null
-  const tasks = actions
-    .filter((a) => !a.completed && !a.actionKey && String(a.id) !== String(openAction?.id ?? ""))
+  const openAction = headlineFor(actions)
+  const open = actions.filter((a) => !a.completed)
+  const tasks = open
+    .filter((a) => a.isManual && String(a.id) !== String(openAction?.id ?? ""))
     .sort((a, b) => new Date(a.dueAt ?? 0).getTime() - new Date(b.dueAt ?? 0).getTime())
   const p = tasks[0] ?? null
   if (!p) return null
-  const first = !!p.dueAt && !!openAction?.dueAt && new Date(p.dueAt).getTime() < new Date(openAction.dueAt).getTime()
-  return { label: first ? "Do first: " : "Also: ", task: p, more: tasks.length - 1 }
+  const order: "first" | "after" | "none" =
+    !p.dueAt || !openAction?.dueAt ? "none"
+    : new Date(p.dueAt).getTime() < new Date(openAction.dueAt).getTime() ? "first"
+    : new Date(p.dueAt).getTime() > new Date(openAction.dueAt).getTime() ? "after"
+    : "none"
+  const label = order === "first" ? "First: " : order === "after" ? "After: " : "Reminder: "
+  return { label, task: p, more: tasks.length - 1, headline: openAction }
 }
-const tour = (due: string): A => ({ id: 139, completed: false, actionKey: "setup_tour", dueAt: due, title: "Setup Tour" })
-const task = (id: number, due: string, title = "Follow Up"): A => ({ id, completed: false, actionKey: null, dueAt: due, title })
+const tour = (due: string | null): A => ({ id: 139, completed: false, actionKey: "setup_tour", isManual: false, dueAt: due, title: "Setup Tour" })
+const task = (id: number, due: string | null, title = "Follow Up"): A => ({ id, completed: false, actionKey: null, isManual: true, dueAt: due, title })
+/** The DTO's SYNTHETIC stage action: no actionKey, isManual explicitly false. */
+const computed = (due: string | null): A => ({ id: "computed-94", completed: false, actionKey: null, isManual: false, dueAt: due, title: "Setup Tour" })
+/** The DTO's aggregated guest-card entry: also synthetic, also not manual. */
+const gcBulk = (due: string | null): A => ({ id: "gc-bulk-94", completed: false, actionKey: null, isManual: false, dueAt: due, title: "Send Guest Cards · 3 properties" })
 
 console.log("\n1. THE ROW APPEARS ONLY WHEN THERE IS SOMETHING TO SHOW:")
 ok("no manual task → no row, card byte-identical to today", rowFor([tour("2026-11-05T15:00:00Z")]) === null)
@@ -42,18 +56,54 @@ ok("a COMPLETED manual task is never shown",
 ok("the task already shown as the headline is not repeated below it",
   rowFor([task(143, "2026-10-25T15:00:00Z")]) === null)
 
-console.log("\n2. \"DO FIRST\" IS ONLY SAID WHEN THE DATES SAY SO:")
-ok("manual due BEFORE the action → Do first",
-  rowFor([tour("2026-11-05T15:00:00Z"), task(143, "2026-11-01T15:00:00Z")])?.label === "Do first: ")
-ok("manual due AFTER the action → Also, never a false ordering",
-  rowFor([tour("2026-10-22T02:22:05Z"), task(143, "2026-11-01T15:00:00Z")])?.label === "Also: ")
-ok("same day/time is not \"first\" either",
-  rowFor([tour("2026-11-05T15:00:00Z"), task(143, "2026-11-05T15:00:00Z")])?.label === "Also: ")
-ok("a task with no due date makes no ordering claim",
-  rowFor([tour("2026-11-05T15:00:00Z"), task(143, null as any)])?.label === "Also: ")
-ok("the rule is in the component, keyed on the two due dates",
-  /preliminaryIsFirst =[\s\S]{0,260}new Date\(preliminary\.dueAt\)\.getTime\(\) < new Date\(openAction\.dueAt\)\.getTime\(\)/.test(lpv))
-ok("…and the label is chosen from it", /preliminaryIsFirst \? "Do first: " : "Also: "/.test(lpv))
+console.log("\n2. FIRST / AFTER / REMINDER — a statement about dates, never a dependency:")
+ok("reminder due BEFORE the leasing step → First",
+  rowFor([tour("2026-11-05T15:00:00Z"), task(143, "2026-11-01T15:00:00Z")])?.label === "First: ")
+ok("reminder due AFTER it → After",
+  rowFor([tour("2026-11-01T15:00:00Z"), task(143, "2026-11-05T15:00:00Z")])?.label === "After: ")
+ok("EQUAL dates → Reminder, because neither word is true",
+  rowFor([tour("2026-11-05T15:00:00Z"), task(143, "2026-11-05T15:00:00Z")])?.label === "Reminder: ")
+ok("MISSING reminder date → Reminder",
+  rowFor([tour("2026-11-05T15:00:00Z"), task(143, null)])?.label === "Reminder: ")
+ok("MISSING headline date → Reminder",
+  rowFor([tour(null), task(143, "2026-11-01T15:00:00Z")])?.label === "Reminder: ")
+ok("the three-way rule is in the component", /preliminaryOrder: "first" \| "after" \| "none"/.test(lpv))
+ok("…and the labels are chosen from it",
+  /preliminaryOrder === "first" \? "First: " : preliminaryOrder === "after" \? "After: " : "Reminder: "/.test(lpv))
+ok("no dependency is created — the row only compares two dates",
+  !/depends|blocked|prerequisite|require/i.test(/const preliminaryOrder[\s\S]*?: "none"/.exec(lpv)?.[0] ?? ""))
+
+console.log("\n2b. THE HEADLINE IS THE LEASING STEP, NOT THE SOONEST THING:")
+ok("a REAL canonical action outranks an earlier reminder",
+  headlineFor([tour("2026-11-05T15:00:00Z"), task(143, "2026-11-01T15:00:00Z")])?.title === "Setup Tour")
+ok("a SYNTHETIC computed stage action does too — it has no actionKey, only isManual:false",
+  headlineFor([computed("2026-11-05T15:00:00Z"), task(143, "2026-11-01T15:00:00Z")])?.id === "computed-94")
+ok("…and the aggregated guest-card entry is treated the same way",
+  headlineFor([gcBulk("2026-11-05T15:00:00Z"), task(143, "2026-11-01T15:00:00Z")])?.id === "gc-bulk-94")
+ok("an OVERDUE reminder still does NOT take the headline",
+  headlineFor([tour("2026-12-01T15:00:00Z"), task(143, "2026-09-01T15:00:00Z")])?.title === "Setup Tour")
+ok("…and it is shown in the row instead, labelled First",
+  rowFor([tour("2026-12-01T15:00:00Z"), task(143, "2026-09-01T15:00:00Z")])?.label === "First: ")
+ok("with NO workflow action open, the reminder IS the headline",
+  headlineFor([task(143, "2026-11-01T15:00:00Z")])?.id === 143)
+ok("…and then there is no row to draw", rowFor([task(143, "2026-11-01T15:00:00Z")]) === null)
+ok("a missing isManual reads as NOT manual, so an older payload behaves as today",
+  headlineFor([{ id: 9, completed: false, actionKey: null, dueAt: "2026-11-01T15:00:00Z", title: "Legacy" }])?.id === 9)
+ok("the component selects on isManual, not on actionKey",
+  /openActions\.find\(\(a\) => !a\.isManual\) \?\? openActions\[0\]/.test(lpv))
+
+console.log("\n2c. THE SERVER STATES isManual — it is not inferred:")
+{
+  const dto = readFileSync("lib/companion/leadToDto.ts", "utf8")
+  ok("real rows derive it from action_key + action_type",
+    /isManual: !a\.action_key && String\(a\.action_type \?\? ""\)\.toLowerCase\(\) === "manual"/.test(dto))
+  ok("the computed stage action states false", /id: `computed-\$\{lead\.id\}`[\s\S]{0,420}isManual: false/.test(dto))
+  ok("the aggregated guest card states false", /id: `gc-bulk-\$\{lead\.id\}`[\s\S]{0,420}isManual: false/.test(dto))
+  const contract = readFileSync("packages/companion-shared/src/leads/contract.ts", "utf8")
+  ok("and it is DECLARED in the schema, or zod would strip it", /isManual: z\.boolean\(\)\.nullish\(\)/.test(contract))
+  ok("the DTO documents why the card may differ from the Agenda",
+    /ONE ORDER, TWO QUESTIONS/.test(dto) && /due\s*\n?\s*\/\/ queue|due queue/.test(dto))
+}
 
 console.log("\n3. SOONEST FIRST, WITH A QUIET COUNT:")
 {
@@ -136,6 +186,21 @@ console.log("\n6. STANDARDISED TITLES, WITHOUT REWRITING HISTORY:")
   ok("none equals a stage's automatic label (so none suppresses one)", OPTIONS.every((t) => !autos.includes(t)))
 }
 
+console.log("\n6b. SHARED RANKING AND EVERY OTHER SURFACE ARE UNTOUCHED:")
+{
+  // The strongest statement available: these files are byte-identical to the last commit.
+  const { execSync } = require("node:child_process") as typeof import("node:child_process")
+  const changed = execSync("git diff --name-only HEAD", { encoding: "utf8" }).split("\n").filter(Boolean)
+  const mustNotChange = [
+    "lib/nextActions.ts", "lib/nextAction.ts", "lib/workflowEngine.ts",
+    "lib/leads/actionRelevance.ts", "lib/leads/actionCompletion.ts", "lib/leads/setupTourWorkflow.ts",
+    "lib/leads/stageTransition.ts", "app/api/admin/leads/update-stage/route.ts",
+    "lib/followup/gate.ts", "lib/followup/engine.ts", "lib/followup/autoEnroll.ts",
+    "components/crm/FollowUpRow.tsx", "components/crm/LeadCard.tsx", "lib/actionDisplay.ts",
+  ]
+  for (const f of mustNotChange) ok(`untouched — ${f}`, !changed.includes(f), "MODIFIED")
+}
+
 console.log("\n7. THE AGENDA IS UNTOUCHED:")
 ok("Follow Up keeps its existing icon", getActionIcon("Follow Up") === "💬")
 ok("the new types fall back to the existing default glyph",
@@ -162,12 +227,12 @@ console.log("\n8. RANKING, STAGES AND COMPLETION ARE UNCHANGED — Reagan, from 
   ok("the reminder is still ranked below it", others[0]?.title === "Follow Up")
   ok("no tour is booked", isTourScheduled(lead, rows as any) === false)
   ok("she is still Ready to Tour", lead.crm_status === "ready_to_tour")
-  // TODAY the reminder is due AFTER Schedule Tour, so the row must NOT claim "Do first".
-  ok("with her CURRENT dates the row would read \"Also\", not \"Do first\"",
-    rowFor([tour("2026-10-22T02:22:05.162Z"), task(143, "2026-11-01T15:00:00Z")])?.label === "Also: ")
-  // After deferring Schedule Tour to Nov 5 and moving the reminder to Nov 1 — then it IS first.
-  ok("once Schedule Tour is deferred past it, the row honestly reads \"Do first\"",
-    rowFor([tour("2026-11-05T15:00:00Z"), task(143, "2026-11-01T15:00:00Z")])?.label === "Do first: ")
+  // HER LIVE STATE: setup_tour deferred to Nov 5 9:00 PM, reminder Nov 1 9:00 AM.
+  const live = [tour("2026-11-06T03:00:00+00:00"), task(143, "2026-11-01T15:00:00+00:00")]
+  ok("Schedule Tour is the Companion headline again", headlineFor(live)?.title === "Setup Tour")
+  ok("…with her Nov 1 Follow Up in the row underneath", rowFor(live)?.task.id === 143)
+  ok("…labelled First, because it genuinely comes first", rowFor(live)?.label === "First: ")
+  ok("…and no count, since it is her only reminder", rowFor(live)?.more === 0)
 }
 
 console.log(`\n${pass} passed, ${fail} failed`)

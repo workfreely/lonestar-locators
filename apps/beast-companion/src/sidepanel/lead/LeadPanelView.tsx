@@ -322,24 +322,39 @@ export function LeadPanelBody({
   onEditTask?: (taskId?: string | number) => void;
 }) {
   const tz = timeZone ?? PREVIEW_TIME_ZONE;
-  const openAction = nextActions.find((a) => !a.completed) ?? null;
-
-  // THE PRELIMINARY TASK ROW.
+  // THE HEADLINE IS THE LEASING STEP.
   //
-  // A manual reminder the locator set for themselves, shown under the Due line instead of being
-  // lost: rankLeadActions already returns it, and this card only ever drew the primary. Workflow
-  // actions are excluded — a second automatic step is the workflow's business, not a personal
-  // reminder — and so is whichever row is already the headline.
-  const preliminaryTasks = nextActions
-    .filter((a) => !a.completed && !a.actionKey && String(a.id) !== String(openAction?.id ?? ""))
+  // The payload arrives in canonical rank order and every other surface uses it as-is. This card
+  // applies ONE further rule: while an open workflow action exists it is the headline, and a manual
+  // reminder goes in the row beneath rather than replacing it. A reminder is something the locator
+  // set for themselves; it is not where the client is in the pipeline, which is what this card
+  // answers. Expressing this in rankLeadActions instead would demote overdue reminders on EVERY
+  // surface — which is how one stops appearing on the Agenda at all — so it is presentation only.
+  //
+  // isManual is stated by the server, not inferred: the payload also carries synthetic workflow
+  // entries (the computed stage action, the aggregated guest card) that have no actionKey and would
+  // otherwise look exactly like a reminder here. An absent flag reads as "not manual", so an older
+  // payload keeps today's behaviour.
+  const openActions = nextActions.filter((a) => !a.completed);
+  const openAction = openActions.find((a) => !a.isManual) ?? openActions[0] ?? null;
+
+  // THE REMINDER ROW — the soonest open manual task that is not already the headline. (When the
+  // lead has no workflow action left, the reminder IS the headline and there is nothing to show.)
+  const preliminaryTasks = openActions
+    .filter((a) => a.isManual && String(a.id) !== String(openAction?.id ?? ""))
     .sort((a, b) => new Date(a.dueAt ?? 0).getTime() - new Date(b.dueAt ?? 0).getTime());
   const preliminary = preliminaryTasks[0] ?? null;
-  // "DO FIRST" IS A CLAIM ABOUT ORDER, so it is only made when the dates actually say so. Nothing
-  // here establishes a dependency — the task is simply due before the current action — and when it
-  // is not, the row says "Also", which asserts nothing. Equal dates are not "first" either.
-  const preliminaryIsFirst =
-    !!preliminary?.dueAt && !!openAction?.dueAt &&
-    new Date(preliminary.dueAt).getTime() < new Date(openAction.dueAt).getTime();
+  // FIRST / AFTER / REMINDER — a statement about DATES, never a dependency. Two labels cannot cover
+  // three states: when the dates are equal, or either is missing, neither "first" nor "after" is
+  // true, so the row says "Reminder" and claims nothing at all.
+  const preliminaryOrder: "first" | "after" | "none" =
+    !preliminary?.dueAt || !openAction?.dueAt
+      ? "none"
+      : new Date(preliminary.dueAt).getTime() < new Date(openAction.dueAt).getTime()
+        ? "first"
+        : new Date(preliminary.dueAt).getTime() > new Date(openAction.dueAt).getTime()
+          ? "after"
+          : "none";
   // Status is derived from the DUE TIMESTAMP, never a priority flag — a future
   // due (e.g. Tomorrow) can never read as "Overdue". Overdue = the due instant
   // has already passed; otherwise it is still Pending.
@@ -693,7 +708,7 @@ export function LeadPanelBody({
                   <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11" />
                 </svg>
                 <span className="lp-dofirst-text">
-                  {preliminaryIsFirst ? "Do first: " : "Also: "}
+                  {preliminaryOrder === "first" ? "First: " : preliminaryOrder === "after" ? "After: " : "Reminder: "}
                   <span className="lp-dofirst-val">
                     {preliminary.title} · {fmtDue(preliminary.dueAt, tz)}
                   </span>
