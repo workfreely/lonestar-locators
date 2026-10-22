@@ -71,22 +71,35 @@ ok("the desktop shell keeps its original 40px bottom margin",
 ok("the bar itself is unchanged — same height contract",
   /\.lbr-sticky\{display:flex[^}]*position:fixed/.test(page))
 
-console.log("\n4c. THE STICKY BAR'S INSTRUCTION LINE HAS BREATHING ROOM:")
+console.log("\n4c. THE STICKY BAR'S INSTRUCTION LINE:")
 // It had NO vertical padding — a bare 23px line box beside a 48px button, which read as
-// compressed. Measured at 375x812: count 23px -> 33px, bar 100px -> 110px, button unchanged.
-ok("the instruction line has symmetric vertical padding",
-  /\.lbr-sticky-count\{font-size:15px;padding:5px 0\}/.test(page))
-ok("it is still a CENTRED flex row, so the heart and text cannot shift",
+// compressed. min-height rather than padding, so the box is exactly 40px whatever the font
+// metrics do. Measured at 375x812: count 40px, bar 117px, button unchanged at 48px.
+ok("the box is a fixed 40px, not padding-derived",
+  /\.lbr-sticky-count\{font-size:15px;font-weight:600;min-height:40px\}/.test(page))
+ok("15px type at medium weight (500-600)", /\.lbr-sticky-count\{font-size:15px;font-weight:600/.test(page))
+ok("no stray padding was left behind", !/\.lbr-sticky-count\{[^}]*padding:/.test(page))
+ok("still a CENTRED flex row, so the heart and text cannot shift",
   /\.lbr-sticky-count\{display:flex;align-items:center;justify-content:center/.test(page))
+ok("still nowrap — the line must never break across two rows",
+  /\.lbr-sticky-count\{[^}]*white-space:nowrap/.test(page))
+ok("the 8px gap between line and button is unchanged",
+  /\.lbr-sticky\{display:flex[^}]*gap:8px/.test(page))
 ok("the button's size and type are untouched",
   /\.lbr-sticky-btn\{[^}]*min-height:48px/.test(page) && /\.lbr-sticky-btn\{font-size:16px\}/.test(page))
 ok("the bar is still fixed to the bottom", /\.lbr-sticky\{display:flex[^}]*position:fixed[^}]*bottom:0/.test(page))
-ok("the safe-area inset is still applied to the bar",
+ok("the bar still carries the safe-area inset",
   /\.lbr-sticky\{[^}]*padding:10px 14px calc\(10px \+ env\(safe-area-inset-bottom\)\)/.test(page))
-// The bar grew 10px, so its clearance grew with it — otherwise the last card creeps under it.
-ok("the clearance tracks the taller bar (128px)",
-  /\.lbr-shell:has\(\.lbr-sticky\)\{padding-bottom:calc\(128px \+ env\(safe-area-inset-bottom\)\)\}/.test(page))
-ok("…and the no-bar page end is still just the safe-area inset",
+
+console.log("\n4d. THE CLEARANCE TRACKS THE BAR'S MEASURED HEIGHT:")
+// 10 top + 40 count + 8 gap + 48 button + 10 bottom + 1 border = 117px. 135px keeps the same
+// ~18px of daylight the original 118/100 pairing had. Verified at 375x812 and 320x568: the last
+// card ends 105px above the bar, and the nowrap line needs 225px of 347px (292px on an SE).
+ok("the clearance is 135px, matching the 117px bar",
+  /\.lbr-shell:has\(\.lbr-sticky\)\{padding-bottom:calc\(135px \+ env\(safe-area-inset-bottom\)\)\}/.test(page))
+ok("…and it is still SCOPED to the bar being present",
+  /\.lbr-shell:has\(\.lbr-sticky\)/.test(page))
+ok("…so a page with no bar still ends on the safe-area inset alone",
   /\.lbr-shell\{padding-bottom:env\(safe-area-inset-bottom\)\}/.test(page))
 
 console.log("\n5. NOTHING ELSE ON THE PAGE MOVED:")
