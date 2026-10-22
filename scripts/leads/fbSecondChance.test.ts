@@ -9,6 +9,7 @@ import { getSourceStyle } from "@/lib/leads/sourceStyles"
 import {
   SHARE_PLATFORMS, SOURCE_SLUG_TO_UTM, utmSourceForSlug,
   slugAllowedForWorkspace, ADMIN_WORKSPACE_ID, buildCleanShareUrl,
+  SECOND_CHANCE_SLUGS, ADMIN_ONLY_SLUGS,
 } from "@/app/smart-lead-form/_lib/shareConfig"
 import { DEFAULT_CONFIG } from "@/app/smart-lead-form/_lib/defaultConfig"
 import { readFileSync } from "node:fs"
@@ -21,17 +22,26 @@ function ok(label: string, cond: boolean, detail = "") {
 }
 const OTHER_WS = "a9771377-d857-4d0b-b6f2-76c320e5376a"
 
-console.log("\n1. THE SLUG ROUTES AND ATTRIBUTES:")
-ok("fb-second-chance is a registered slug", utmSourceForSlug("fb-second-chance") === "facebook_second_chance")
+console.log("\n1. THE PRIMARY SLUG, AND THE LEGACY ALIAS:")
+const scEntry = SHARE_PLATFORMS.find((p) => p.id === "facebook_second_chance")
+ok("the PRIMARY slug is second-chance-apts", scEntry?.slug === "second-chance-apts", scEntry?.slug)
+ok("the Copy button hands out the primary URL",
+  buildCleanShareUrl("jay-morris", scEntry!.slug) === "https://locatorbeast.com/jay-morris/second-chance-apts")
 ok("it sits directly below Facebook in the panel order", (() => {
   const i = SHARE_PLATFORMS.findIndex((p) => p.slug === "fb")
-  return SHARE_PLATFORMS[i + 1]?.slug === "fb-second-chance"
+  return SHARE_PLATFORMS[i + 1]?.id === "facebook_second_chance"
 })())
-ok('its panel label is "Facebook — Second Chance"',
-  SHARE_PLATFORMS.find((p) => p.slug === "fb-second-chance")?.label === "Facebook — Second Chance")
-ok("the URL is the one approved",
-  buildCleanShareUrl("jay-morris", "fb-second-chance") === "https://locatorbeast.com/jay-morris/fb-second-chance")
-ok("case-insensitive, like every other slug", utmSourceForSlug("FB-Second-Chance") === "facebook_second_chance")
+ok('its panel label is "Facebook — Second Chance"', scEntry?.label === "Facebook — Second Chance")
+ok("there is exactly ONE second-chance button, not two",
+  SHARE_PLATFORMS.filter((p) => p.utmSource === "facebook_second_chance").length === 1)
+ok("the legacy alias is NOT a second button",
+  !SHARE_PLATFORMS.some((p) => p.slug === "fb-second-chance"))
+ok("…but it still routes", utmSourceForSlug("fb-second-chance") === "facebook_second_chance")
+ok("both slugs attribute identically",
+  SECOND_CHANCE_SLUGS.every((s) => utmSourceForSlug(s) === "facebook_second_chance"))
+ok("both are case-insensitive, like every other slug",
+  utmSourceForSlug("Second-Chance-Apts") === "facebook_second_chance" &&
+  utmSourceForSlug("FB-Second-Chance") === "facebook_second_chance")
 
 console.log("\n2. THE SOURCE DOES NOT COLLAPSE INTO FACEBOOK:")
 ok('normalizeSource("facebook_second_chance") stays distinct',
@@ -50,10 +60,15 @@ ok('it displays as "FB 2nd Chance"', getSourceStyle("facebook_second_chance").la
 ok('Facebook still displays as "Facebook"', getSourceStyle("facebook").label === "Facebook")
 ok("they are visually distinguishable", getSourceStyle("facebook_second_chance").color !== getSourceStyle("facebook").color)
 
-console.log("\n4. ADMIN-ONLY, BY WORKSPACE ID:")
-ok("the admin workspace may use it", slugAllowedForWorkspace("fb-second-chance", ADMIN_WORKSPACE_ID))
-ok("another workspace may NOT", !slugAllowedForWorkspace("fb-second-chance", OTHER_WS))
-ok("a null workspace may NOT", !slugAllowedForWorkspace("fb-second-chance", null))
+console.log("\n4. ADMIN-ONLY, BY WORKSPACE ID — BOTH SLUGS:")
+ok("every second-chance slug is restricted — the alias is no weaker than the primary",
+  SECOND_CHANCE_SLUGS.every((s) => ADMIN_ONLY_SLUGS.has(s)))
+ok("the admin workspace may use both",
+  SECOND_CHANCE_SLUGS.every((s) => slugAllowedForWorkspace(s, ADMIN_WORKSPACE_ID)))
+ok("another workspace may use NEITHER",
+  SECOND_CHANCE_SLUGS.every((s) => !slugAllowedForWorkspace(s, OTHER_WS)))
+ok("a null workspace may use NEITHER",
+  SECOND_CHANCE_SLUGS.every((s) => !slugAllowedForWorkspace(s, null)))
 ok("ordinary slugs stay open to everyone",
   slugAllowedForWorkspace("fb", OTHER_WS) && slugAllowedForWorkspace("ig", null))
 ok("the gate is an ID, not a username", (() => {
@@ -127,10 +142,12 @@ console.log("\n6. ONLY THREE LINES DIFFER; THE REGULAR FORM IS UNTOUCHED:")
   ok("the override is spread over the agent's saved copy, not instead of it",
     /\.\.\.saved\.copy,[\s\S]{0,600}SECOND_CHANCE_COPY\[sourceSlug\]/.test(pf))
   ok("nothing else is overridden", (() => {
-    const m = /const SECOND_CHANCE_COPY[\s\S]*?\n\}/.exec(pf)?.[0] ?? ""
-    const keys = [...m.matchAll(/^\s{4}(\w+):/gm)].map((x) => x[1])
+    const m = /const SECOND_CHANCE_LINES = \{[\s\S]*?\n\}/.exec(pf)?.[0] ?? ""
+    const keys = [...m.matchAll(/^\s{2}(\w+):/gm)].map((x) => x[1])
     return keys.length === 3 && keys.every((k) => ["headline", "subheadline", "supportingLine"].includes(k))
   })())
+  ok("the copy table is BUILT from the slug list, so the alias cannot drift from the primary",
+    /SECOND_CHANCE_SLUGS\.map\(\(slug\) => \[slug, SECOND_CHANCE_LINES\]\)/.test(pf))
 }
 ok("the default supportingLine is empty, so every other form renders identically",
   DEFAULT_CONFIG.copy.supportingLine === "")
@@ -151,6 +168,31 @@ console.log("\n7. THE HERO RENDERS IT ONLY WHEN PRESENT:")
     const sup = /supportingNode = \([\s\S]{0,300}?text-\[(\d+(?:\.\d+)?)px\]/.exec(hero)?.[1]
     return !!sub && !!sup && parseFloat(sup) < parseFloat(sub)
   })())
+}
+
+console.log("\n7b. THE SHARE BUTTON ACTUALLY REACHES THE ADMIN — the bug that hid it:")
+{
+  const edRaw = readFileSync("app/smart-lead-form/_components/editor/SmartLeadFormEditor.tsx", "utf8")
+  // Comments stripped: the fix is DESCRIBED in a comment that names the old expression, and an
+  // assertion that cannot tell code from prose would pass on a file that still has the bug.
+  const ed = edRaw.replace(/\/\*[\s\S]*?\*\//g, "").replace(/^\s*\/\/.*$/gm, "")
+  // get_current_workspace() returns (slug, service_areas, primary_market) — NO id. Reading the
+  // id off that row left workspaceId null, so SharePanel filtered the entry out for EVERY account.
+  ok("the editor does NOT read an id off get_current_workspace()'s row",
+    !/wsRow\?\.id/.test(ed))
+  ok("(and the stripper works — the comment that names it is still in the raw file)",
+    /wsRow\?\.id/.test(edRaw) && !/wsRow\?\.id/.test(ed))
+  ok("it resolves the id from the workspaces table instead",
+    /from\("workspaces"\)[\s\S]{0,80}\.select\("id"\)/.test(ed))
+  ok("…keyed on the SAME slug the share links are built from",
+    /\.eq\("slug", wsRow\.slug\)/.test(ed))
+  ok("…and it still fails closed when there is no slug", /if \(wsRow\?\.slug\)/.test(ed))
+  const rpc = readFileSync("supabase/migrations/20260828000000_primary_market.sql", "utf8")
+  ok("PROOF the RPC really has no id column (the root cause, pinned)",
+    /returns table \(slug text, service_areas text\[\], primary_market text\)/.test(rpc))
+  const sp = readFileSync("app/smart-lead-form/_components/editor/panels/SharePanel.tsx", "utf8")
+  ok("SharePanel still filters by workspace — the affordance stays gated",
+    /slugAllowedForWorkspace\(p\.slug, workspaceId\)/.test(sp))
 }
 
 console.log("\n8. EXISTING SHARE LINKS ARE UNCHANGED:")

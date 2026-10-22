@@ -12,7 +12,7 @@ import { notFound } from "next/navigation"
 import { buildInitialSmartFormConfig } from "@/app/smart-lead-form/_lib/initialConfig"
 import { createClient } from "@/lib/supabase/server"
 import SmartLeadForm from "@/app/smart-lead-form/_components/form/SmartLeadForm"
-import { slugAllowedForWorkspace } from "@/app/smart-lead-form/_lib/shareConfig"
+import { slugAllowedForWorkspace, SECOND_CHANCE_SLUGS } from "@/app/smart-lead-form/_lib/shareConfig"
 import { mergeSmartFormConfig } from "@/app/smart-lead-form/_lib/mergeConfig"
 import type { SmartLeadFormConfig } from "@/app/smart-lead-form/_lib/types"
 
@@ -63,13 +63,18 @@ export async function publicFormMetadata(username: string) {
  * implicit, so that if the agent later edits their own headline this variant keeps the one
  * approved for it.
  */
-const SECOND_CHANCE_COPY: Record<string, { headline: string; subheadline: string; supportingLine: string }> = {
-  "fb-second-chance": {
-    headline: "Stop Wasting Time Searching for Apartments",
-    subheadline: "Find 2nd Chance Apartments That Work for You",
-    supportingLine: "Bad Credit \u2022 No Credit \u2022 Broken Lease",
-  },
+const SECOND_CHANCE_LINES = {
+  headline: "Stop Wasting Time Searching for Apartments",
+  subheadline: "Find 2nd Chance Apartments That Work for You",
+  supportingLine: "Bad Credit \u2022 No Credit \u2022 Broken Lease",
 }
+
+// Built FROM the slug list rather than spelled out per slug: the primary URL and the legacy alias
+// are the same page, so their copy cannot drift and a new alias cannot silently render the
+// ordinary form under a second-chance link.
+const SECOND_CHANCE_COPY: Record<string, typeof SECOND_CHANCE_LINES> = Object.fromEntries(
+  SECOND_CHANCE_SLUGS.map((slug) => [slug, SECOND_CHANCE_LINES]),
+)
 
 export default async function PublicFormView({
   username,

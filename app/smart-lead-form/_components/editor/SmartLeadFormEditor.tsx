@@ -67,7 +67,27 @@ export default function SmartLeadFormEditor() {
       if (!active) return
       const wsRow = Array.isArray(ws) ? ws[0] : ws
       if (wsRow?.service_areas) setServiceAreaSlugs(wsRow.service_areas)
-      if (wsRow?.id) setWorkspaceId(wsRow.id as string)
+
+      // THE WORKSPACE ID COMES FROM THE TABLE, NOT THE RPC.
+      //
+      // get_current_workspace() returns (slug, service_areas, primary_market) and NO id, so the
+      // earlier `wsRow?.id` was always undefined — which left workspaceId null and made SharePanel
+      // filter the admin-only slug out for EVERY account, including the one it belongs to.
+      //
+      // Resolved by SLUG rather than "whichever workspace RLS returns first": the Share panel's
+      // links are built from that same slug, so this guarantees the button shown matches the URL
+      // being copied. RLS ("members read their workspace") scopes the read to the caller's own
+      // workspace, so it discloses nothing new. A workspace with no slug yet simply leaves this
+      // null and the restricted entry stays hidden — fail-closed, as before.
+      if (wsRow?.slug) {
+        const { data: wsIdRow } = await supabase
+          .from("workspaces")
+          .select("id")
+          .eq("slug", wsRow.slug)
+          .maybeSingle()
+        if (!active) return
+        if (wsIdRow?.id) setWorkspaceId(wsIdRow.id as string)
+      }
 
       const uid = userData?.user?.id
       let prof: {

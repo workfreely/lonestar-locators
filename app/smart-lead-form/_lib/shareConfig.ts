@@ -36,7 +36,11 @@ export const SHARE_PLATFORMS: SharePlatform[] = [
   // ADMIN-ONLY. Routable like any other slug, but the public page 404s unless the username
   // resolves to ADMIN_WORKSPACE_ID, and the Share panel only renders it for that workspace.
   // Registered here so the clean URL and the attribution value cannot drift apart.
-  { id: "facebook_second_chance", label: "Facebook — Second Chance", utmSource: "facebook_second_chance", slug: "fb-second-chance" },
+  //
+  // `second-chance-apts` is the PRIMARY slug — the one the Copy button hands out. The older
+  // `fb-second-chance` stays routable as an alias below, because links were already distributed
+  // under it. One button, two working URLs, one attribution value.
+  { id: "facebook_second_chance", label: "Facebook — Second Chance", utmSource: "facebook_second_chance", slug: "second-chance-apts" },
   { id: "tiktok", label: "TikTok", utmSource: "tiktok", slug: "tt" },
   { id: "youtube", label: "YouTube", utmSource: "youtube", slug: "yt" },
   { id: "google", label: "Google Business", utmSource: "google", slug: "google" },
@@ -48,7 +52,19 @@ export const SHARE_PLATFORMS: SharePlatform[] = [
 const EXTRA_SOURCE_SLUGS: { slug: string; utmSource: string }[] = [
   { slug: "direct", utmSource: "direct" },
   { slug: "qr", utmSource: "qr" },
+  // LEGACY ALIAS for the second-chance form. Deliberately NOT a SHARE_PLATFORMS entry: a second
+  // button for the same destination would invite handing out the older URL again. It resolves and
+  // attributes exactly like the primary slug, so links already shared keep working forever.
+  { slug: "fb-second-chance", utmSource: "facebook_second_chance" },
 ]
+
+/**
+ * Every slug that serves the second-chance variant — primary first, then the legacy alias.
+ *
+ * ONE list, consumed by the copy table, the admin gate and the tests, so a third spelling can
+ * never be routable without also being restricted and without picking up the right copy.
+ */
+export const SECOND_CHANCE_SLUGS = ["second-chance-apts", "fb-second-chance"] as const
 
 /** Every routable source slug → its internal utm_source. The ONE place the mapping lives. */
 export const SOURCE_SLUG_TO_UTM: Readonly<Record<string, string>> = Object.freeze(
@@ -88,8 +104,9 @@ export function buildShareUrl(username: string, utmSource: string) {
  */
 export const ADMIN_WORKSPACE_ID = "037ad3c2-d7cc-49a2-b0d1-4fc06c458409"
 
-/** Share slugs that only ADMIN_WORKSPACE_ID may see or serve. */
-export const ADMIN_ONLY_SLUGS: ReadonlySet<string> = new Set(["fb-second-chance"])
+/** Share slugs that only ADMIN_WORKSPACE_ID may see or serve — the primary AND its alias, so the
+ *  older link is no less restricted than the new one. */
+export const ADMIN_ONLY_SLUGS: ReadonlySet<string> = new Set<string>(SECOND_CHANCE_SLUGS)
 
 /** Is this slug restricted, and is the given workspace allowed it? */
 export function slugAllowedForWorkspace(slug: string, workspaceId: string | null | undefined): boolean {
