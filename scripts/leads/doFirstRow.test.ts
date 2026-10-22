@@ -240,6 +240,57 @@ console.log("\n6c. THE TASK SHEET'S CALENDAR — stylesheet facts:")
     /<DateField/.test(ooo) && !/placement=|size=/.test(ooo))
 }
 
+console.log("\n6d. CALENDAR HOVER — the accent, applied to every DateField:")
+{
+  const css = readFileSync("apps/beast-companion/src/sidepanel/menu/calendar.css", "utf8")
+  const rule = (sel: string) => new RegExp(sel.replace(/[.*+?^${}()|[\]\\]/g, "\\$&") + "\\s*\\{([^}]*)\\}").exec(css)?.[1] ?? ""
+  const hover = rule(".bc-cal-cell:not(.is-blank):not(:disabled):hover")
+  const focus = rule(".bc-cal-cell:not(.is-blank):not(:disabled):focus-visible")
+
+  ok("hover uses the accent TINT, not a grey surface",
+    /background: var\(--lb-accent-soft\)/.test(hover) && !/--lb-surface/.test(hover))
+  ok("…with a thin accent outline", /outline: 1px solid var\(--lb-accent\)/.test(hover))
+  ok("…drawn inside the cell, so dimensions do not change", /outline-offset: -1px/.test(hover))
+  ok("NO new colour was introduced — only existing tokens",
+    !/#[0-9a-fA-F]{3,8}/.test(hover) && !/#[0-9a-fA-F]{3,8}/.test(focus))
+  ok("the tokens are the per-theme accent, so every theme follows its own",
+    /--lb-accent-soft/.test(hover) && /--lb-accent\)/.test(hover))
+
+  ok("focus-visible gets the matching treatment, one step stronger",
+    /background: var\(--lb-accent-soft\)/.test(focus) && /outline: 2px solid var\(--lb-accent\)/.test(focus))
+
+  ok("DISABLED days get no interactive hover", /:not\(:disabled\):hover/.test(css))
+  ok("…and no interactive focus tint", /:not\(:disabled\):focus-visible/.test(css))
+  ok("blank padding cells are excluded too", (hover + focus).length > 0 && /:not\(\.is-blank\)/.test(css))
+
+  const sel = rule(".bc-cal-cell.is-selected,\n.bc-cal-cell.is-selected:hover,\n.bc-cal-cell.is-selected:focus-visible")
+  ok("SELECTED keeps the existing solid accent", /background: var\(--lb-accent\)/.test(sel) && /color: #fff/.test(sel))
+  ok("…and is declared AFTER hover, so it wins",
+    css.indexOf(".bc-cal-cell.is-selected,") > css.indexOf(":not(:disabled):hover"))
+  ok("…with no ring muddying the filled cell", /outline: 0/.test(sel))
+  ok("…except for the keyboard, in a light colour that reads on the fill",
+    /\.bc-cal-cell\.is-selected:focus-visible \{[^}]*outline: 2px solid var\(--lb-text-primary\)/.test(css))
+
+  ok("TODAY keeps its own indicator", /\.bc-cal-cell\.is-today \{[^}]*box-shadow: inset 0 0 0 1px var\(--lb-border\)/.test(css))
+  ok("…and hover uses OUTLINE, not box-shadow, so today's ring survives being hovered",
+    /outline: 1px solid/.test(hover) && !/box-shadow/.test(hover))
+
+  // Dimensions and behaviour must be untouched by a styling change.
+  ok("cell height is unchanged (24px base)", /\.bc-cal-cell \{[^}]*height: 24px/.test(css))
+  ok("…and the large variant is unchanged (31px)", /\.bc-cal--lg \.bc-cal-cell \{[^}]*height: 31px/.test(css))
+  ok("popover width and position untouched", /\.bc-cal-pop \{[\s\S]*?width: 212px/.test(css) && /\.bc-cal--lg \.bc-cal-pop \{[^}]*width: 256px/.test(css))
+  ok("month nav untouched", /\.bc-cal-navbtn \{[^}]*width: 22px/.test(css))
+
+  // ONE stylesheet → every DateField, Out of Office and Add/Edit Task alike.
+  const field = readFileSync("apps/beast-companion/src/sidepanel/menu/DateField.tsx", "utf8")
+  ok("every DateField gets it from the one stylesheet the component imports",
+    /import "\.\/calendar\.css";/.test(field))
+  ok("…and the cells carry exactly the classes these rules target",
+    /className=\{`bc-cal-cell\$\{isSelected \? " is-selected" : ""\}\$\{isToday \? " is-today" : ""\}`\}/.test(field))
+  ok("…with blank padding cells marked is-blank, which the hover rules exclude",
+    /className="bc-cal-cell is-blank"/.test(field))
+}
+
 console.log("\n7. THE AGENDA IS UNTOUCHED:")
 ok("Follow Up keeps its existing icon", getActionIcon("Follow Up") === "💬")
 ok("the new types fall back to the existing default glyph",

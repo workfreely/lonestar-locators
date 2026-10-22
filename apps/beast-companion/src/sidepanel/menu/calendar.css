@@ -104,11 +104,47 @@
   font-variant-numeric: tabular-nums;
 }
 .bc-cal-cell.is-blank { cursor: default; }
-.bc-cal-cell:not(.is-blank):not(:disabled):hover { background: var(--lb-surface); color: var(--lb-text-primary); }
+/* HOVER — the accent tint, not a slightly lighter grey. The old `--lb-surface` hover was nearly
+   invisible against the popover it sits on. --lb-accent-soft is the accent at 16%, already defined
+   per theme and already used for the panel's own hover surfaces, so this introduces no new colour
+   and follows whichever theme is active (blue on Midnight, green on Evergreen, and so on).
+   OUTLINE, not box-shadow, so it composes with .is-today's inset ring instead of replacing it —
+   today stays recognisable while hovered. :disabled and .is-blank are excluded, so a day you
+   cannot pick never looks pickable. */
+.bc-cal-cell:not(.is-blank):not(:disabled):hover {
+  background: var(--lb-accent-soft);
+  color: var(--lb-text-primary);
+  outline: 1px solid var(--lb-accent);
+  outline-offset: -1px;
+}
+/* The same treatment for the keyboard, one step stronger — a 2px ring reads at a glance when there
+   is no cursor to say where you are. Blank and disabled cells are excluded for the same reason. */
+.bc-cal-cell:not(.is-blank):not(:disabled):focus-visible {
+  background: var(--lb-accent-soft);
+  color: var(--lb-text-primary);
+  outline: 2px solid var(--lb-accent);
+  outline-offset: -2px;
+}
+/* Kept so a blank/disabled cell that still receives focus gets a visible ring, without the
+   interactive tint above. */
 .bc-cal-cell:focus-visible { outline: 2px solid var(--lb-accent); outline-offset: -2px; }
 .bc-cal-cell.is-today { box-shadow: inset 0 0 0 1px var(--lb-border); color: var(--lb-text-primary); }
-.bc-cal-cell.is-selected { background: var(--lb-accent); color: #fff; }
-.bc-cal-cell.is-selected:hover { background: var(--lb-accent); color: #fff; }
+/* SELECTED stays the solid accent and wins over the hover/focus tint above — it is the one cell
+   whose state is a fact rather than a pointer position. Declared after them so it does, with no
+   ring: a tinted outline inside an already-filled cell only muddies it. */
+.bc-cal-cell.is-selected,
+.bc-cal-cell.is-selected:hover,
+.bc-cal-cell.is-selected:focus-visible {
+  background: var(--lb-accent);
+  color: #fff;
+  outline: 0;
+}
+/* …except for the keyboard, which still needs to see where it is. A light inner ring, because an
+   accent ring on an accent fill would be invisible. */
+.bc-cal-cell.is-selected:focus-visible {
+  outline: 2px solid var(--lb-text-primary);
+  outline-offset: -3px;
+}
 .bc-cal-cell:disabled { opacity: 0.3; cursor: not-allowed; }
 
 .bc-cal-foot {
