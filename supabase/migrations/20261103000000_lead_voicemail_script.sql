@@ -17,7 +17,11 @@
 -- structurally invisible to the renter's share page. Nothing below grants anon
 -- anything.
 --
--- DEPLOYMENT: apply to the Locator Beast Supabase project (supabase db push).
+-- DEPLOYMENT: apply THIS FILE ALONE to the Locator Beast Supabase project, via the dashboard SQL
+-- editor. Deliberately NOT `supabase db push`: this repo carries 227 migration files against a
+-- ledger known to be out of step with the live catalog, so a push would attempt far more than
+-- this. Everything below is idempotent — `add column if not exists` and `create or replace` — so
+-- re-running it is safe.
 
 -- 1) The column. Nullable: a lead with no saved script is the normal case, and
 --    absent means "render the template fresh", never "render an empty script".
