@@ -518,8 +518,15 @@ export default function RecommendationList({
       </div>
     )}
 
+    {/* THE WAY BACK IN. Dismissing the calendar without submitting leaves done=true —
+        correctly, because Done Selecting Favorites already reconciled the favorites into
+        lead_favorites, advanced the lead to Ready to Tour and created the locator's
+        Ready-to-Tour action. None of that should be undone by closing a modal. So this block
+        is the only route back to the calendar, and it carries its own class: .lbr-done is
+        display:none on a phone so the pre-Done CTA cannot compete with the sticky bar — which
+        hid THIS block too, and by then the sticky bar is gone, so nothing was left to tap. */}
     {done && !modalOpen && !availability && (
-      <div className="lbr-done">
+      <div className="lbr-done lbr-done--reopen">
         <button type="button" className="lbr-done-btn" onClick={() => setModalOpen(true)}>Choose Tour Availability</button>
       </div>
     )}
