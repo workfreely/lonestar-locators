@@ -21,19 +21,37 @@ function ok(label: string, cond: boolean, detail = "") {
 const list = readFileSync("app/locator-beast/r/[token]/RecommendationList.tsx", "utf8")
 const page = readFileSync("app/locator-beast/r/[token]/page.tsx", "utf8")
 
-console.log("\n1. THERE IS A WAY BACK TO THE CALENDAR:")
-ok("the reopen block renders when done, modal closed, nothing submitted",
-  /\{done && !modalOpen && !availability && \(/.test(list))
-ok("…and its button reopens the modal", /onClick=\{\(\) => setModalOpen\(true\)\}>Choose Tour Availability/.test(list))
-ok("it carries its own class so the phone can show it",
-  /className="lbr-done lbr-done--reopen"/.test(list))
+console.log("\n1. ONE STICKY BAR, THREE STATES — and exactly one is up at a time:")
+ok("state 1: selecting favorites", /\{!done && \(\s*<div className="lbr-sticky"/.test(list))
+ok("state 2: done, nothing submitted", /\{done && !availability && !modalOpen && \(\s*<div className="lbr-sticky"/.test(list))
+ok("state 3: availability submitted", /\{done && availability && !modalOpen && \(\s*<div className="lbr-sticky"/.test(list))
+ok("the three conditions are mutually exclusive", (() => {
+  // !done | done&&!availability | done&&availability — no pair can both be true.
+  for (const done of [false, true]) for (const availability of [false, true]) {
+    const on = [!done, done && !availability, done && !!availability].filter(Boolean).length
+    if (on > 1) return false
+  }
+  return true
+})())
+ok("all three reuse the SAME element and class, not a second bar",
+  (list.match(/<div className="lbr-sticky"/g) ?? []).length === 3)
+ok("states 2 and 3 hide while the calendar is open, so no bar sits under the modal",
+  /\{done && !availability && !modalOpen/.test(list) && /\{done && availability && !modalOpen/.test(list))
 
-console.log("\n2. IT IS VISIBLE ON A PHONE — the actual bug:")
-ok("the phone breakpoint un-hides it", /\.lbr-done--reopen\{display:block\}/.test(page))
-ok("…and that override comes AFTER .lbr-done{display:none} (same specificity, order decides)",
-  page.indexOf(".lbr-done{display:none}") < page.indexOf(".lbr-done--reopen{display:block}"))
-ok("the pre-Done CTA is still hidden on a phone, so it cannot compete with the sticky bar",
-  /\.lbr-done\{display:none\}/.test(page))
+console.log("\n2. THE WORDING AND ACTIONS MATCH THE APPROVED STATES:")
+ok('state 2 reads "Your favorites are saved"', /Your favorites are saved/.test(list))
+ok("…and offers Choose Tour Availability", /Choose Tour Availability <Arrow \/>/.test(list))
+ok('state 3 reads "Tour availability sent!"', /Tour availability sent!/.test(list))
+ok("…and offers Edit Tour Availability", /Edit Tour Availability <Arrow \/>/.test(list))
+ok("both new actions reopen the SAME modal handler", (list.match(/onClick=\{\(\) => setModalOpen\(true\)\}/g) ?? []).length >= 3)
+
+console.log("\n2b. NO DUPLICATE CONTROLS ON A PHONE:")
+ok("the inline reopen block is hidden on a phone", /\.lbr-done\{display:none\}/.test(page))
+ok("…and the Availability Sent card's Edit is too, since the bar carries it",
+  /\.lbr-avsent \.lbr-ta-edit\{display:none\}/.test(page))
+ok("…but the card itself still shows the chosen dates", !/\.lbr-avsent\{display:none\}/.test(page))
+ok("the dead .lbr-done--reopen marker is gone from both files",
+  !/lbr-done--reopen/.test(list) && !/lbr-done--reopen/.test(page))
 
 console.log("\n3. done=true IS NOT REVERTED — closing a modal cannot undo CRM state:")
 ok("onClose only closes the modal", /onClose=\{\(\) => setModalOpen\(false\)\}/.test(list))

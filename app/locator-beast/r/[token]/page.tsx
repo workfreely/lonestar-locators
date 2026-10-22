@@ -492,11 +492,14 @@ const CSS = `
 .lbr-sticky-count{font-size:15px;font-weight:600;min-height:40px}
 .lbr-sticky-btn{font-size:16px}
 .lbr-done{display:none}
-/* …except the post-Done reopen block. The rule above exists so the pre-Done CTA does not
-   compete with the sticky bar; once the client has tapped Done the bar is gone and this
-   button is the only way back to the calendar. Hiding it stranded the client on a phone.
-   Same specificity as .lbr-done, so source order decides — this must stay after it. */
-.lbr-done--reopen{display:block}
+/* The Availability Sent card keeps the dates summary; its Edit duplicates the sticky bar's Edit
+   on a phone, so the card shows the WHAT and the bar owns the ACTION. */
+.lbr-avsent .lbr-ta-edit{display:none}
+/* The submitted-state tick, sized and coloured like the rest of the bar's line. */
+.lbr-sticky-ok{color:var(--green);flex:none}
+/* Hides BOTH the pre-Done CTA and the post-Done reopen block on a phone. Each has a sticky
+   equivalent, and showing the inline copy too would put two controls for the same action on one
+   screen. Desktop renders no sticky bar at all, so it keeps these. */
 /* Clearance for the two-row bar, so the last card's View Property button can always be
    scrolled clear of it rather than sitting underneath. Measured at 375x812: 40 count +
    8 gap + 48 button + 20 bar padding + 1 border = a 117px bar; 135px keeps the same ~18px of

@@ -89,6 +89,15 @@ function Stars({ value }: { value: number }) {
     </span>
   )
 }
+/** The submitted-state mark. 15px to match <Heart> so the sticky line keeps its exact height. */
+function CheckCircle() {
+  return (
+    <svg viewBox="0 0 24 24" width="15" height="15" aria-hidden className="lbr-sticky-ok"
+      fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+      <circle cx="12" cy="12" r="9" /><path d="m8.5 12.3 2.4 2.4 4.6-4.9" />
+    </svg>
+  )
+}
 function Arrow() {
   return (
     <svg viewBox="0 0 24 24" width="15" height="15" aria-hidden fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
@@ -466,6 +475,10 @@ export default function RecommendationList({
         favourites persistence, tour scheduling and submission are untouched. The full block is
         hidden on mobile by CSS (.lbr-done{display:none}) so the two never compete; desktop is
         unchanged and never renders the bar. */}
+    {/* ONE sticky bar, three states — not three bars. Same element, same styling, same
+        position, so .lbr-shell:has(.lbr-sticky) clears whichever one is up without knowing
+        which. A long list pushed the inline controls below the fold, where a client never
+        found them; the bar is the only thing guaranteed to be on screen. */}
     {!done && (
       <div className="lbr-sticky" role="region" aria-label="Favorites selection">
         {/* aria-live: the count changes without a navigation, so a screen reader is told. */}
@@ -483,6 +496,35 @@ export default function RecommendationList({
           aria-busy={doneBusy}
         >
           {doneBusy ? "Saving…" : <>Done Selecting Favorites <Arrow /></>}
+        </button>
+      </div>
+    )}
+
+    {/* AFTER DONE, NOTHING SUBMITTED. Hidden while the calendar is open so it cannot sit under
+        the modal. Hearts stay editable throughout: toggling one is not gated on `done` and never
+        touches done_selecting_at, the Ready-to-Tour stage or the locator's open action. */}
+    {done && !availability && !modalOpen && (
+      <div className="lbr-sticky" role="region" aria-label="Tour availability">
+        <span className="lbr-sticky-count" aria-live="polite">
+          <Heart filled size={15} />
+          Your favorites are saved
+        </span>
+        <button type="button" className="lbr-sticky-btn" onClick={() => setModalOpen(true)}>
+          Choose Tour Availability <Arrow />
+        </button>
+      </div>
+    )}
+
+    {/* SUBMITTED. The dates summary stays in the card below; this carries the one Edit control on
+        a phone, where the card's own Edit is hidden so there are never two. */}
+    {done && availability && !modalOpen && (
+      <div className="lbr-sticky" role="region" aria-label="Tour availability sent">
+        <span className="lbr-sticky-count">
+          <CheckCircle />
+          Tour availability sent!
+        </span>
+        <button type="button" className="lbr-sticky-btn" onClick={() => setModalOpen(true)}>
+          Edit Tour Availability <Arrow />
         </button>
       </div>
     )}
@@ -518,15 +560,14 @@ export default function RecommendationList({
       </div>
     )}
 
-    {/* THE WAY BACK IN. Dismissing the calendar without submitting leaves done=true —
-        correctly, because Done Selecting Favorites already reconciled the favorites into
-        lead_favorites, advanced the lead to Ready to Tour and created the locator's
-        Ready-to-Tour action. None of that should be undone by closing a modal. So this block
-        is the only route back to the calendar, and it carries its own class: .lbr-done is
-        display:none on a phone so the pre-Done CTA cannot compete with the sticky bar — which
-        hid THIS block too, and by then the sticky bar is gone, so nothing was left to tap. */}
+    {/* DESKTOP's way back into the calendar. Dismissing it without submitting leaves done=true —
+        correctly: Done Selecting Favorites already reconciled the favorites into lead_favorites,
+        advanced the lead to Ready to Tour and created the locator's Ready-to-Tour action, and
+        closing a modal cannot undo a CRM stage change. On a PHONE this block is hidden
+        (.lbr-done{display:none}) because the sticky bar carries the same action where it is
+        always on screen — a long list put this one below the fold, unfound. */}
     {done && !modalOpen && !availability && (
-      <div className="lbr-done lbr-done--reopen">
+      <div className="lbr-done">
         <button type="button" className="lbr-done-btn" onClick={() => setModalOpen(true)}>Choose Tour Availability</button>
       </div>
     )}
