@@ -52,8 +52,11 @@ console.log("\n4b. THE BOTTOM CLEARANCE ONLY EXISTS WHEN THE STICKY BAR DOES:")
 // chosen ({!done && …}), but .lbr-shell reserved its 118px of clearance unconditionally. Once a
 // client tapped Done Selecting Favorites the bar vanished and the reserved space stayed —
 // measured at 375x812: 118px of empty page below the legal footer on a long list, 0px after.
+// 128px, not 118: the instruction line gained 10px of padding (4c below), so the clearance grew
+// with the bar. The property under test is that the clearance EXISTS and is scoped — the exact
+// figure is asserted against the bar's measured height in 4c.
 ok("the clearance is scoped to the bar's presence",
-  /\.lbr-shell:has\(\.lbr-sticky\)\{padding-bottom:calc\(118px \+ env\(safe-area-inset-bottom\)\)\}/.test(page))
+  /\.lbr-shell:has\(\.lbr-sticky\)\{padding-bottom:calc\(\d+px \+ env\(safe-area-inset-bottom\)\)\}/.test(page))
 ok("the UNCONDITIONAL clearance is gone",
   !/^\.lbr-shell\{padding-bottom:calc\(118px/m.test(page))
 ok("with no bar the page still clears the home indicator",
@@ -67,6 +70,24 @@ ok("the desktop shell keeps its original 40px bottom margin",
   /\.lbr-shell\{max-width:1300px;margin:26px auto 40px/.test(page))
 ok("the bar itself is unchanged — same height contract",
   /\.lbr-sticky\{display:flex[^}]*position:fixed/.test(page))
+
+console.log("\n4c. THE STICKY BAR'S INSTRUCTION LINE HAS BREATHING ROOM:")
+// It had NO vertical padding — a bare 23px line box beside a 48px button, which read as
+// compressed. Measured at 375x812: count 23px -> 33px, bar 100px -> 110px, button unchanged.
+ok("the instruction line has symmetric vertical padding",
+  /\.lbr-sticky-count\{font-size:15px;padding:5px 0\}/.test(page))
+ok("it is still a CENTRED flex row, so the heart and text cannot shift",
+  /\.lbr-sticky-count\{display:flex;align-items:center;justify-content:center/.test(page))
+ok("the button's size and type are untouched",
+  /\.lbr-sticky-btn\{[^}]*min-height:48px/.test(page) && /\.lbr-sticky-btn\{font-size:16px\}/.test(page))
+ok("the bar is still fixed to the bottom", /\.lbr-sticky\{display:flex[^}]*position:fixed[^}]*bottom:0/.test(page))
+ok("the safe-area inset is still applied to the bar",
+  /\.lbr-sticky\{[^}]*padding:10px 14px calc\(10px \+ env\(safe-area-inset-bottom\)\)/.test(page))
+// The bar grew 10px, so its clearance grew with it — otherwise the last card creeps under it.
+ok("the clearance tracks the taller bar (128px)",
+  /\.lbr-shell:has\(\.lbr-sticky\)\{padding-bottom:calc\(128px \+ env\(safe-area-inset-bottom\)\)\}/.test(page))
+ok("…and the no-bar page end is still just the safe-area inset",
+  /\.lbr-shell\{padding-bottom:env\(safe-area-inset-bottom\)\}/.test(page))
 
 console.log("\n5. NOTHING ELSE ON THE PAGE MOVED:")
 for (const [label, needle] of [

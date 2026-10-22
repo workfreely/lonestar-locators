@@ -483,12 +483,17 @@ const CSS = `
   padding:10px 14px calc(10px + env(safe-area-inset-bottom));
   background:rgba(255,255,255,.96);backdrop-filter:blur(10px);
   border-top:1px solid var(--line-soft);box-shadow:0 -8px 24px -14px rgba(14,37,69,.4)}
-.lbr-sticky-count{font-size:15px}
+/* The instruction line had NO vertical padding — a bare 23px line box beside a 48px button,
+   which is what read as compressed. 5px top and bottom gives it room without touching the
+   button or the type. .lbr-sticky-count is already a centred flex row, so symmetric padding
+   cannot shift the heart or the text off-centre. Measured at 375x812: count 23px -> 33px. */
+.lbr-sticky-count{font-size:15px;padding:5px 0}
 .lbr-sticky-btn{font-size:16px}
 .lbr-done{display:none}
 /* Clearance for the two-row bar, so the last card's View Property button can always be
-   scrolled clear of it rather than sitting underneath. Measured: ~22 count + 8 gap +
-   48 button + 20 padding + 1 border.
+   scrolled clear of it rather than sitting underneath. Measured at 375x812: 33 count
+   (23px line box + 10px padding) + 8 gap + 48 button + 20 bar padding + 1 border = a 110px
+   bar; 128px keeps the same ~18px of daylight the old 118px/100px pairing had.
 
    SCOPED TO WHEN THE BAR IS ACTUALLY THERE. RecommendationList renders it only while
    favorites are still being chosen ({!done && …}), but this clearance applied
@@ -500,7 +505,7 @@ const CSS = `
    :has() tracks the bar REACTIVELY, which a server-rendered class could not: the bar
    disappears the moment the client taps Done, with no reload. This stylesheet already
    relies on :has() for the legal-link rules above. */
-.lbr-shell:has(.lbr-sticky){padding-bottom:calc(118px + env(safe-area-inset-bottom))}
+.lbr-shell:has(.lbr-sticky){padding-bottom:calc(128px + env(safe-area-inset-bottom))}
 /* No bar: the page ends naturally after the footer's own 26px, plus the home-indicator
    inset so the last line never sits under it. */
 .lbr-shell{padding-bottom:env(safe-area-inset-bottom)}
