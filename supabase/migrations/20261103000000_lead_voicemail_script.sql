@@ -23,6 +23,11 @@
 -- this. Everything below is idempotent — `add column if not exists` and `create or replace` — so
 -- re-running it is safe.
 
+-- NO `updated_at`. public.leads does not have that column — this is a CRM table whose rows are
+-- timestamped by created_at and by the per-feature *_at columns, not by a generic row stamp. An
+-- earlier draft of these functions set it, and plpgsql's late binding meant the migration APPLIED
+-- CLEANLY and only failed on the first real save. The script's own editedAt carries the time.
+--
 -- 1) The column. Nullable: a lead with no saved script is the normal case, and
 --    absent means "render the template fresh", never "render an empty script".
 alter table public.leads
@@ -84,8 +89,7 @@ begin
            'specialsEnabled', coalesce(p_specials_enabled, false),
            'editedAt',        v_now,
            'editedBy',        v_uid
-         ),
-         updated_at = v_now
+         )
    where id = p_lead_id
      and workspace_id = v_ws;
 
@@ -107,7 +111,7 @@ declare
 begin
   if v_ws is null then raise exception 'no_workspace'; end if;
   update public.leads
-     set voicemail_script = null, updated_at = v_now
+     set voicemail_script = null
    where id = p_lead_id and workspace_id = v_ws;
   if not found then raise exception 'not_found'; end if;
   return v_now;
