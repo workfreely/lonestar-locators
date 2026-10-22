@@ -503,7 +503,7 @@ export default function RecommendationList({
     {/* AFTER DONE, NOTHING SUBMITTED. Hidden while the calendar is open so it cannot sit under
         the modal. Hearts stay editable throughout: toggling one is not gated on `done` and never
         touches done_selecting_at, the Ready-to-Tour stage or the locator's open action. */}
-    {done && !availability && !modalOpen && (
+    {done && !availability && !modalOpen && favCount > 0 && (
       <div className="lbr-sticky" role="region" aria-label="Tour availability">
         <span className="lbr-sticky-count" aria-live="polite">
           <Heart filled size={15} />
@@ -511,6 +511,24 @@ export default function RecommendationList({
         </span>
         <button type="button" className="lbr-sticky-btn" onClick={() => setModalOpen(true)}>
           Choose Tour Availability <Arrow />
+        </button>
+      </div>
+    )}
+
+    {/* DONE, BUT EVERYTHING UN-HEARTED. The bar reports the CURRENT selection, not the fact that
+        Done was once tapped — "Your favorites are saved" over an empty list is simply untrue. The
+        action is disabled rather than hidden so the bar keeps its geometry and the client can see
+        what unlocks it. Re-hearting restores the state above with no second Done: both conditions
+        read favCount, the live persisted count (a failed toggle reverts it), so this needs no new
+        flag, no write, and cannot produce a second Ready-to-Tour action. */}
+    {done && !availability && !modalOpen && favCount === 0 && (
+      <div className="lbr-sticky" role="region" aria-label="Favorites selection">
+        <span className="lbr-sticky-count" aria-live="polite">
+          <Heart filled={false} size={15} />
+          Choose your favorite properties
+        </span>
+        <button type="button" className="lbr-sticky-btn" disabled>
+          Select Properties First
         </button>
       </div>
     )}

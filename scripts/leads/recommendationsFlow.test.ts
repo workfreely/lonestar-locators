@@ -21,20 +21,40 @@ function ok(label: string, cond: boolean, detail = "") {
 const list = readFileSync("app/locator-beast/r/[token]/RecommendationList.tsx", "utf8")
 const page = readFileSync("app/locator-beast/r/[token]/page.tsx", "utf8")
 
-console.log("\n1. ONE STICKY BAR, THREE STATES — and exactly one is up at a time:")
+console.log("\n1. ONE STICKY BAR, FOUR STATES — and exactly one is up at a time:")
 ok("state 1: selecting favorites", /\{!done && \(\s*<div className="lbr-sticky"/.test(list))
-ok("state 2: done, nothing submitted", /\{done && !availability && !modalOpen && \(\s*<div className="lbr-sticky"/.test(list))
+ok("state 2: done, nothing submitted, AT LEAST ONE favorite",
+  /\{done && !availability && !modalOpen && favCount > 0 && \(/.test(list))
+ok("state 2b: done, nothing submitted, ZERO favorites",
+  /\{done && !availability && !modalOpen && favCount === 0 && \(/.test(list))
+ok("…and that state DISABLES the action, so no tour can start empty",
+  /favCount === 0 && \([\s\S]{0,420}className="lbr-sticky-btn" disabled>/.test(list))
+ok('…and it tells the truth: "Choose your favorite properties", not "saved"',
+  /favCount === 0 && \([\s\S]{0,320}Choose your favorite properties/.test(list))
+ok("the count is the LIVE persisted one, not a separate flag",
+  /const favCount = favorites\.size/.test(list))
+ok("…and a failed toggle reverts it, so it cannot drift from the server",
+  /catch \{[\s\S]{0,220}next \? s\.delete\(index\) : s\.add\(index\)/.test(list))
+ok("re-hearting needs no second Done — both states read favCount",
+  (list.match(/!availability && !modalOpen && favCount/g) ?? []).length === 2)
+ok("Edit stays enabled after submission regardless of favCount",
+  /\{done && availability && !modalOpen && \(/.test(list) && !/availability && !modalOpen && favCount/.test(list.slice(list.indexOf("Tour availability sent"))))
 ok("state 3: availability submitted", /\{done && availability && !modalOpen && \(\s*<div className="lbr-sticky"/.test(list))
-ok("the three conditions are mutually exclusive", (() => {
-  // !done | done&&!availability | done&&availability — no pair can both be true.
-  for (const done of [false, true]) for (const availability of [false, true]) {
-    const on = [!done, done && !availability, done && !!availability].filter(Boolean).length
-    if (on > 1) return false
+ok("the four conditions are mutually exclusive AND total", (() => {
+  // Every combination of (done, availability, favCount) must light exactly one bar.
+  for (const done of [false, true]) for (const availability of [false, true]) for (const favCount of [0, 1, 4]) {
+    const on = [
+      !done,
+      done && !availability && favCount > 0,
+      done && !availability && favCount === 0,
+      done && !!availability,
+    ].filter(Boolean).length
+    if (on !== 1) return false
   }
   return true
 })())
-ok("all three reuse the SAME element and class, not a second bar",
-  (list.match(/<div className="lbr-sticky"/g) ?? []).length === 3)
+ok("all FOUR reuse the SAME element and class, not extra bars",
+  (list.match(/<div className="lbr-sticky"/g) ?? []).length === 4)
 ok("states 2 and 3 hide while the calendar is open, so no bar sits under the modal",
   /\{done && !availability && !modalOpen/.test(list) && /\{done && availability && !modalOpen/.test(list))
 
