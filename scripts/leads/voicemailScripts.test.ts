@@ -157,6 +157,21 @@ console.log("\n6. THE MIGRATION — ownership, validation, and no client exposur
     /returns table\(status text, agent_name text/.test(share) && !/voicemail/.test(share))
 }
 
+console.log("\n6b. THE VERIFICATION QUERY IS VALID AND READ-ONLY:")
+{
+  const q = readFileSync("docs/VOICEMAIL_MIGRATION_VERIFY.sql", "utf8")
+  const sql = q.replace(/--.*$/gm, "")
+  // CHECK is a fully RESERVED Postgres keyword; `as check` is a syntax error, and an SQL editor
+  // that cannot parse the statement may report something misleading instead.
+  ok("no RESERVED keyword is used as a bare alias",
+    !/\bas\s+(check|order|group|table|column|user|all|limit|grant|select|from|where|and|or|not|null|default|unique|primary|references)\b/i.test(sql))
+  ok("it is one statement", (sql.match(/;/g) ?? []).length === 1)
+  ok("…and contains no DDL or DML", !/^\s*(create|alter|drop|insert|update|delete|grant|revoke|truncate)\b/im.test(sql))
+  ok("it still asserts the anon revoke, which is the point of it",
+    /has_function_privilege\('anon'/.test(sql))
+  ok("…and that the renter share RPC excludes the column", /lb_resolve_client_recommendations/.test(sql))
+}
+
 console.log("\n7. THE PANEL IS INERT — it reads and copies, nothing else:")
 {
   const v = readFileSync("apps/beast-companion/src/sidepanel/lead/VoicemailScriptView.tsx", "utf8")
