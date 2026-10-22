@@ -213,6 +213,69 @@ console.log("\n7. THE PANEL IS INERT — it reads and copies, nothing else:")
   ok("…and Reset is only offered once something is saved", /\{saved && <button[^>]*onClick=\{onReset\}/.test(v))
 }
 
+console.log("\n7b. FULL-HEIGHT LAYOUT — the panel chrome steps aside:")
+{
+  const app = readFileSync("apps/beast-companion/src/sidepanel/PanelApp.tsx", "utf8")
+  const css = readFileSync("apps/beast-companion/src/sidepanel/lead/voicemail.css", "utf8")
+
+  ok("one derived flag drives every guard, so the chrome cannot drift from the view",
+    /const voicemailOpen = isLoaded && aiVoiceScriptOn && !!lead;/.test(app))
+  ok("the Client/Properties tabs are hidden", /\{isLoaded && !voicemailOpen &&\s*\n\s*\(tourMode \?/.test(app))
+  ok("the client identity header + Call/Text buttons are hidden",
+    /\{isLoaded && !tourMode && !voicemailOpen && \(\s*\n\s*<LeadIdentityHeader/.test(app))
+  ok("the Search Mode banner is hidden too", /!tourMode && !voicemailOpen && isExternalPropertyActive/.test(app))
+  ok("…but the outer toolbar (the menu this opened from) stays",
+    /<header className="bc-toolbar">/.test(app) && !/voicemailOpen[^\n]*bc-toolbar/.test(app))
+  ok("the view renders from the same flag", /voicemailOpen \? \(/.test(app))
+
+  ok("the view fills the panel height", /\.vm-wrap \{[^}]*height: 100%/.test(css))
+  ok("…with min-height:0, or a flex child cannot shrink to scroll", /\.vm-wrap \{[^}]*min-height: 0/.test(css))
+  ok("the SCRIPT BODY is the scrolling region, not the sidebar",
+    /\.vm-body \{[^}]*flex: 1[^}]*overflow-y: auto/.test(css))
+  ok("…and no longer caps itself at a fraction of the viewport", !/max-height: 46vh/.test(css))
+  for (const sel of ["vm-head", "vm-client", "vm-select", "vm-rowhead", "vm-actions", "vm-foot"]) {
+    ok(`${sel} does not steal the body's space (flex:none)`, new RegExp(`\\.${sel} \\{[^}]*flex: none`).test(css))
+  }
+}
+
+console.log("\n7c. THE CLIENT'S NUMBER, BESIDE THEIR NAME:")
+{
+  const v = readFileSync("apps/beast-companion/src/sidepanel/lead/VoicemailScriptView.tsx", "utf8")
+  const css = readFileSync("apps/beast-companion/src/sidepanel/lead/voicemail.css", "utf8")
+  ok("it uses the shared formatter, not a local one", /formatPhone\(lead\.phone\)/.test(v))
+  // Both inside the SAME .vm-client block — pinned structurally rather than by proximity, since
+  // the comment explaining the shared handler sits between them.
+  ok("it sits in the same row as the name", (() => {
+    const row = /<div className="vm-client">([\s\S]*?)<\/div>/.exec(v)?.[1] ?? ""
+    return /className="vm-name"/.test(row) && /className="vm-phone"/.test(row)
+  })())
+  ok("clicking it reuses the EXISTING call handler", /onClick=\{\(\) => onContact\("call"\)\}/.test(v))
+  ok("…the same one the Call Client button uses", (() => {
+    const lpv = readFileSync("apps/beast-companion/src/sidepanel/lead/LeadPanelView.tsx", "utf8")
+    return /onContact\("call"\)/.test(lpv) && /onContact\?: \(method: "call" \| "text"\) => void;/.test(v)
+  })())
+  ok("no second calling mechanism is introduced",
+    !/tel:/.test(v) && !/window\.open/.test(v) && !/dialUrl/.test(v))
+  ok("nothing dials on open — the handler only runs onClick", !/useEffect\([^)]*onContact/.test(v))
+  ok("no number → no call action rendered", /\{phoneDisplay && onContact && \(/.test(v))
+  ok("…and a number with no handler renders as plain text, not a dead button",
+    /\{phoneDisplay && !onContact && <span className="vm-phone-plain">/.test(v))
+  ok("it is styled with the panel's accent blue", /\.vm-phone \{[^}]*color: var\(--lb-accent\)/.test(css))
+  ok("…wraps rather than truncating in a narrow sidebar", /\.vm-client \{[^}]*flex-wrap: wrap/.test(css))
+  ok("…and stays pinned while the script scrolls", /\.vm-client \{[^}]*flex: none/.test(css))
+  ok("it is a real button with a visible focus ring", /\.vm-phone:focus-visible/.test(css))
+}
+
+console.log("\n7d. CLOSING, AND UNSAVED EDITS:")
+{
+  const v = readFileSync("apps/beast-companion/src/sidepanel/lead/VoicemailScriptView.tsx", "utf8")
+  ok("closing routes through a guard", /onClick=\{requestClose\}/.test(v))
+  ok("…which only asks when there is actually something to lose",
+    /if \(editing && draft\.trim\(\) && draft !== \(isSavedForThisTemplate \? saved!\.body : rendered\)\)/.test(v))
+  ok("…and does not close when the locator cancels", /if \(!keep\) return;/.test(v))
+  ok("an unedited view closes with no prompt at all", /function requestClose\(\) \{[\s\S]{0,400}onClose\(\);/.test(v))
+}
+
 console.log("\n8. THE CRM SIDE, AND WHAT IT DOES NOT TOUCH:")
 {
   const d = readFileSync("components/crm/DashboardClient.tsx", "utf8")

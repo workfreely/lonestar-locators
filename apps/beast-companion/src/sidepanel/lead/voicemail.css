@@ -1,36 +1,73 @@
 /* VOICEMAIL SCRIPT PANEL — a reading surface, so type size and line height carry it.
    Every colour is a theme token; nothing here introduces a palette of its own. */
+/* FULL HEIGHT. The panel is a flex column ending in .bc-below-scroll; filling 100% here means the
+   script body below becomes the only thing that scrolls, instead of the whole sidebar scrolling to
+   reach it. min-height:0 is what lets a flex child actually shrink and scroll. */
 .vm-wrap {
   display: flex;
   flex-direction: column;
   gap: 10px;
   padding: 14px 14px 16px;
   color: var(--lb-text-primary);
+  height: 100%;
+  min-height: 0;
+  box-sizing: border-box;
 }
 .vm-head {
+  flex: none;
   display: flex;
   align-items: center;
   gap: 8px;
   padding-bottom: 10px;
   border-bottom: 1px solid var(--lb-border);
 }
-.vm-title { flex: 1; text-align: center; font-size: 13.5px; font-weight: 700; }
+.vm-title { flex: 1; font-size: 15px; font-weight: 700; letter-spacing: -0.01em; }
 .vm-back, .vm-x {
   border: 0; background: transparent; color: var(--lb-text-secondary);
   font: inherit; font-size: 12.5px; cursor: pointer; padding: 4px 6px; border-radius: 6px;
 }
 .vm-back:hover, .vm-x:hover { color: var(--lb-text-primary); background: var(--lb-surface-elevated); }
 .vm-back:focus-visible, .vm-x:focus-visible { outline: 2px solid var(--lb-accent); outline-offset: -1px; }
-.vm-client { display: flex; align-items: center; gap: 7px; font-size: 14px; font-weight: 650; }
-.vm-label { font-size: 12px; font-weight: 600; color: var(--lb-text-secondary); }
+/* Name + number. Wraps rather than truncating — the sidebar is narrow and a half-shown phone
+   number is useless. flex:none keeps it pinned while the script scrolls underneath. */
+.vm-client {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px 10px;
+  flex: none;
+}
+.vm-name { font-size: 15px; font-weight: 650; }
+/* The same blue the panel already uses for its links/accents, and a real button because it calls. */
+.vm-phone {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  border: 0;
+  background: transparent;
+  padding: 2px 4px;
+  margin-left: -4px;
+  border-radius: 6px;
+  color: var(--lb-accent);
+  font: inherit;
+  font-size: 13.5px;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.vm-phone:hover { background: var(--lb-accent-soft); }
+.vm-phone:focus-visible { outline: 2px solid var(--lb-accent); outline-offset: -1px; }
+.vm-phone-plain { font-size: 13.5px; color: var(--lb-text-secondary); white-space: nowrap; }
+.vm-label { flex: none; font-size: 12px; font-weight: 600; color: var(--lb-text-secondary); }
 .vm-select {
+  flex: none;
   width: 100%; box-sizing: border-box; padding: 9px 10px; border-radius: 9px;
   border: 1px solid var(--lb-border); background: var(--lb-inset, rgba(255,255,255,0.04));
   color: var(--lb-text-primary); font: inherit; font-size: 13.5px; color-scheme: dark;
 }
 .vm-select:focus-visible { outline: 2px solid var(--lb-accent); outline-offset: -1px; }
-.vm-soon { margin: -4px 0 0; font-size: 11.5px; color: var(--lb-text-muted, #9aa4b2); }
-.vm-rowhead { display: flex; align-items: center; justify-content: space-between; margin-top: 2px; }
+.vm-soon { flex: none; margin: -4px 0 0; font-size: 11.5px; color: var(--lb-text-muted, #9aa4b2); }
+.vm-rowhead { flex: none; display: flex; align-items: center; justify-content: space-between; margin-top: 2px; }
 .vm-seg { display: inline-flex; gap: 2px; padding: 2px; border-radius: 8px; background: var(--lb-inset, rgba(255,255,255,0.04)); }
 .vm-segbtn {
   border: 0; background: transparent; color: var(--lb-text-secondary);
@@ -42,8 +79,11 @@
 
 /* THE SCRIPT. Read aloud from a phone-width panel, so it is larger and looser than the rest of
    the Companion on purpose, and scrolls rather than truncating. */
+/* THE ONLY SCROLLING REGION. flex:1 + min-height:0 give it every pixel the header, template row
+   and footer do not need — so a long script scrolls here, not in the sidebar. */
 .vm-body {
-  max-height: 46vh;
+  flex: 1;
+  min-height: 120px;
   overflow-y: auto;
   padding: 12px 13px;
   border: 1px solid var(--lb-border);
@@ -54,13 +94,13 @@
   white-space: pre-wrap;
   color: var(--lb-text-primary);
 }
-.vm-body--edit { width: 100%; box-sizing: border-box; font-family: inherit; resize: vertical; min-height: 220px; }
+.vm-body--edit { width: 100%; box-sizing: border-box; font-family: inherit; resize: none; }
 .vm-body--edit:focus-visible { outline: 2px solid var(--lb-accent); outline-offset: -2px; }
 .vm-empty { margin: 0; font-size: 13px; color: var(--lb-text-secondary); }
-.vm-check { display: flex; align-items: flex-start; gap: 8px; font-size: 12px; color: var(--lb-text-secondary); line-height: 1.4; }
+.vm-check { flex: none; display: flex; align-items: flex-start; gap: 8px; font-size: 12px; color: var(--lb-text-secondary); line-height: 1.4; }
 .vm-check input { margin-top: 2px; flex: none; accent-color: var(--lb-accent); }
 .vm-check em { font-style: normal; color: var(--lb-text-muted, #9aa4b2); }
-.vm-actions { display: flex; gap: 8px; }
+.vm-actions { flex: none; display: flex; gap: 8px; }
 .vm-btn {
   flex: 1; padding: 10px 12px; border-radius: 10px; border: 1px solid var(--lb-border);
   background: var(--lb-surface-elevated); color: var(--lb-text-primary);
@@ -72,4 +112,4 @@
 .vm-btn:disabled:hover { background: var(--lb-surface-elevated); border-color: var(--lb-border); }
 .vm-btn--primary { background: var(--lb-accent); border-color: var(--lb-accent); color: #fff; }
 .vm-btn--primary:hover { background: var(--lb-accent); }
-.vm-foot { margin: 0; font-size: 11.5px; color: var(--lb-text-muted, #9aa4b2); line-height: 1.4; }
+.vm-foot { flex: none; margin: 0; font-size: 11.5px; color: var(--lb-text-muted, #9aa4b2); line-height: 1.4; }

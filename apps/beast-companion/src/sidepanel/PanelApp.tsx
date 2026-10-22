@@ -335,6 +335,12 @@ export function PanelApp({
   const isLoaded = connected && state === "loaded" && !!lead;
   const handleConnect = () => onConnect?.();
 
+  // VOICEMAIL TAKES THE WHOLE PANEL, the way Tour Mode takes the nav. The script is read aloud
+  // from a narrow sidebar, so the tabs, the client identity row and the Call/Text buttons are
+  // temporarily replaced rather than stacked above it — otherwise the reading area is a few lines
+  // tall. The outer toolbar stays, because it holds the menu this was opened from.
+  const voicemailOpen = isLoaded && aiVoiceScriptOn && !!lead;
+
   return (
     <div className="bc-panel">
       {/* Compact dark toolbar — hamburger is the menu toggle. */}
@@ -360,14 +366,14 @@ export function PanelApp({
           the agent keeps access to Search Criteria, Credit Screening, Notes and
           Properties while searching. "← Back to CRM" focuses the existing CRM tab.
           Hidden in Tour Mode (that focused flow takes precedence). */}
-      {isLoaded && !tourMode && isExternalPropertyActive && onBackToCrm && (
+      {isLoaded && !tourMode && !voicemailOpen && isExternalPropertyActive && onBackToCrm && (
         <ModeHeader label="SEARCH MODE" backLabel="← Back to CRM" onBack={onBackToCrm} ariaLabel="Search Mode" />
       )}
 
       {/* Navigation — Client/Properties normally; while Tour Mode is active the nav
           is REPLACED by the temporary "TOUR MODE · ← Back to Client" header (no
           permanent third tab). Both modes share ModeHeader styling/sizing. */}
-      {isLoaded &&
+      {isLoaded && !voicemailOpen &&
         (tourMode ? (
           <ModeHeader label="TOUR MODE" backLabel="← Back to Client Profile" onBack={onTourBack} ariaLabel="Tour Mode" />
         ) : (
@@ -376,7 +382,7 @@ export function PanelApp({
 
       {/* Client identity — shown in the normal views only; Tour Mode is focused on
           the property, so the client-identity header is hidden there. */}
-      {isLoaded && !tourMode && (
+      {isLoaded && !tourMode && !voicemailOpen && (
         <LeadIdentityHeader
           lead={lead!}
           onDemo={onDemo}
@@ -397,7 +403,7 @@ export function PanelApp({
           ) : isLoaded ? (
             /* VOICEMAIL takes the panel ahead of Tour Mode: it is opened explicitly, for the
                client already on screen, and must stay put while the locator is on the phone. */
-            aiVoiceScriptOn && lead ? (
+            voicemailOpen ? (
               <VoicemailScriptView
                 key={String(lead.id)}
                 lead={lead}
@@ -405,6 +411,7 @@ export function PanelApp({
                 onClose={() => onCloseVoicemail?.()}
                 onSave={(p) => onSaveVoicemail?.(p)}
                 onReset={() => onResetVoicemail?.()}
+                onContact={onContact}
               />
             ) : tourMode ? (
               <TourModeView
