@@ -201,6 +201,7 @@ export {
   VOICEMAIL_TEMPLATE_LABELS,
   VOICEMAIL_SPECIALS_PARAGRAPH,
   PREFERENCE_PLACEHOLDERS,
+  TOUR_PLACEHOLDERS,
   daysUntilMove,
   moveMonthName,
   availabilityTimeframe,

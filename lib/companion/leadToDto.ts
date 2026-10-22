@@ -430,6 +430,23 @@ export function buildActiveClientPayload(
     // trusted: the column is jsonb, and a row written before this shipped (or by hand) must not
     // put a half-object in front of the panel. Anything unrecognised reads as "no saved script",
     // which renders the template fresh — the same, safe fallback as null.
+    // CONFIRMED UPCOMING APPOINTMENTS, counted distinctly. `tours` is already passed in for the
+    // "Toured · Property" derivation below, so this needs no new query. A row is counted only when
+    // it is this lead's, still 'scheduled', and carries a PARSEABLE time in the future — an absent
+    // or malformed scheduled_at is not a confirmed appointment and must not read as one.
+    upcomingTourCount: (() => {
+      const now = Date.now()
+      const seen = new Set<string>()
+      for (const t of tours || []) {
+        if (String(t.lead_id ?? "") !== String(lead.id)) continue
+        if (String(t.status ?? "") !== "scheduled") continue
+        const at = new Date(t.scheduled_at).getTime()
+        if (!Number.isFinite(at) || at <= now) continue
+        // Same property at the same instant is ONE appointment, however many rows recorded it.
+        seen.add(`${t.property_id ?? "none"}|${at}`)
+      }
+      return seen.size
+    })(),
     voicemailScript: (() => {
       const v = (lead as Record<string, unknown>).voicemail_script as Record<string, unknown> | null | undefined
       if (!v || typeof v !== "object") return null

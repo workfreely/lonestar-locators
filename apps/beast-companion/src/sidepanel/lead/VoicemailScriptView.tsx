@@ -73,8 +73,9 @@ export function VoicemailScriptView({
       moveDate: lead.searchCriteria?.moveDate ?? null,
       preferences: prefs.values,
       includeSpecials: specialsEnabled,
+      upcomingTourCount: lead.upcomingTourCount ?? 0,
     });
-  }, [templateKey, lead.firstName, lead.searchCriteria?.moveDate ?? null, prefs.values, specialsEnabled]);
+  }, [templateKey, lead.firstName, lead.searchCriteria?.moveDate ?? null, prefs.values, specialsEnabled, lead.upcomingTourCount]);
 
   // A SAVED script is the locator's own words and is shown verbatim. It is replaced only when they
   // save again or reset — never because the client's data changed underneath it.
@@ -162,7 +163,15 @@ export function VoicemailScriptView({
           <option key={k} value={k}>{VOICEMAIL_TEMPLATE_LABELS[k]}</option>
         ))}
       </select>
-      <p className="vm-soon">{VOICEMAIL_TEMPLATE_LABELS.pre_tour}</p>
+      {/* NOTHING CONFIRMED. The Pre-Tour script says the client is "all set", so when no upcoming
+          appointment exists the wording stays bracketed and this says why — the locator can still
+          choose the template and fill it in, but the panel never asserts a booking. */}
+      {templateKey === "pre_tour" && (lead.upcomingTourCount ?? 0) === 0 && (
+        <p className="vm-warn">
+          No confirmed upcoming tour for this client — the tour wording is left as a placeholder for
+          you to edit.
+        </p>
+      )}
 
       <div className="vm-rowhead">
         <span className="vm-label">Your voicemail</span>

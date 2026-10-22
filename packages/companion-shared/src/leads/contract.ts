@@ -265,6 +265,21 @@ export const leadSummarySchema = z.object({
    * It is never returned by any public/anon path — the client share RPC selects an explicit
    * column list that excludes it.
    */
+  /**
+   * How many CONFIRMED UPCOMING tour appointments this lead has — derived read-side from
+   * lead_tours, never stored.
+   *
+   * Three things make a raw row count wrong, and all three exist in production today:
+   *   • `status = 'scheduled'` does not mean upcoming — a scheduled tour whose time has passed is
+   *     still 'scheduled' until someone completes or cancels it.
+   *   • the same appointment can be recorded twice (same property, same instant), so rows are
+   *     counted DISTINCT by (property, time).
+   *   • a missing or unparseable scheduled_at is not a confirmed appointment and is excluded; it
+   *     is not the same thing as a valid future one.
+   *
+   * 0 means "nothing confirmed", which the Pre-Tour script must not paper over.
+   */
+  upcomingTourCount: z.number().nullish(),
   voicemailScript: z
     .object({
       templateKey: z.string(),

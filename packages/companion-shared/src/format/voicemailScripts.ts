@@ -22,12 +22,16 @@ export const VOICEMAIL_TEMPLATE_KEYS = ["list_sent_30_90", "list_sent_over_90", 
 export type VoicemailTemplateKey = (typeof VOICEMAIL_TEMPLATE_KEYS)[number];
 
 /** Keys the server will accept. `pre_tour` is absent until its copy is approved. */
-export const SAVEABLE_VOICEMAIL_KEYS: readonly VoicemailTemplateKey[] = ["list_sent_30_90", "list_sent_over_90"];
+export const SAVEABLE_VOICEMAIL_KEYS: readonly VoicemailTemplateKey[] = [
+  "list_sent_30_90",
+  "list_sent_over_90",
+  "pre_tour",
+];
 
 export const VOICEMAIL_TEMPLATE_LABELS: Record<VoicemailTemplateKey, string> = {
   list_sent_30_90: "List Sent — 30–90 Days",
   list_sent_over_90: "List Sent — Over 90 Days",
-  pre_tour: "Pre-Tour Voicemail — Coming later",
+  pre_tour: "Pre-Tour Voicemail",
 };
 
 /** The approved specials paragraph, VERBATIM. Rendered only when explicitly enabled. */
@@ -35,6 +39,13 @@ export const VOICEMAIL_SPECIALS_PARAGRAPH =
   "Keep in mind, most of these communities are running great specials, and with those applied, the average monthly rent falls within or even below your budget.";
 
 export const PREFERENCE_PLACEHOLDERS = ["[Preference 1]", "[Preference 2]"] as const;
+
+/** What the Pre-Tour script says when NOTHING is confirmed. Bracketed so it reads as a gap to
+ *  fill, never as a statement — the locator picks the wording once they know. */
+export const TOUR_PLACEHOLDERS = {
+  noun: "[tour/tours]",
+  praise: "[this is such a great option / these are all great options]",
+} as const;
 const NAME_PLACEHOLDER = "[First Name]";
 const MONTH_PLACEHOLDER = "[Move-In Month]";
 const TIMEFRAME_PLACEHOLDER = "[Availability Timeframe]";
@@ -150,6 +161,8 @@ export type VoicemailContext = {
   includeSpecials?: boolean;
   /** Overrides the computed window when the locator adjusts it. */
   availabilityOverride?: string | null;
+  /** CONFIRMED upcoming appointments (DTO-derived). 0 keeps the Pre-Tour wording bracketed. */
+  upcomingTourCount?: number | null;
 };
 
 /**
@@ -159,9 +172,28 @@ export type VoicemailContext = {
  * what is missing instead of a sentence that has quietly lost a word.
  */
 export function renderVoicemail(key: VoicemailTemplateKey, ctx: VoicemailContext): string {
-  if (key === "pre_tour") return "";
-
   const name = (ctx.firstName ?? "").trim() || NAME_PLACEHOLDER;
+
+  // PRE-TOUR. The script tells the client they are "all set", which is a claim about a booking —
+  // so the singular/plural and the praise come from CONFIRMED UPCOMING appointments, and when
+  // there are none the wording stays bracketed rather than asserting a tour that is not booked.
+  if (key === "pre_tour") {
+    const n = ctx.upcomingTourCount ?? 0;
+    const noun = n === 0 ? TOUR_PLACEHOLDERS.noun : n === 1 ? "tour" : "tours";
+    const praise = n === 0
+      ? TOUR_PLACEHOLDERS.praise
+      : n === 1
+        ? "this is such a great option"
+        : "these are all great options";
+    return [
+      `Hey ${name}, you're all set for your ${noun}!`,
+      `I'm really excited for you because ${praise}!`,
+      `After your ${noun}, let me know what you think.`,
+      "If you need anything at all, just let me know.",
+      "Alright, talk to you soon. Bye-bye!",
+    ].join("\n\n");
+  }
+
   const [p1, p2] = ctx.preferences;
 
   const paragraphs: string[] = [

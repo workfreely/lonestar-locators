@@ -49,8 +49,25 @@ ok("…and updated_at specifically is NOT written (it does not exist here)", !se
 console.log("\nTHE COLUMN THE MIGRATION ADDS:")
 ok("leads.voicemail_script exists live", live.has("voicemail_script"))
 const { data: rows } = await db.from("leads").select("id, voicemail_script")
-ok(`no lead row was rewritten (${(rows ?? []).length} leads, all null)`,
-  (rows ?? []).every((r: Record<string, unknown>) => r.voicemail_script === null))
+// This asserted "all null" when the column was brand new. Scripts have since been SAVED, so the
+// useful check is no longer emptiness but SHAPE: every stored value must be a well-formed record,
+// because a half-written one would reach the panel as a script.
+const saved = (rows ?? []).filter((r: Record<string, unknown>) => r.voicemail_script !== null)
+ok(`${(rows ?? []).length} leads, ${saved.length} with a saved script`, (rows ?? []).length > 0)
+ok("every saved script is a well-formed record", saved.every((r: Record<string, unknown>) => {
+  const v = r.voicemail_script as Record<string, unknown>
+  return !!v && typeof v === "object"
+    && typeof v.templateKey === "string" && v.templateKey.length > 0
+    && typeof v.body === "string" && v.body.length > 0
+}), JSON.stringify(saved.map((r: Record<string, unknown>) => r.id)))
+ok("…with a server-derived editedAt and editedBy", saved.every((r: Record<string, unknown>) => {
+  const v = r.voicemail_script as Record<string, unknown>
+  return typeof v.editedAt === "string" && typeof v.editedBy === "string"
+}))
+ok("…and only approved template keys", saved.every((r: Record<string, unknown>) => {
+  const k = (r.voicemail_script as Record<string, unknown>).templateKey
+  return k === "list_sent_30_90" || k === "list_sent_over_90" || k === "pre_tour"
+}))
 
 console.log("\nPERMISSIONS, TESTED AS anon RATHER THAN READ FROM A CATALOG:")
 const anon = createClient(env.NEXT_PUBLIC_SUPABASE_URL!, env.NEXT_PUBLIC_SUPABASE_ANON_KEY!, { auth: { persistSession: false } })

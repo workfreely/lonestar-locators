@@ -5,7 +5,7 @@
 import {
   renderVoicemail, chooseTemplate, pickPreferences, availabilityTimeframe, moveMonthName,
   daysUntilMove, VOICEMAIL_SPECIALS_PARAGRAPH, VOICEMAIL_TEMPLATE_LABELS, SAVEABLE_VOICEMAIL_KEYS,
-  PREFERENCE_PLACEHOLDERS, mustHaveAmenityLabel,
+  PREFERENCE_PLACEHOLDERS, mustHaveAmenityLabel, TOUR_PLACEHOLDERS, VOICEMAIL_TEMPLATE_KEYS,
 } from "@bc/companion-shared"
 import { readFileSync } from "node:fs"
 
@@ -187,10 +187,15 @@ console.log("\n7. THE PANEL IS INERT — it reads and copies, nothing else:")
   ok("…and the checkbox warns it needs verifying", /only if you've verified current specials/.test(v))
   ok("a SAVED script is shown verbatim, not re-rendered from changed client data",
     /isSavedForThisTemplate \? saved!\.body : rendered/.test(v))
-  ok("the third template appears, disabled, with no invented wording",
-    /VOICEMAIL_TEMPLATE_LABELS\.pre_tour/.test(v) && VOICEMAIL_TEMPLATE_LABELS.pre_tour.includes("Coming later"))
-  ok("…and is not offered as a choice", !SAVEABLE_VOICEMAIL_KEYS.includes("pre_tour" as never))
-  ok("it renders nothing for pre_tour even if asked", renderVoicemail("pre_tour", { preferences: prefs }) === "")
+  // INVERTED when the Pre-Tour wording was approved. These three asserted the opposite while the
+  // template was a placeholder: that it was labelled "Coming later", was not saveable, and
+  // rendered nothing. All three are now the wrong expectation, so they state the new contract —
+  // and section 6e covers what the script actually says.
+  ok("the third template is now a real choice", SAVEABLE_VOICEMAIL_KEYS.includes("pre_tour"))
+  ok("…no longer labelled Coming later", !VOICEMAIL_TEMPLATE_LABELS.pre_tour.includes("Coming later"))
+  ok("…and renders a script", renderVoicemail("pre_tour", { preferences: prefs, upcomingTourCount: 1 }).length > 0)
+  ok("the view surfaces a warning when nothing is confirmed",
+    /templateKey === "pre_tour" && \(lead\.upcomingTourCount \?\? 0\) === 0/.test(v))
   // THE ACTIVE CLIENT. Opening or closing is a preference flip and a render branch — nothing in
   // either path selects, clears or navigates a client.
   for (const forbidden of ["setSelectedLeadId", "setActiveLead", "router.", "location.href"]) {
@@ -211,6 +216,130 @@ console.log("\n7. THE PANEL IS INERT — it reads and copies, nothing else:")
     return /postVoicemailVerb\(\{ verb: "reset-voicemail" \}\)/.test(panel)
   })())
   ok("…and Reset is only offered once something is saved", /\{saved && <button[^>]*onClick=\{onReset\}/.test(v))
+}
+
+console.log("\n6e. PRE-TOUR — the wording follows CONFIRMED appointments:")
+{
+  const base = { firstName: "Reagan", preferences: prefs }
+  const one = renderVoicemail("pre_tour", { ...base, upcomingTourCount: 1 })
+  const many = renderVoicemail("pre_tour", { ...base, upcomingTourCount: 3 })
+  const none = renderVoicemail("pre_tour", { ...base, upcomingTourCount: 0 })
+
+  ok("one appointment → singular", one.includes("you're all set for your tour!") && one.includes("After your tour,"))
+  ok("…with the singular praise", one.includes("because this is such a great option!"))
+  ok("three → plural", many.includes("you're all set for your tours!") && many.includes("After your tours,"))
+  ok("…with the plural praise", many.includes("because these are all great options!"))
+
+  // THE ONE THAT MATTERS: nothing confirmed must not read as a booking.
+  ok("ZERO → the tour noun stays a placeholder", none.includes(TOUR_PLACEHOLDERS.noun))
+  ok("…and so does the praise", none.includes(TOUR_PLACEHOLDERS.praise))
+  ok("…so it never claims a tour that is not booked",
+    !none.includes("your tour!") && !none.includes("your tours!"))
+  ok("an absent count is treated as zero, not as one",
+    renderVoicemail("pre_tour", base).includes(TOUR_PLACEHOLDERS.noun))
+
+  ok("the approved wording is verbatim", (() => {
+    for (const line of [
+      "I'm really excited for you because",
+      "let me know what you think.",
+      "If you need anything at all, just let me know.",
+      "Alright, talk to you soon. Bye-bye!",
+    ]) if (!one.includes(line)) return false
+    return one.startsWith("Hey Reagan, you're all set for your tour!")
+  })())
+  ok("the first name is inserted", one.startsWith("Hey Reagan,"))
+  ok("…and falls back to a placeholder with no name",
+    renderVoicemail("pre_tour", { preferences: prefs, upcomingTourCount: 1 }).startsWith("Hey [First Name],"))
+  ok("it is now selectable", SAVEABLE_VOICEMAIL_KEYS.includes("pre_tour"))
+  ok("…and no longer labelled Coming later", !VOICEMAIL_TEMPLATE_LABELS.pre_tour.includes("Coming later"))
+  ok("the two List Sent scripts are untouched by this", (() => {
+    const a = renderVoicemail("list_sent_30_90", { firstName: "Reagan", preferences: prefs })
+    return a.startsWith("Hey Reagan, it's Jay!") && a.includes("I just sent your list over!") && !a.includes("all set")
+  })())
+  ok("all three keys exist", VOICEMAIL_TEMPLATE_KEYS.length === 3)
+}
+
+console.log("\n6f. THE COUNT ITSELF — against real production tour shapes:")
+{
+  // Mirrors leadToDto's derivation so the rule can be exercised directly.
+  const count = (tours: Array<Record<string, unknown>>, leadId: number, now = Date.now()) => {
+    const seen = new Set<string>()
+    for (const t of tours) {
+      if (String(t.lead_id ?? "") !== String(leadId)) continue
+      if (String(t.status ?? "") !== "scheduled") continue
+      const at = new Date(t.scheduled_at as string).getTime()
+      if (!Number.isFinite(at) || at <= now) continue
+      seen.add(`${t.property_id ?? "none"}|${at}`)
+    }
+    return seen.size
+  }
+  const NOW = new Date("2026-10-22T12:00:00Z").getTime()
+  // The five rows that actually exist in production today.
+  const prod = [
+    { id: 13, lead_id: 90, scheduled_at: "2026-10-17T14:00:00+00:00", status: "scheduled", property_id: 68 },
+    { id: 12, lead_id: 90, scheduled_at: "2026-10-17T14:00:00+00:00", status: "completed", property_id: 68 },
+    { id: 14, lead_id: 84, scheduled_at: "2026-10-23T14:00:00+00:00", status: "scheduled", property_id: 62 },
+    { id: 15, lead_id: 84, scheduled_at: "2026-10-23T14:00:00+00:00", status: "scheduled", property_id: 62 },
+    { id: 16, lead_id: 94, scheduled_at: "2026-11-10T15:00:00+00:00", status: "canceled", property_id: null },
+  ]
+  ok("duplicate rows for ONE appointment count once (lead 84: 2 rows → 1)", count(prod, 84, NOW) === 1, String(count(prod, 84, NOW)))
+  ok("a PAST 'scheduled' tour is not upcoming (lead 90 → 0)", count(prod, 90, NOW) === 0, String(count(prod, 90, NOW)))
+  ok("a CANCELED tour is not confirmed (Reagan → 0)", count(prod, 94, NOW) === 0, String(count(prod, 94, NOW)))
+  ok("a COMPLETED tour is not upcoming", count([prod[1]], 90, NOW) === 0)
+  ok("another lead's tours never count", count(prod, 1, NOW) === 0)
+  // The safeguard asked for explicitly.
+  ok("a MISSING scheduled_at is not confirmed",
+    count([{ lead_id: 7, scheduled_at: null, status: "scheduled", property_id: 1 }], 7, NOW) === 0)
+  ok("…and nor is an INVALID one",
+    count([{ lead_id: 7, scheduled_at: "not-a-date", status: "scheduled", property_id: 1 }], 7, NOW) === 0)
+  ok("two genuinely different appointments count twice", count([
+    { lead_id: 7, scheduled_at: "2026-11-01T15:00:00+00:00", status: "scheduled", property_id: 1 },
+    { lead_id: 7, scheduled_at: "2026-11-02T15:00:00+00:00", status: "scheduled", property_id: 2 },
+  ], 7, NOW) === 2)
+  ok("same property at DIFFERENT times is two appointments", count([
+    { lead_id: 7, scheduled_at: "2026-11-01T15:00:00+00:00", status: "scheduled", property_id: 1 },
+    { lead_id: 7, scheduled_at: "2026-11-02T15:00:00+00:00", status: "scheduled", property_id: 1 },
+  ], 7, NOW) === 2)
+
+  const dto = readFileSync("lib/companion/leadToDto.ts", "utf8")
+  ok("the DTO derives it the same way", /upcomingTourCount: \(\(\) => \{[\s\S]*?Number\.isFinite\(at\) \|\| at <= now/.test(dto))
+  ok("…deduplicating by property and time", /seen\.add\(`\$\{t\.property_id \?\? "none"\}\|\$\{at\}`\)/.test(dto))
+  ok("…and it is declared in the schema, or zod would strip it",
+    /upcomingTourCount: z\.number\(\)\.nullish\(\)/.test(readFileSync("packages/companion-shared/src/leads/contract.ts", "utf8")))
+  ok("no tour record is written anywhere in this change",
+    !/from\("lead_tours"\)[\s\S]{0,80}\.(insert|update|delete)/.test(dto))
+}
+
+console.log("\n6g. THE pre_tour KEY MIGRATION:")
+{
+  const m = readFileSync("supabase/migrations/20261104000000_voicemail_pre_tour_key.sql", "utf8")
+  const sql = m.replace(/--.*$/gm, "")
+  ok("exactly ONE function is replaced", (sql.match(/create or replace function/g) ?? []).length === 1)
+  ok("no table or column is altered", !/\b(alter table|drop|truncate)\b/i.test(sql))
+  ok("pre_tour joins the allowlist", /not in \('list_sent_30_90', 'list_sent_over_90', 'pre_tour'\)/.test(sql))
+  ok("the other guards are reproduced unchanged",
+    /current_workspace_id\(\)/.test(sql) && /workspace_id = v_ws/.test(sql) &&
+    /'editedBy',        v_uid/.test(sql) && /empty_body/.test(sql) && /body_too_long/.test(sql))
+  ok("updated_at is NOT reintroduced", !sql.includes("updated_at"))
+  ok("permissions are re-asserted, revoke before grant",
+    /revoke execute on function[^;]*from public, anon;/.test(sql) &&
+    sql.indexOf("revoke execute") < sql.indexOf("grant  execute"))
+  const q = readFileSync("docs/VOICEMAIL_PRE_TOUR_VERIFY.sql", "utf8").replace(/--.*$/gm, "")
+  ok("the verification query is read-only and one statement",
+    (q.match(/;/g) ?? []).length === 1 && !/^\s*(create|alter|drop|insert|update|delete|grant|revoke)/im.test(q))
+  ok("…and checks pre_tour, the old keys, updated_at and anon",
+    /pre_tour/.test(q) && /list_sent_over_90/.test(q) && /updated_at/.test(q) && /has_function_privilege\('anon'/.test(q))
+  // The updated_at row once matched the function's OWN comment — which names the column
+  // deliberately, to stop anyone adding it back — and so failed on correct code. It must strip
+  // comments before matching, the same lesson as the TS assertions that read source text.
+  // Asserted against the RAW file, not `q`: the line being matched contains `--` inside a string
+  // literal, so this test's own comment-stripper would mangle it. A stripper that eats the thing
+  // it is checking is exactly the bug this assertion exists to catch.
+  ok("the updated_at check strips SQL comments before matching",
+    /regexp_replace\(pg_get_functiondef\(oid\)/.test(readFileSync("docs/VOICEMAIL_PRE_TOUR_VERIFY.sql", "utf8")))
+  ok("…and the migration still carries that warning comment, which is why stripping is needed",
+    /NO updated_at: public\.leads has no such column/.test(
+      readFileSync("supabase/migrations/20261104000000_voicemail_pre_tour_key.sql", "utf8")))
 }
 
 console.log("\n7b. FULL-HEIGHT LAYOUT — the panel chrome steps aside:")
