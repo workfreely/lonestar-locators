@@ -229,6 +229,66 @@
   /* Softer, lighter muted green — clearly less bright than the Next Action button. */
   color: color-mix(in srgb, var(--lb-success, #10b981) 42%, var(--lb-text-muted, #9aa4b2));
 }
+/* The preliminary-task row. Deliberately the SAME anatomy as .lp-completed below — 12.5px, the
+   13px top margin, a 12px icon at gap 6 — so it reads as metadata on the Next Action card rather
+   than as a second section. NEUTRAL, never the completed green: green means done in this card and
+   this task is not. It is a <button> because it opens the task editor, but it is styled as the
+   line of text it looks like: no border, no background, no padding that would change the rhythm. */
+.lp-dofirst {
+  display: flex;
+  /* Top-aligned, not centred: the full "Sun, Nov 1 • 9:00 AM" can wrap at this panel width, and a
+     centred icon would drift to the middle of a two-line block. A clean wrap is the intended
+     outcome — the date and time are never truncated. */
+  align-items: flex-start;
+  gap: 6px;
+  margin-top: 13px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  font: inherit;
+  font-size: 12.5px;
+  line-height: 1.35;
+  text-align: left;
+  color: var(--lb-text-secondary);
+  cursor: pointer;
+  border-radius: 4px;
+  transition: color 0.15s ease;
+}
+.lp-dofirst:hover {
+  color: var(--lb-text-primary);
+}
+.lp-dofirst:focus-visible {
+  outline: 2px solid var(--lb-accent, #2563eb);
+  outline-offset: 2px;
+}
+.lp-dofirst-val {
+  font-weight: 600;
+  color: var(--lb-text-primary);
+}
+/* The icon keeps the first line's optical centre when the text wraps beneath it. */
+.lp-dofirst > svg {
+  margin-top: 2px;
+}
+.lp-dofirst-text {
+  min-width: 0;
+}
+/* The row's own ✎ — the same quiet glyph as .lp-due-edit, but a span: the whole row is already the
+   button, so a nested control would be a second tab stop for the same action. */
+.lp-dofirst-edit {
+  margin-left: 2px;
+  font-size: 12px;
+  line-height: 1;
+  opacity: 0.75;
+  flex: none;
+}
+.lp-dofirst:hover .lp-dofirst-edit {
+  opacity: 1;
+}
+/* "+2" when more reminders are open. Quiet by design: a count, not a badge. */
+.lp-dofirst-more {
+  color: var(--lb-text-muted, #9aa4b2);
+  font-weight: 500;
+}
 .lp-completed-val {
   font-weight: 600;
   /* Stronger green than the label, but still toned down vs the solid green button. */

@@ -49,6 +49,7 @@ function fmtDue(iso: string | null | undefined, tz: string) {
   return formatDueDateTime(iso, { timeZone: tz });
 }
 
+
 /**
  * A saved value is "meaningful" only when it is present and non-blank. This is
  * the single gate for conditional rendering: uncollected fields are omitted
@@ -318,10 +319,27 @@ export function LeadPanelBody({
   // client. Omitted in fixtures, where the button falls back to the demo note.
   onAddTask?: () => void;
   /** Opens the task sheet in EDIT mode for this open action. */
-  onEditTask?: () => void;
+  onEditTask?: (taskId?: string | number) => void;
 }) {
   const tz = timeZone ?? PREVIEW_TIME_ZONE;
   const openAction = nextActions.find((a) => !a.completed) ?? null;
+
+  // THE PRELIMINARY TASK ROW.
+  //
+  // A manual reminder the locator set for themselves, shown under the Due line instead of being
+  // lost: rankLeadActions already returns it, and this card only ever drew the primary. Workflow
+  // actions are excluded — a second automatic step is the workflow's business, not a personal
+  // reminder — and so is whichever row is already the headline.
+  const preliminaryTasks = nextActions
+    .filter((a) => !a.completed && !a.actionKey && String(a.id) !== String(openAction?.id ?? ""))
+    .sort((a, b) => new Date(a.dueAt ?? 0).getTime() - new Date(b.dueAt ?? 0).getTime());
+  const preliminary = preliminaryTasks[0] ?? null;
+  // "DO FIRST" IS A CLAIM ABOUT ORDER, so it is only made when the dates actually say so. Nothing
+  // here establishes a dependency — the task is simply due before the current action — and when it
+  // is not, the row says "Also", which asserts nothing. Equal dates are not "first" either.
+  const preliminaryIsFirst =
+    !!preliminary?.dueAt && !!openAction?.dueAt &&
+    new Date(preliminary.dueAt).getTime() < new Date(openAction.dueAt).getTime();
   // Status is derived from the DUE TIMESTAMP, never a priority flag — a future
   // due (e.g. Tomorrow) can never read as "Overdue". Overdue = the due instant
   // has already passed; otherwise it is still Pending.
@@ -652,7 +670,7 @@ export function LeadPanelBody({
               {onEditTask && (
                 <button
                   type="button"
-                  onClick={onEditTask}
+                  onClick={() => onEditTask()}
                   className="lp-due-edit"
                   aria-label="Edit this task's due date"
                   title="Edit due date"
@@ -661,6 +679,33 @@ export function LeadPanelBody({
                 </button>
               )}
             </div>
+            {preliminary && (
+              <button
+                type="button"
+                className="lp-dofirst"
+                onClick={() => onEditTask?.(preliminary.id)}
+                title={`${preliminary.title}${preliminary.notes ? ` — ${preliminary.notes}` : ""} · ${fmtDue(preliminary.dueAt, tz)}`}
+                aria-label={`Edit task: ${preliminary.title}, due ${fmtDue(preliminary.dueAt, tz)}`}
+              >
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"
+                  strokeLinecap="round" strokeLinejoin="round" style={{ flex: "none" }} aria-hidden>
+                  <path d="M9 11l3 3L22 4" />
+                  <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11" />
+                </svg>
+                <span className="lp-dofirst-text">
+                  {preliminaryIsFirst ? "Do first: " : "Also: "}
+                  <span className="lp-dofirst-val">
+                    {preliminary.title} · {fmtDue(preliminary.dueAt, tz)}
+                  </span>
+                  {preliminaryTasks.length > 1 && (
+                    <span className="lp-dofirst-more"> +{preliminaryTasks.length - 1}</span>
+                  )}
+                </span>
+                {/* The same ✎ the Due line carries, so the two editable lines on this card look
+                    editable in the same way. The whole row is the click target; this is the cue. */}
+                <span className="lp-dofirst-edit" aria-hidden>✎</span>
+              </button>
+            )}
             {/* The old in-card "← Back to CRM" link was removed — Back to CRM now
                 lives in the Search Mode header (shown while the active tab is a Smart
                 Apartment Data page), so it no longer clutters the Next Action card. */}

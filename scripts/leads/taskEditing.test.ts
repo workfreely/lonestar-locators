@@ -144,8 +144,12 @@ console.log("\n10. THE UI ENTRY POINTS, AND WHAT STAYS HIDDEN:")
   ok("SHOW_ADD_TASK is still false — no new main-panel button", /const SHOW_ADD_TASK = false;/.test(lpv))
   ok("the edit control sits on the EXISTING Due row — no new section",
     /className="lp-due">[\s\S]*?lp-due-edit[\s\S]*?<\/div>/.test(lpv))
+  // Re-pinned when the Do-first row made onEditTask take an optional task id: the pencil now calls
+  // it with NO argument so the click event is never passed as one. Same intent, tighter.
   ok("…and it opens the shared task sheet rather than its own dialog",
-    /onClick=\{onEditTask\}/.test(lpv))
+    /onClick=\{\(\) => onEditTask\(\)\}/.test(lpv))
+  ok("…passing no id, so the pencil always means the headline action",
+    !/onClick=\{onEditTask\}/.test(lpv))
   ok("…and is a real button with an accessible name", /aria-label="Edit this task's due date"/.test(lpv))
   const dash = readFileSync("components/crm/DashboardClient.tsx", "utf8")
   ok("the legacy Lead Panel stays hidden", /const SHOW_LEGACY_LEAD_PANEL = false/.test(dash))
@@ -158,7 +162,12 @@ console.log("\n10. THE UI ENTRY POINTS, AND WHAT STAYS HIDDEN:")
     /prev\.map\(\(a: any\) => \(String\(a\.id\) === String\(saved\.id\)/.test(dash))
   ok("…and re-posts to the Companion so all three surfaces agree",
     /postCompanionActiveClient\([\s\S]{0,200}String\(a\.id\) === String\(saved\.id\)/.test(dash))
-  ok("the sheet defaults a NEW task to Follow Up", /setTaskTitle\("Follow Up"\)/.test(readFileSync("apps/beast-companion/src/sidepanel/ProductionPanel.tsx","utf8")))
+  // Re-pinned when the free-text field became the standardised picker: the literal moved into a
+  // named constant, so assert the constant's VALUE and that the sheet uses it.
+  ok("the sheet defaults a NEW task to Follow Up", (() => {
+    const pp = readFileSync("apps/beast-companion/src/sidepanel/ProductionPanel.tsx", "utf8")
+    return /DEFAULT_TASK_TITLE = "Follow Up"/.test(pp) && /setTaskTitle\(DEFAULT_TASK_TITLE\)/.test(pp)
+  })())
 }
 
 console.log("\n11. REAGAN — the real scenario, simulated, her record untouched:")

@@ -120,6 +120,17 @@ const PREF_TEXT_TOP3_KEY = "lb-pref-text-top-3";
 const PREF_VOICE_SCRIPT_KEY = "lb-pref-ai-voice-script";
 
 /**
+ * The task types a locator may pick for a NEW reminder.
+ *
+ * A short list rather than a free text box, so these rows stay recognisable at a glance and the
+ * "what kind of thing is this" question has one answer. Checked against the workflow matchers: none
+ * is a canonical action_key, none equals any stage's automatic label, so none can be mistaken for
+ * workflow identity or suppress an automatic action. The specifics go in Notes.
+ */
+const TASK_TITLE_OPTIONS = ["Follow Up", "Confirm", "Call", "Text", "Email"] as const;
+const DEFAULT_TASK_TITLE = "Follow Up";
+
+/**
  * A stored UTC instant → the locator's LOCAL wall-clock date + time, in THEIR saved zone.
  *
  * The exact inverse of the localTourToUtc the CRM applies when saving, so an edit that changes
@@ -1249,7 +1260,7 @@ export function ProductionPanel() {
     // "Follow Up" by default — it is the task a locator reaches for most, it is already a
     // first-class title elsewhere (its own SMS template and the same 💬 the automatic follow-ups
     // use), and it is still a plain text field anyone can overwrite.
-    setTaskTitle("Follow Up");
+    setTaskTitle(DEFAULT_TASK_TITLE);
     setTaskDate("");
     setTaskTime(DEFAULT_TIME_VALUE);
     setTaskNotes("");
@@ -1259,11 +1270,12 @@ export function ProductionPanel() {
 
   // Edit the lead's CURRENT open action — the pencil beside the Next Action due date. Opens the
   // SAME sheet, pre-filled, so there is one task dialog rather than two that can drift apart.
-  const onEditTask = () => {
+  const onEditTask = (taskId?: string | number) => {
     const lead = active?.lead;
-    // The SAME open action the Next Action card shows (LeadPanelView picks it the same way), so
-    // the pencil always edits the row the locator is looking at.
-    const a = (active?.nextActions ?? []).find((x) => !x.completed) ?? null;
+    // With an id (the Do-first row) edit THAT task; without one (the pencil) edit the action the
+    // Next Action card is showing — picked the same way LeadPanelView picks it.
+    const open = (active?.nextActions ?? []).filter((x) => !x.completed);
+    const a = taskId === undefined ? (open[0] ?? null) : (open.find((x) => String(x.id) === String(taskId)) ?? null);
     if (!lead || lead.id === undefined || lead.id === null) return;
     if (!a || a.id === undefined || a.id === null) return;
     const name = formatPersonName(lead.firstName) || "this client";
@@ -2043,19 +2055,26 @@ export function ProductionPanel() {
             <div style={{ display: "flex", flexDirection: "column", gap: 10, marginBottom: 14 }}>
               <label style={SHEET_FIELD_LABEL}>
                 Task *
-                <input
-                  type="text"
+                <select
                   value={taskTitle}
                   onChange={(e) => setTaskTitle(e.target.value)}
-                  placeholder="e.g. Call to confirm budget"
                   autoFocus={!taskEdit}
                   // An automatic workflow action's name belongs to the workflow: renaming one
-                  // resurrects a duplicate stage action and can strand the lead. Read-only here is
+                  // resurrects a duplicate stage action and can strand the lead. Disabled here is
                   // the EXPLANATION; the server refuses the rename either way.
-                  readOnly={!!taskEdit?.actionKey}
                   disabled={!!taskEdit?.actionKey}
                   style={{ ...SHEET_INPUT_STYLE, ...(taskEdit?.actionKey ? { opacity: 0.6 } : null) }}
-                />
+                >
+                  {/* A task saved before these options existed — or a workflow action being
+                      re-dated — keeps its own title as a selectable entry, so opening the editor
+                      can never silently rewrite what is already stored. */}
+                  {taskTitle && !TASK_TITLE_OPTIONS.includes(taskTitle as (typeof TASK_TITLE_OPTIONS)[number]) && (
+                    <option value={taskTitle}>{taskTitle}</option>
+                  )}
+                  {TASK_TITLE_OPTIONS.map((t) => (
+                    <option key={t} value={t}>{t}</option>
+                  ))}
+                </select>
               </label>
               {taskEdit?.actionKey ? (
                 <p style={{ margin: "-4px 0 0", fontSize: 11.5, lineHeight: 1.35, opacity: 0.7 }}>

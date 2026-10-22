@@ -216,7 +216,7 @@ export function PanelApp({
   // dev harness (fixtures), where the button falls back to the inert demo note.
   onAddTask?: () => void;
   /** Opens the same task sheet in EDIT mode for the lead's current open action. */
-  onEditTask?: () => void;
+  onEditTask?: (taskId?: string | number) => void;
   // Phase 3 — focus the existing CRM tab from the list-building workflow.
   onBackToCrm?: () => void;
   // Saved locator IANA timezone for Due/Completed formatting (falls back inside
