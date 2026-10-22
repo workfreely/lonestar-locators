@@ -257,6 +257,23 @@ export const leadSummarySchema = z.object({
    * newer location context. Never generated here — only surfaced for Location Fit.
    */
   aiInsights: z.array(z.string()).nullish(),
+  /**
+   * The locator's SAVED voicemail script for this lead (leads.voicemail_script), or null when
+   * none has been saved and the panel should render the template fresh.
+   *
+   * AGENT-ONLY, like the rest of this DTO: the Companion is an authenticated locator surface.
+   * It is never returned by any public/anon path — the client share RPC selects an explicit
+   * column list that excludes it.
+   */
+  voicemailScript: z
+    .object({
+      templateKey: z.string(),
+      body: z.string(),
+      specialsEnabled: z.boolean().nullish(),
+      editedAt: z.string().nullish(),
+      editedBy: z.string().nullish(),
+    })
+    .nullish(),
 });
 export type LeadSummaryDTO = z.infer<typeof leadSummarySchema>;
 export type CriteriaChangeDTO = z.infer<typeof criteriaChangeSchema>;

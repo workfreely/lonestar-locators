@@ -195,6 +195,23 @@ export {
   buildTextTop3Body,
 } from "./format/followUpTemplates";
 
+export {
+  VOICEMAIL_TEMPLATE_KEYS,
+  SAVEABLE_VOICEMAIL_KEYS,
+  VOICEMAIL_TEMPLATE_LABELS,
+  VOICEMAIL_SPECIALS_PARAGRAPH,
+  PREFERENCE_PLACEHOLDERS,
+  daysUntilMove,
+  moveMonthName,
+  availabilityTimeframe,
+  chooseTemplate,
+  pickPreferences,
+  renderVoicemail,
+  type VoicemailTemplateKey,
+  type VoicemailContext,
+  type TemplateChoice,
+} from "./format/voicemailScripts";
+
 // Approved agent-variable value derivation + clean missing-value tidy (CP2.5).
 export {
   type FollowUpVarInput,

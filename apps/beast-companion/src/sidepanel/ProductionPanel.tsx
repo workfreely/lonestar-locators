@@ -275,6 +275,8 @@ export function ProductionPanel() {
       return next;
     });
   };
+  // The menu row now OPENS AND CLOSES the voicemail panel. The stored preference is kept as the
+  // open/closed state itself, so the panel survives a panel reload mid-call rather than vanishing.
   const onToggleAiVoiceScript = () => {
     setAiVoiceScriptOn((v) => {
       const next = !v;
@@ -282,6 +284,24 @@ export function ProductionPanel() {
       return next;
     });
   };
+  const closeVoicemail = () => {
+    setAiVoiceScriptOn(false);
+    (globalThis as unknown as { chrome?: any }).chrome?.storage?.local?.set({ [PREF_VOICE_SCRIPT_KEY]: false });
+  };
+
+  // SAVE / RESET — the only two things this feature writes. Both post a verb to the authenticated
+  // CRM tab, which calls the workspace-scoped RPC; the panel never touches the database and never
+  // sends anything to a client.
+  const postVoicemailVerb = (payload: Record<string, unknown>) => {
+    const lead = active?.lead;
+    if (!lead || lead.id === undefined || lead.id === null) return;
+    (globalThis as unknown as { chrome?: any }).chrome?.storage?.local?.set({
+      "lb-workflow-verb": { nonce: `${Date.now()}-${Math.random()}`, leadId: lead.id, ...payload },
+    });
+  };
+  const onSaveVoicemail = (p: { templateKey: string; body: string; specialsEnabled: boolean }) =>
+    postVoicemailVerb({ verb: "save-voicemail", ...p });
+  const onResetVoicemail = () => postVoicemailVerb({ verb: "reset-voicemail" });
 
   // ── Deadline-aware snooze for the "Ready to send {name}'s list?" prompt ──────
   // "Not Yet" must not dismiss forever, and must not let the agent snooze past the
@@ -1669,6 +1689,9 @@ export function ProductionPanel() {
         aiVoiceScriptOn={aiVoiceScriptOn}
         onToggleTextTop3={onToggleTextTop3}
         onToggleAiVoiceScript={onToggleAiVoiceScript}
+        onCloseVoicemail={closeVoicemail}
+        onSaveVoicemail={onSaveVoicemail}
+        onResetVoicemail={onResetVoicemail}
         onConnect={onConnect}
         onContact={onContact}
         onContactLead={onContactLead}

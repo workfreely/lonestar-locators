@@ -9,6 +9,7 @@ import { useActiveExternalPropertyTab } from "./useActiveExternalPropertyTab";
 import { PropertiesView } from "./properties/PropertiesView";
 import type { AutofillOutcome } from "./autofill/runAutofill";
 import { TourModeView } from "./tour/TourModeView";
+import { VoicemailScriptView } from "./lead/VoicemailScriptView";
 import type { TourModeRequest } from "./tour/useTourMode";
 import type { AutofillLocator } from "@bc/companion-shared";
 import { CompanionMenu } from "./menu/CompanionMenu";
@@ -100,6 +101,9 @@ export function PanelApp({
   aiVoiceScriptOn = false,
   onToggleTextTop3,
   onToggleAiVoiceScript,
+  onCloseVoicemail,
+  onSaveVoicemail,
+  onResetVoicemail,
   connection = DISCONNECTED,
   onConnect,
   onContact,
@@ -173,6 +177,9 @@ export function PanelApp({
   aiVoiceScriptOn?: boolean;
   onToggleTextTop3?: () => void;
   onToggleAiVoiceScript?: () => void;
+  onCloseVoicemail?: () => void;
+  onSaveVoicemail?: (p: { templateKey: string; body: string; specialsEnabled: boolean }) => void;
+  onResetVoicemail?: () => void;
   // Connection is derived from the SW's authenticated state. Production defaults
   // to DISCONNECTED — the panel is authenticated ONLY when this is "connected".
   connection?: CompanionConnection;
@@ -388,7 +395,18 @@ export function PanelApp({
               onConnect={handleConnect}
             />
           ) : isLoaded ? (
-            tourMode ? (
+            /* VOICEMAIL takes the panel ahead of Tour Mode: it is opened explicitly, for the
+               client already on screen, and must stay put while the locator is on the phone. */
+            aiVoiceScriptOn && lead ? (
+              <VoicemailScriptView
+                key={String(lead.id)}
+                lead={lead}
+                saved={lead.voicemailScript ?? null}
+                onClose={() => onCloseVoicemail?.()}
+                onSave={(p) => onSaveVoicemail?.(p)}
+                onReset={() => onResetVoicemail?.()}
+              />
+            ) : tourMode ? (
               <TourModeView
                 // Key by favorite: switching to a different property gives a fresh
                 // Tour Mode (resets any date/time entry), while a re-click of the

@@ -2705,6 +2705,8 @@ export default function DashboardClient({ leads, nextActions, favorites, recomme
         payload.verb !== "complete-setup-tour" &&
         payload.verb !== "add-task" &&
         payload.verb !== "edit-task" &&
+        payload.verb !== "save-voicemail" &&
+        payload.verb !== "reset-voicemail" &&
         payload.verb !== "open-guest-card" &&
         payload.verb !== "open-tour-follow-up" &&
         payload.verb !== "open-apply" &&
@@ -3460,6 +3462,52 @@ export default function DashboardClient({ leads, nextActions, favorites, recomme
           } catch (err) {
             console.error("[edit-task] failed:", err)
             window.alert("That change could not be saved.")
+          }
+        })()
+        return
+      }
+
+      // VOICEMAIL SCRIPT — the locator's own reading aid for this lead, saved or cleared.
+      //
+      // Routed through the workspace-scoped RPCs, which re-derive editedAt/editedBy server-side
+      // and enforce ownership in their WHERE clause, so a leadId from the message bus can never
+      // reach another tenant's row. Validation (allowed template key, non-empty body, length cap)
+      // is the database's, not this handler's.
+      //
+      // This writes ONE jsonb column. It sends nothing to the client, enrols no one, and touches
+      // no action, stage, tour or texting state.
+      if (payload.verb === "save-voicemail" || payload.verb === "reset-voicemail") {
+        const reset = payload.verb === "reset-voicemail"
+        void (async () => {
+          try {
+            const { error } = reset
+              ? await supabase.rpc("clear_lead_voicemail_script", { p_lead_id: lead.id })
+              : await supabase.rpc("save_lead_voicemail_script", {
+                  p_lead_id: lead.id,
+                  p_template_key: String(payload.templateKey ?? ""),
+                  p_body: String(payload.body ?? ""),
+                  p_specials_enabled: payload.specialsEnabled === true,
+                })
+            if (error) {
+              console.error("[voicemail] save failed:", error.message)
+              window.alert("That voicemail script could not be saved.")
+              return
+            }
+            // Reflect it locally so reopening the panel shows what was stored, without a refetch.
+            const next = reset
+              ? null
+              : {
+                  templateKey: String(payload.templateKey ?? ""),
+                  body: String(payload.body ?? ""),
+                  specialsEnabled: payload.specialsEnabled === true,
+                }
+            setLocalLeads((prev) =>
+              prev.map((l: any) => (String(l.id) === String(lead.id) ? { ...l, voicemail_script: next } : l))
+            )
+            postCompanionActiveClient({ ...lead, voicemail_script: next }, localNextActionsRef.current)
+          } catch (err) {
+            console.error("[voicemail] threw:", err)
+            window.alert("That voicemail script could not be saved.")
           }
         })()
         return

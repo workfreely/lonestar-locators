@@ -426,6 +426,24 @@ export function buildActiveClientPayload(
     // Location Fit. Insights are sanitized to non-empty strings; empty → omitted.
     locatorNotes: str(lead.locator_notes),
     aiInsights: (aiInsights || []).map((s) => str(s)).filter((s): s is string => !!s),
+    // The locator's saved voicemail script, passed through as stored. Shape-checked rather than
+    // trusted: the column is jsonb, and a row written before this shipped (or by hand) must not
+    // put a half-object in front of the panel. Anything unrecognised reads as "no saved script",
+    // which renders the template fresh — the same, safe fallback as null.
+    voicemailScript: (() => {
+      const v = (lead as Record<string, unknown>).voicemail_script as Record<string, unknown> | null | undefined
+      if (!v || typeof v !== "object") return null
+      const key = str(v.templateKey)
+      const body = str(v.body)
+      if (!key || !body) return null
+      return {
+        templateKey: key,
+        body,
+        specialsEnabled: v.specialsEnabled === true,
+        editedAt: str(v.editedAt),
+        editedBy: str(v.editedBy),
+      }
+    })(),
   }
 
   // Real open next-action rows for this lead. The canonical Follow Up created by a
