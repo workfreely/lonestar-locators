@@ -32,6 +32,9 @@ export default function SmartLeadFormEditor() {
   // step and no draft/published split. `saved` shows a brief confirmation and
   // clears the moment the user edits again.
   const [slug, setSlug] = useState<string | null>(null)
+  // Identity for admin-only share slugs. The workspace ID, not the username: a slug is a string
+  // anyone can type, and the public route enforces this same ID server-side.
+  const [workspaceId, setWorkspaceId] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
   const [saveError, setSaveError] = useState<string | null>(null)
@@ -64,6 +67,7 @@ export default function SmartLeadFormEditor() {
       if (!active) return
       const wsRow = Array.isArray(ws) ? ws[0] : ws
       if (wsRow?.service_areas) setServiceAreaSlugs(wsRow.service_areas)
+      if (wsRow?.id) setWorkspaceId(wsRow.id as string)
 
       const uid = userData?.user?.id
       let prof: {
@@ -212,7 +216,7 @@ export default function SmartLeadFormEditor() {
           {/* The panel edits the real config, so it waits for one. The column
               keeps its width and border, so nothing shifts when it appears. */}
           {config && (
-            <SettingsPanel config={config} onChange={updateConfig} slug={slug} licenseState={licenseState} serviceAreaSlugs={serviceAreaSlugs} onTabChange={setActiveTab} />
+            <SettingsPanel config={config} onChange={updateConfig} slug={slug} workspaceId={workspaceId} licenseState={licenseState} serviceAreaSlugs={serviceAreaSlugs} onTabChange={setActiveTab} />
           )}
         </div>
       </div>

@@ -46,10 +46,23 @@ export type ChannelInput = {
 
 const clean = (v: string | null | undefined) => (v ?? "").trim()
 
-/** A canonical channel if the value already is one, else null. */
+/**
+ * Finer-grained SOURCES that are not channels of their own, mapped to the channel they belong to.
+ *
+ * CHANNEL and SOURCE are two different axes, and this is the seam between them. A second-chance
+ * form link is Facebook traffic — it belongs in the Facebook bucket in channel reporting — but it
+ * keeps its own distinct `leads.source` so the CRM badge can tell the two Facebook groups apart.
+ * Without this alias the value matches no channel and the lead falls through every rule below to
+ * "unknown": a real Facebook lead missing from Facebook's totals, which is exactly the kind of
+ * silent mis-bucketing this resolver exists to prevent.
+ */
+const SOURCE_TO_CHANNEL: Record<string, Channel> = { facebook_second_chance: "facebook" }
+
+/** A canonical channel if the value already is one (or aliases to one), else null. */
 function asChannel(v: string | null | undefined): Channel | null {
   const s = clean(v).toLowerCase()
   if (!s) return null
+  if (SOURCE_TO_CHANNEL[s]) return SOURCE_TO_CHANNEL[s]
   const known: Channel[] = ["instagram", "facebook", "tiktok", "youtube", "google", "website", "referral", "direct", "email", "qr", "manual"]
   return (known as string[]).includes(s) ? (s as Channel) : null
 }

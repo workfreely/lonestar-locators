@@ -133,7 +133,11 @@ console.log("\n10. SERVED DIRECTLY — NO REDIRECT, NO INTERMEDIATE PAGE:")
 {
   const route = read("app/locator-beast/[username]/[source]/page.tsx")
   ok("the source route exists", existsSync(join(process.cwd(), "app/locator-beast/[username]/[source]/page.tsx")))
-  ok("it renders PublicFormView directly", /<PublicFormView username=\{username\} pathUtmSource=\{pathUtmSource\} \/>/.test(route))
+  // WIDENED when the admin-only second-chance variant added a `sourceSlug` prop. The intent is
+  // unchanged and still fully pinned: the route renders PublicFormView itself, carrying BOTH
+  // original props, with no redirect or intermediate page. Only additional props are tolerated.
+  ok("it renders PublicFormView directly, still passing username and pathUtmSource",
+    /<PublicFormView username=\{username\} pathUtmSource=\{pathUtmSource\}[^>]*\/>/.test(route))
   ok("it does NOT redirect", !/\bredirect\(/.test(route) && !/permanentRedirect/.test(route))
   ok("no client-side navigation or timer", !/useEffect|setTimeout|router\.(push|replace)/.test(route))
   ok("it is not a client component", !/"use client"/.test(route))

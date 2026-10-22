@@ -12,6 +12,7 @@ import { notFound } from "next/navigation"
 import { buildInitialSmartFormConfig } from "@/app/smart-lead-form/_lib/initialConfig"
 import { createClient } from "@/lib/supabase/server"
 import SmartLeadForm from "@/app/smart-lead-form/_components/form/SmartLeadForm"
+import { slugAllowedForWorkspace } from "@/app/smart-lead-form/_lib/shareConfig"
 import { mergeSmartFormConfig } from "@/app/smart-lead-form/_lib/mergeConfig"
 import type { SmartLeadFormConfig } from "@/app/smart-lead-form/_lib/types"
 
@@ -57,12 +58,28 @@ export async function publicFormMetadata(username: string) {
  * URL; it is passed to the form as a FALLBACK only — a query-string utm_source still wins, so every
  * long link already in the wild behaves exactly as before.
  */
+/**
+ * Per-slug hero copy. Only the three lines differ; the headline is restated rather than left
+ * implicit, so that if the agent later edits their own headline this variant keeps the one
+ * approved for it.
+ */
+const SECOND_CHANCE_COPY: Record<string, { headline: string; subheadline: string; supportingLine: string }> = {
+  "fb-second-chance": {
+    headline: "Stop Wasting Time Searching for Apartments",
+    subheadline: "Find 2nd Chance Apartments That Work for You",
+    supportingLine: "Bad Credit \u2022 No Credit \u2022 Broken Lease",
+  },
+}
+
 export default async function PublicFormView({
   username,
   pathUtmSource,
+  sourceSlug,
 }: {
   username: string
   pathUtmSource?: string
+  /** The public slug from the URL, when this is a /{username}/{slug} request. */
+  sourceSlug?: string
 }) {
   const supabase = await createClient()
   const { data, error } = await supabase.rpc("lb_resolve_public_form", { p_username: username })
@@ -71,6 +88,14 @@ export default async function PublicFormView({
   // Only an unknown slug (no workspace) or a resolver error 404s — never an
   // "unpublished" state, which no longer exists.
   if (error || !form) {
+    notFound()
+  }
+
+  // ADMIN-ONLY SLUGS. The workspace is resolved SERVER-SIDE from the username, so another
+  // subscriber substituting their own slug resolves to their own workspace and fails here.
+  // 404 rather than quietly serving the ordinary form: a silent fallback would leave an
+  // unauthorized link working and attributing leads to a source that is not theirs.
+  if (sourceSlug && !slugAllowedForWorkspace(sourceSlug, form.workspace_id)) {
     notFound()
   }
 
@@ -104,6 +129,11 @@ export default async function PublicFormView({
       ...saved.copy,
       agentName: form.agent_name,
       brokerageName: form.brokerage_name ?? saved.copy.brokerageName,
+      // SOURCE-AWARE COPY — three lines and nothing else. Everything the agent configured
+      // (highlights, reassurance, fields, testimonials, FAQs, branding) is already in `saved`
+      // and untouched, so this variant cannot drift from the regular form as that config
+      // changes. The guard above has already established the workspace is authorised.
+      ...(sourceSlug ? SECOND_CHANCE_COPY[sourceSlug] ?? {} : {}),
     },
   }
 

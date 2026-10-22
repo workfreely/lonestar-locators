@@ -42,5 +42,5 @@ export default async function BrandedSourceFormPage({
     notFound()
   }
 
-  return <PublicFormView username={username} pathUtmSource={pathUtmSource} />
+  return <PublicFormView username={username} pathUtmSource={pathUtmSource} sourceSlug={source} />
 }

@@ -55,6 +55,8 @@ export const DEFAULT_CONFIG: SmartLeadFormConfig = {
     // Short promise by default (no long descriptive paragraph). The agent can
     // replace this with longer copy in the editor if they choose.
     subheadline: "Get Your Free Custom Apartment List",
+    // Empty: the regular form has no third line and must look untouched.
+    supportingLine: "",
     buttonText: "Get My Apartment List",
     agentName: "Jordan Blake",
     agentTitle: "Licensed Apartment Locator",

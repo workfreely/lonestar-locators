@@ -17,7 +17,7 @@ const OVERLAY_OPACITY: Record<SmartLeadFormConfig["branding"]["heroOverlay"], st
 // background here so the overlapping photo below always straddles the
 // hero's own bottom edge, never a separate white section.
 export default function Hero({ config }: { config: SmartLeadFormConfig }) {
-  const { headline, subheadline } = config.copy
+  const { headline, subheadline, supportingLine } = config.copy
   const { heroTheme, heroImageUrl, heroOverlay, agentPhotoSize, profileImagePosition } = config.branding
   const { headline: showHeadline, highlights: showHighlights, agentProfile: showAgentProfile } = config.sections.visibility
 
@@ -45,6 +45,16 @@ export default function Hero({ config }: { config: SmartLeadFormConfig }) {
       {subheadline}
     </p>
   )
+
+  // A QUALIFIER, not a second offer: smaller and lighter than the subheadline above it, so the
+  // two never read as competing headlines. Rendered only when non-empty — an empty string emits
+  // NO element, so a form without one keeps the exact subheadline → highlights spacing it has
+  // today rather than inheriting a collapsed margin.
+  const supportingNode = (supportingLine ?? "").trim() ? (
+    <p className="mx-auto mt-2 max-w-md break-words text-[14px] font-medium leading-snug text-white/85">
+      {supportingLine}
+    </p>
+  ) : null
 
   // Gap from the CTA offer line (subheadline "Get Your Free Custom Apartment
   // List") down to the highlights band. This single wrapper is the ONE rule for
@@ -113,11 +123,13 @@ export default function Hero({ config }: { config: SmartLeadFormConfig }) {
               <AgentInfoText config={config} theme="dark" />
             </div>
             {subheadlineNode}
+            {supportingNode}
             {highlightsNode}
           </>
         ) : (
           <>
             {subheadlineNode}
+            {supportingNode}
             {highlightsNode}
           </>
         )}

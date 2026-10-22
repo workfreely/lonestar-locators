@@ -33,6 +33,10 @@ export type SharePlatform = {
 export const SHARE_PLATFORMS: SharePlatform[] = [
   { id: "instagram", label: "Instagram", utmSource: "instagram", slug: "ig" },
   { id: "facebook", label: "Facebook", utmSource: "facebook", slug: "fb" },
+  // ADMIN-ONLY. Routable like any other slug, but the public page 404s unless the username
+  // resolves to ADMIN_WORKSPACE_ID, and the Share panel only renders it for that workspace.
+  // Registered here so the clean URL and the attribution value cannot drift apart.
+  { id: "facebook_second_chance", label: "Facebook — Second Chance", utmSource: "facebook_second_chance", slug: "fb-second-chance" },
   { id: "tiktok", label: "TikTok", utmSource: "tiktok", slug: "tt" },
   { id: "youtube", label: "YouTube", utmSource: "youtube", slug: "yt" },
   { id: "google", label: "Google Business", utmSource: "google", slug: "google" },
@@ -72,4 +76,23 @@ export function buildCleanShareUrl(username: string, slug: string) {
  *  the backward-compatibility tests assert against the exact historical format. */
 export function buildShareUrl(username: string, utmSource: string) {
   return `${publicPageUrl(username)}?utm_source=${utmSource}`
+}
+
+/**
+ * The ONE workspace permitted to use the second-chance variant.
+ *
+ * A workspace id, not a username: the public route resolves the username server-side through
+ * lb_resolve_public_form, so another subscriber putting their own slug in front of
+ * /fb-second-chance resolves to THEIR workspace, fails this check and gets a 404. A username
+ * comparison would be a string anyone can type.
+ */
+export const ADMIN_WORKSPACE_ID = "037ad3c2-d7cc-49a2-b0d1-4fc06c458409"
+
+/** Share slugs that only ADMIN_WORKSPACE_ID may see or serve. */
+export const ADMIN_ONLY_SLUGS: ReadonlySet<string> = new Set(["fb-second-chance"])
+
+/** Is this slug restricted, and is the given workspace allowed it? */
+export function slugAllowedForWorkspace(slug: string, workspaceId: string | null | undefined): boolean {
+  if (!ADMIN_ONLY_SLUGS.has((slug ?? "").trim().toLowerCase())) return true
+  return (workspaceId ?? "") === ADMIN_WORKSPACE_ID
 }

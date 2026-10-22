@@ -60,6 +60,15 @@ export type SmartLeadFormConfig = {
   copy: {
     headline: string
     subheadline: string
+    /**
+     * A third hero line, under the subheadline and above the highlights.
+     *
+     * OPTIONAL AND EMPTY BY DEFAULT. Every existing form renders exactly as it does today
+     * because an empty string renders nothing at all — the element is not emitted, so it
+     * cannot contribute margin. It exists for the source-aware second-chance variant, which
+     * needs a qualifier line the regular form has no use for.
+     */
+    supportingLine?: string
     buttonText: string
     agentName: string
     agentTitle: string

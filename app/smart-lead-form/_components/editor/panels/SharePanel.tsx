@@ -10,6 +10,7 @@ import Card from "../ui/Card"
 import {
   FALLBACK_USERNAME,
   SHARE_PLATFORMS,
+  slugAllowedForWorkspace,
   buildCleanShareUrl,
   publicPagePath,
   publicPageUrl,
@@ -33,7 +34,7 @@ const PLATFORM_COLORS: Record<string, string> = {
   email: "#6b7280",
 }
 
-export default function SharePanel({ slug }: { slug: string | null }) {
+export default function SharePanel({ slug, workspaceId }: { slug: string | null; workspaceId?: string | null }) {
   const username = slug ?? FALLBACK_USERNAME
   const pagePath = publicPagePath(username) // locatorbeast.com/jay-morris
   const pageUrl = publicPageUrl(username) // https://locatorbeast.com/jay-morris
@@ -93,7 +94,10 @@ export default function SharePanel({ slug }: { slug: string | null }) {
       <div>
         <p className="mb-2 text-[11px] font-semibold uppercase tracking-widest text-[#9098a8]">Share To</p>
         <div className="flex flex-col gap-2">
-          {SHARE_PLATFORMS.map((platform) => {
+          {/* Admin-only slugs are filtered out for every other workspace. This is the AFFORDANCE
+              only — the public route enforces the same workspace ID server-side, so hiding the
+              button is convenience, not the control. */}
+          {SHARE_PLATFORMS.filter((p) => slugAllowedForWorkspace(p.slug, workspaceId)).map((platform) => {
             const Icon = PLATFORM_ICONS[platform.id]
             const color = PLATFORM_COLORS[platform.id]
             return (

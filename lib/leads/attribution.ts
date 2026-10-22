@@ -39,6 +39,10 @@ export function normalizeSource(utmSource: string | undefined): string | undefin
   const s = (utmSource ?? "").trim().toLowerCase()
   if (!s) return undefined
   if (s === "ig" || s.includes("instagram")) return "instagram"
+  // BEFORE the general facebook rule, and that order is the whole point: this value CONTAINS
+  // "facebook", so the line below would collapse it and the two Facebook groups would be
+  // indistinguishable on the lead — a form that looks right and reports wrong.
+  if (s.includes("second_chance") || s.includes("second-chance")) return "facebook_second_chance"
   if (s === "fb" || s.includes("facebook")) return "facebook"
   if (s.includes("tiktok")) return "tiktok"
   if (s.includes("youtube")) return "youtube"

@@ -30,6 +30,7 @@ export default function SettingsPanel({
   config,
   onChange,
   slug,
+  workspaceId,
   onTabChange,
   licenseState,
   serviceAreaSlugs,
@@ -37,6 +38,8 @@ export default function SettingsPanel({
   config: SmartLeadFormConfig
   onChange: Updater
   slug: string | null;
+  /** For admin-only share slugs; forwarded to SharePanel. */
+  workspaceId?: string | null;
   /** Reports the active tab so the editor can switch the preview. Optional: omitting it leaves
    *  every existing behaviour exactly as before. */
   onTabChange?: (tab: Tab) => void;
@@ -91,7 +94,7 @@ export default function SettingsPanel({
         {tab === "content" && <ContentPanel config={config} onChange={onChange} licenseState={licenseState} serviceAreaSlugs={serviceAreaSlugs} />}
         {tab === "fields" && <FieldsPanel config={config} onChange={onChange} />}
         {tab === "thankyou" && <ThankYouPanel config={config} onChange={onChange} />}
-        {tab === "share" && <SharePanel slug={slug} />}
+        {tab === "share" && <SharePanel slug={slug} workspaceId={workspaceId} />}
       </div>
     </div>
   )

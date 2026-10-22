@@ -50,6 +50,8 @@ import { shouldExitDemoOnLead, exitDemoModeForOwner } from "@/lib/demo/demoExit"
 import { resolveSupabaseProject } from "@/lib/supabase/projects"
 import { isValidUsPhone } from "@/lib/utils/formatPhone"
 import { withPhoneIdentity } from "@/lib/phone/identity"
+import { normalizeSource } from "@/lib/leads/attribution"
+import { ADMIN_WORKSPACE_ID } from "@/app/smart-lead-form/_lib/shareConfig"
 import { attributeUnattributedMessages } from "@/lib/companion/attribution"
 import { shouldAutoEnroll } from "@/lib/followup/autoEnroll"
 import { processNotesLocation } from "@/lib/criteria/processNotesLocation"
@@ -431,6 +433,26 @@ export async function POST(request: Request) {
     }
     attributedOwnerId = row.owner_user_id
     attributedWorkspaceId = row.workspace_id
+
+    // ADMIN-ONLY SOURCE. The public page already 404s for an unauthorized workspace, but this
+    // endpoint is reachable directly — so a crafted POST could otherwise attribute a lead to
+    // facebook_second_chance under someone else's workspace and quietly pollute the very
+    // comparison this source exists to make. Refused rather than downgraded: silently
+    // rewriting the source would hide the attempt.
+    //
+    // BOTH fields are checked, because either one alone reaches the CRM badge: the client sends
+    // `utm_source` and the `source` that collectLeadAttribution already derived from it, and both
+    // are in the allowlist. Checking only utm_source would leave the second field as an open door.
+    const bodyRec = body as Record<string, unknown>
+    const claimsSecondChance = ["utm_source", "source"].some(
+      (k) => normalizeSource(String(bodyRec?.[k] ?? "")) === "facebook_second_chance"
+    )
+    if (claimsSecondChance && row.workspace_id !== ADMIN_WORKSPACE_ID) {
+      return NextResponse.json(
+        { success: false, error: "This form is no longer available." },
+        { status: 404 }
+      )
+    }
   }
 
   try {
