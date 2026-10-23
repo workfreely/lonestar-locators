@@ -836,7 +836,7 @@ export default function PostEditor({ postId, from }: { postId: string; from?: st
   //
   // It calls the EXISTING authenticated endpoints and adds no publishing logic of its own:
   //   POST /publish          → every guard, then the atomic claim, then createReelContainer
-  //   GET  /publish/status   → polls the container, then media_publish via the shared finalizer
+  //   POST /publish/status   → polls the container, then media_publish via the shared finalizer
   // Both are platform-admin only (requirePlatformAdmin) and both resolve the destination token
   // server-side, so nothing sensitive passes through the browser.
   //
@@ -896,10 +896,23 @@ export default function PostEditor({ postId, from }: { postId: string; from?: st
     // Meta's container processing is seconds to a couple of minutes for a Reel of this length.
     for (let i = 0; i < 60; i++) {
       await new Promise((r) => setTimeout(r, 5000))
-      const sres = await fetch(`/api/admin/social-autopilot/posts/${encodeURIComponent(postId)}/publish/status`)
+      // POST, NOT GET. This endpoint exports only POST — it FINALISES (it calls media_publish), so
+      // it is not a safe/idempotent read and is not modelled as one. A bare fetch() defaults to GET,
+      // which Next.js answers with 405, and the loop below treated that as "still processing" and
+      // silently waited out its whole budget. That is how a post reached status='publishing' with a
+      // FINISHED container and never published: the container call succeeded and every poll 405'd.
+      const sres = await fetch(`/api/admin/social-autopilot/posts/${encodeURIComponent(postId)}/publish/status`, { method: "POST" })
       const sj = (await sres.json().catch(() => ({}))) as { status?: string; url?: string; error?: string }
       if (sj.status === "published") { setNotice(`Published to Instagram${sj.url ? ` — ${sj.url}` : ""}`); await load(); return }
       if (sj.status === "failed" || sj.error) { setError("Instagram rejected the post. See the post's error for details."); await load(); return }
+      // ONLY "publishing" means keep waiting. An unexpected status — or an HTTP error, which is how
+      // the 405 above presented — is reported rather than waited out. Silence was the actual defect
+      // here: the loop could not distinguish "Meta is still working" from "this call never landed".
+      if (!sres.ok || (sj.status && sj.status !== "publishing")) {
+        setError(`Couldn't finish publishing (${sres.status}${sj.status ? ` · ${sj.status}` : ""}). The post is still in flight; reopen it to retry.`)
+        await load()
+        return
+      }
     }
     setNotice("Still processing at Instagram. Reopen this post shortly to see the result.")
     await load()

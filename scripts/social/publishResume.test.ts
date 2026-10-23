@@ -46,7 +46,15 @@ console.log("\nit creates no container and changes no media:")
 const drive = editor.match(/const drivePublishToCompletion[\s\S]*?\n  \}/)?.[0] ?? ""
 ok("the resume path exists to inspect", drive.length > 0)
 ok("it never POSTs to /publish", !/\/publish['"`],\s*\{\s*method:\s*"POST"/.test(drive))
-ok("it issues no POST at all — status is a GET", !/method:\s*"POST"/.test(drive))
+// This assertion previously read "it issues no POST at all — status is a GET", which was simply
+// wrong: /publish/status exports POST because it FINALISES. Asserting the mistake is what let the
+// 405 ship. What actually matters is that the ONLY thing it posts to is the finaliser — never
+// /publish, which is the call that would create a second container.
+{
+  const posts = [...drive.matchAll(/fetch\(`([^`]+)`[^)]*method:\s*"POST"/g)].map((m) => m[1])
+  ok(`the only POST it issues is to the finaliser (${posts.length})`, posts.length === 1 && /\/publish\/status$/.test(posts[0]), posts.join(", "))
+  ok("…and never to /publish, which would create a second container", !posts.some((u) => /\/publish$/.test(u)))
+}
 ok("it never renders", !/\/render/.test(drive))
 ok("it never saves or patches", !/method:\s*"PATCH"/.test(drive) && !/patchSource|save_draft/.test(drive))
 ok("it builds no caption, container or media call in the client",
@@ -55,6 +63,35 @@ const resumeEffect = editor.match(/useEffect\(\(\) => \{[\s\S]{0,500}?publishing
 ok("the resume effect calls ONLY the completion driver", !/useEffect[\s\S]{0,400}?\/publish['"`],\s*\{\s*method/.test(resumeEffect))
 
 // ── THE SERVER SIDE IS UNCHANGED AND IDEMPOTENT ───────────────────────────────────────────────
+// ── THE METHOD MATCHES THE ROUTE ──────────────────────────────────────────────────────────────
+// A bare fetch() defaults to GET. /publish/status exports POST ONLY — it FINALISES, so it is not a
+// safe read — and Next.js answers a GET with 405. The polling loop read that as "still processing"
+// and waited out its whole budget, which is how a post reached status='publishing' with a FINISHED
+// container and never published. Pinned per route, both directions.
+console.log("\nthe client's HTTP method matches what each route exports:")
+{
+  const routes = [
+    ["publish", "app/api/admin/social-autopilot/posts/[id]/publish/route.ts"],
+    ["publish/status", "app/api/admin/social-autopilot/posts/[id]/publish/status/route.ts"],
+  ] as const
+  for (const [name, file] of routes) {
+    const src = code(readFileSync(file, "utf8"))
+    const exported = ["GET", "POST", "PATCH", "PUT", "DELETE"].filter((m) => new RegExp(`export async function ${m}\\b`).test(src))
+    ok(`/${name} exports exactly one method (${exported.join(", ")})`, exported.length === 1, exported.join(", "))
+    // Every call the editor makes to this exact path must name that method explicitly.
+    const calls = [...editor.matchAll(new RegExp(`fetch\\(\`[^\`]*/${name.replace("/", "\\/")}\`([^)]*)\\)`, "g"))].map((m) => m[1])
+    ok(`…and the editor calls it ${calls.length} time(s)`, calls.length > 0)
+    for (const [i, args] of calls.entries())
+      ok(`…call ${i + 1} explicitly uses ${exported[0]}`, new RegExp(`method:\\s*"${exported[0]}"`).test(args),
+        args.trim() || "(no options — defaults to GET)")
+  }
+}
+
+// An unexpected response must be REPORTED, not waited out. Silence was the actual defect.
+console.log("\nan unexpected response is surfaced, not read as patience:")
+ok("a non-OK response ends the loop with an error", /if \(!sres\.ok \|\| \(sj\.status && sj\.status !== "publishing"\)\)/.test(editor))
+ok("…and the message carries the HTTP status so the cause is visible", /sres\.status/.test(editor))
+
 console.log("\nthe endpoint it calls is safe to call again:")
 ok("an already-published post returns its url unchanged", /if \(p\.external_post_id\) return NextResponse\.json\(\{ status: "published"/.test(statusRoute))
 ok("a post with no container is a no-op", /p\.status !== "publishing" \|\| !p\.ig_container_id/.test(statusRoute))
