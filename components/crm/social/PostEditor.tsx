@@ -195,6 +195,22 @@ const TIME_CHOICES: { min: number; label: string }[] = Array.from({ length: 48 }
 
 const PLACEMENT_SUMMARY: Record<string, string> = { any: "Social Beast chooses the time", morning: "Mornings", midday: "Afternoons", evening: "Evenings" }
 
+// The route's own error codes, in the operator's words. Anything unlisted falls back to a generic
+// message rather than printing a code the screen cannot explain.
+const PUBLISH_NOW_ERRORS: Record<string, string> = {
+  not_ready: "This post has no current render. Render it before publishing.",
+  not_publishable: "This post cannot be published from here.",
+  not_approved: "Approve this post before publishing.",
+  no_destination: "This post has no publishing destination.",
+  already_published: "This post has already been published.",
+  not_claimable: "Another publish is already in progress for this post.",
+  destination_unavailable: "The Instagram destination is paused, disconnected or its token expired.",
+  destination_not_publishable: "This destination cannot be published to.",
+  unsupported_platform: "Only Instagram posts can be published from here.",
+  not_configured: "Instagram publishing is not configured.",
+  container_failed: "Instagram refused the video.",
+}
+
 export default function PostEditor({ postId, from }: { postId: string; from?: string | null }) {
   const router = useRouter()
   const back = BACK[from ?? ""] ?? BACK.library // absent/invalid origin defaults to Library
@@ -307,6 +323,7 @@ export default function PostEditor({ postId, from }: { postId: string; from?: st
   const [ruleMenuOpen, setRuleMenuOpen] = useState(false) // ⋯ overflow (contains Stop Repeat)
   const [publishing, setPublishing] = useState(false) // Publish (hand-off to Social Beast scheduling) in progress
   const [previewing, setPreviewing] = useState(false) // Preview Video render in progress (blocks repeat clicks)
+  const [publishingNow, setPublishingNow] = useState(false) // Publish Now → Instagram, in flight
   const [lightbox, setLightbox] = useState<string | null>(null) // enlarged 9:16 video preview (src or null)
   // Snapshot of the overlay-affecting fields (mode/template/headline) as of the last load() — lets
   // the preview tell "untouched since load" apart from "edited this session" without touching the
@@ -809,6 +826,66 @@ export default function PostEditor({ postId, from }: { postId: string; from?: st
       await autoSchedule() // Post Once → next open slot
     } finally {
       setPublishing(false)
+    }
+  }
+
+  // PUBLISH NOW — the ONE action that actually sends this post to Instagram, as opposed to the
+  // green Publish above, which hands it to Social Beast's scheduler. Both exist because they are
+  // different intentions and always were; until now only the scheduling one had a control, so a
+  // post that needed to go out immediately had no supported route at all.
+  //
+  // It calls the EXISTING authenticated endpoints and adds no publishing logic of its own:
+  //   POST /publish          → every guard, then the atomic claim, then createReelContainer
+  //   GET  /publish/status   → polls the container, then media_publish via the shared finalizer
+  // Both are platform-admin only (requirePlatformAdmin) and both resolve the destination token
+  // server-side, so nothing sensitive passes through the browser.
+  //
+  // DOUBLE-CLICK CANNOT DOUBLE-PUBLISH, and not because of the disabled prop. The claim is an
+  // UPDATE whose WHERE clause includes the status it is moving out of: the second request matches
+  // zero rows and returns 409 not_claimable. The button state is a courtesy; the database is the
+  // guarantee. media_publish is separately single-flighted inside finalizeInstagramPublish.
+  //
+  // It deliberately does NOT save, patch or render first. Saving could invalidate the render
+  // (render_status → 'none') and a re-render would replace the very artifact being published —
+  // which for a post whose video was prepared deliberately is the one thing that must not happen.
+  // Eligibility mirrors the route's pre-claim checks. `selectedPlatforms` is NOT consulted: this
+  // publishes the SAVED post, and an unsaved platform toggle has not changed it.
+  const canPublishNow =
+    post?.platform === "instagram" &&
+    (post?.status === "ready" || post?.status === "scheduled") &&
+    post?.renderStatus === "ready" &&
+    !!post?.approvedAt &&
+    !post?.externalPostUrl
+
+  const publishNow = async () => {
+    if (busy || publishing || publishingNow || previewing) return
+    if (!window.confirm("Publish this post to Instagram now? This is immediate and public.")) return
+    setPublishingNow(true); setError(null); setNotice(null)
+    try {
+      const res = await fetch(`/api/admin/social-autopilot/posts/${encodeURIComponent(postId)}/publish`, { method: "POST" })
+      const j = (await res.json().catch(() => ({}))) as { status?: string; error?: string; detail?: string; containerId?: string }
+      if (!res.ok) {
+        setError(j.detail ?? PUBLISH_NOW_ERRORS[j.error ?? ""] ?? "Couldn't publish.")
+        await load()
+        return
+      }
+      setNotice("Sent to Instagram — waiting for Meta to finish processing…")
+      // Poll the SAME status endpoint the route documents as the finaliser. Meta's container
+      // processing is seconds to a couple of minutes for a Reel of this length.
+      for (let i = 0; i < 60; i++) {
+        await new Promise((r) => setTimeout(r, 5000))
+        const sres = await fetch(`/api/admin/social-autopilot/posts/${encodeURIComponent(postId)}/publish/status`)
+        const sj = (await sres.json().catch(() => ({}))) as { status?: string; url?: string; error?: string }
+        if (sj.status === "published") { setNotice(`Published to Instagram${sj.url ? ` — ${sj.url}` : ""}`); await load(); return }
+        if (sj.status === "failed" || sj.error) { setError("Instagram rejected the post. See the post's error for details."); await load(); return }
+      }
+      setNotice("Still processing at Instagram. Reopen this post shortly to see the result.")
+      await load()
+    } catch {
+      setError("Couldn't publish.")
+      await load()
+    } finally {
+      setPublishingNow(false)
     }
   }
   // PREVIEW VIDEO — produce (or reuse) the REAL rendered MP4 so the locator can hear the finished
@@ -1914,7 +1991,15 @@ export default function PostEditor({ postId, from }: { postId: string; from?: st
                     publishes/schedules nothing. Variation moved to a secondary link above. */}
                 <button type="button" className={actionSecondary} disabled={busy || publishing || previewing} onClick={() => void previewVideo()}>{previewing ? "Rendering…" : "Preview Video"}</button>
                 <button type="button" className={actionSecondary} disabled={busy || publishing || previewing} onClick={() => void saveDraft()}>{busy ? "Saving…" : "Save Draft"}</button>
-                <button type="button" className={actionGreen} disabled={busy || publishing || previewing || selectedPlatforms.has("tiktok")} onClick={() => void publish()}>{publishing ? "Publishing…" : "Publish"}</button>
+                <button type="button" className={actionGreen} disabled={busy || publishing || publishingNow || previewing || selectedPlatforms.has("tiktok")} onClick={() => void publish()}>{publishing ? "Publishing…" : "Publish"}</button>
+                {/* PUBLISH NOW — shown only when the post can actually be published this second:
+                    approved, a current render, a destination, Instagram, and a status the route will
+                    claim ('ready' or 'scheduled'). Hiding it otherwise is deliberate — a control that
+                    is present but always fails teaches an operator to distrust the screen. The route
+                    re-checks every one of these server-side; this only decides visibility. */}
+                {canPublishNow && (
+                  <button type="button" className={actionGreen} disabled={busy || publishing || publishingNow || previewing} onClick={() => void publishNow()}>{publishingNow ? "Publishing to Instagram…" : "Publish Now"}</button>
+                )}
               </div>
               {/* Publish/autoschedule is the Instagram scheduler; there is no TikTok scheduler yet.
                   When TikTok is selected, Publish is disabled to prevent an accidental Instagram

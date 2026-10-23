@@ -76,6 +76,10 @@ export async function POST(_req: NextRequest, ctx: { params: Promise<{ id: strin
   if (p.platform !== "instagram") return NextResponse.json({ error: "unsupported_platform" }, { status: 400 })
   // Must have a CURRENT, non-stale render (editing overlay/audio resets render_status to 'none').
   if (p.render_status !== "ready" || !p.rendered_storage_path) return NextResponse.json({ error: "not_ready" }, { status: 409 })
+  // The POST's own status, separate from its RENDER status above. Only these two can be published
+  // on demand: a draft has not been handed over, and publishing/published/needs_attention are
+  // either in flight or finished.
+  if (p.status !== "ready" && p.status !== "scheduled") return NextResponse.json({ error: "not_publishable", detail: `A ${p.status} post cannot be published directly.` }, { status: 409 })
   // APPROVAL, even on the manual button. Clicking Publish is an intentional act, so this is the
   // one gate that could arguably be skipped — but "approved_at IS NOT NULL before anything
   // publishes" is only a guarantee if it holds on EVERY path. One exemption and the invariant
@@ -96,13 +100,31 @@ export async function POST(_req: NextRequest, ctx: { params: Promise<{ id: strin
     return NextResponse.json({ error: "destination_unavailable", reason: dest.posting_paused ? "paused" : expired ? "expired" : dest.status }, { status: 409 })
   }
 
-  // Atomic guard: only transition READY → PUBLISHING, and only when not already published. A second
-  // click sees status != 'ready' and updates 0 rows → we abort (no duplicate container).
+  // Atomic guard: only transition READY or SCHEDULED → PUBLISHING, and only when not already
+  // published. A second click sees a status outside that set and updates 0 rows → we abort (no
+  // duplicate container). The atomicity is the UPDATE's own WHERE clause, so two concurrent callers
+  // cannot both win regardless of where they came from.
+  //
+  // WHY 'scheduled' IS ACCEPTED, and why this is not a weakened guard. The scheduled → publishing
+  // transition is not new: the cron worker has always performed exactly it, under exactly this
+  // condition (status='scheduled' AND external_post_id IS NULL). Publishing a scheduled post on
+  // purpose is therefore an EXISTING, proven transition — what changes here is only that an
+  // authenticated admin can ask for it directly instead of waiting for the slot. Every substantive
+  // guard above (approval, current render, destination connected, not paused, token valid, publish
+  // hold, already-published) ran before this line and is untouched.
+  //
+  // If both this route and the worker race for the same post, one UPDATE matches a row and the
+  // other matches none — and media_publish itself is single-flighted separately inside
+  // finalizeInstagramPublish, which both paths share verbatim. Two Reels cannot result.
+  //
+  // scheduled_at is CLEARED on the claim. A post being published now is no longer waiting for a
+  // slot, and leaving a stale timestamp behind would let the worker consider it again later if the
+  // publish did not complete.
   const { data: claimed } = await supabase
     .from("social_posts")
-    .update({ status: "publishing", publish_attempted_at: new Date().toISOString(), ig_container_id: null, error_message: null, updated_at: new Date().toISOString() })
+    .update({ status: "publishing", scheduled_at: null, publish_attempted_at: new Date().toISOString(), ig_container_id: null, error_message: null, updated_at: new Date().toISOString() })
     .eq("id", id)
-    .eq("status", "ready")
+    .in("status", ["ready", "scheduled"])
     .is("external_post_id", null)
     .select("id")
     .maybeSingle()
