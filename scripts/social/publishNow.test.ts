@@ -41,8 +41,13 @@ ok("…calling the existing publish endpoint", /\/publish['"`],\s*\{\s*method:\s
 ok("…and polling the existing status endpoint", /\/publish\/status/.test(editor))
 ok("it adds no publishing logic of its own — no container/media calls in the client",
   !/createReelContainer|media_publish|graph\.(instagram|facebook)/.test(editor))
+// Scoped to the FUNCTION BODY, not to a character window from its name. A fixed window spills past
+// the end of the function as soon as anything is added after it and then matches a neighbour's
+// perfectly legitimate save — which is exactly what happened when the resume path landed.
+const publishNowBody = editor.match(/const publishNow = async[\s\S]*?\n  \}/)?.[0] ?? ""
+ok("the publishNow body can be isolated", publishNowBody.length > 0)
 ok("it does not save or patch before publishing (a save can invalidate the render)",
-  !/const publishNow = async[\s\S]{0,1400}?(patchSource\(\)|intent:\s*"save_draft")/.test(editor),
+  !/patchSource\(\)|intent:\s*"save_draft"|method:\s*"PATCH"|\/render/.test(publishNowBody),
   "a pre-publish save could set render_status to none and trigger a re-render")
 
 // ── 2. DUPLICATE PUBLICATION ──────────────────────────────────────────────────────────────────

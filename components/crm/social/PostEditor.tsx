@@ -848,6 +848,24 @@ export default function PostEditor({ postId, from }: { postId: string; from?: st
   // It deliberately does NOT save, patch or render first. Saving could invalidate the render
   // (render_status → 'none') and a re-render would replace the very artifact being published —
   // which for a post whose video was prepared deliberately is the one thing that must not happen.
+  // RESUME ON OPEN. A post found at status='publishing' has a publish already in flight that only
+  // /publish/status can finish, so opening it picks that up where it was left. Reopening the post
+  // is therefore the recovery, and no new control is needed for it.
+  //
+  // Guarded by a ref rather than state so React 18's double-invoked effects in development cannot
+  // start two loops; and the loop is harmless even if one slipped through, because the status
+  // endpoint is idempotent and media_publish is single-flighted server-side.
+  //
+  // It does NOT call /publish, so no second container can be created, and it changes no media.
+  const resumedRef = useRef(false)
+  useEffect(() => {
+    if (post?.status !== "publishing" || resumedRef.current || publishingNow) return
+    resumedRef.current = true
+    setPublishingNow(true)
+    void drivePublishToCompletion(false).finally(() => setPublishingNow(false))
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [post?.status])
+
   // Eligibility mirrors the route's pre-claim checks. `selectedPlatforms` is NOT consulted: this
   // publishes the SAVED post, and an unsaved platform toggle has not changed it.
   const canPublishNow =
@@ -857,6 +875,36 @@ export default function PostEditor({ postId, from }: { postId: string; from?: st
     !!post?.approvedAt &&
     !post?.externalPostUrl
 
+  // DRIVE AN IN-FLIGHT PUBLISH TO COMPLETION.
+  //
+  // Creating the container and PUBLISHING it are two calls. /publish does the first; /publish/status
+  // does the second, via the shared finaliser. Nothing else in the product calls the second one —
+  // the cron would, but it is held behind two deliberate kill switches — so whoever started a
+  // publish is the only thing that can finish it.
+  //
+  // That made the first version of this feature leave a hole: if the tab closed, the operator
+  // navigated away, or this loop simply ran out, a post could sit at status='publishing' with a
+  // container Meta had already finished, one call from live, and NOTHING in the UI could make that
+  // call. The post was not failed and not published; it was stranded.
+  //
+  // Split out so BOTH entry points use it: a fresh publish below, and resumeIfPublishing on mount.
+  // It creates no container and touches no media — it only asks the status endpoint to finish what
+  // already exists, and that endpoint is idempotent (it returns the published url unchanged if the
+  // post is already live, and finalizeInstagramPublish single-flights media_publish).
+  const drivePublishToCompletion = async (announce: boolean): Promise<void> => {
+    if (announce) setNotice("Sent to Instagram — waiting for Meta to finish processing…")
+    // Meta's container processing is seconds to a couple of minutes for a Reel of this length.
+    for (let i = 0; i < 60; i++) {
+      await new Promise((r) => setTimeout(r, 5000))
+      const sres = await fetch(`/api/admin/social-autopilot/posts/${encodeURIComponent(postId)}/publish/status`)
+      const sj = (await sres.json().catch(() => ({}))) as { status?: string; url?: string; error?: string }
+      if (sj.status === "published") { setNotice(`Published to Instagram${sj.url ? ` — ${sj.url}` : ""}`); await load(); return }
+      if (sj.status === "failed" || sj.error) { setError("Instagram rejected the post. See the post's error for details."); await load(); return }
+    }
+    setNotice("Still processing at Instagram. Reopen this post shortly to see the result.")
+    await load()
+  }
+
   const publishNow = async () => {
     if (busy || publishing || publishingNow || previewing) return
     if (!window.confirm("Publish this post to Instagram now? This is immediate and public.")) return
@@ -865,22 +913,15 @@ export default function PostEditor({ postId, from }: { postId: string; from?: st
       const res = await fetch(`/api/admin/social-autopilot/posts/${encodeURIComponent(postId)}/publish`, { method: "POST" })
       const j = (await res.json().catch(() => ({}))) as { status?: string; error?: string; detail?: string; containerId?: string }
       if (!res.ok) {
+        // not_claimable means the claim found no row to move — which is what a post ALREADY at
+        // status='publishing' looks like. That is not a failure to report; it is the post this
+        // code exists to finish. Anything else is a real refusal and is shown.
+        if (j.error === "not_claimable") { await drivePublishToCompletion(false); return }
         setError(j.detail ?? PUBLISH_NOW_ERRORS[j.error ?? ""] ?? "Couldn't publish.")
         await load()
         return
       }
-      setNotice("Sent to Instagram — waiting for Meta to finish processing…")
-      // Poll the SAME status endpoint the route documents as the finaliser. Meta's container
-      // processing is seconds to a couple of minutes for a Reel of this length.
-      for (let i = 0; i < 60; i++) {
-        await new Promise((r) => setTimeout(r, 5000))
-        const sres = await fetch(`/api/admin/social-autopilot/posts/${encodeURIComponent(postId)}/publish/status`)
-        const sj = (await sres.json().catch(() => ({}))) as { status?: string; url?: string; error?: string }
-        if (sj.status === "published") { setNotice(`Published to Instagram${sj.url ? ` — ${sj.url}` : ""}`); await load(); return }
-        if (sj.status === "failed" || sj.error) { setError("Instagram rejected the post. See the post's error for details."); await load(); return }
-      }
-      setNotice("Still processing at Instagram. Reopen this post shortly to see the result.")
-      await load()
+      await drivePublishToCompletion(true)
     } catch {
       setError("Couldn't publish.")
       await load()
@@ -1999,6 +2040,12 @@ export default function PostEditor({ postId, from }: { postId: string; from?: st
                     re-checks every one of these server-side; this only decides visibility. */}
                 {canPublishNow && (
                   <button type="button" className={actionGreen} disabled={busy || publishing || publishingNow || previewing} onClick={() => void publishNow()}>{publishingNow ? "Publishing to Instagram…" : "Publish Now"}</button>
+                )}
+                {/* A post already in flight shows what is happening instead of a bare status pill
+                    and no control. The work is the resume effect above; this is only its label, so
+                    there is nothing to click and nothing that could start a second publish. */}
+                {post.status === "publishing" && (
+                  <span className="text-[12.5px] font-semibold px-3.5 py-2 text-[var(--crm-text-secondary)]">Finishing publication…</span>
                 )}
               </div>
               {/* Publish/autoschedule is the Instagram scheduler; there is no TikTok scheduler yet.
