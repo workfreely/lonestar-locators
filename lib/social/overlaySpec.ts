@@ -478,10 +478,10 @@ export function splitCompoundHeadline(text: string): [string, string] | null {
  *  combo renders ONE line at the largest size in [HERO_MIN_PX, HERO_MAX_PX] that fits the safe box
  *  (so short combos are larger, long ones shrink only as needed). Arbitrary/custom headlines fall
  *  back to the multi-line char-wrap at the minimum size. Shared by the render + preview (parity). */
-export function headlineFit(text: string | null | undefined): HeadlineFit {
+export function headlineFit(text: string | null | undefined, availPx: number = HEADLINE_TEXT_AVAIL_PX): HeadlineFit {
   const t = (text ?? "").trim()
   if (!t) return { fontPx: HERO_MAX_PX, lines: [] }
-  if (SUPPORTED_HEADLINES.has(t.toUpperCase())) return { fontPx: fitHeadlinePx(t, HERO_MAX_PX, HERO_MIN_PX), lines: [t] }
+  if (SUPPORTED_HEADLINES.has(t.toUpperCase())) return { fontPx: fitHeadlinePx(t, HERO_MAX_PX, HERO_MIN_PX, availPx), lines: [t] }
   // COMPOUND Social-only types ("{CITY} SPLIT-LEVEL LOFTS", "{CITY} INDUSTRIAL-STYLE APARTMENTS").
   // Forcing the complete string onto ONE line fits, but only by dropping the hero to 30–36px, which
   // is too small for a hero title. Instead build exactly TWO lines — market, then the COMPLETE
@@ -494,7 +494,7 @@ export function headlineFit(text: string | null | undefined): HeadlineFit {
     const parts = splitCompoundHeadline(t)
     if (parts) {
       const [l1, l2] = parts
-      const p1 = fitCompoundHeroPx(l1), p2 = fitCompoundHeroPx(l2)
+      const p1 = fitCompoundHeroPx(l1, availPx), p2 = fitCompoundHeroPx(l2, availPx)
       // HIERARCHY: the compound property-type line (line 2) is the FIT DRIVER — it is the wider line,
       // so its largest safe size sets the lockup. The market line then steps ~18% above it, capped at
       // the normal hero max AND at the market's own safe fit (p1), so a hypothetical very long market
@@ -511,7 +511,7 @@ export function headlineFit(text: string | null | undefined): HeadlineFit {
       }
     }
     // No market prefix (the type alone): keep the single tested-floor fit rather than inventing a break.
-    const onePx = fitCompoundHeroPx(t)
+    const onePx = fitCompoundHeroPx(t, availPx)
     if (onePx !== null) return { fontPx: onePx, lines: [t] }
   }
   return { fontPx: HERO_MIN_PX, lines: wrapHeadline(t) } // custom/unknown text → char-wrap fallback
@@ -774,13 +774,47 @@ function topAnchorPx(platform: string): number {
   return PLATFORM_TOP_ANCHOR_PX[(platform ?? "").toLowerCase()] ?? OVERLAY_SPEC.headline.yFrac * OVERLAY_CANVAS.h
 }
 
+/**
+ * HERO SIDE MARGINS, PER PLATFORM.
+ *
+ * The hero family has always used its OWN margins — 90px headline, 75px detail — while the
+ * center-hook family reads sideMarginPx(platform). That asymmetry was invisible until a hero
+ * template was rendered for TikTok: "DALLAS APARTMENTS" at 66px is 878px of ink, centred as
+ * x101–979, and TikTok's engagement rail starts at x930. The headline ran 49px under the icons.
+ *
+ * THE DEFAULT IS THE TEMPLATE'S OWN MARGIN, NOT THE PLATFORM'S, and that is deliberate. Instagram
+ * declares a 110px margin while the hero uses 90, so reading the platform value everywhere would
+ * move the approved Instagram geometry — re-fitting headlines smaller across every hero template on
+ * the one platform whose layout is signed off and must not move. A platform appears below only when
+ * its chrome genuinely intrudes on the hero's box.
+ *
+ * TIKTOK IS THE ONE THAT DOES. Its rail at x930 sits inside the hero's 900px box, so TikTok takes
+ * its safe-area margin and the existing fit-to-width logic sizes the headline down to suit. Nothing
+ * vertical changes: the lockup stays exactly where it is, centred or anchored as before.
+ */
+const HERO_PLATFORM_MARGINS: Record<string, { headline: number; detail: number }> = {
+  tiktok: { headline: sideMarginPx("tiktok"), detail: sideMarginPx("tiktok") },
+}
+
+function heroMargins(platform: string): { headline: number; detail: number } {
+  return (
+    HERO_PLATFORM_MARGINS[(platform ?? "").toLowerCase()] ?? {
+      headline: OVERLAY_SPEC.headline.sideMarginPx,
+      detail: OVERLAY_SPEC.sub.sideMarginPx,
+    }
+  )
+}
+
 export function computeOverlayLayout(template: string, headlineText: string, detailText: string, platform: string = DEFAULT_PLATFORM): OverlayLayout {
   const family = templateFamily(template)
   const H = OVERLAY_CANVAS.h
   const detail = (detailText ?? "").trim()
 
   if (family === "hero") {
-    const fit = headlineFit(headlineText)
+    const margins = heroMargins(platform)
+    // The fit box follows the margin, so a narrower platform re-fits the headline rather than
+    // letting it run past the box it is centred in.
+    const fit = headlineFit(headlineText, OVERLAY_CANVAS.w - 2 * margins.headline)
     // market_type_centered = T1 typography (same headline/detail size, gap, shadow, fit-to-width),
     // but the WHOLE group is vertically centered rather than anchored near the top (yFrac). It
     // reuses T1's Market+Type detail sizing/gap so only the vertical position differs.
@@ -825,7 +859,7 @@ export function computeOverlayLayout(template: string, headlineText: string, det
       let y = headTop
       lineTopPx = fit.linePx.map((px) => { const top = y; y += px + OVERLAY_SPEC.headline.lineSpacing; return top })
     }
-    const headline: OverlayBlock = { lines: fit.lines, fontPx: fit.fontPx, topPx: headTop, uppercase: true, sideMarginPx: OVERLAY_SPEC.headline.sideMarginPx, lineSpacing: OVERLAY_SPEC.headline.lineSpacing, face: "head", linePx: fit.linePx, lineTopPx }
+    const headline: OverlayBlock = { lines: fit.lines, fontPx: fit.fontPx, topPx: headTop, uppercase: true, sideMarginPx: margins.headline, lineSpacing: OVERLAY_SPEC.headline.lineSpacing, face: "head", linePx: fit.linePx, lineTopPx }
     let detailBlock: OverlayBlock | null = null
     if (hasDetail) {
       // HERO detail renders in the HEAD face (Libre Baskerville Bold 700), same as the headline above
@@ -844,7 +878,7 @@ export function computeOverlayLayout(template: string, headlineText: string, det
       // "2 Months Free · Private Yards" @44px = 680px, "Starting at $1,800/month" @52px = 688px, a
       // full 33-character line @52px ≈ 876px. Real copy clears it; a 33-char line of wide capitals
       // would not — but that already overflowed in Bodoni (1733px), so the hazard predates this.
-      detailBlock = { lines: detailLines, fontPx: detailPx, topPx: headTop + headBlockH + gap, uppercase: false, sideMarginPx: OVERLAY_SPEC.sub.sideMarginPx, lineSpacing: OVERLAY_SPEC.sub.lineSpacing, face: "head" }
+      detailBlock = { lines: detailLines, fontPx: detailPx, topPx: headTop + headBlockH + gap, uppercase: false, sideMarginPx: margins.detail, lineSpacing: OVERLAY_SPEC.sub.lineSpacing, face: "head" }
     }
     return { family, headline, detail: detailBlock, template }
   }
