@@ -47,20 +47,28 @@ ok("the registry grew by exactly one", OVERLAY_TEMPLATES.length === REGISTRY_BEF
 ok("no duplicate ids", new Set(OVERLAY_TEMPLATES).size === OVERLAY_TEMPLATES.length)
 
 // ── 2. DISPLAY ORDER ──────────────────────────────────────────────────────────────────────────
-console.log("\ndisplay order — inserted at 27, everything below shifts down one:")
+console.log("\ndisplay order — directly after POV Couple, wherever that lands:")
 const pos = (t: string) => OVERLAY_TEMPLATE_ORDER.indexOf(t as OverlayTemplate) + 1
-ok(`POV Couple is still 26 (${pos(BASE)})`, pos(BASE) === 26)
-ok(`the new template is 27 (${pos(NEW)})`, pos(NEW) === 27)
-ok("it sits DIRECTLY after POV Couple", pos(NEW) === pos(BASE) + 1)
-ok(`Roomie shifted 27 → 28 (${pos("roomie")})`, pos("roomie") === 28)
-ok(`Client / Me shifted 28 → 29 (${pos("client_me")})`, pos("client_me") === 29)
-ok(`Client / Me — Roaches shifted 32 → 33 (${pos("client_me_roaches")})`, pos("client_me_roaches") === 33)
-ok("the first 19 display positions are untouched",
-  OVERLAY_TEMPLATE_ORDER.slice(0, 19).every((t, i) => t === OVERLAY_TEMPLATES[i]))
-ok("every registered template appears in the dropdown exactly once",
-  OVERLAY_TEMPLATE_ORDER.length === OVERLAY_TEMPLATES.length &&
-  new Set(OVERLAY_TEMPLATE_ORDER).size === OVERLAY_TEMPLATES.length &&
-  OVERLAY_TEMPLATES.every((t) => OVERLAY_TEMPLATE_ORDER.includes(t)))
+// THE REQUIREMENT IS ADJACENCY, NOT A NUMBER. It was display 27 when the selector held 33 entries;
+// hiding market_type and what_mo_gets_you_top moved everything below them up two. Pinning 27 would
+// have failed for a reason that has nothing to do with this template, so what is pinned is the
+// thing that was actually asked for: it sits immediately after the template it is built from.
+ok(`it is directly after POV Couple (POV Couple ${pos(BASE)}, this ${pos(NEW)})`, pos(NEW) === pos(BASE) + 1)
+ok("…and Roomie directly after it", pos("roomie") === pos(NEW) + 1)
+ok("…with the Client / Me group still contiguous and in order after Roomie",
+  ["client_me", "client_me_bad_credit", "client_me_ex_cheated", "client_me_rent_increase", "client_me_roaches"]
+    .every((t, i) => pos(t) === pos("roomie") + 1 + i))
+ok("it appears in the dropdown exactly once", OVERLAY_TEMPLATE_ORDER.filter((t) => t === NEW).length === 1)
+ok("the two hidden templates are absent from the dropdown",
+  !OVERLAY_TEMPLATE_ORDER.includes("market_type" as OverlayTemplate) &&
+  !OVERLAY_TEMPLATE_ORDER.includes("what_mo_gets_you_top" as OverlayTemplate))
+ok("…but still registered, so saved posts resolve",
+  OVERLAY_TEMPLATES.includes("market_type" as OverlayTemplate) &&
+  OVERLAY_TEMPLATES.includes("what_mo_gets_you_top" as OverlayTemplate))
+ok(`the dropdown holds every registered template except those two (${OVERLAY_TEMPLATE_ORDER.length} of ${OVERLAY_TEMPLATES.length})`,
+  OVERLAY_TEMPLATE_ORDER.length === OVERLAY_TEMPLATES.length - 2 &&
+  new Set(OVERLAY_TEMPLATE_ORDER).size === OVERLAY_TEMPLATE_ORDER.length &&
+  OVERLAY_TEMPLATE_ORDER.every((t) => OVERLAY_TEMPLATES.includes(t)))
 ok('it has a label: "POV: Regular Shmegular Upgrade"',
   OVERLAY_TEMPLATE_LABEL[NEW] === "POV: Regular Shmegular Upgrade", OVERLAY_TEMPLATE_LABEL[NEW])
 

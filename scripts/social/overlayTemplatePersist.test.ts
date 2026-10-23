@@ -97,9 +97,19 @@ async function main() {
     // lists hold the same set is asserted in scripts/social/templates25to31.
     ok("the editor's dropdown is built from the canonical display order",
       /OVERLAY_TEMPLATE_ORDER\.map\(\(t, i\) =>/.test(editor))
-    ok("…and that order is derived from OVERLAY_TEMPLATES, not re-typed",
-      /OVERLAY_TEMPLATE_ORDER: readonly OverlayTemplate\[\] = \[\s*\n\s*\.\.\.OVERLAY_TEMPLATES\.slice/.test(
-        readFileSync(path.join(process.cwd(), "lib/social/composePost.ts"), "utf8")))
+    // The list now opens with a NAMED lead (SELECTOR_LEAD) before the spread, because one template
+    // has to be first for the dropdown to number it "1.". That is still derivation, not a
+    // re-typed second list — so the guard checks the spread is present and that the entries before
+    // it are named constants rather than hand-written ids.
+    {
+      const compose = readFileSync(path.join(process.cwd(), "lib/social/composePost.ts"), "utf8")
+      const body = compose.match(/OVERLAY_TEMPLATE_ORDER: readonly OverlayTemplate\[\] = \[([\s\S]*?)\n\]/)?.[1] ?? ""
+      ok("…and that order is derived from OVERLAY_TEMPLATES, not re-typed",
+        /\.\.\.OVERLAY_TEMPLATES\.slice/.test(body))
+      ok("…with the first nineteen taken from the registry, minus the hidden ones",
+        /\.filter\(\(t\) => t !== SELECTOR_LEAD && !isHiddenFromSelector\(t\)\)/.test(body))
+      ok("…and the lead named rather than typed inline", /^\s*SELECTOR_LEAD,/m.test(body))
+    }
     ok("the editor hydrates through the canonical list",
       /\(OVERLAY_TEMPLATES as readonly string\[\]\)\.includes\(p\.overlayTemplate \?\? ""\)/.test(editor))
     ok("the Video Library preview validates through the canonical list too",

@@ -8,7 +8,7 @@ import { execFile } from "node:child_process"
 import { promises as fs } from "node:fs"
 import path from "node:path"
 import os from "node:os"
-import { OVERLAY_TEXT, computeOverlayLayout, type OverlayLayout, type OverlayFace } from "@/lib/social/overlaySpec"
+import { OVERLAY_TEXT, computeOverlayLayout, overlayTextFor, type OverlayLayout, type OverlayFace, type OverlayTextStyle } from "@/lib/social/overlaySpec"
 import { DELIVERY_SIZE } from "@/lib/social/deliverySize"
 import { buildPresenterFilter, buildPresenterPlan, decoderForPresenterClip, type PresenterPlan } from "@/lib/social/presenterSpec"
 import { trimPresenterClip } from "@/lib/social/presenterTrim"
@@ -67,12 +67,17 @@ export function buildVideoFilter(
    *  ON TOP of the avatar and can never be occluded by it. Omit → the graph is byte-identical to
    *  what it was, which is what keeps every existing render reproducible. */
   presenter?: PresenterPlan | null,
+  /** The template's text treatment. ONE object for the whole filter, because one filter is one post
+   *  and one post is one template — which is also what guarantees the headline and the detail can
+   *  never be given different shadows. Defaults to the baseline, so every existing caller (and every
+   *  template without an override) produces the exact filter string it produced before. */
+  textStyle: OverlayTextStyle = OVERLAY_TEXT,
 ): string {
   const depth = (fontPx: number) => {
-    const edge = Math.max(1, Math.round(OVERLAY_TEXT.edgeEm * fontPx))
-    const dy = Math.max(1, Math.round(OVERLAY_TEXT.shadowDyEm * fontPx))
-    const dx = Math.round(OVERLAY_TEXT.shadowDxEm * fontPx)
-    return `:borderw=${edge}:bordercolor=black@${OVERLAY_TEXT.edgeAlpha}:shadowcolor=black@${OVERLAY_TEXT.shadowAlpha}:shadowx=${dx}:shadowy=${dy}`
+    const edge = Math.max(1, Math.round(textStyle.edgeEm * fontPx))
+    const dy = Math.max(1, Math.round(textStyle.shadowDyEm * fontPx))
+    const dx = Math.round(textStyle.shadowDxEm * fontPx)
+    return `:borderw=${edge}:bordercolor=black@${textStyle.edgeAlpha}:shadowcolor=black@${textStyle.shadowAlpha}:shadowx=${dx}:shadowy=${dy}`
   }
 
   // Source normalization runs FIRST and produces [bg]; the overlay is composited onto an already
@@ -514,7 +519,9 @@ export async function renderReel(ffmpegPath: string, input: RenderInput): Promis
   const presenterPlan = presenterLocal
     ? buildPresenterPlan({ inputIndex: 1 + voiceCount, introSeconds: input.presenterIntroSeconds ?? null, side: input.presenterSide ?? null, widthPx: input.presenterWidthPx ?? null, bottomInsetPxOverride: input.presenterBottomInsetPx ?? null, platform: input.platform })
     : null
-  const filter = buildVideoFilter(input.fontPath, items, buildSourceChain(sourceInfo), presenterPlan)
+  // Same template string the layout above was computed from, so the burned-in treatment and the
+  // geometry can never come from two different templates.
+  const filter = buildVideoFilter(input.fontPath, items, buildSourceChain(sourceInfo), presenterPlan, overlayTextFor(input.template ?? "market_type"))
 
   // ── Voice clips: probe real durations, then build the audio graph ───────────────────────────
   const hookPath = input.hookPath ?? null

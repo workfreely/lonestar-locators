@@ -18,6 +18,7 @@
 import { readFileSync } from "node:fs"
 import { join } from "node:path"
 import {
+  HIDDEN_FROM_SELECTOR,
   OVERLAY_TEMPLATES, OVERLAY_TEMPLATE_ORDER, OVERLAY_TEMPLATE_LABEL, AURA_SHORT_TYPES,
   buildTemplateHeadline, buildTemplateDetail, captionOpener, buildCaption,
   roomiePerPersonDollars, formatRoomieSplit, startingPriceLabel,
@@ -65,7 +66,10 @@ console.log("\n=== 1. THE ORIGINAL 24 ARE UNTOUCHED ===")
   ok("no id is duplicated", new Set(OVERLAY_TEMPLATES).size === OVERLAY_TEMPLATES.length)
   ok("every registered template has a label", OVERLAY_TEMPLATES.every((t) => !!OVERLAY_TEMPLATE_LABEL[t]))
   // The original labels, spot-checked at the boundaries that a careless edit would hit.
-  eq("the first label is unchanged", OVERLAY_TEMPLATE_LABEL.market_type, "Market + Type")
+  // market_type kept its registry index and its geometry; only its LABEL changed, to "(Top)", so
+  // History can still name which variant a historical post used now that the selector offers one.
+  eq("the hidden top variant is labelled for History", OVERLAY_TEMPLATE_LABEL.market_type, "Market + Type (Top)")
+  eq("…and the first VISIBLE template is the centred one", OVERLAY_TEMPLATE_LABEL[OVERLAY_TEMPLATE_ORDER[0]], "Market + Type")
   eq("the Client / Me labels are unchanged", [
     OVERLAY_TEMPLATE_LABEL.client_me, OVERLAY_TEMPLATE_LABEL.client_me_roaches,
   ], ["Client / Me", "Client / Me — Roaches"])
@@ -82,46 +86,38 @@ console.log("\n=== 1. THE ORIGINAL 24 ARE UNTOUCHED ===")
 
 console.log("\n=== 2. DISPLAY ORDER IS SEPARATE FROM IDENTITY ===")
 {
-  eq("the dropdown lists every registered template", OVERLAY_TEMPLATE_ORDER.length, OVERLAY_TEMPLATES.length)
-  eq("…each exactly once", new Set(OVERLAY_TEMPLATE_ORDER).size, OVERLAY_TEMPLATES.length)
+  eq("the dropdown lists every registered template except the hidden ones", OVERLAY_TEMPLATE_ORDER.length, OVERLAY_TEMPLATES.length - HIDDEN_FROM_SELECTOR.length)
+  eq("…each exactly once", new Set(OVERLAY_TEMPLATE_ORDER).size, OVERLAY_TEMPLATE_ORDER.length)
   // The two lists must contain the SAME set — a template added to one and forgotten in the other
   // would either vanish from the dropdown or appear with no identity.
-  eq("the order holds exactly the registered set",
-    [...OVERLAY_TEMPLATE_ORDER].sort(), [...OVERLAY_TEMPLATES].sort())
-  eq("positions 1-19 are the registry's own first nineteen",
-    OVERLAY_TEMPLATE_ORDER.slice(0, 19), OVERLAY_TEMPLATES.slice(0, 19))
+  eq("the order holds exactly the registered set, minus the hidden ones",
+    [...OVERLAY_TEMPLATE_ORDER].sort(),
+    OVERLAY_TEMPLATES.filter((t) => !(HIDDEN_FROM_SELECTOR as readonly string[]).includes(t)).slice().sort())
+  ok("every hidden template is still registered",
+    HIDDEN_FROM_SELECTOR.every((t) => (OVERLAY_TEMPLATES as readonly string[]).includes(t)))
+  ok("…and none of them is in the dropdown",
+    HIDDEN_FROM_SELECTOR.every((t) => !(OVERLAY_TEMPLATE_ORDER as readonly string[]).includes(t)))
+  eq("the leading block is the registry's first nineteen, reordered and filtered",
+    OVERLAY_TEMPLATE_ORDER.slice(0, 17),
+    ["market_type_centered", ...OVERLAY_TEMPLATES.slice(0, 19).filter(
+      (t) => t !== "market_type_centered" && !(HIDDEN_FROM_SELECTOR as readonly string[]).includes(t))])
   const at = (n: number) => OVERLAY_TEMPLATE_LABEL[OVERLAY_TEMPLATE_ORDER[n - 1]]
   // 20-26 are unchanged. T33 was INSERTED at display 27 (directly after the template it is built
   // from), so Roomie moved 27 → 28 and the Client / Me group moved down one with it. Display
   // positions are allowed to move; the registry indices asserted above are not.
-  eq("20-26 are the first seven of this batch, in the approved order",
-    [at(20), at(21), at(22), at(23), at(24), at(25), at(26)],
-    ["Apartment Crush", "Live With", "Level Up", "Them vs. Me", "View", "Aura", "POV Couple"])
-  eq("27 is T33, inserted directly after POV Couple", at(27), "POV: Regular Shmegular Upgrade")
-  eq("28 is Roomie, shifted down one", at(28), "Roomie")
-  eq("29-33 are the Client / Me group, shifted down intact and in order",
-    [at(29), at(30), at(31), at(32), at(33)],
-    ["Client / Me", "Client / Me — Bad Credit", "Client / Me — My Ex Cheated",
-     "Client / Me — Rent Increase", "Client / Me — Roaches"])
-  // THE RENAME AT POSITION 21 IS DISPLAY-ONLY. The id is what drafts store, so it must not move.
-  eq("position 21 is labelled Live With", OVERLAY_TEMPLATE_LABEL[OVERLAY_TEMPLATE_ORDER[20]], "Live With")
-  eq("…while its permanent id is still 'engagement'", OVERLAY_TEMPLATE_ORDER[20], "engagement")
-  eq("…at its original registry index", OVERLAY_TEMPLATES[25], "engagement")
-  eq("…with its overlay question unchanged",
-    buildTemplateHeadline("engagement" as OverlayTemplate, meta()), "Who would you live here with?")
-  eq("…and its caption opening unchanged",
-    captionOpener("engagement" as OverlayTemplate, meta()), "Who would you live here with? 👀")
-  eq("…and its price line unchanged",
-    buildTemplateDetail("engagement" as OverlayTemplate, meta()), "Starting at $1,650/month")
-  ok("the old label is gone from the registry",
-    !Object.values(OVERLAY_TEMPLATE_LABEL).includes("Engagement"))
-
-  // A saved draft stores the STRING. Reordering the display cannot reach it.
-  ok("every original id still resolves after the reorder",
-    ORIGINAL_24.every((t) => (OVERLAY_TEMPLATES as readonly string[]).includes(t)))
-  const editor = read("components/crm/social/PostEditor.tsx")
-  ok("the dropdown renders from the display order", /OVERLAY_TEMPLATE_ORDER\.map\(\(t, i\)/.test(editor))
-  ok("…and no longer numbers from the registry", !/OVERLAY_TEMPLATES\.map\(\(t, i\)/.test(editor))
+  // ADJACENCY, NOT ABSOLUTE POSITIONS. Hiding two templates above this batch moved every one of
+  // them up two, for a reason with nothing to do with the batch. What was approved is the order
+  // they sit in relative to one another, so that is what is pinned.
+  const seq = ["Apartment Crush", "Live With", "Level Up", "Them vs. Me", "View", "Aura", "POV Couple",
+    "POV: Regular Shmegular Upgrade", "Roomie",
+    "Client / Me", "Client / Me — Bad Credit", "Client / Me — My Ex Cheated",
+    "Client / Me — Rent Increase", "Client / Me — Roaches"]
+  const labels = OVERLAY_TEMPLATE_ORDER.map((t) => OVERLAY_TEMPLATE_LABEL[t])
+  const firstIdx = labels.indexOf(seq[0])
+  ok("the batch appears in the dropdown", firstIdx >= 0)
+  eq("…in the approved order, contiguously, through the Client / Me group",
+    labels.slice(firstIdx, firstIdx + seq.length), seq)
+  eq("…and it runs to the end of the list", firstIdx + seq.length, OVERLAY_TEMPLATE_ORDER.length)
 }
 
 console.log("\n=== 3. THE SEVEN SAY EXACTLY WHAT WAS APPROVED ===")

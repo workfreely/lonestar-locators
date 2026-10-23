@@ -359,7 +359,13 @@ console.log("overlay typography = subtle tracking + localized drop shadow (NO ba
 const hugFilt = buildVideoFilter("/f.ttf", [{ file: "/h.txt", fontPx: 78, topPx: 250, lineSpacing: 8 }, { file: "/s.txt", fontPx: 40, topPx: 420, lineSpacing: 6 }])
 ok("NO scrim/band/box in render (no geq/overlay/box)", !hugFilt.includes("geq=") && !hugFilt.includes("overlay=") && !hugFilt.includes("box=1"))
 ok("drawtext has a subtle drop shadow (offset)", hugFilt.includes("shadowcolor=black@") && hugFilt.includes("shadowy="))
-ok("NO visible outline (edge alpha 0 — crisp solid white)", OVERLAY_TEXT.edgeAlpha === 0)
+// A LOW-ALPHA HALO, NOT AN OUTLINE — approved 23 Oct 2026 from a published Reel
+// (instagram.com/reel/De1lRmEE-As/), replacing the previous edgeAlpha 0. Pinned to the exact
+// approved pair, in BOTH directions: too low and white text dissolves into a bright wall, too high
+// and it reads as a drawn stroke, which is the thing that was rejected. 0.03em is a rounding
+// requirement, not taste — see the note on the constant.
+ok("the halo is the approved low alpha, not an outline", OVERLAY_TEXT.edgeAlpha === 0.22)
+ok("…at the approved width, which keeps it proportional at every font size", OVERLAY_TEXT.edgeEm === 0.03)
 // Tracking is 0, and must NEVER go negative. FFmpeg drawtext has no letter-spacing, so any non-zero
 // value is a phantom width budget the render does not honor: positive shrinks headlines to pay for
 // spacing that is never drawn, negative lets the fitter over-size text until it runs past the safe
@@ -373,7 +379,10 @@ ok("measured width === rendered width (no phantom tracking budget)",
 // which mis-measured every price-bearing headline (T15/T16).
 ok("price headline is measured from real advances, not the fallback",
   headlineTextWidthPx("$1,500/month", 100) !== headlineTextWidthPx("@@@@@@@@@", 100))
-ok("drop-shadow is subtle / non-obvious (insurance for white footage)", OVERLAY_TEXT.shadowAlpha > 0 && OVERLAY_TEXT.shadowAlpha <= 0.6)
+// Raised 0.6 → 0.75 with the halo, with the OFFSET deliberately unchanged, so the text gained
+// depth without the shadow moving or growing.
+ok("drop-shadow is at the approved alpha", OVERLAY_TEXT.shadowAlpha === 0.75)
+ok("…straight below the text, at the unchanged offset", OVERLAY_TEXT.shadowDxEm === 0 && OVERLAY_TEXT.shadowDyEm === 0.035)
 ok("render graph still outputs the [v] label", /\[v\]$/.test(hugFilt))
 
 console.log("Overlay TEMPLATES 1–5 (headline/detail generation + layout families):")

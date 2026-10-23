@@ -64,6 +64,11 @@ export const OVERLAY_CANVAS = { w: 1080, h: 1920 } as const
 // published as a real Reel and judged on the live profile grid, feed and full-screen views. This
 // is the approved geometry for T1 market_type, T4 special_feature and T16 what_mo_gets_you_top.
 //
+// T1 AND T16 ARE NOW HIDDEN FROM THE SELECTOR (23 Oct 2026) as redundant top-positioned variants of
+// T2 and T15. Their GEOMETRY is deliberately untouched: six published Reels and one ready post
+// still render from T1, and this anchor is what reproduces them. Hiding a template from the
+// dropdown and changing how it draws are different acts, and only the first one happened.
+//
 // DO NOT re-tune this value, the fonts, the sizing, the margins, the line spacing or the
 // headline-to-price gap as a side effect of other work, and do not "improve" it on your own
 // judgement. It is reopened only by an explicit instruction from Jay to do so.
@@ -107,13 +112,14 @@ export const OVERLAY_SPEC = {
 // read as thin and decorative over video. It is now removed from the system entirely — see
 // OverlayFace, which has a single member so a second face cannot be selected.
 //
-// Typography treatment (tuned to a luxury-editorial reference): CRISP SOLID WHITE text with NO
-// visible outline and NO obvious shadow — clean, not stamped. There is NO background band/scrim/box/
-// gradient. We keep a SUBTLE, NON-OBVIOUS drop shadow only as insurance so the white text never
-// disappears over pure-white walls / bright skies (imperceptible over normal mid-tone footage, like
-// the reference). Values are in em (preview and render scale identically). FFmpeg drawtext has NO
-// letter-spacing and NO shadow blur (verified), so the render uses a hard-offset shadow and omits
-// tracking; the CSS preview adds a tiny blur so the two read materially the same.
+// Typography treatment: CRISP SOLID WHITE text with a LOW-ALPHA DARK HALO and a soft drop shadow —
+// defined, not stamped. There is still NO background band/scrim/box/gradient, and still no visible
+// outline: the halo is alpha 0.22, which separates white text from a bright wall without reading as
+// a stroke, and disappears entirely over dark footage. Approved 23 Oct 2026 from a PUBLISHED Reel
+// (instagram.com/reel/De1lRmEE-As/) rather than from a preview, because Instagram's re-encode is
+// the thing the treatment has to survive. Values are in em (preview and render scale identically).
+// FFmpeg drawtext has NO letter-spacing and NO shadow blur (verified), so the render omits tracking
+// and uses a hard-offset shadow; the CSS preview carries a blur matched to what the halo does.
 export const OVERLAY_TEXT = {
   // 0 = NO tracking. FFmpeg drawtext has no letter-spacing parameter, so the burned-in video has never
   // had any; the old 0.02em (a Bodoni-era value) therefore existed only in the CSS preview AND as a
@@ -124,16 +130,64 @@ export const OVERLAY_TEXT = {
   // negative: the render ignores tracking, so a negative value would let the fitter over-size text
   // until it ran past the 90px safe margins (verified: -0.01em overflowed all three test headlines).
   trackingEm: 0,
-  // NO outline. The 1px white stroke trialled here was compensation for FFmpeg drawtext laying down
-  // ~13% less ink than the browser preview; with Chromium owning the rasterization that deficit does
-  // not exist, so the compensation is not carried forward. Libre Baskerville Bold 700 stands on its own.
-  edgeAlpha: 0, //     NO visible outline (crisp solid white per the reference)
-  edgeEm: 0, //        (border width irrelevant at alpha 0)
-  shadowAlpha: 0.6, // SUBTLE, non-obvious drop shadow (nudged 0.5→0.6) — helps white text separate
-  shadowDxEm: 0, //    from bright skies / white walls without becoming an obvious design element
-  shadowDyEm: 0.035, // small offset straight below the text (not an obvious drop shadow)
-  shadowBlurEm: 0.05, // CSS-only blur (FFmpeg render is a hard offset) — keeps it soft, not a glow
+  // ── THE HALO. APPROVED 23 OCT 2026 from a published Reel, not from a preview ────────────────
+  // instagram.com/reel/De1lRmEE-As/ — Template 1 over Live Grandscape footage, reviewed live on
+  // Instagram after Meta's re-encode, and adopted as the default for every template.
+  //
+  // A LOW-ALPHA HALO, NOT AN OUTLINE. borderw draws a solid ring of bordercolor, so the ALPHA is
+  // doing all the work: at 0.22 a 2px ring reads as the letter sitting ON the footage rather than
+  // as a drawn stroke. It is invisible over dark footage — where white text already separates on
+  // its own — and only does work where it is needed. The value was chosen from a ladder rendered
+  // over the brightest wall in that clip (0.00 / 0.15 / 0.20 / 0.25 / 0.30): at 0.30 the 66px
+  // headline reads as stroked, at 0.00 the serifs dissolve into the wall, and the threshold sits
+  // between 0.20 and 0.25. 0.22 is just above the lower end, which is the margin Instagram's
+  // re-encode eats. Do not raise it to "make it pop"; that is what crosses into an outline.
+  //
+  // THIS IS NOT THE WHITE STROKE THAT WAS REJECTED. That one ADDED ink to the glyph to compensate
+  // for FFmpeg laying down ~13% less than the browser; this DARKENS what is behind the glyph's
+  // edge. Different thing, different direction, and the old compensation is still not carried.
+  edgeAlpha: 0.22,
+  // 0.03em, NOT 0.025 or 0.028 — and this is a rounding fact, not a taste one. ffmpeg's borderw is
+  // an INTEGER pixel count, so the em value is rounded per line, and a lockup's two lines are
+  // different sizes (T1 is 66px over 52px). 0.025 and 0.028 both round to 2px on the headline but
+  // 1px on the price: the halo would be twice as heavy on the top line as the bottom, which is the
+  // exact "only one line has the effect" problem this treatment exists to fix. 0.03em is the
+  // smallest value that rounds to 2px on BOTH. If template sizes change, re-check this rounding.
+  edgeEm: 0.03,
+  // Raised 0.6 → 0.75 with the halo. The OFFSET is deliberately unchanged, so the text gained depth
+  // without the shadow moving or growing; at 0.035em it already lands on 2px for both T1 sizes.
+  shadowAlpha: 0.75,
+  shadowDxEm: 0, //    straight below the text, never to one side
+  shadowDyEm: 0.035, // small offset (not an obvious drop shadow)
+  // CSS PREVIEW ONLY — ffmpeg drawtext has no blur parameter. Raised 0.05 → 0.09 so the preview's
+  // soft edge is a fair picture of what the 2px halo does in the export. At 0.05 the preview looked
+  // SOFTER than the export on bright footage, which is how the export came to be judged by a
+  // preview that did not match it.
+  shadowBlurEm: 0.09,
 } as const
+
+// ── PER-TEMPLATE TEXT TREATMENT ──────────────────────────────────────────────────────────────
+// OVERLAY_TEXT above is what every template uses. This map is the hook that let ONE template be
+// given a different treatment while it was under review, without touching the other 32 — which is
+// how the halo above was tested on a real Instagram render before being adopted.
+//
+// IT IS EMPTY, AND THAT IS THE POINT. The treatment it was holding is now the baseline, so every
+// template resolves to the same object and there is nothing template-specific anywhere in the
+// rendering path. Keeping the hook costs one spread and keeps the next experiment from being a
+// scattered edit across 33 call sites; filling it permanently would be the thing to avoid.
+export type OverlayTextStyle = {
+  trackingEm: number; edgeAlpha: number; edgeEm: number
+  shadowAlpha: number; shadowDxEm: number; shadowDyEm: number; shadowBlurEm: number
+}
+
+export const OVERLAY_TEXT_OVERRIDES: Record<string, Partial<OverlayTextStyle>> = {}
+
+/** The text treatment for one template: the baseline, plus an override if one is being trialled.
+ *  With the map empty this returns the baseline's own values for every template, including an
+ *  unknown or null one. */
+export function overlayTextFor(template: string | null | undefined): OverlayTextStyle {
+  return { ...OVERLAY_TEXT, ...(OVERLAY_TEXT_OVERRIDES[(template ?? "").trim()] ?? {}) }
+}
 
 // Deterministic word-wrap — SHARED by the CSS preview and the FFmpeg render so both produce the
 // SAME lines. Greedy by words; a single word longer than `maxChars` is HARD-split into
@@ -679,7 +733,11 @@ export type OverlayFace = "head"
 // different sizes and still land on identical baselines in both paths. When absent (every other
 // headline and every detail) the block behaves exactly as before: one unit, one size, `lineSpacing`.
 export type OverlayBlock = { lines: string[]; fontPx: number; topPx: number; uppercase: boolean; sideMarginPx: number; lineSpacing: number; face: OverlayFace; linePx?: number[]; lineTopPx?: number[] }
-export type OverlayLayout = { family: LayoutFamily; headline: OverlayBlock; detail: OverlayBlock | null }
+// `template` rides along so PreviewOverlay can resolve overlayTextFor() from the layout it is
+// already given. The alternative was a new prop on four call sites (the editor, the lightbox,
+// Bulk Review and the Autopilot cards), each of which could be forgotten independently — and a
+// forgotten one would silently preview the wrong treatment.
+export type OverlayLayout = { family: LayoutFamily; headline: OverlayBlock; detail: OverlayBlock | null; template: string }
 
 /** Resolve the on-canvas (1080×1920) layout for a template + its already-computed headline/detail
  *  text. Shared by the CSS preview and the FFmpeg render so the two match. */
@@ -788,7 +846,7 @@ export function computeOverlayLayout(template: string, headlineText: string, det
       // would not — but that already overflowed in Bodoni (1733px), so the hazard predates this.
       detailBlock = { lines: detailLines, fontPx: detailPx, topPx: headTop + headBlockH + gap, uppercase: false, sideMarginPx: OVERLAY_SPEC.sub.sideMarginPx, lineSpacing: OVERLAY_SPEC.sub.lineSpacing, face: "head" }
     }
-    return { family, headline, detail: detailBlock }
+    return { family, headline, detail: detailBlock, template }
   }
 
   // ── HARD LINE BREAKS ────────────────────────────────────────────────────────────────────────
@@ -882,7 +940,7 @@ export function computeOverlayLayout(template: string, headlineText: string, det
   const detailBlock: OverlayBlock | null = hasDetail
     ? { lines: detailLines, fontPx: detailPx, topPx: groupTop + headBlockH + gap, uppercase: false, sideMarginPx: sideMarginPx(platform), lineSpacing: OVERLAY_SPEC.sub.lineSpacing, face: "head" }
     : null
-  return { family, headline, detail: detailBlock }
+  return { family, headline, detail: detailBlock, template }
 }
 
 // REMOVED: overlayPreviewStyle(). It was the pre-template editing-preview helper, and by the end only

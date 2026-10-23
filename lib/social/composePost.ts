@@ -728,8 +728,14 @@ export const OVERLAY_TEMPLATES = ["market_type", "market_type_centered", "your_s
 export type OverlayTemplate = (typeof OVERLAY_TEMPLATES)[number]
 export const DEFAULT_OVERLAY_TEMPLATE: OverlayTemplate = "market_type"
 export const OVERLAY_TEMPLATE_LABEL: Record<OverlayTemplate, string> = {
-  market_type: "Market + Type",
-  market_type_centered: "Market + Type (Centered)",
+  // "(Top)" is a HISTORY label now. market_type is hidden from the selector, but six published
+  // Reels and one ready post still store it, and History reads this map — so the name has to say
+  // which of the two they used rather than colliding with the visible one below.
+  market_type: "Market + Type (Top)",
+  // "(Centered)" earned its keep only while the top variant was also offered. With that hidden
+  // there is one Market + Type in the selector, and qualifying it would describe a distinction the
+  // operator can no longer see.
+  market_type_centered: "Market + Type",
   your_sign: "Your Sign",
   special_feature: "Special + Feature",
   next_property: "Next Property",
@@ -781,8 +787,39 @@ export const OVERLAY_TEMPLATE_LABEL: Record<OverlayTemplate, string> = {
  * scripts/social/newTemplates.test.ts, so a template added to one list and forgotten in the other
  * cannot ship.
  */
+/**
+ * REGISTERED BUT NOT OFFERED.
+ *
+ * Each of these is a top-positioned variant of a centred template — identical wording, identical
+ * sizing, differing only in where the lockup sits:
+ *
+ *   market_type          → market_type_centered
+ *   what_mo_gets_you_top → what_mo_gets_you
+ *
+ * Offering both asked the operator to choose between two renderings of one idea, so the top ones
+ * were withdrawn from the selector on 23 Oct 2026.
+ *
+ * HIDDEN IS NOT DELETED, and the difference is the whole point. Both ids stay in OVERLAY_TEMPLATES
+ * at their original indices and both keep their geometry, because six published Reels and one ready
+ * post store `market_type` and must go on rendering exactly as they did. A post's stored string is
+ * its identity; this list only governs what a NEW post can be created as. Removing an id, or
+ * reusing one, is what would orphan those rows.
+ *
+ * Their labels carry "(Top)" so History can still name which variant a historical post used.
+ */
+export const HIDDEN_FROM_SELECTOR: readonly OverlayTemplate[] = ["market_type", "what_mo_gets_you_top"]
+export function isHiddenFromSelector(t: OverlayTemplate): boolean {
+  return (HIDDEN_FROM_SELECTOR as readonly string[]).includes(t)
+}
+
+/** First in the dropdown, so it renders as "1. Market + Type". The number comes from POSITION —
+ *  PostEditor maps `${i + 1}. ${label}` — so no entry here carries one, and hiding a template
+ *  renumbers the rest by itself. */
+const SELECTOR_LEAD: OverlayTemplate = "market_type_centered"
+
 export const OVERLAY_TEMPLATE_ORDER: readonly OverlayTemplate[] = [
-  ...OVERLAY_TEMPLATES.slice(0, 19),
+  SELECTOR_LEAD,
+  ...OVERLAY_TEMPLATES.slice(0, 19).filter((t) => t !== SELECTOR_LEAD && !isHiddenFromSelector(t)),
   "apartment_crush", "engagement", "level_up", "them_vs_me", "view", "aura", "pov_couple",
   // Dropdown position 27, directly after the template it is built from. Everything below shifts
   // down one DISPLAY position — Roomie 27→28, the Client / Me group 28-32→29-33. No stored value
