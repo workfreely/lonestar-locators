@@ -107,7 +107,7 @@ const route = read("lib/social/renderPost.ts")
 // every post was instagram_reel and both happened to land on Instagram — two different columns read
 // through two different functions. It now resolves destination -> safeAreaId exactly as renderPost
 // does, which is what makes preview/burn-in parity structural rather than coincidental.
-ok("PostEditor passes the destination-resolved safe area", /computeOverlayLayout\(overlayTemplate, headline, overlayDetail, previewSafeAreaId\)/.test(editor))
+ok("PostEditor passes the destination-resolved safe area", /computeOverlayLayout\(overlayTemplate, headline, overlayDetail, previewSafeAreaId[,)]/.test(editor))
 ok("…resolved through DESTINATIONS, the same lookup renderPost uses", /previewSafeAreaId = DESTINATIONS\[currentDestination\]\.safeAreaId/.test(editor))
 ok("…from the post's destination, falling back to the legacy platform", /currentDestination = isSocialDestination\(post\.destination\) \? post\.destination : destinationFromLegacyPlatform\(post\.platform\)/.test(editor))
 ok("…and NOT the raw platform column any more", !/computeOverlayLayout\(overlayTemplate, headline, overlayDetail, post\.platform\)/.test(editor))
@@ -115,7 +115,7 @@ ok("…not the UI-only platform selector", !/computeOverlayLayout\([^)]*selected
 ok("the library card preview passes the draft's platform", /computeOverlayLayout\(tpl, headline, newest\.overlaySubheadline \?\? "", newest\.platform \?\? undefined\)/.test(client))
 ok("…and the rollup actually carries platform", /platform: p\.platform \?\? null,/.test(client))
 ok("BulkReview passes an explicit platform", /computeOverlayLayout\([^)]*DEFAULT_PLATFORM\)/.test(bulk))
-ok("renderVideo passes the input platform", /computeOverlayLayout\([\s\S]*?input\.platform \?\? "instagram"\)/.test(render))
+ok("renderVideo passes the input platform", /computeOverlayLayout\([\s\S]*?input\.platform \?\? "instagram"[,)]/.test(render))
 ok("the render route selects platform from the post", /\.select\("id, platform,/.test(route))
 ok("…and forwards it to renderReel", /platform: \(p\.platform as string \| null\) \?\? "instagram"/.test(route))
 
@@ -129,8 +129,29 @@ ok("exactly 4 live computeOverlayLayout call sites (add a new one ⇒ wire it he
 // from the post's destination the way renderPost resolves it; the others still pass a platform or
 // the explicit default. What matters is that no call site falls back to computeOverlayLayout's own
 // DEFAULT_PLATFORM by omission, which would silently fit a TikTok preview to Instagram's box.
-ok("…and every one of them passes an explicit geometry argument", callSiteLines.every((ln) =>
-  /previewSafeAreaId|post\.platform|newest\.platform|DEFAULT_PLATFORM|input\.platform|safeAreaId/.test(ln)))
+// Read each call as a WINDOW from its opening paren, not as a single line: a call may legitimately
+// be wrapped across lines (renderVideo's is, since it also forwards the presenter flag), and a
+// line-based check would then look at a line holding only the function name.
+// COMMENTS STRIPPED FIRST. SocialAutopilotClient explains itself with a prose "computeOverlayLayout(...)",
+// which is not a call site — the line-based version of this check excluded comment LINES, and a
+// window-based one has to strip them properly or it scans the explanation instead of the code.
+const stripComments = (src: string) => src.replace(/\/\*[\s\S]*?\*\//g, "").replace(/\/\/[^\n]*/g, "")
+const callWindows = [editor, client, bulk, render].flatMap((src) => {
+  const code = stripComments(src)
+  return [...code.matchAll(/computeOverlayLayout\(/g)].map((m) => code.slice(m.index!, m.index! + 400))
+})
+ok(`every live call site was found (${callWindows.length})`, callWindows.length === 4, String(callWindows.length))
+ok("…and every one of them passes an explicit geometry argument", callWindows.every((w) =>
+  /previewSafeAreaId|post\.platform|newest\.platform|DEFAULT_PLATFORM|input\.platform|safeAreaId/.test(w)))
+
+// PRESENTER MODE reads a fifth argument. The two call sites that can have a presenter must forward
+// it from the SAME fact that attaches one; the others must not invent a value.
+ok("renderVideo forwards the presenter flag from the clip it composites",
+  /computeOverlayLayout\([\s\S]{0,300}?!!input\.presenterPath/.test(render))
+ok("PostEditor forwards it from the attached presenter",
+  /computeOverlayLayout\([^)]*!!presenter\.presenterId\)/.test(editor))
+ok("BulkReview and the Autopilot rollup do NOT pass one (no presenter in those surfaces)",
+  !/computeOverlayLayout\([^)]*presenter/i.test(bulk) && !/computeOverlayLayout\([^)]*presenter/i.test(client))
 
 // BulkReview's explicit default is only correct while post creation is single-platform.
 console.log("\nBULK REVIEW'S DEFAULT STILL MATCHES WHAT POST CREATION ASSIGNS:")

@@ -469,7 +469,16 @@ export function buildAudioFilter(plan: AudioMixPlan): string | null {
 export async function renderReel(ffmpegPath: string, input: RenderInput): Promise<void> {
   // The platform decides the text-safe box, so one source post can produce a separate Instagram
   // render and TikTok render from identical copy.
-  const layout = computeOverlayLayout(input.template ?? "market_type", (input.headline ?? "").trim(), (input.subheadline ?? "").trim(), input.platform ?? "instagram")
+  // `!!input.presenterPath` is the SAME condition that decides whether a presenter is composited
+  // below — one fact, read once — so the text can never move for a presenter that is not there, nor
+  // stay centred under one that is.
+  const layout = computeOverlayLayout(
+    input.template ?? "market_type",
+    (input.headline ?? "").trim(),
+    (input.subheadline ?? "").trim(),
+    input.platform ?? "instagram",
+    !!input.presenterPath,
+  )
   const items: DrawItem[] = []
   for (const it of buildDrawPlan(layout)) {
     const file = path.join(input.workDir, `${it.name}.txt`)

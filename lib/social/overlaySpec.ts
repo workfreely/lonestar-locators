@@ -775,6 +775,50 @@ function topAnchorPx(platform: string): number {
 }
 
 /**
+ * PRESENTER MODE — where the lockup sits when an AI presenter is standing below it.
+ *
+ * A presenter occupies the lower half of the frame (on TikTok, y880–1480 for a 2:3 clip and
+ * y769–1480 for a 9:16 one), so a CENTRED lockup would sit on top of the figure. Presenter Mode
+ * moves the whole lockup to a top anchor for the life of the video — not just while the presenter
+ * is visible, because text that jumps position when the avatar fades reads as a glitch.
+ *
+ * ── WHY A SEPARATE ANCHOR AND NOT THE EXISTING TOP ONE (y300 on TikTok) ─────────────────────
+ * y300 is cut off by TikTok's profile-grid crop. Sources disagree on that crop — some report a
+ * centred 1:1 (visible y420–1500), others ~3:4 (y240–1680) — so y480 is set against the STRICTER
+ * reading and is safe under either. At y300 the headline sits 120px above the 1:1 crop and simply
+ * is not in the thumbnail.
+ *
+ * y480 was chosen from a measured envelope, not picked:
+ *
+ *   >= 420   the 1:1 grid crop            (binding)
+ *   >= 160   TikTok's header / safe floor
+ *   <= 598   40px clear of a 9:16 presenter's head at y769 (the tallest case)
+ *   <= 700   above the expanded caption at y831
+ *
+ * 480 leaves 60px of grid padding and 158px above the tallest presenter.
+ *
+ * ── SCOPE ───────────────────────────────────────────────────────────────────────────────────
+ * TikTok only, Market + Type only, by explicit instruction: this is a reviewed test, not a
+ * library-wide rollout. Instagram's value (y387) is approved but deliberately NOT listed here, so
+ * an Instagram render with a presenter keeps today's geometry until that test runs. A template or
+ * platform absent from either map resolves exactly as it does now.
+ */
+const PRESENTER_MODE_ANCHOR_PX: Record<string, number> = {
+  tiktok: 480,
+}
+
+/** The templates Presenter Mode governs. Market + Type only for now — both the visible centred one
+ *  and the hidden top variant, because a saved post on either must render the same way. */
+const PRESENTER_MODE_TEMPLATES: ReadonlySet<string> = new Set(["market_type", "market_type_centered"])
+
+/** The Presenter Mode anchor for this template on this platform, or null when Presenter Mode does
+ *  not apply — in which case the caller keeps its existing anchor untouched. */
+export function presenterModeAnchorPx(template: string, platform: string): number | null {
+  if (!PRESENTER_MODE_TEMPLATES.has(template)) return null
+  return PRESENTER_MODE_ANCHOR_PX[(platform ?? "").toLowerCase()] ?? null
+}
+
+/**
  * HERO SIDE MARGINS, PER PLATFORM.
  *
  * The hero family has always used its OWN margins — 90px headline, 75px detail — while the
@@ -805,7 +849,15 @@ function heroMargins(platform: string): { headline: number; detail: number } {
   )
 }
 
-export function computeOverlayLayout(template: string, headlineText: string, detailText: string, platform: string = DEFAULT_PLATFORM): OverlayLayout {
+export function computeOverlayLayout(
+  template: string,
+  headlineText: string,
+  detailText: string,
+  platform: string = DEFAULT_PLATFORM,
+  /** True when an AI presenter is attached to this post. Defaults to FALSE, so every existing
+   *  caller — preview, renderer, tests — keeps the layout it has today without being touched. */
+  hasPresenter: boolean = false,
+): OverlayLayout {
   const family = templateFamily(template)
   const H = OVERLAY_CANVAS.h
   const detail = (detailText ?? "").trim()
@@ -849,7 +901,11 @@ export function computeOverlayLayout(template: string, headlineText: string, det
     const gap = hasDetail ? heroGapPx : 0
     const totalH = headBlockH + gap + detailBlockH
     // Anchor: near-top (yFrac) for T1; vertical center of the group for the Centered variant.
-    const headTop = centered ? (H - totalH) / 2 : topAnchorPx(platform)
+    // PRESENTER MODE WINS OVER BOTH, when it applies: a centred lockup would sit on the figure,
+    // and the ordinary top anchor is cut off by TikTok's grid crop. Null ⇒ it does not apply and
+    // the anchor is exactly what it was.
+    const presenterAnchor = hasPresenter ? presenterModeAnchorPx(template, platform) : null
+    const headTop = presenterAnchor ?? (centered ? (H - totalH) / 2 : topAnchorPx(platform))
     // Per-line tops for the compound two-line title: each line's top is the running sum of the
     // PRECEDING line sizes, so a smaller line 2 sits directly under line 1 with the same gap the
     // single-size path uses. Horizontal centring is not computed here — both lines inherit the same

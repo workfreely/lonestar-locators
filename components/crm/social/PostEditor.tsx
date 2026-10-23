@@ -1146,7 +1146,11 @@ export default function PostEditor({ postId, from }: { postId: string; from?: st
   // columns through different functions. A destination id is NOT a safe-area id — safeAreaFor()
   // falls back to Instagram for an unknown key, silently — so resolving it through DESTINATIONS is
   // what keeps the preview honest rather than accidentally right.
-  const overlayLayout = overlayMode === "existing" ? null : computeOverlayLayout(overlayTemplate, headline, overlayDetail, previewSafeAreaId)
+  // PRESENTER MODE. `!!presenter.presenterId` is the editor's own "is a presenter attached" state —
+  // the same value that decides whether a presenter is sent to the renderer — so the preview moves
+  // the lockup at exactly the moment the export would. Selecting or clearing a presenter re-lays the
+  // preview immediately, with no save required.
+  const overlayLayout = overlayMode === "existing" ? null : computeOverlayLayout(overlayTemplate, headline, overlayDetail, previewSafeAreaId, !!presenter.presenterId)
 
   // Posting mode toggle (Post Once / Recurring) — reused as-is in two positions: above the Repeat
   // settings form, and inline in the compact Posting|Scheduled row. Same handler/state either way.
