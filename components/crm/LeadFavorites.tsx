@@ -875,17 +875,22 @@ export default function LeadFavorites({
                     </div>
                   )}
 
-                  {/* THE BUTTON MOVED UP to the property action row, beside Guest Card Sent,
-                      where Schedule Tour sits on other cards. What remains here is the state
-                      LINE, and it renders only when there IS a state to show — an applied
-                      property with no label would otherwise leave a bordered empty row and cost
-                      the card height this change exists to reclaim. The action, its modal and
-                      the application data are untouched. */}
-                  {checkAppOpen && onCheckApplication && favState && (
-                    <div className="mt-2 pt-2 border-t border-[var(--crm-border-soft)]">
-                      <p className="text-[10.5px] font-semibold text-emerald-600">{favState}</p>
-                    </div>
-                  )}
+                  {/* THE CHECK APPLICATION STATE LINE IS GONE, and the row with it.
+                      The BUTTON had already moved up to the property action row beside Guest
+                      Card Sent; what was left here was a bordered row carrying nothing but the
+                      green favState label — "Toured · Application Pending" and its siblings.
+                      That restated what the card already shows: Check Application is on the
+                      action row, and Beast Companion carries Last Action, Next Action and the
+                      application follow-up. Removing the row also reclaims its mt-2 pt-2 border-t,
+                      which is the compactness this change is for.
+                      REMOVED FROM THE CARD ONLY. favoriteTourStateLabel is a pure function that
+                      DERIVES this string from canonical tour/application state — it stores
+                      nothing — so tour history, application tracking, CRM stage, next actions,
+                      reminders and follow-up automation are all untouched, and the data stays
+                      available to AI Client Insights and reporting. Every OTHER favState branch
+                      (Apply, Confirm Lease, Invoice, Commission, Rebate, and the no-action
+                      fallback) is deliberately left alone: each pairs the label with its own
+                      action button, so the label there is a caption, not a restatement. */}
 
                   {/* Application approved → Confirm Lease (property-scoped to the Top
                       Pick). "Did the client sign?" — Yes advances to Closed. */}
