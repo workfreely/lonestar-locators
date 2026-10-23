@@ -57,8 +57,11 @@ const ORIGINAL_24 = [
 console.log("\n=== 1. THE ORIGINAL 24 ARE UNTOUCHED ===")
 {
   eq("every original id is still registered, in its original index", OVERLAY_TEMPLATES.slice(0, 24), ORIGINAL_24)
-  eq("the registry grew to 32 by APPENDING", OVERLAY_TEMPLATES.length, 32)
-  eq("…and the eight new ids are the appended tail", OVERLAY_TEMPLATES.slice(24), [...NEW7, "roomie"])
+  // T33 (pov_regular_shmegular) was appended after this batch, so the length moves while every
+  // index this suite cares about stays put — which is exactly what the next assertion proves.
+  eq("the registry grew by APPENDING", OVERLAY_TEMPLATES.length, 33)
+  eq("…and the eight ids of THIS batch still occupy indices 24-31", OVERLAY_TEMPLATES.slice(24, 32), [...NEW7, "roomie"])
+  eq("…with T33 appended after them, touching none of the above", OVERLAY_TEMPLATES.slice(32), ["pov_regular_shmegular"])
   ok("no id is duplicated", new Set(OVERLAY_TEMPLATES).size === OVERLAY_TEMPLATES.length)
   ok("every registered template has a label", OVERLAY_TEMPLATES.every((t) => !!OVERLAY_TEMPLATE_LABEL[t]))
   // The original labels, spot-checked at the boundaries that a careless edit would hit.
@@ -79,8 +82,8 @@ console.log("\n=== 1. THE ORIGINAL 24 ARE UNTOUCHED ===")
 
 console.log("\n=== 2. DISPLAY ORDER IS SEPARATE FROM IDENTITY ===")
 {
-  eq("the dropdown lists all 32", OVERLAY_TEMPLATE_ORDER.length, 32)
-  eq("…each exactly once", new Set(OVERLAY_TEMPLATE_ORDER).size, 32)
+  eq("the dropdown lists every registered template", OVERLAY_TEMPLATE_ORDER.length, OVERLAY_TEMPLATES.length)
+  eq("…each exactly once", new Set(OVERLAY_TEMPLATE_ORDER).size, OVERLAY_TEMPLATES.length)
   // The two lists must contain the SAME set — a template added to one and forgotten in the other
   // would either vanish from the dropdown or appear with no identity.
   eq("the order holds exactly the registered set",
@@ -88,11 +91,16 @@ console.log("\n=== 2. DISPLAY ORDER IS SEPARATE FROM IDENTITY ===")
   eq("positions 1-19 are the registry's own first nineteen",
     OVERLAY_TEMPLATE_ORDER.slice(0, 19), OVERLAY_TEMPLATES.slice(0, 19))
   const at = (n: number) => OVERLAY_TEMPLATE_LABEL[OVERLAY_TEMPLATE_ORDER[n - 1]]
-  eq("20-27 are the eight new templates, in the approved order",
-    [at(20), at(21), at(22), at(23), at(24), at(25), at(26), at(27)],
-    ["Apartment Crush", "Live With", "Level Up", "Them vs. Me", "View", "Aura", "POV Couple", "Roomie"])
-  eq("28-32 are the Client / Me group, shifted down intact",
-    [at(28), at(29), at(30), at(31), at(32)],
+  // 20-26 are unchanged. T33 was INSERTED at display 27 (directly after the template it is built
+  // from), so Roomie moved 27 → 28 and the Client / Me group moved down one with it. Display
+  // positions are allowed to move; the registry indices asserted above are not.
+  eq("20-26 are the first seven of this batch, in the approved order",
+    [at(20), at(21), at(22), at(23), at(24), at(25), at(26)],
+    ["Apartment Crush", "Live With", "Level Up", "Them vs. Me", "View", "Aura", "POV Couple"])
+  eq("27 is T33, inserted directly after POV Couple", at(27), "POV: Regular Shmegular Upgrade")
+  eq("28 is Roomie, shifted down one", at(28), "Roomie")
+  eq("29-33 are the Client / Me group, shifted down intact and in order",
+    [at(29), at(30), at(31), at(32), at(33)],
     ["Client / Me", "Client / Me — Bad Credit", "Client / Me — My Ex Cheated",
      "Client / Me — Rent Increase", "Client / Me — Roaches"])
   // THE RENAME AT POSITION 21 IS DISPLAY-ONLY. The id is what drafts store, so it must not move.

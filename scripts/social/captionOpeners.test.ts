@@ -44,6 +44,7 @@ const EXPECTED: [OverlayTemplate, string][] = [
   ["view", "I'll never get tired of this view 😍"],
   ["aura", "This has too much aura 🔥"],
   ["pov_couple", "POV: Tag your love ❤️"],
+  ["pov_regular_shmegular", "Regular shmegular? Not anymore 😎"],
   // T32. Metadata-free like the rest; the per-person figure lives on the VIDEO, never here.
   ["roomie", "Tag your future roomie 👀🏡"],
 ]

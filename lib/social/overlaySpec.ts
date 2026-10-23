@@ -643,6 +643,10 @@ export function templateFamily(template: string): LayoutFamily {
     || template === "apartment_crush" || template === "engagement" || template === "level_up"
     || template === "them_vs_me" || template === "view" || template === "aura"
     || template === "pov_couple"
+    // T33 joins on exactly the terms T32 did: membership IS the layout, so it inherits POV
+    // Couple's centred placement, hook fit-to-width sizing, side margins and 17px gap without
+    // copying a single value — and without touching POV Couple to get them.
+    || template === "pov_regular_shmegular"
     // T32 ROOMIE joins on the same terms: membership IS the layout, so its "2 bed apartment…" /
     // "Only $800/month per roomie" pair gets the identical centred placement, sizing, side
     // margins and 17px gap every other hook+detail template has.

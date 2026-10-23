@@ -378,7 +378,7 @@ ok("render graph still outputs the [v] label", /\[v\]$/.test(hugFilt))
 
 console.log("Overlay TEMPLATES 1–5 (headline/detail generation + layout families):")
 const tMeta = { market: "San Antonio", propertyType: "High-Rise", socialSpecial: "8 Weeks Free", budgetRange: "1600", amenities: "Private Yards, Rooftop Pool" }
-ok(`${OVERLAY_TEMPLATES.length} templates defined`, OVERLAY_TEMPLATES.length === 32)
+ok(`${OVERLAY_TEMPLATES.length} templates defined`, OVERLAY_TEMPLATES.length === 33) // +T33 pov_regular_shmegular, appended
 // T1 Market + Type (HERO)
 ok("T1 headline = CITY TYPE_PLURAL", buildTemplateHeadline("market_type", tMeta) === "SAN ANTONIO HIGH-RISES")
 ok("T1 detail = Starting at price", buildTemplateDetail("market_type", tMeta) === "Starting at $1,600/month")
@@ -501,7 +501,7 @@ ok("a genuinely MANUAL hook is NOT treated as generated (override protected)", !
 // The point of this assertion was never the NUMBER — it is that these specific templates sit at
 // these specific indices, because a saved draft stores a string that must keep resolving. T25-T31
 // were appended, so every index named below is unmoved.
-ok("selector lists 32 templates with T2/T7/T8-T11 at their original indices", OVERLAY_TEMPLATES.length === 32 && OVERLAY_TEMPLATES[1] === "market_type_centered" && OVERLAY_TEMPLATES[5] === "upgrade" && OVERLAY_TEMPLATES[6] === "apartment_standards" && OVERLAY_TEMPLATES[7] === "pov_upgrade" && OVERLAY_TEMPLATES[8] === "affordable_luxury" && OVERLAY_TEMPLATES[9] === "pov_price" && OVERLAY_TEMPLATES[10] === "hits_different")
+ok("selector lists 33 templates with T2/T7/T8-T11 at their original indices", OVERLAY_TEMPLATES.length === 33 && OVERLAY_TEMPLATES[1] === "market_type_centered" && OVERLAY_TEMPLATES[5] === "upgrade" && OVERLAY_TEMPLATES[6] === "apartment_standards" && OVERLAY_TEMPLATES[7] === "pov_upgrade" && OVERLAY_TEMPLATES[8] === "affordable_luxury" && OVERLAY_TEMPLATES[9] === "pov_price" && OVERLAY_TEMPLATES[10] === "hits_different")
 
 console.log("Template 8 (POV + Price — CENTER HOOK + DETAIL):")
 // T8 headline = same explicit POV per-type mapping as T6.

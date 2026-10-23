@@ -83,8 +83,13 @@ console.log("\n4. TIKTOK-ONLY NEEDS NO INSTAGRAM SCHEDULING:")
 {
   ok("the hint no longer points at Schedule/Publish", !/Render this post first \(via Schedule\/Publish\)/.test(editor))
   ok("…and says the dialog renders it instead", /opening this will render it first/i.test(editor))
+  // Matched on the CONDITION, not the whole expression: the disabled list legitimately grows (it
+  // gained `publishingNow` when Publish Now shipped), and a test about TikTok should not fail
+  // because an unrelated flag was added beside it. What must stay true is that the green Publish —
+  // the Instagram SCHEDULER — is disabled whenever TikTok is selected.
   ok("Publish is still disabled while TikTok is selected (it IS the Instagram scheduler)",
-    /disabled=\{busy \|\| publishing \|\| previewing \|\| selectedPlatforms\.has\("tiktok"\)\}/.test(editor))
+    /onClick=\{\(\) => void publish\(\)\}/.test(editor) &&
+    /disabled=\{[^}]*selectedPlatforms\.has\("tiktok"\)[^}]*\}[^>]*onClick=\{\(\) => void publish\(\)\}/.test(editor))
   ok("the Sandbox button is still always clickable (never silently no-ops)",
     /onClick=\{\(\) => setTtConfirmOpen\(true\)\}/.test(editor) && !/disabled=\{[^}]*\}\s*\n?\s*className="w-full inline-flex items-center justify-center gap-1\.5/.test(editor))
   ok("the Sandbox block is gated only on the TikTok selection", /\{selectedPlatforms\.has\("tiktok"\) && \(/.test(editor))

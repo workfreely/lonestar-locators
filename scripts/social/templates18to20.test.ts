@@ -32,7 +32,7 @@ console.log("1. twenty-one templates, the first twenty undisturbed:")
 // the tripwire, so it tracks the registry rather than being frozen at 20.
 // 24 -> 31: T25-T31 were APPENDED (see scripts/social/templates25to31). The count moved; the
 // first 24 indices did not, which is the property this file actually depends on.
-ok(`${OVERLAY_TEMPLATES.length} templates registered`, OVERLAY_TEMPLATES.length === 32)
+ok(`${OVERLAY_TEMPLATES.length} templates registered`, OVERLAY_TEMPLATES.length === 33) // +T33 pov_regular_shmegular, appended
 ok("T21 is appended LAST, so no existing index moved", OVERLAY_TEMPLATES[20] === "client_me_bad_credit")
 ok("the original 17 keep their exact positions", ORIGINAL_17.every((k, i) => OVERLAY_TEMPLATES[i] === k))
 ok("T18-T20 are appended at the end",

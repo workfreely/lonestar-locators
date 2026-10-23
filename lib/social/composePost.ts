@@ -380,6 +380,9 @@ export function captionOpener(template: OverlayTemplate, src: SourceMeta): strin
     // short-type rule governs it. Repeating it here would risk the long label the rule excludes.
     case "aura": return "This has too much aura 🔥"
     case "pov_couple": return "POV: Tag your love ❤️"
+    // No price and no property type, for the same reason as the neighbours above: the figure
+    // belongs to the on-video line, where the verified-price rule governs it.
+    case "pov_regular_shmegular": return "Regular shmegular? Not anymore 😎"
     // No figure in the caption — the split belongs on the video, where the verified-rent rule
     // governs it. A price here could outlive the data that justified it.
     case "roomie": return "Tag your future roomie 👀🏡"
@@ -714,7 +717,14 @@ export const OVERLAY_TEMPLATES = ["market_type", "market_type_centered", "your_s
   // identity and display order are deliberately different things.
   "apartment_crush", "engagement", "level_up", "them_vs_me", "view", "aura", "pov_couple",
   // T32 (dropdown position 27). Appended, like every batch before it.
-  "roomie"] as const
+  "roomie",
+  // T33. POV Couple's treatment with different wording — same family, same geometry, same
+  // headline + optional price line. APPENDED LAST for the only reason that has ever governed this
+  // array: a saved post stores its template as a STRING, and appending is what guarantees no
+  // existing entry moves. It is SHOWN at dropdown position 27 (immediately after POV Couple) via
+  // OVERLAY_TEMPLATE_ORDER — which is why display position 27 and registry position 33 differ,
+  // and why nothing already saved as "roomie" can be re-read as something else.
+  "pov_regular_shmegular"] as const
 export type OverlayTemplate = (typeof OVERLAY_TEMPLATES)[number]
 export const DEFAULT_OVERLAY_TEMPLATE: OverlayTemplate = "market_type"
 export const OVERLAY_TEMPLATE_LABEL: Record<OverlayTemplate, string> = {
@@ -752,6 +762,7 @@ export const OVERLAY_TEMPLATE_LABEL: Record<OverlayTemplate, string> = {
   aura: "Aura",
   pov_couple: "POV Couple",
   roomie: "Roomie",
+  pov_regular_shmegular: "POV: Regular Shmegular Upgrade",
 }
 
 /**
@@ -772,7 +783,12 @@ export const OVERLAY_TEMPLATE_LABEL: Record<OverlayTemplate, string> = {
  */
 export const OVERLAY_TEMPLATE_ORDER: readonly OverlayTemplate[] = [
   ...OVERLAY_TEMPLATES.slice(0, 19),
-  "apartment_crush", "engagement", "level_up", "them_vs_me", "view", "aura", "pov_couple", "roomie",
+  "apartment_crush", "engagement", "level_up", "them_vs_me", "view", "aura", "pov_couple",
+  // Dropdown position 27, directly after the template it is built from. Everything below shifts
+  // down one DISPLAY position — Roomie 27→28, the Client / Me group 28-32→29-33. No stored value
+  // changes, because this list is display only; identity lives in OVERLAY_TEMPLATES above.
+  "pov_regular_shmegular",
+  "roomie",
   "client_me", "client_me_bad_credit", "client_me_ex_cheated", "client_me_rent_increase", "client_me_roaches",
 ]
 
@@ -1016,6 +1032,11 @@ export function buildTemplateHeadline(template: OverlayTemplate, src: SourceMeta
       return "I’ll never get tired of this view"
     case "pov_couple":
       return "POV: You just moved in with the love of your life"
+    // T33. A FIXED sentence with no variable in it, exactly like the line above — no property
+    // type, no market, no price. The price belongs to the detail line below, where one rule
+    // governs it for every template that has one.
+    case "pov_regular_shmegular":
+      return "POV: You ditched your regular shmegular apartment"
     // T30 AURA. The ONE variable, gated by AURA_SHORT_TYPES — see the constant for why the
     // allow-list is explicit. Anything outside the six reads as the typeless sentence.
     case "aura": {
@@ -1158,6 +1179,12 @@ export function buildTemplateDetail(template: OverlayTemplate, src: SourceMeta):
     case "view":
     case "aura":
     case "pov_couple":
+    // T33 takes the SAME line from the SAME source: `price` is startingPriceLabel(budgetRange,
+    // priceLabelMode) resolved once at the top of this function, so it renders "Starting at
+    // $X/month" or "Exact unit shown: $X/month" according to the SOURCE's own mode, and "" when
+    // there is no valid price — in which case the line and its gap collapse exactly as they do
+    // for POV Couple. Nothing here computes, formats or defaults a price of its own.
+    case "pov_regular_shmegular":
       return price // T5/T8 gained the same optional price line — see the group above
 
     // T32 ROOMIE states the per-person split, computed from the VERIFIED two-bedroom rent alone.
