@@ -12,7 +12,7 @@ import { resolveProfileUrl } from "@/lib/social/commentIdentity"
 
 // `scopes` is what the Instagram permission line is derived from. It was previously hardcoded to
 // "Permissions needed", which was true then and would have stayed wrong after the grant.
-export type AccountRow = { id: string; provider: string; username: string | null; status: string | null; scopes?: string[] | null }
+export type AccountRow = { id: string; provider: string; username: string | null; status: string | null; scopes?: string[] | null; created_at?: string | null }
 export type RuleRow = {
   id: string
   keyword: string

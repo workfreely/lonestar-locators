@@ -3,6 +3,7 @@ export const dynamic = "force-dynamic"
 import { ensurePlatformAdminPage } from "@/lib/auth/ensurePlatformAdminPage"
 import { createClient } from "@/lib/supabase/server"
 import CommentsClient, { type CommentRow, type RuleRow, type AccountRow } from "@/components/crm/social/CommentsClient"
+import { pickCommentsConnection } from "@/lib/social/commentsAccount"
 import { COMMENT_KEYWORDS } from "@/lib/social/commentKeywords"
 import { sendGate, dmGate } from "@/lib/social/commentSendPolicy"
 
@@ -48,7 +49,10 @@ export default async function CommentsPage() {
   const connections = await safe<AccountRow[]>(
     // `scopes` drives the per-account permission line. Safe display data: no token, no
     // external_account_id, no owner_user_id.
-    () => supabase.from("social_connections").select("id, provider, username, status, scopes").order("provider") as never,
+    // `created_at` is selected for pickCommentsConnection's last-resort tiebreaker only — it is not
+    // rendered. The ORDER BY stays as it was: the choice below no longer depends on row order, so
+    // changing it here would only move the ambiguity rather than remove it.
+    () => supabase.from("social_connections").select("id, provider, username, status, scopes, created_at").order("provider") as never,
     [],
   )
 
@@ -91,7 +95,10 @@ export default async function CommentsPage() {
   // Keyed on the Instagram connection, because these settings are per-account. Unreadable is kept
   // DISTINCT from off for the same reason as the global switch: "we do not know" must not render
   // as a confident "Off".
-  const igConnectionId = connections.find((a) => a.provider === "instagram")?.id ?? null
+  // DETERMINISTIC, and chosen by permission rather than by position — see pickCommentsConnection.
+  // The previous `.find()` over a list ordered by `provider` alone was unordered among Instagram
+  // rows, so a second Instagram destination could have silently taken this screen over.
+  const igConnectionId = pickCommentsConnection(connections)?.id ?? null
   let publicRepliesEnabled = false
   let accountEnabled = false
   let maxCommentAgeMinutes: number | null = null
