@@ -9,7 +9,8 @@ import AutoPostingControl from "@/components/crm/social/AutoPostingControl"
 import { readAutoPosting } from "@/lib/social/autoPosting"
 import { accountAutomationGate } from "@/lib/social/commentSafety"
 import { INSTAGRAM_COMMENTS_SCOPE } from "@/lib/social/commentScope"
-import { publishingCapability, autoReplyCapability, type AutoReplyAttention } from "@/lib/social/accountCapabilities"
+import { publishingCapability, autoReplyCapability, actionNeedsAttention, type AutoReplyAttention } from "@/lib/social/accountCapabilities"
+import { dmGate } from "@/lib/social/commentSendPolicy"
 
 // Social Autopilot → Accounts. Manages N Instagram Publishing Destinations for the current
 // platform-admin owner (was single-connection). Platform-admin gated. Tokens live in Vault and are
@@ -147,13 +148,19 @@ export default async function SocialAutopilotAccountsPage({ searchParams }: { se
       a.danglingClaims++
       attentionOf.set(r.connection_id, a)
     }
+    // `kind` joins the selection because the tally now distinguishes a public reply from a private
+    // one — see actionNeedsAttention. The .in() filter is unchanged, so the same rows are read.
     const { data: acts } = await supabase
       .from("comment_actions")
-      .select("status, reason, social_comments!inner(connection_id)")
+      .select("kind, status, reason, social_comments!inner(connection_id)")
       .in("status", ["failed", "uncertain"])
+    // Read ONCE, from the live gate, so every row in this pass is judged against the same switch.
+    const dmEnabled = dmGate(process.env).active
     // PostgREST returns an embedded relation as an ARRAY even for a to-one join, so this is
     // normalised rather than asserted — an object cast here compiles and then reads undefined.
     type ActRow = {
+      kind: string | null
+      status: string | null
       reason: string | null
       social_comments: { connection_id: string }[] | { connection_id: string } | null
     }
@@ -165,6 +172,9 @@ export default async function SocialAutopilotAccountsPage({ searchParams }: { se
       const rel = r.social_comments
       const cid = Array.isArray(rel) ? rel[0]?.connection_id : rel?.connection_id
       if (!cid) continue
+      // Skipped BEFORE the tally and before the reason tally, so a row that cannot be acted on
+      // contributes neither a count nor the word the detail line names as the dominant cause.
+      if (!actionNeedsAttention(r, dmEnabled)) continue
       const a = attentionOf.get(cid) ?? { unresolvedActions: 0, danglingClaims: 0 }
       a.unresolvedActions++
       attentionOf.set(cid, a)

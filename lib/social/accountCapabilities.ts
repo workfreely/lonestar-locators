@@ -84,6 +84,59 @@ export function publishingCapability(input: {
   }
 }
 
+/**
+ * DOES THIS ACTION STILL WANT A HUMAN?
+ *
+ * The account badge used to count every `failed` or `uncertain` comment_action for ever, with no
+ * notion of whether anyone could still act on one. Three private replies that Meta refused on
+ * 21 Oct 2026 therefore pinned "Attention needed" permanently — while the capability that produced
+ * them was switched off and they could not be retried, so there was nothing a person could do with
+ * the warning except learn to ignore it. A warning nobody can act on teaches people to ignore the
+ * ones they can.
+ *
+ * NOTHING IS HIDDEN AND NOTHING IS WRITTEN. Every row stays in comment_actions exactly as it is,
+ * and the Comments screen still renders each one against its comment. This decides ONE thing: what
+ * the account-level pill counts.
+ *
+ * THE RULE, and the reasoning behind each line:
+ *
+ *   public_reply, failed or uncertain   ALWAYS counts. Public replies work, they are the whole of
+ *                                       automation now, and a failure is real work.
+ *
+ *   uncertain, either kind              ALWAYS counts, including while DMs are off. "Uncertain"
+ *                                       means we do not know whether Meta delivered it. It may
+ *                                       have been sent. That question does not stop mattering
+ *                                       because a switch moved afterwards, and an uncertain send is
+ *                                       never retried — these are exactly the rows that would
+ *                                       otherwise sit invisible for ever.
+ *
+ *   private_reply, FAILED, DMs off      Does not count. Failed is a definite negative: nothing was
+ *                                       delivered, and the idempotency check in commentRunner means
+ *                                       it can never be attempted again. With dmGate off, no future
+ *                                       attempt is possible either. There is no action available.
+ *
+ *   private_reply, FAILED, DMs on       Counts. Turning DMs back on makes the failures relevant
+ *                                       again — they are evidence about a capability now in use.
+ *
+ * READ FROM THE LIVE GATE, not stored. `dmEnabled` comes from dmGate(process.env) at render time,
+ * so setting SOCIAL_COMMENT_DM_ENABLED=true brings these rows back on the next page load with no
+ * migration, no backfill and nothing to remember.
+ *
+ * This is deliberately NOT a "reviewed" flag. It answers "is this actionable?", which the system
+ * already knows. Acknowledging a failure a person HAS looked at and accepted is a different
+ * question, needs durable per-row state, and is not solved here.
+ */
+export function actionNeedsAttention(
+  action: { kind?: string | null; status?: string | null },
+  dmEnabled: boolean,
+): boolean {
+  const status = (action.status ?? "").trim()
+  // Only these two ever reached the tally; anything else is not unresolved work.
+  if (status !== "failed" && status !== "uncertain") return false
+  if (status === "uncertain") return true
+  return (action.kind ?? "").trim() !== "private_reply" || dmEnabled
+}
+
 /** Counts that mean a person should look, regardless of which switches are set. */
 export type AutoReplyAttention = {
   /** comment_actions rows with status failed or uncertain. */
