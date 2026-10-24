@@ -283,5 +283,57 @@ ok("presenter timing constants are unchanged",
 ok("presenter placement constants are unchanged",
   PRESENTER.xPx === 110 && PRESENTER.widthPx === 400 && PRESENTER.captionOverlapPx === 60)
 
+// ── 8. THE APPROVED BASELINE ──────────────────────────────────────────────────────────────────
+// Signed off on 2026-10-24 after reviewing real posts on a real phone: three SELF_ONLY TikTok
+// tests (480 → 440 → 380) and two public Instagram Reels (380 → 320), each judged full-screen,
+// with the caption expanded, in comments, and in the profile grid.
+//
+// These seven numbers ARE the approval. Everything else in this file explains why they hold; this
+// block exists so that if one of them moves, the failure names the value and the platform rather
+// than some derived clearance. Two of them are DERIVED, not literals — the feet position comes
+// from a platform's caption zone plus captionOverlapPx — so they are pinned at the value, which
+// catches an unrelated safe-area edit shifting the figure silently.
+//
+// Changing one of these is a product decision, not a refactor: update the number here and say so.
+console.log("\nTHE APPROVED BASELINE — locked by review, one assertion per value:")
+{
+  const B: [string, unknown, unknown][] = [
+    ["TikTok headline anchor", presenterModeAnchorPx(MT, "tiktok"), 380],
+    ["Instagram headline anchor", presenterModeAnchorPx(MT, "instagram"), 320],
+    ["presenter x", PRESENTER.xPx, 110],
+    ["presenter width", PRESENTER.widthPx, 400],
+    ["presenter feet, TikTok (derived)", presenterBottomPx("tiktok"), 1480],
+    ["presenter feet, Instagram presenter posts (derived, borrowed)", presenterBottomPx(presenterCompositionPlatform(MT, "instagram")), 1480],
+    ["intro seconds", PRESENTER.defaultIntroSeconds, 4],
+    ["fade seconds", PRESENTER.fadeSeconds, 0.6],
+  ]
+  for (const [label, actual, expected] of B) ok(`${label} = ${String(expected)}`, actual === expected, `got ${String(actual)}`)
+
+  // The rendered lockup, as approved on each platform — the numbers a viewer actually sees.
+  for (const [platform, anchor] of [["tiktok", 380], ["instagram", 320]] as const) {
+    const L = lay(MT, platform, true)
+    ok(`${platform}: headline 57px at y${anchor}`,
+      L.headline.fontPx === 57 && Math.round(L.headline.topPx) === anchor,
+      `${L.headline.fontPx}px at y${Math.round(L.headline.topPx)}`)
+    ok(`${platform}: price 52px, 22px below it`,
+      L.detail!.fontPx === 52 && Math.round(L.detail!.topPx - (L.headline.topPx + L.headline.fontPx)) === 22)
+    ok(`${platform}: the approved shadow, unmodified`, JSON.stringify(overlayTextFor(MT)) === JSON.stringify({ ...OVERLAY_TEXT }))
+    ok(`${platform}: the headline still fits its platform-safe box on one line`, L.headline.lines.length === 1)
+  }
+  // The hidden top variant must RENDER identically to the visible one, on both platforms, because
+  // a post saved under either identity has to look the same. The layout echoes its own `template`
+  // back, which is identity rather than geometry and is the one field that legitimately differs —
+  // so it is excluded, and separately asserted to be the only difference, which is what makes
+  // excluding it safe rather than convenient.
+  const geometryOf = (L: ReturnType<typeof lay>) => { const { template, ...rest } = L as never as { template: string }; return rest }
+  for (const platform of ["tiktok", "instagram"] as const) {
+    const vis = lay(MT, platform, true), hid = lay(MT_TOP, platform, true)
+    ok(`${platform}: the hidden Market + Type variant renders identically to the visible one`,
+      JSON.stringify(geometryOf(hid)) === JSON.stringify(geometryOf(vis)))
+    ok(`${platform}: …and the template NAME is the only thing that differs`,
+      JSON.stringify(hid) !== JSON.stringify(vis) && hid.template === MT_TOP && vis.template === MT)
+  }
+}
+
 console.log(`\nPresenter Mode (TikTok): ${pass} passed, ${fail} failed`)
 process.exit(fail ? 1 : 0)
