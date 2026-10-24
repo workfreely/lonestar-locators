@@ -792,8 +792,9 @@ function topAnchorPx(platform: string): number {
  * 0.75: it is 3:4, and the visible band is y240-1680. The 1:1 reading was wrong, and designing
  * against it cost 40px of composition for a constraint that does not exist.
  *
- * That is why this is 440 rather than 480. Under the assumed 1:1 crop, 440 left only 20px of
- * headroom and was refused on that basis; under the real 3:4 crop it leaves 200px.
+ * ── HOW IT ARRIVED AT 380 ───────────────────────────────────────────────────────────────────
+ * Three supervised SELF_ONLY posts, each judged on a phone: 480 (too low against the avatar), 440
+ * (closer), and now 380. Each step was a review of the real thing, not a desktop preview.
  *
  * The envelope, against the MEASURED crop:
  *
@@ -802,9 +803,14 @@ function topAnchorPx(platform: string): number {
  *   <= 598   40px clear of a 9:16 presenter's head at y769 (the tallest case)
  *   <= 700   above the expanded caption at y831
  *
- * 440 leaves 200px of grid padding and 198px above the tallest presenter. A published private post
+ * 380 leaves 140px of grid padding and 258px above the tallest presenter. A published private post
  * also showed the headline AND the avatar staying visible with the caption EXPANDED, so the y831
  * bound is conservative rather than binding.
+ *
+ * One thing 380 gives up: it sits 40px ABOVE a hypothetical centred 1:1 crop (y420-1500). Under the
+ * measured 3:4 crop that is irrelevant, and 3:4 is what a real profile screenshot shows — but if a
+ * future TikTok build ever crops square, this lockup's first line would be the part it loses. That
+ * trade was made knowingly in favour of the composition against the crop that actually exists.
  *
  * ── SCOPE ───────────────────────────────────────────────────────────────────────────────────
  * TikTok only, Market + Type only, by explicit instruction: this is a reviewed test, not a
@@ -813,7 +819,7 @@ function topAnchorPx(platform: string): number {
  * platform absent from either map resolves exactly as it does now.
  */
 const PRESENTER_MODE_ANCHOR_PX: Record<string, number> = {
-  tiktok: 440,
+  tiktok: 380,
 }
 
 /** The templates Presenter Mode governs. Market + Type only for now — both the visible centred one
