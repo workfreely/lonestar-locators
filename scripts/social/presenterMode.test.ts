@@ -35,9 +35,10 @@ const MT_TOP = "market_type" as OverlayTemplate
 console.log("the anchor resolves only for TikTok × Market + Type:")
 ok(`market_type_centered on tiktok → ${ANCHOR}`, presenterModeAnchorPx("market_type_centered", "tiktok") === ANCHOR)
 ok(`market_type on tiktok → ${ANCHOR}`, presenterModeAnchorPx("market_type", "tiktok") === ANCHOR)
-ok("Instagram is NOT enrolled yet (y387 is approved but deliberately unlisted)",
-  presenterModeAnchorPx("market_type_centered", "instagram") === null)
-ok("instagram_story is not enrolled either", presenterModeAnchorPx("market_type_centered", "instagram_story") === null)
+ok(`Instagram is now enrolled at the SAME anchor → ${ANCHOR}`, presenterModeAnchorPx("market_type_centered", "instagram") === ANCHOR)
+ok("…for the hidden top variant too", presenterModeAnchorPx("market_type", "instagram") === ANCHOR)
+ok("instagram_story is still NOT enrolled (different interface and crop, no reviewed test)",
+  presenterModeAnchorPx("market_type_centered", "instagram_story") === null)
 for (const t of ["pov_price", "roomie", "special_feature", "what_mo_gets_you", "pov_regular_shmegular"]) {
   ok(`${t} is out of scope on tiktok`, presenterModeAnchorPx(t, "tiktok") === null)
 }
@@ -102,8 +103,11 @@ console.log("\nwith a presenter, OUT-OF-SCOPE templates are still untouched:")
     }
   }
   ok(`${OVERLAY_TEMPLATES.length - 2} other templates unaffected on all 3 surfaces`, moved === 0, `${moved} moved`)
-  ok("Market + Type on INSTAGRAM is unaffected too (not enrolled yet)",
-    JSON.stringify(lay(MT, "instagram", true)) === JSON.stringify(lay(MT, "instagram", false)))
+  // Instagram's Market + Type DOES move now — that is the change. A Story still must not.
+  ok("Market + Type on INSTAGRAM now moves with a presenter (it is enrolled)",
+    JSON.stringify(lay(MT, "instagram", true)) !== JSON.stringify(lay(MT, "instagram", false)))
+  ok("…and a STORY is still untouched by a presenter",
+    JSON.stringify(lay(MT, "instagram_story", true)) === JSON.stringify(lay(MT, "instagram_story", false)))
 }
 
 // ── 5. THE GEOMETRY, AGAINST TIKTOK'S INTERFACE AND BOTH GRID CROPS ───────────────────────────
@@ -143,6 +147,65 @@ console.log("\ngeometry — interface, grid crops, and the WORST-CASE 9:16 prese
     if ((OVERLAY_CANVAS.w + w) / 2 > rail.x) wide++
   })
   ok("no text line reaches the engagement rail", wide === 0)
+}
+
+// ── 5b. THE SAME GEOMETRY, AGAINST INSTAGRAM'S INTERFACE ──────────────────────────────────────
+// Instagram is enrolled at the same anchor, so it gets the same proof rather than inheriting
+// TikTok's. Its box is WIDER, so the headline keeps 66px and the lockup is a different height —
+// which is exactly why the clearances are re-derived here instead of assumed.
+console.log("\ngeometry — Instagram's interface and the WORST-CASE 9:16 presenter:")
+{
+  const L = lay(MT, "instagram", true)
+  const top = Math.round(L.headline.topPx), bottom = Math.round(L.detail!.topPx + L.detail!.fontPx)
+  const ig = safeAreaFor("instagram")
+  const header = ig.zones.find((z) => z.kind === "header")!.rect
+  const caption = ig.zones.find((z) => z.kind === "caption")!.rect
+  const rail = ig.zones.find((z) => z.kind === "rail")!.rect
+  const pBottom = presenterBottomPx("instagram")
+  const pTop916 = pBottom - Math.round(PRESENTER.widthPx / (9 / 16))
+
+  ok(`the lockup starts at the anchor (y${top})`, top === ANCHOR)
+  ok(`text y${top}–${bottom} clears Instagram's header (y${header.y + header.h})`, top >= header.y + header.h)
+  ok(`…and sits well above the caption zone (y${caption.y})`, bottom < caption.y)
+  ok(`…and clears the 9:16 presenter's head (y${pTop916}, gap ${pTop916 - bottom}px)`, pTop916 - bottom >= 40, `${pTop916 - bottom}px`)
+  ok("…and stays inside the declared text box", top >= ig.text.y && bottom <= ig.text.y + ig.text.h)
+  // THE REASON PRESENTER MODE EXISTS ON INSTAGRAM: without it, the figure comes up through the text.
+  const centred = lay(MT, "instagram", false)
+  const cBottom = Math.round(centred.detail!.topPx + centred.detail!.fontPx)
+  ok(`without it the centred lockup (y${Math.round(centred.headline.topPx)}–${cBottom}) WOULD collide with that head`,
+    pTop916 < cBottom, "if this stops being true, re-justify the anchor")
+  // Instagram's wider box means NO refit — the headline keeps its approved 66px.
+  ok(`the headline keeps its full ${L.headline.fontPx}px on Instagram (no rail refit)`, L.headline.fontPx === 66)
+  ok("…and is still a single line", L.headline.lines.length === 1)
+  // HORIZONTAL EXTENT IS NOT THIS CHANGE'S BUSINESS. Presenter Mode moves the lockup VERTICALLY;
+  // the x-extent is whatever Instagram's approved margins already produce. "DALLAS APARTMENTS" at
+  // 66px is 878.5px of ink, centred as x100.8–979.2, and Instagram's rail BOX begins at x978 — a
+  // 1.2px overlap that market_type, market_type_centered and special_feature have had on Instagram
+  // since before any presenter existed, and that every published Reel already carries. Narrowing
+  // Instagram's hero margins to erase it would re-fit every Instagram headline, which is the one
+  // thing the approved geometry forbids. So the assertion is the one that actually matters:
+  // a presenter must not make the horizontal extent any worse than it already is.
+  const inkSpan = (b: NonNullable<typeof L.detail>) => b.lines.map((line, i) => {
+    const w = headlineTextWidthPx(line, b.linePx?.[i] ?? b.fontPx)
+    return `${((OVERLAY_CANVAS.w - w) / 2).toFixed(1)}-${((OVERLAY_CANVAS.w + w) / 2).toFixed(1)}`
+  }).join(",")
+  const withP = [inkSpan(L.headline), inkSpan(L.detail!)].join("|")
+  const withoutP = [inkSpan(centred.headline), inkSpan(centred.detail!)].join("|")
+  ok("a presenter changes the horizontal extent not at all", withP === withoutP, `${withP} vs ${withoutP}`)
+  const worstOverrun = Math.max(...[L.headline, L.detail!].flatMap((b) => b.lines.map((line, i) =>
+    ((OVERLAY_CANVAS.w + headlineTextWidthPx(line, b.linePx?.[i] ?? b.fontPx)) / 2) - rail.x)))
+  ok(`…and the pre-existing rail overlap is unchanged at ${worstOverrun.toFixed(1)}px`, worstOverrun < 2, `${worstOverrun.toFixed(1)}px`)
+  ok("…while the PRICE line stays comfortably clear of the rail",
+    (OVERLAY_CANVAS.w + headlineTextWidthPx(L.detail!.lines[0], L.detail!.fontPx)) / 2 < rail.x - 50)
+  // The presenter itself: same x and width as TikTok, its feet following Instagram's caption zone.
+  ok(`the presenter is at the SAME x${PRESENTER.xPx} and w${PRESENTER.widthPx} as the TikTok test`,
+    PRESENTER.xPx === 110 && PRESENTER.widthPx === 400)
+  ok(`…with its feet on Instagram's own caption line (y${pBottom}, TikTok y${presenterBottomPx("tiktok")})`,
+    pBottom === caption.y + PRESENTER.captionOverlapPx)
+  ok("…and clear of the rail", PRESENTER.xPx + PRESENTER.widthPx <= rail.x)
+  // The headline and price are drawn for the WHOLE video, not only while the avatar is visible.
+  const plan = buildDrawPlan(L)
+  ok("both lines are in the draw plan, for the full duration", plan.length === 2 && plan.every((i) => Math.round(i.topPx) >= ANCHOR))
 }
 
 // ── 6. STYLING AND THE RENDER PATH ────────────────────────────────────────────────────────────

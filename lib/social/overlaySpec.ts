@@ -812,14 +812,27 @@ function topAnchorPx(platform: string): number {
  * future TikTok build ever crops square, this lockup's first line would be the part it loses. That
  * trade was made knowingly in favour of the composition against the crop that actually exists.
  *
+ * ── INSTAGRAM ───────────────────────────────────────────────────────────────────────────────
+ * Instagram is enrolled at the SAME 380 after TikTok settled there, rather than the 387 approved
+ * earlier — one number is easier to reason about than two 7px apart, and 380 verifies clean against
+ * Instagram's own interface, which is roomier than TikTok's in every direction that matters here:
+ *
+ *   header ends y150  (TikTok 160)      → 230px of clearance
+ *   caption begins y1548 (TikTok 1420)  → the lockup is nowhere near it
+ *   rail starts x978  (TikTok 930)      → the headline keeps its full 66px, no refit
+ *   9:16 presenter head y897            → 377px of clearance (TikTok 258px)
+ *
+ * It is needed MORE on Instagram than on TikTok, not less: without it the centred lockup sits at
+ * y890-1030 and a 9:16 presenter's head reaches y897, so the figure comes up THROUGH the text.
+ *
  * ── SCOPE ───────────────────────────────────────────────────────────────────────────────────
- * TikTok only, Market + Type only, by explicit instruction: this is a reviewed test, not a
- * library-wide rollout. Instagram's value (y387) is approved but deliberately NOT listed here, so
- * an Instagram render with a presenter keeps today's geometry until that test runs. A template or
- * platform absent from either map resolves exactly as it does now.
+ * Market + Type only, on the two feed surfaces. instagram_story is deliberately NOT listed: a
+ * Story's interface and crop are different and no Story presenter test has been reviewed, so one
+ * keeps today's geometry. A template or platform absent from either map resolves as it does now.
  */
 const PRESENTER_MODE_ANCHOR_PX: Record<string, number> = {
   tiktok: 380,
+  instagram: 380,
 }
 
 /** The templates Presenter Mode governs. Market + Type only for now — both the visible centred one
