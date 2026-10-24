@@ -14,7 +14,8 @@ import { StarRating } from "./StarRating"
 import RecommendationEngagement from "./RecommendationEngagement"
 import { propertyWebsiteHref } from "@/lib/propertyExplorer/types"
 import { DndContext, PointerSensor, KeyboardSensor, useSensor, useSensors, closestCenter, type DragEndEvent } from "@dnd-kit/core"
-import { SortableContext, useSortable, sortableKeyboardCoordinates, verticalListSortingStrategy } from "@dnd-kit/sortable"
+import { SortableContext, sortableKeyboardCoordinates, verticalListSortingStrategy } from "@dnd-kit/sortable"
+import SortableRow from "./SortableRow"
 import { CSS } from "@dnd-kit/utilities"
 import { moveItem } from "@/lib/leads/recommendationOrder"
 import type { WasherDryerStatus } from "@/lib/leads/washerDryer"
@@ -33,64 +34,6 @@ import { bedroomLineRentOverride, type AverageRentInputs } from "@/lib/leads/ave
 // canonical model. The `property_image_url` (nullable) drives the shared thumbnail.
 
 /** Six dots — the conventional vertical grip. Decorative; the button carries the label. */
-function Grip() {
-  return (
-    <svg viewBox="0 0 10 16" width="10" height="16" aria-hidden fill="currentColor">
-      <circle cx="3" cy="3" r="1.35" /><circle cx="7" cy="3" r="1.35" />
-      <circle cx="3" cy="8" r="1.35" /><circle cx="7" cy="8" r="1.35" />
-      <circle cx="3" cy="13" r="1.35" /><circle cx="7" cy="13" r="1.35" />
-    </svg>
-  )
-}
-
-/**
- * ONE recommendation row, draggable by its handle.
- *
- * The card is passed through as `children` and is NOT modified — same markup, same classes, same
- * height, same thumbnail, same reasons, same ✕ / pencil / ♡ handlers. This adds a grip to its
- * left and applies the drag transform to the pair.
- *
- * Only the HANDLE carries the drag listeners, so a press anywhere on the card still reaches the
- * control underneath it. The transform is pinned to the Y axis (x: 0) instead of pulling in
- * @dnd-kit/modifiers for restrictToVerticalAxis — a vertical list has no use for horizontal
- * travel, and this needs no new dependency.
- *
- * With reordering off (no onReorder handler, or a single-row list) the row renders exactly as it
- * did before: no wrapper element, no grip, no listeners, no behaviour change at all.
- */
-function SortableRecommendation({
-  id, enabled, children,
-}: { id: string; enabled: boolean; children: React.ReactNode }) {
-  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id, disabled: !enabled })
-  if (!enabled) return <>{children}</>
-  return (
-    <div
-      ref={setNodeRef}
-      style={{
-        transform: CSS.Transform.toString(transform ? { ...transform, x: 0, scaleX: 1, scaleY: 1 } : null),
-        transition,
-        // The dragged row rides above its neighbours and dims slightly, so it reads as lifted.
-        zIndex: isDragging ? 20 : undefined,
-        position: isDragging ? "relative" : undefined,
-        opacity: isDragging ? 0.85 : undefined,
-      }}
-      className="flex items-stretch gap-1"
-    >
-      <button
-        type="button"
-        aria-label="Reorder this property"
-        title="Drag to reorder"
-        {...attributes}
-        {...listeners}
-        className="flex w-4 flex-none cursor-grab touch-none items-center justify-center rounded text-[var(--crm-text-muted)] opacity-60 transition-opacity duration-[120ms] hover:opacity-100 focus-visible:opacity-100 active:cursor-grabbing"
-      >
-        <Grip />
-      </button>
-      <div className="min-w-0 flex-1">{children}</div>
-    </div>
-  )
-}
-
 export default function BestMatches({
   lead,
   recommendations = [],
@@ -230,7 +173,7 @@ export default function BestMatches({
               quoteOverride,
             )
             return (
-            <SortableRecommendation key={r.id} id={String(r.id)} enabled={canReorder}>
+            <SortableRow key={r.id} id={String(r.id)} enabled={canReorder}>
             <div
               className="rounded-lg border border-[var(--crm-border)] bg-[var(--crm-inset)] px-3 py-2"
             >
@@ -367,7 +310,7 @@ export default function BestMatches({
                 <CommissionBadge status={commission} size="row" className="flex-none" />
               </div>
             </div>
-            </SortableRecommendation>
+            </SortableRow>
             )
           })}
         </div>

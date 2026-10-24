@@ -24,6 +24,7 @@ import { readAgendaExpanded, writeAgendaExpanded, DEFAULT_AGENDA_EXPANDED, readD
 import { exitDemoWorkspace } from "@/lib/demo/exitDemo"
 import { isDemoLeadId, getDemoBrief } from "@/lib/demo/demoWorkspace"
 import { sortRecommendations } from "@/lib/leads/recommendationOrder"
+import { sortFavorites } from "@/lib/leads/favoriteOrder"
 import FirstRunChecklist from "./FirstRunChecklist"
 import AppHeader from "./AppHeader"
 import { CRM_PRIMARY_BUTTON, CRM_SECONDARY_BUTTON } from "@/lib/crmButtonStyles"
@@ -827,6 +828,38 @@ export default function DashboardClient({ leads, nextActions, favorites, recomme
    * the writes go out. A failed write is reported and the server order wins on the next load;
    * nothing is left half-applied, because sort_order is the only thing being written.
    */
+  // FAVORITES REORDER — the same shape as recommendations below, against lead_favorites.
+  //
+  // Deliberately a separate handler and a separate column: the two lists are independent, and a
+  // property can sit first in Favorites while sitting fourth in Recommended. Sharing a position
+  // between them would couple two orders that mean different things.
+  //
+  // THE TOP PICK IS NOT TOUCHED. It is leads.top_pick_favorite_id — a pointer to one favorite,
+  // not a position — so this writes sort_order and nothing else. Dragging the Top Pick to the
+  // bottom leaves it the Top Pick, which is the intended behaviour.
+  const handleReorderFavorites = async (orderedIds: (number | string)[]) => {
+    const leadId = selectedLeadIdRef.current
+    if (!leadId || orderedIds.length === 0) return
+    const positions = new Map(orderedIds.map((id, i) => [String(id), i + 1]))
+    // Optimistic: stamp the new positions on the rows this lead owns, leaving every other lead's
+    // rows untouched, and re-sort by the SAME canonical rule the loader uses.
+    setLocalFavorites((prev: any[]) =>
+      sortFavorites(
+        (prev || []).map((f: any) =>
+          positions.has(String(f.id)) ? { ...f, sort_order: positions.get(String(f.id)) } : f,
+        ),
+      ),
+    )
+    if (isDemoLeadId(leadId)) return // demo workspace: local only, never a DB write
+    const results = await Promise.all(
+      [...positions.entries()].map(([id, sort_order]) =>
+        supabase.from("lead_favorites").update({ sort_order }).eq("id", id),
+      ),
+    )
+    const failed = results.find((r) => r.error)
+    if (failed?.error) console.error("[favorites] reorder failed:", failed.error.message)
+  }
+
   const handleReorderRecommendations = async (orderedIds: (number | string)[]) => {
     const leadId = selectedLeadIdRef.current
     if (!leadId || orderedIds.length === 0) return
@@ -4789,6 +4822,7 @@ export default function DashboardClient({ leads, nextActions, favorites, recomme
                       well, so the same numbers appeared twice — once on the row and once as a
                       stray line beneath it. One render site, no second line, no extra height. */}
                   <LeadFavorites
+                    onReorder={handleReorderFavorites}
                     reasonsByKey={reasonsByKey}
                     onSaveReasons={handleSaveReasons}
                     lead={selectedLead}

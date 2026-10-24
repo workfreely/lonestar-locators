@@ -16,6 +16,10 @@ import { HiOutlineEnvelope, HiOutlineCalendarDays, HiCheck, HiOutlineDocumentTex
 import { favoriteSecondaryAction } from "@/lib/leads/favoriteActions"
 import PromoBadges from "@/components/crm/PromoBadges"
 import CommissionBadge from "@/components/crm/CommissionBadge"
+import SortableRow from "@/components/crm/SortableRow"
+import { DndContext, PointerSensor, KeyboardSensor, useSensor, useSensors, closestCenter, type DragEndEvent } from "@dnd-kit/core"
+import { SortableContext, sortableKeyboardCoordinates, verticalListSortingStrategy } from "@dnd-kit/sortable"
+import { moveItem } from "@/lib/leads/recommendationOrder"
 import { propertyWebsiteHref } from "@/lib/propertyExplorer/types"
 import { displayAddress, formatRating, evaluateLocatorCommission, resolvePromoBadges } from "@bc/companion-shared"
 import { StarRating } from "./StarRating"
@@ -62,6 +66,7 @@ export default function LeadFavorites({
   onSendInvoice,
   onConfirmPayment,
   onSendRebate,
+  onReorder,
   onMoveToRecommendation,
   onEnterTourMode,
 }: {
@@ -122,6 +127,10 @@ export default function LeadFavorites({
   onSendRebate?: (lead: any, args: { action: any }) => void
   // Compact ✕ — move the Favorite BACK to Recommendations (never a full delete),
   // via the synced move-to-recommendation verb. Absent → the control is hidden.
+  /** Persist a new Favorites order. Absent ⇒ no drag handles are rendered at all, and the list
+   *  behaves exactly as it did before reordering existed. Independent of the Recommended
+   *  Properties order, which is a different table and a different handler. */
+  onReorder?: (orderedIds: (number | string)[]) => void
   onMoveToRecommendation?: (propertyUrl?: string | null) => void
 }) {
   const [showFavoriteModal, setShowFavoriteModal] = useState(false)
@@ -342,12 +351,36 @@ export default function LeadFavorites({
     onCancelTour?.(lead, { tourId: c.tourId, propertyId: c.propertyId })
   }
 
+  // THE SAME SENSORS AS RECOMMENDED PROPERTIES. 5px of travel before a drag begins is what
+  // keeps a click a click — these cards are full of buttons (✕, ♡, Guest Card Sent, Tour
+  // Follow-Up), and a press that never moves is passed straight through to the one underneath.
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
+  )
+  const favRowIds = leadFavorites.map((f: any) => String(f.id))
+  // Reordering is offered only when the screen supplied a handler. Without one the rows render
+  // exactly as they always did, handle included — SortableRow returns its children untouched.
+  const canReorderFavorites = !!onReorder && leadFavorites.length > 1
+  function handleFavoriteDragEnd(e: DragEndEvent) {
+    const { active, over } = e
+    if (!over || active.id === over.id) return
+    const from = favRowIds.indexOf(String(active.id))
+    const to = favRowIds.indexOf(String(over.id))
+    if (from < 0 || to < 0) return
+    // Positions only. Nothing here touches the Top Pick, which lives on leads.top_pick_favorite_id
+    // as a POINTER to one favorite — moving a card changes where it sits, never which one is it.
+    onReorder?.(moveItem(leadFavorites, from, to).map((f: any) => f.id))
+  }
+
   return (
     <>
       <SectionCard title="Favorite Properties" collapsible defaultOpen={true} storageKey="favorite-properties">
         {leadFavorites.length === 0 ? (
           <p className="text-[11px] text-[var(--crm-text-muted)]">No favorite properties added.</p>
         ) : (
+          <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleFavoriteDragEnd}>
+          <SortableContext items={favRowIds} strategy={verticalListSortingStrategy}>
           <div className="space-y-1.5">
             {leadFavorites.map((fav) => {
               // The upcoming scheduled tour for THIS property (source of truth =
@@ -574,8 +607,8 @@ export default function LeadFavorites({
                 </div>
               )
               return (
+                <SortableRow key={fav.id} id={String(fav.id)} enabled={canReorderFavorites} label="Reorder this favorite">
                 <div
-                  key={fav.id}
                   className="bg-[var(--crm-inset)] border border-[var(--crm-border)] rounded-lg px-3 py-2"
                 >
                   <div className="flex items-start gap-2.5">
@@ -1011,9 +1044,12 @@ export default function LeadFavorites({
                     </div>
                   )}
                 </div>
+                </SortableRow>
               )
             })}
           </div>
+          </SortableContext>
+          </DndContext>
         )}
 
         <button

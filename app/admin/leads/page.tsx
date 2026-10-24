@@ -176,10 +176,16 @@ async function getLatestOutreach() {
 // one yet), just every saved favorite across all leads.
 async function getFavorites() {
   const supabase = await createClient()
+  // THE CANONICAL ORDER (lib/leads/favoriteOrder): sort_order ASC NULLS LAST, created_at ASC,
+  // id ASC. Without this the arrangement would survive in the database and vanish on refresh.
+  // A favorite never dragged has sort_order NULL and keeps its created_at position, so an
+  // untouched list is ordered exactly as it was before the column existed.
   const { data, error } = await supabase
     .from("lead_favorites")
     .select("*")
+    .order("sort_order", { ascending: true, nullsFirst: false })
     .order("created_at", { ascending: true })
+    .order("id", { ascending: true })
 
   if (error) {
     console.error("Error fetching favorites:", error.message)
