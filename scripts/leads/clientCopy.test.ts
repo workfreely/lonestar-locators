@@ -103,13 +103,31 @@ console.log("\n4e. THE FAVORITES BAR IS NAVY, AND STILL READABLE IN EVERY STATE:
   // The bar was white-on-white and blended into the card stack beneath it — the one thing a
   // fixed action bar must not do. It now uses the page's OWN --navy token, not a new shade.
   const barRule = page.slice(page.indexOf(".lbr-sticky{display:flex"), page.indexOf(".lbr-sticky .lbr-sticky-count{"))
-  ok("the bar is painted with the page's navy token", /background:var\(--navy\)/.test(barRule))
+  const list = readFileSync("app/locator-beast/r/[token]/RecommendationList.tsx", "utf8")
+  // --navy-deep, not --navy: the header is a gradient whose darkest stop is rgba(6,18,38,.99),
+  // and --navy (#0e2545) is the lighter heading blue. A bar in --navy read as a near-match.
+  ok("the bar uses the DEEP navy token", /background:var\(--navy-deep\)/.test(barRule))
+  ok("…not the lighter heading navy", !/background:var\(--navy\)[;\s}]/.test(barRule))
   ok("…and no unrelated shade was introduced", !/background:#[0-9a-f]{6}/i.test(barRule))
+  ok("the token carries the header gradient's exact darkest stop",
+    /--navy-deep:#061226/.test(page) && /rgba\(6,18,38,\.99\)/.test(page))
+  ok("…and the header gradient itself was not rewritten",
+    (page.match(/rgba\(6,18,38,\.99\) 0%/g) ?? []).length === 2)
   ok("the old white bar is gone", !/background:rgba\(255,255,255,\.96\)/.test(page))
   ok("the instruction line is white on it", /\.lbr-sticky \.lbr-sticky-count\{color:#fff\}/.test(page))
 
   // THE HEART. Unfilled it strokes --navy, which on navy is invisible; the tick keeps its green.
   ok("the heart is explicitly red", /\.lbr-sticky \.lbr-sticky-count svg:not\(\.lbr-sticky-ok\)\{stroke:#e0245e\}/.test(page))
+  // Slightly larger, in the bar only — the card's own heart keeps its default 21.
+  // Counted on the attribute itself: a [^>]* class stops at the `>` inside {favCount > 0}, so it
+  // silently missed a heart that was in fact correct.
+  ok("every sticky heart is 17px", (list.match(/size=\{17\}/g) ?? []).length === 3)
+  ok("…and only hearts carry that size", (list.match(/<Heart /g) ?? []).length === 4)
+  ok("…none is left at 15", !/size=\{15\}/.test(list))
+  ok("the card heart is untouched", /<Heart filled=\{isFav\} \/>/.test(list))
+  // 17/15 = +13.3%, inside the 10–15% asked for.
+  ok("the increase is ~13%", Math.round(((17 - 15) / 15) * 1000) / 10 === 13.3)
+  ok("the row's min-height still fixes the bar", /\.lbr-sticky-count\{font-size:15px;font-weight:600;min-height:40px\}/.test(page))
   ok("…and the green tick is excluded from that rule", /:not\(\.lbr-sticky-ok\)/.test(page))
   ok("the tick still has its own green", /\.lbr-sticky-ok\{color:var\(--green\)/.test(page))
 
@@ -130,7 +148,6 @@ console.log("\n4e. THE FAVORITES BAR IS NAVY, AND STILL READABLE IN EVERY STATE:
     /\.lbr-sticky-btn\{[^}]*min-height:48px[^}]*border-radius:12px/.test(page))
 
   // ALL FOUR STATES share this one bar, so none can be left unreadable.
-  const list = readFileSync("app/locator-beast/r/[token]/RecommendationList.tsx", "utf8")
   const states = (list.match(/className="lbr-sticky"/g) ?? []).length
   ok(`all ${states} bar states share the one element`, states === 4, String(states))
   for (const copy of ["Choose your favorite properties", "Your favorites are saved", "Tour availability sent!"]) {

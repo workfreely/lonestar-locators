@@ -113,7 +113,7 @@ type Resolved = {
 
 // ── The approved presentation, as scoped CSS (every selector prefixed `lbr-`). ──
 const CSS = `
-.lbr-root{--navy:#0e2545;--ink:#3a4658;--muted:#7a869a;--faint:#9aa6b8;--line:#e7ebf2;--line-soft:#eef1f7;--bg:#f5f7fb;--green:#1f9d55;--pill-bg:#dff5e6;--pill-tx:#136c3a;--gold:#f5a524;font-family:var(--lbr-sans),-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;color:var(--ink);line-height:1.5;-webkit-font-smoothing:antialiased}
+.lbr-root{--navy:#0e2545;--navy-deep:#061226;--ink:#3a4658;--muted:#7a869a;--faint:#9aa6b8;--line:#e7ebf2;--line-soft:#eef1f7;--bg:#f5f7fb;--green:#1f9d55;--pill-bg:#dff5e6;--pill-tx:#136c3a;--gold:#f5a524;font-family:var(--lbr-sans),-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;color:var(--ink);line-height:1.5;-webkit-font-smoothing:antialiased}
 .lbr-root *{box-sizing:border-box}
 .lbr-script-f{font-family:var(--lbr-script),'Segoe Script',cursive}
 .lbr-page{background:var(--bg);min-height:100vh}
@@ -496,12 +496,18 @@ const CSS = `
    button can always be scrolled clear of it rather than sitting underneath. */
 /* NAVY, so the bar reads as a surface rather than more page. White-on-white let it blend into
    the card stack beneath it — exactly the thing a fixed action bar must not do. The colour is
-   the page's own --navy token, the same one the headings and View Property buttons use; no new
-   shade is introduced. Padding, gap, radius, position and the safe-area inset are untouched, so
-   the measured 117px height and the 135px clearance above it still hold. */
+   the page's own tokens; no invented shade. Padding, gap, radius, position and the safe-area
+   inset are untouched, so the measured 117px height and the 135px clearance above it still hold.
+
+   --navy-deep (#061226), NOT --navy (#0e2545). The header is a gradient over the hero photo and
+   its darkest stop is rgba(6,18,38,.99) — the colour a client actually sees at the top of the
+   page. --navy is the lighter blue used for headings and the View Property buttons, so a bar
+   painted with it read as a near-match rather than the same surface. The token carries that
+   gradient stop's exact value so the two can be kept in step deliberately; the gradient itself
+   is untouched, since rewriting it risks the hero composition for no visual gain. */
 .lbr-sticky{display:flex;flex-direction:column;align-items:stretch;gap:8px;position:fixed;left:0;right:0;bottom:0;z-index:50;
   padding:10px 14px calc(10px + env(safe-area-inset-bottom));
-  background:var(--navy);
+  background:var(--navy-deep);
   border-top:1px solid rgba(255,255,255,.1);box-shadow:0 -8px 24px -14px rgba(14,37,69,.55)}
 /* The instruction line sits ON the navy now. */
 .lbr-sticky .lbr-sticky-count{color:#fff}

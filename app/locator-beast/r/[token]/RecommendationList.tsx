@@ -92,7 +92,9 @@ function Stars({ value }: { value: number }) {
     </span>
   )
 }
-/** The submitted-state mark. 15px to match <Heart> so the sticky line keeps its exact height. */
+/** The submitted-state mark. Stays 15px while the heart went to 17: the line's own min-height
+ *  (40px) fixes the row, so the two need not match for the bar to keep its measured height, and
+ *  a tick is a confirmation rather than the instruction's red focal point. */
 function CheckCircle() {
   return (
     <svg viewBox="0 0 24 24" width="15" height="15" aria-hidden className="lbr-sticky-ok"
@@ -516,7 +518,7 @@ export default function RecommendationList({
       <div className="lbr-sticky" role="region" aria-label="Favorites selection">
         {/* aria-live: the count changes without a navigation, so a screen reader is told. */}
         <span className="lbr-sticky-count" aria-live="polite">
-          <Heart filled={favCount > 0} size={15} />
+          <Heart filled={favCount > 0} size={17} />
           {favCount === 0
             ? "Choose your favorite properties"
             : `${favCount} ${favCount === 1 ? "favorite" : "favorites"} selected`}
@@ -539,7 +541,7 @@ export default function RecommendationList({
     {done && !availability && !modalOpen && favCount > 0 && (
       <div className="lbr-sticky" role="region" aria-label="Tour availability">
         <span className="lbr-sticky-count" aria-live="polite">
-          <Heart filled size={15} />
+          <Heart filled size={17} />
           Your favorites are saved
         </span>
         <button type="button" className="lbr-sticky-btn" onClick={() => setModalOpen(true)}>
@@ -557,7 +559,7 @@ export default function RecommendationList({
     {done && !availability && !modalOpen && favCount === 0 && (
       <div className="lbr-sticky" role="region" aria-label="Favorites selection">
         <span className="lbr-sticky-count" aria-live="polite">
-          <Heart filled={false} size={15} />
+          <Heart filled={false} size={17} />
           Choose your favorite properties
         </span>
         <button type="button" className="lbr-sticky-btn" disabled>
