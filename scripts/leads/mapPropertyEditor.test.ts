@@ -72,11 +72,38 @@ for (const opt of MOVE_IN_SPECIAL_OPTIONS) {
   let drift = 0
   for (const s of samples) {
     const sel = specialToSelection(s)
-    const back = selectionToSpecial(sel.choice, sel.details)
+    // The third argument is the stored text, exactly as the panel passes it. Without it the
+    // helper returns the CURRENT template wording, which is the deliberate-change path.
+    const back = selectionToSpecial(sel.choice, sel.details, sel.original)
     if (back !== s) { drift++; console.log(`      "${s}" → "${back}"`) }
   }
   ok(`all ${samples.length} stored specials survive an untouched open→save`, drift === 0, `${drift} drifted`)
 }
+console.log("\nthe older 'on Select Homes' wording is read, and never rewritten:")
+{
+  const LEGACY = "Up to 8 Weeks Free on Select Homes"
+  const sel = specialToSelection(LEGACY)
+  ok("it resolves to the 8-weeks option, not Custom", sel.choice === "8_weeks", sel.choice)
+  ok("…carrying the stored text as `original`", sel.original === LEGACY)
+  ok("…and an untouched save emits it VERBATIM", selectionToSpecial(sel.choice, sel.details, sel.original) === LEGACY)
+  ok("…so nothing in the database is restated", selectionToSpecial("8_weeks", "", LEGACY) === LEGACY)
+  // Changing the selection IS the deliberate act that adopts the new wording.
+  ok("choosing a DIFFERENT option writes the short form",
+    selectionToSpecial("4_weeks", "", LEGACY) === "Up to 4 Weeks Free")
+  ok("…and editing the details does too",
+    selectionToSpecial("8_weeks", "waived admin", LEGACY) === "Up to 8 Weeks Free — waived admin")
+  // Legacy wording with details attached still splits correctly.
+  const withDetails = specialToSelection("Up to 4 Weeks Free on Select Homes — waived app fees")
+  ok("legacy + details splits into option and details",
+    withDetails.choice === "4_weeks" && withDetails.details === "waived app fees")
+  ok("…and round-trips verbatim",
+    selectionToSpecial(withDetails.choice, withDetails.details, withDetails.original) === "Up to 4 Weeks Free on Select Homes — waived app fees")
+  // A brand-new selection uses the short wording.
+  ok("a fresh pick writes the short form", selectionToSpecial("10_weeks", "") === "Up to 10 Weeks Free")
+  ok("the panel passes the stored text through",
+    /selectionToSpecial\(specialChoice, specialDetails, loaded\.currentSpecial\)/.test(PANEL))
+}
+
 console.log("\n…and unknown is not 'No Special':")
 ok("a null special selects the UNKNOWN option, not No Special", specialToSelection(null).choice === "")
 ok("…and writes nothing at all", selectionToSpecial("", "") === null)
@@ -97,9 +124,11 @@ console.log("\nadditional details are preserved alongside the dropdown:")
 ok("the dropdown offers every option asked for",
   ["", "none", "2_weeks", "4_weeks", "6_weeks", "8_weeks", "10_weeks", "12_weeks", "1_month", "2_months", "custom"]
     .every((v) => MOVE_IN_SPECIAL_OPTIONS.some((o) => o.value === v)))
-ok("every generated phrase carries the cautious qualifier",
+ok("every generated phrase still carries the cautious 'Up to'",
   MOVE_IN_SPECIAL_OPTIONS.filter((o) => o.phrase && o.value !== "none")
-    .every((o) => /^Up to .* on Select Homes$/.test(o.phrase!)))
+    .every((o) => /^Up to .+ Free$/.test(o.phrase!)))
+ok("…and none still appends 'on Select Homes'",
+  MOVE_IN_SPECIAL_OPTIONS.every((o) => !/on Select Homes/.test(o.phrase ?? "")))
 
 // ── 2. GIFT CARD: THREE STATES, AND NOT THE BONUS ─────────────────────────────────────────────
 console.log("\ngift card — three states, stored apart from the agent bonus:")

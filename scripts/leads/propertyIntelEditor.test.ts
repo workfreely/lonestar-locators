@@ -144,7 +144,11 @@ console.log("\n=== 4. QUICK SPECIAL — a shortcut that keeps its qualifications
     ok(`${amount} is offered`, templates.some((t) => t.includes(amount)))
   }
   ok("EVERY template opens with 'Up to'", templates.every((t) => t.startsWith("Up to ")))
-  ok("EVERY template names a scope", templates.every((t) => /on Select Homes$/.test(t)))
+  // The scope suffix was removed: the badge never showed it (normalizeShortSpecial already
+  // reduces the text to "Up to 8 Weeks Free"), so it only added length to the stored value.
+  // "Up to" — the part that keeps a ceiling from reading as a guarantee — is asserted above.
+  ok("NO template appends a scope any more", templates.every((t) => !/on Select Homes/.test(t)))
+  ok("…and each still ends at the offer itself", templates.every((t) => /Free$/.test(t)))
   ok("no template is an unconditional claim", !templates.some((t) => /^\d+\s+(Weeks?|Months?) Free$/.test(t)))
   ok("Custom / Other is offered and selects nothing", /Custom \/ Other — type below/.test(ed))
 

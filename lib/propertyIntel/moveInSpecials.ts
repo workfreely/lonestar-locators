@@ -21,12 +21,17 @@
 // writes nothing at all. Recording "No Special" is a deliberate, separate choice: it is a
 // finding, and it is stored as text the readers recognise as "no offer".
 
-/** The qualifier is part of the offer — see the note in normalizeShortSpecial. Every generated
- *  phrase carries "Up to … on Select Homes" so a hurried save produces the cautious wording and
- *  an unconditional claim has to be typed deliberately. Mirrors QUICK_SPECIALS. */
+/** The qualifier is part of the offer — see the note in normalizeShortSpecial. "Up to" is kept
+ *  so a hurried save produces the cautious wording and an unconditional claim has to be typed
+ *  deliberately. Mirrors QUICK_SPECIALS. */
 function freePhrase(amount: number, unit: "Weeks" | "Months" | "Month"): string {
-  return `Up to ${amount} ${unit} Free on Select Homes`
+  return `Up to ${amount} ${unit} Free`
 }
+
+/** Older templates appended this. Stored values still carry it, and they are READ as the matching
+ *  option so an agent does not meet a perfectly ordinary "8 Weeks Free" labelled Custom — but
+ *  nothing rewrites them. See the `original` parameter on selectionToSpecial. */
+const LEGACY_SUFFIX = " on Select Homes"
 
 /** The stored text for "somebody checked, and there is no concession". Matched by the shared
  *  NO_SPECIAL pattern, so every badge reader already renders it as no offer. */
@@ -53,7 +58,13 @@ export const MOVE_IN_SPECIAL_OPTIONS: readonly MoveInSpecialOption[] = [
   { value: "custom", label: "Custom", phrase: null },
 ] as const
 
-export type SpecialSelection = { choice: string; details: string }
+export type SpecialSelection = {
+  choice: string
+  details: string
+  /** The stored text this selection was read from, carried so an UNCHANGED save can emit it
+   *  verbatim instead of the current template's wording. */
+  original: string | null
+}
 
 /**
  * Stored text → the dropdown state that reproduces it.
@@ -63,15 +74,19 @@ export type SpecialSelection = { choice: string; details: string }
  */
 export function specialToSelection(stored: string | null | undefined): SpecialSelection {
   const text = (stored ?? "").trim()
-  if (!text) return { choice: "", details: "" }
+  if (!text) return { choice: "", details: "", original: null }
   for (const opt of MOVE_IN_SPECIAL_OPTIONS) {
     if (!opt.phrase) continue
-    if (text === opt.phrase) return { choice: opt.value, details: "" }
-    if (text.startsWith(opt.phrase + DETAIL_SEPARATOR)) {
-      return { choice: opt.value, details: text.slice(opt.phrase.length + DETAIL_SEPARATOR.length).trim() }
+    // Current wording first, then the legacy "… on Select Homes" form. Both resolve to the same
+    // option; `original` is what keeps the stored text from being quietly restated.
+    for (const phrase of [opt.phrase, opt.phrase + LEGACY_SUFFIX]) {
+      if (text === phrase) return { choice: opt.value, details: "", original: text }
+      if (text.startsWith(phrase + DETAIL_SEPARATOR)) {
+        return { choice: opt.value, details: text.slice(phrase.length + DETAIL_SEPARATOR.length).trim(), original: text }
+      }
     }
   }
-  return { choice: "custom", details: text }
+  return { choice: "custom", details: text, original: text }
 }
 
 /**
@@ -80,10 +95,22 @@ export function specialToSelection(stored: string | null | undefined): SpecialSe
  * Null is returned for the unknown option, and for Custom with no text — an empty Custom is a
  * locator who has not written anything yet, not an instruction to erase the stored special.
  */
-export function selectionToSpecial(choice: string, details: string): string | null {
+export function selectionToSpecial(choice: string, details: string, original?: string | null): string | null {
   const extra = (details ?? "").trim()
-  if (choice === "custom") return extra || null
-  const opt = MOVE_IN_SPECIAL_OPTIONS.find((o) => o.value === choice)
-  if (!opt || !opt.phrase) return null
-  return extra ? `${opt.phrase}${DETAIL_SEPARATOR}${extra}` : opt.phrase
+  const build = () => {
+    if (choice === "custom") return extra || null
+    const opt = MOVE_IN_SPECIAL_OPTIONS.find((o) => o.value === choice)
+    if (!opt || !opt.phrase) return null
+    return extra ? `${opt.phrase}${DETAIL_SEPARATOR}${extra}` : opt.phrase
+  }
+  // NOTHING UNTOUCHED IS REWRITTEN. When the dropdown and details still describe exactly what was
+  // stored, the stored text is returned unchanged — so a property saved under the older
+  // "… on Select Homes" wording keeps it until an agent actually changes the selection, and a
+  // save that only touched a commission never restates the special. Picking a DIFFERENT option
+  // produces the current wording, which is the deliberate act that updates it.
+  if (original != null) {
+    const sel = specialToSelection(original)
+    if (sel.choice === choice && sel.details === extra) return original
+  }
+  return build()
 }

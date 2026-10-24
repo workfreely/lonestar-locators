@@ -175,7 +175,10 @@ export default function MapPropertyEditor({
       if (cleared[key]) { out[key] = null; continue }
       if (value.trim() !== commissionToInput(stored)) out[key] = value.trim()
     }
-    const nextSpecial = selectionToSpecial(specialChoice, specialDetails)
+    // `loaded.currentSpecial` as the third argument: when the dropdown and details still
+    // describe what is stored, this returns the stored text verbatim, so an older
+    // "… on Select Homes" value is never quietly restated in the newer wording.
+    const nextSpecial = selectionToSpecial(specialChoice, specialDetails, loaded.currentSpecial)
     if (nextSpecial !== null && nextSpecial !== (loaded.currentSpecial ?? "")) out.currentSpecial = nextSpecial
 
     const storedGift = loaded.giftCardStatus === "yes" || loaded.giftCardStatus === "no" ? loaded.giftCardStatus : "unknown"

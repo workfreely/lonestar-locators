@@ -78,20 +78,26 @@ function formatCheckedDateDisplay(value: string): string {
 }
 
 /**
- * QUICK SPECIAL templates. Cautious by design: every one carries "Up to" and "on Select Homes",
- * so the qualified wording is what a hurried save produces and the unconditional claim has to be
- * typed deliberately. They fill the Current Special text field; nothing here is stored verbatim
- * unless the locator leaves it as it is.
+ * QUICK SPECIAL templates. Cautious by design: every one carries "Up to", so the qualified
+ * wording is what a hurried save produces and the unconditional claim has to be typed
+ * deliberately. They fill the Current Special text field; nothing here is stored verbatim unless
+ * the locator leaves it as it is.
+ *
+ * They used to end "on Select Homes" as well. The badge never showed that part —
+ * normalizeShortSpecial already reduces the text to "Up to 8 Weeks Free" — so the suffix only
+ * ever added length to the stored value and to this list. Properties saved under the old wording
+ * keep it: nothing rewrites stored text, and moveInSpecials still READS the longer form as the
+ * same dropdown option.
  */
 const QUICK_SPECIALS = [
-  "Up to 2 Weeks Free on Select Homes",
-  "Up to 4 Weeks Free on Select Homes",
-  "Up to 6 Weeks Free on Select Homes",
-  "Up to 8 Weeks Free on Select Homes",
-  "Up to 10 Weeks Free on Select Homes",
-  "Up to 12 Weeks Free on Select Homes",
-  "Up to 1 Month Free on Select Homes",
-  "Up to 2 Months Free on Select Homes",
+  "Up to 2 Weeks Free",
+  "Up to 4 Weeks Free",
+  "Up to 6 Weeks Free",
+  "Up to 8 Weeks Free",
+  "Up to 10 Weeks Free",
+  "Up to 12 Weeks Free",
+  "Up to 1 Month Free",
+  "Up to 2 Months Free",
 ] as const
 
 export default function PropertyPricingEditor({
@@ -364,7 +370,7 @@ export default function PropertyPricingEditor({
                       editable, and the field is still what gets written.
 
                       Every template carries its qualifications, because dropping them is the
-                      expensive mistake: "Up to 10 Weeks Free on Select Homes" promises far less
+                      expensive mistake: "Up to 10 Weeks Free" promises far less
                       than "10 Weeks Free", and the badge the client sees preserves the
                       difference (normalizeShortSpecial, 49 tests). Starting cautious and letting
                       the locator DELETE a qualifier after verifying it means the safe wording is
