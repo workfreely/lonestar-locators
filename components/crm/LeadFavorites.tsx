@@ -12,7 +12,7 @@ import { isDemoLeadId } from "@/lib/demo/demoWorkspace"
 import { upcomingTourForFavorite } from "@/lib/leads/upcomingTour"
 import { favoriteMoveBlock } from "@/lib/leads/propertyCollections"
 import { isClientFavorite } from "@/lib/leads/favoriteOrigin"
-import { HiOutlineEnvelope, HiOutlineCalendarDays, HiCheck, HiOutlineDocumentText } from "react-icons/hi2"
+import { HiOutlineEnvelope, HiOutlineCalendarDays, HiCheck, HiOutlineDocumentText, HiOutlineClipboardDocumentCheck } from "react-icons/hi2"
 import { favoriteSecondaryAction } from "@/lib/leads/favoriteActions"
 import { propertyWebsiteHref } from "@/lib/propertyExplorer/types"
 import { displayAddress, formatRating, normalizeShortSpecial, isSpecialCurrent, evaluateLocatorCommission } from "@bc/companion-shared"
@@ -416,14 +416,20 @@ export default function LeadFavorites({
               // The ONE second action on the property row, resolved here so the markup cannot
               // drift into offering both. Check Application outranks Schedule Tour: it is the
               // later workflow state and the one awaiting an answer.
+              // The tour HAPPENED and its outcome is still open. `!tour` keeps an UPCOMING tour out
+              // of this entirely — that card keeps its scheduled date and time exactly as it is.
+              const tourFollowUpOpen = !tour && tourOccurred && !!tfAction
               const secondaryAction = favoriteSecondaryAction({
                 checkApplicationOpen: checkAppOpen,
                 canCheckApplication: !!onCheckApplication,
+                tourFollowUpOpen,
+                canTourFollowUp: !!onTourFollowUp,
                 hasScheduledTour: !!scheduledTour,
                 canScheduleTour: !!onScheduleTour,
                 hasScheduleTarget: !!schedTarget,
               })
               const showCheckApp = secondaryAction === "check_application"
+              const showTourFollowUp = secondaryAction === "tour_follow_up"
               const showScheduleTour = secondaryAction === "schedule_tour"
               const applicationStatus = (lead.application_status ?? null) as any
               // This property's open Confirm Lease (created on Approved, property-
@@ -701,15 +707,16 @@ export default function LeadFavorites({
                               <HiOutlineEnvelope className="text-[13px]" aria-hidden /> Send Guest Card
                             </button>
                           ) : null}
-                          {/* ONE SECOND ACTION, CHOSEN BY WORKFLOW STATE — never both.
-                              Schedule Tour and Check Application belong to different moments:
-                              you schedule before a tour, you check an application after one was
-                              submitted. Check Application wins when it is open, because it is
-                              the later state and the one that still needs an answer. They are
-                              already near-exclusive in practice (Schedule Tour hides once a tour
-                              exists, and an open check_application implies a tour happened), but
-                              stating the precedence means a card can never offer both. */}
-                          {(gcSent || onSendGuestCard) && (showCheckApp || showScheduleTour) && (
+                          {/* ONE SECOND ACTION, CHOSEN BY WORKFLOW STATE — never two.
+                              Schedule Tour, Tour Follow-Up and Check Application are consecutive
+                              moments in the same workflow: you schedule before a tour, you record
+                              the outcome after it happened, you check the application once one was
+                              submitted. The resolver returns the LATEST state that qualifies, so a
+                              card can never offer two, whatever the data looks like. Tour Follow-Up
+                              used to sit in its own row at the bottom of the card with a "TOURED"
+                              label and the tour's date beside it; it says the same thing here in
+                              one line. */}
+                          {(gcSent || onSendGuestCard) && (showCheckApp || showTourFollowUp || showScheduleTour) && (
                             <span aria-hidden className="h-3 w-px bg-[var(--crm-border)]" />
                           )}
                           {showCheckApp && (
@@ -719,6 +726,19 @@ export default function LeadFavorites({
                               className="inline-flex items-center gap-1.5 text-[var(--crm-accent)] hover:underline"
                             >
                               <HiOutlineDocumentText className="text-[13px]" aria-hidden /> Check Application
+                            </button>
+                          )}
+                          {/* Tour Follow-Up — the tour happened, its outcome is open. Same markup
+                              as Check Application above: same accent colour, icon size, gap,
+                              alignment, hover and type. Same handler and arguments as the row it
+                              replaces, so only the presentation moved. */}
+                          {showTourFollowUp && (
+                            <button
+                              type="button"
+                              onClick={() => onTourFollowUp!(lead, { tour: scheduledTour, favorite: fav, actionId: tfAction.id })}
+                              className="inline-flex items-center gap-1.5 text-[var(--crm-accent)] hover:underline"
+                            >
+                              <HiOutlineClipboardDocumentCheck className="text-[13px]" aria-hidden /> Tour Follow-Up
                             </button>
                           )}
                           {/* Schedule Tour (only when no tour is scheduled yet). */}
@@ -835,28 +855,12 @@ export default function LeadFavorites({
                     </div>
                   )}
 
-                  {/* Tour has OCCURRED and is awaiting its outcome → the property's
-                      Tour Follow-Up (property-scoped). Reschedule/Cancel no longer
-                      apply (the tour happened). */}
-                  {!tour && tourOccurred && tfAction && onTourFollowUp && (
-                    <div className="mt-2 pt-2 border-t border-[var(--crm-border-soft)]">
-                      <div className="flex items-center justify-between gap-2">
-                        <div className="min-w-0">
-                          <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-[var(--crm-text-secondary)]">Toured</p>
-                          <p className="mt-0.5 text-[12.5px] font-medium text-[var(--crm-text-secondary)]">
-                            {formatDueDateTime(scheduledTour!.scheduled_at, { verbose: true, timeZone: timeZone ?? undefined })}
-                          </p>
-                        </div>
-                        <button
-                          type="button"
-                          onClick={() => onTourFollowUp(lead, { tour: scheduledTour, favorite: fav, actionId: tfAction.id })}
-                          className="flex-none text-[10.5px] font-semibold text-[var(--crm-accent)] hover:underline"
-                        >
-                          Tour Follow-Up
-                        </button>
-                      </div>
-                    </div>
-                  )}
+                  {/* The occurred-tour row that used to live here — "TOURED", the tour's date and
+                      time, and a Tour Follow-Up button — is gone. The action moved up into the
+                      property action row beside Guest Card Sent, where it reads as the card's next
+                      step instead of a second status band. Nothing else about the tour changed:
+                      the tour row above still shows an UPCOMING tour's date and time, and the
+                      scheduled_at that row displayed is untouched in the data. */}
 
                   {/* Ready to Apply → this property is the Top Pick; the next step
                       is the canonical Apply (start_application) confirmation. */}
