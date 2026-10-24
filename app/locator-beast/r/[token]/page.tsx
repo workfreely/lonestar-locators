@@ -494,10 +494,28 @@ const CSS = `
    Favorites" exists on a phone. The bar sits above Safari's chrome via the safe-area
    inset, and .lbr-shell gains matching bottom padding so the last card's View Property
    button can always be scrolled clear of it rather than sitting underneath. */
+/* NAVY, so the bar reads as a surface rather than more page. White-on-white let it blend into
+   the card stack beneath it — exactly the thing a fixed action bar must not do. The colour is
+   the page's own --navy token, the same one the headings and View Property buttons use; no new
+   shade is introduced. Padding, gap, radius, position and the safe-area inset are untouched, so
+   the measured 117px height and the 135px clearance above it still hold. */
 .lbr-sticky{display:flex;flex-direction:column;align-items:stretch;gap:8px;position:fixed;left:0;right:0;bottom:0;z-index:50;
   padding:10px 14px calc(10px + env(safe-area-inset-bottom));
-  background:rgba(255,255,255,.96);backdrop-filter:blur(10px);
-  border-top:1px solid var(--line-soft);box-shadow:0 -8px 24px -14px rgba(14,37,69,.4)}
+  background:var(--navy);
+  border-top:1px solid rgba(255,255,255,.1);box-shadow:0 -8px 24px -14px rgba(14,37,69,.55)}
+/* The instruction line sits ON the navy now. */
+.lbr-sticky .lbr-sticky-count{color:#fff}
+/* THE HEART STAYS RED. Unfilled, it strokes --navy — which on a navy bar is invisible. The tick
+   keeps its own green via .lbr-sticky-ok, so this targets every icon in the line EXCEPT that. */
+.lbr-sticky .lbr-sticky-count svg:not(.lbr-sticky-ok){stroke:#e0245e}
+/* THE BUTTON HAD TO MOVE, or it would have disappeared. Enabled it is background:var(--navy) —
+   navy on navy. It inverts instead: white fill, navy label, same size, radius, weight and
+   transition, so it is still unmistakably the primary action and nothing about its behaviour
+   changes. The DISABLED surface is untouched (var(--line) + muted text), which on navy still
+   reads as not-yet-available: the two are told apart by their LABEL contrast — navy 700 against
+   muted grey — rather than by their fills alone. */
+.lbr-sticky .lbr-sticky-btn{background:#fff;color:var(--navy)}
+.lbr-sticky .lbr-sticky-btn:disabled{background:var(--line);color:var(--muted)}
 /* The instruction line had NO vertical padding — a bare 23px line box beside a 48px button,
    which is what read as compressed. min-height rather than padding, so the box is exactly 40px
    whatever the font metrics do; .lbr-sticky-count is already a centred flex row, so the heart

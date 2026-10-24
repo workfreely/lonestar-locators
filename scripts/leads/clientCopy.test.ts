@@ -98,6 +98,51 @@ console.log("\n4b. THE BOTTOM CLEARANCE ONLY EXISTS WHEN THE STICKY BAR DOES:")
 // figure is asserted against the bar's measured height in 4c.
 ok("the clearance is scoped to the bar's presence",
   /\.lbr-shell:has\(\.lbr-sticky\)\{padding-bottom:calc\(\d+px \+ env\(safe-area-inset-bottom\)\)\}/.test(page))
+console.log("\n4e. THE FAVORITES BAR IS NAVY, AND STILL READABLE IN EVERY STATE:")
+{
+  // The bar was white-on-white and blended into the card stack beneath it — the one thing a
+  // fixed action bar must not do. It now uses the page's OWN --navy token, not a new shade.
+  const barRule = page.slice(page.indexOf(".lbr-sticky{display:flex"), page.indexOf(".lbr-sticky .lbr-sticky-count{"))
+  ok("the bar is painted with the page's navy token", /background:var\(--navy\)/.test(barRule))
+  ok("…and no unrelated shade was introduced", !/background:#[0-9a-f]{6}/i.test(barRule))
+  ok("the old white bar is gone", !/background:rgba\(255,255,255,\.96\)/.test(page))
+  ok("the instruction line is white on it", /\.lbr-sticky \.lbr-sticky-count\{color:#fff\}/.test(page))
+
+  // THE HEART. Unfilled it strokes --navy, which on navy is invisible; the tick keeps its green.
+  ok("the heart is explicitly red", /\.lbr-sticky \.lbr-sticky-count svg:not\(\.lbr-sticky-ok\)\{stroke:#e0245e\}/.test(page))
+  ok("…and the green tick is excluded from that rule", /:not\(\.lbr-sticky-ok\)/.test(page))
+  ok("the tick still has its own green", /\.lbr-sticky-ok\{color:var\(--green\)/.test(page))
+
+  // THE BUTTON. Enabled it was background:var(--navy) — navy on navy, i.e. invisible. It
+  // inverts; the DISABLED surface is deliberately unchanged.
+  ok("the enabled button inverts to white with a navy label",
+    /\.lbr-sticky \.lbr-sticky-btn\{background:#fff;color:var\(--navy\)\}/.test(page))
+  ok("the disabled surface is unchanged", /\.lbr-sticky-btn:disabled\{background:var\(--line\);color:var\(--muted\)/.test(page))
+  ok("…so the two are told apart by label contrast, not fill alone",
+    /\.lbr-sticky \.lbr-sticky-btn:disabled\{background:var\(--line\);color:var\(--muted\)\}/.test(page))
+
+  // COMPACTNESS AND SAFE AREA — the measured 117px bar and its 135px clearance must still hold.
+  ok("padding and the safe-area inset are untouched",
+    /padding:10px 14px calc\(10px \+ env\(safe-area-inset-bottom\)\)/.test(page))
+  ok("the bar is still fixed to the bottom", /\.lbr-sticky\{display:flex[^}]*position:fixed[^}]*bottom:0/.test(page))
+  ok("the gap between the line and the button is unchanged", /\.lbr-sticky\{display:flex[^}]*gap:8px/.test(page))
+  ok("the button's size and radius are unchanged",
+    /\.lbr-sticky-btn\{[^}]*min-height:48px[^}]*border-radius:12px/.test(page))
+
+  // ALL FOUR STATES share this one bar, so none can be left unreadable.
+  const list = readFileSync("app/locator-beast/r/[token]/RecommendationList.tsx", "utf8")
+  const states = (list.match(/className="lbr-sticky"/g) ?? []).length
+  ok(`all ${states} bar states share the one element`, states === 4, String(states))
+  for (const copy of ["Choose your favorite properties", "Your favorites are saved", "Tour availability sent!"]) {
+    ok(`"${copy}" still renders`, list.includes(copy))
+  }
+  // The count line is BUILT, not literal — a plain substring search would never find it.
+  ok('the running count line still renders ("N favorites selected")',
+    /\$\{favCount\} \$\{favCount === 1 \? "favorite" : "favorites"\} selected/.test(list))
+  ok("the button's behaviour is untouched — same handler", /onClick=\{markDone\}/.test(list))
+  ok("…and the same disabled condition", /disabled=\{doneBusy \|\| favCount === 0\}/.test(list))
+}
+
 ok("the UNCONDITIONAL clearance is gone",
   !/^\.lbr-shell\{padding-bottom:calc\(118px/m.test(page))
 ok("with no bar the page still clears the home indicator",
