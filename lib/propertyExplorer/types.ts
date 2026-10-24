@@ -117,6 +117,13 @@ export type ExplorerProperty = {
   /** A current concession/special, VERBATIM master text (property_catalog.current_special).
    *  Rendered as a compact short badge via normalizeShortSpecial; never shown raw. */
   currentSpecial?: string | null
+  /** The SPECIAL's own verification date. Carried so the map card can apply the same rule the
+   *  other surfaces do — it previously judged freshness by the record-level verifiedAt alone. */
+  currentSpecialCheckedAt?: string | null
+  /** Resident gift card, from property_catalog. Not the agent bonus. */
+  giftCardStatus?: string | null
+  giftCardAmount?: number | null
+  giftCardCheckedAt?: string | null
   /** Record verification time (property_catalog.verified_at) — the special-freshness gate. */
   verifiedAt?: string | null
   /** Google review count (property_catalog.google_review_count); display-only, when catalogued. */

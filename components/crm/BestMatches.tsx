@@ -4,10 +4,11 @@ import { SectionCard } from "./LeadPanelSections"
 import ReasonsControl from "./ReasonsControl"
 import PropertyPricingEditor from "./PropertyPricingEditor"
 import PropertyThumb from "./PropertyThumb"
+import PromoBadges from "./PromoBadges"
 import { MAX_REASONS } from "@bc/companion-shared"
 import { displayReasons } from "@/lib/leads/bedroomPricing"
 import { placeIdFromPropertyUrl } from "@/lib/propertyExplorer/types"
-import { displayAddress, formatRating, normalizeShortSpecial, isSpecialCurrent, evaluateLocatorCommission } from "@bc/companion-shared"
+import { displayAddress, formatRating, evaluateLocatorCommission, resolvePromoBadges } from "@bc/companion-shared"
 import { StarRating } from "./StarRating"
 import RecommendationEngagement from "./RecommendationEngagement"
 import { propertyWebsiteHref } from "@/lib/propertyExplorer/types"
@@ -183,7 +184,13 @@ export default function BestMatches({
           {leadRecommendations.map((r) => {
             // Locator-facing status — Special (blue, compact, beside the name) +
             // Commission (green/red/neutral, on the bottom-right operational row).
-            const shortSpecial = isSpecialCurrent(r.current_special_checked_at ?? r.verified_at) ? normalizeShortSpecial(r.current_special) : null
+            // What the badge row will actually render — the SAME resolver the pills use, so the
+            // row's guard and its contents can never disagree.
+            const promo = resolvePromoBadges({
+              currentSpecial: r.current_special,
+              giftCardStatus: r.gift_card_status,
+              giftCardAmount: r.gift_card_amount,
+            })
             const commission = evaluateLocatorCommission({
               sendCommission: r.send_commission,
               escortCommission: r.escort_commission,
@@ -287,12 +294,16 @@ export default function BestMatches({
                     {/* Address row — address left, Special (compact, current/verified only)
                         on the far right. mt-[7px] gives clear separation below the top-right
                         controls so the Special never reads as attached to Edit/♡. */}
-                    {(r.property_address || shortSpecial) && (
+                    {(r.property_address || promo.length > 0) && (
                       <div className="mt-[7px] flex items-center justify-between gap-2">
                         <p className="min-w-0 truncate text-[11px] text-[var(--crm-text-muted)]">{r.property_address ? displayAddress(r.property_address) : ""}</p>
-                        {shortSpecial && (
-                          <span className="flex-none rounded-md border border-[#8fb6ea] bg-[#e8f0fe] px-1 py-[1px] text-[9px] font-semibold leading-none text-[#1c3f75]">{shortSpecial}</span>
-                        )}
+                        <PromoBadges
+                              size="compact"
+                              className="min-w-0 max-w-[62%]"
+                              currentSpecial={r.current_special}
+                              giftCardStatus={r.gift_card_status}
+                              giftCardAmount={r.gift_card_amount}
+                            />
                       </div>
                     )}
                     {/* Rating row — Google rating left, genuine Match % on the far right

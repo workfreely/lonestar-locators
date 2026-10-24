@@ -39,6 +39,12 @@ export type CatalogRecord = {
   googleReviewCount: number | null
   /** Record verification time (property_catalog.verified_at). */
   verifiedAt: string | null
+  /** RESIDENT gift card — null status = not researched, 'no' = confirmed none, 'yes' = an offer
+   *  with a positive amount. Judged by its OWN checked-at date, never the special's. This is not
+   *  bonusFlat: that is locator pay and must never render as a resident incentive. */
+  giftCardStatus: string | null
+  giftCardAmount: number | null
+  giftCardCheckedAt: string | null
   /**
    * The SPECIAL's own verification time. This — not verifiedAt — is the freshness source for
    * the special badge: a special saved through the owner editor stamps this field, while
@@ -119,6 +125,9 @@ export async function fetchCatalog(
         googleReviewCount: r.google_review_count == null ? null : Number(r.google_review_count),
         verifiedAt: s(r.verified_at),
         currentSpecialCheckedAt: s(r.current_special_checked_at),
+        giftCardStatus: s(r.gift_card_status),
+        giftCardAmount: num(r.gift_card_amount),
+        giftCardCheckedAt: s(r.gift_card_checked_at),
         tourUrl: s(r.tour_url),
         applyUrl: s(r.apply_url),
         availabilityUrl: s(r.availability_url),
@@ -146,7 +155,7 @@ export async function fetchCatalog(
 export async function attachCatalogRatings<T extends { property_url?: string | null; property_image_url?: string | null }>(
   rows: T[],
   supabase: SupabaseClient,
-): Promise<(T & { google_rating: number | null; property_image_url: string | null; website_url: string | null; tour_url: string | null; apply_url: string | null; availability_url: string | null; current_special: string | null; send_commission: string | null; escort_commission: string | null; bonus_flat: string | null; verified_at: string | null; current_special_checked_at: string | null; onebr_starting_rent: number | null; twobr_starting_rent: number | null; threebr_starting_rent: number | null; pricing_last_verified: string | null })[]> {
+): Promise<(T & { google_rating: number | null; property_image_url: string | null; website_url: string | null; tour_url: string | null; apply_url: string | null; availability_url: string | null; current_special: string | null; send_commission: string | null; escort_commission: string | null; bonus_flat: string | null; verified_at: string | null; current_special_checked_at: string | null; gift_card_status: string | null; gift_card_amount: number | null; gift_card_checked_at: string | null; onebr_starting_rent: number | null; twobr_starting_rent: number | null; threebr_starting_rent: number | null; pricing_last_verified: string | null })[]> {
   const placeIds = rows.map((r) => placeIdFromPropertyUrl(r.property_url))
   const catalog = await fetchCatalog(
     placeIds.filter((v): v is string => !!v),
@@ -180,6 +189,10 @@ export async function attachCatalogRatings<T extends { property_url?: string | n
       bonus_flat: rec?.bonusFlat ?? null,
       verified_at: rec?.verifiedAt ?? null,
       current_special_checked_at: rec?.currentSpecialCheckedAt ?? null,
+      // Gift card, read-side like everything else here: never stored on a lead row.
+      gift_card_status: rec?.giftCardStatus ?? null,
+      gift_card_amount: rec?.giftCardAmount ?? null,
+      gift_card_checked_at: rec?.giftCardCheckedAt ?? null,
       // Owner-entered bedroom pricing, read-side like every other catalog field. NEVER
       // stored on lead_recommendations / lead_favorites — property_catalog stays the single
       // source of truth, so a price correction is reflected without touching a lead row.
@@ -200,7 +213,7 @@ export function enrichProperties(
   return properties.map((p) => {
     const c = catalog.get(p.placeId)
     return c
-      ? { ...p, neighborhood: c.neighborhood, location: c.location, locationKeywords: c.locationKeywords, zip: c.zip, websiteUrl: c.websiteUrl, googleRating: c.googleRating, imageUrl: c.imageUrl, imageUrlBackup: c.imageUrlBackup, currentSpecial: c.currentSpecial, sendCommission: c.sendCommission, escortCommission: c.escortCommission, bonusFlat: c.bonusFlat, googleReviewCount: c.googleReviewCount, verifiedAt: c.verifiedAt, tourUrl: c.tourUrl, applyUrl: c.applyUrl, availabilityUrl: c.availabilityUrl }
+      ? { ...p, neighborhood: c.neighborhood, location: c.location, locationKeywords: c.locationKeywords, zip: c.zip, websiteUrl: c.websiteUrl, googleRating: c.googleRating, imageUrl: c.imageUrl, imageUrlBackup: c.imageUrlBackup, currentSpecial: c.currentSpecial, sendCommission: c.sendCommission, escortCommission: c.escortCommission, bonusFlat: c.bonusFlat, googleReviewCount: c.googleReviewCount, verifiedAt: c.verifiedAt, currentSpecialCheckedAt: c.currentSpecialCheckedAt, giftCardStatus: c.giftCardStatus, giftCardAmount: c.giftCardAmount, giftCardCheckedAt: c.giftCardCheckedAt, tourUrl: c.tourUrl, applyUrl: c.applyUrl, availabilityUrl: c.availabilityUrl }
       : p
   })
 }

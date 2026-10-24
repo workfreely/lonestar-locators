@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { loadGoogleMaps, MapsConfigError } from "@/lib/propertyExplorer/loadMaps"
 import { hasCoordinates, placeUrl, displayAddress, propertyWebsiteHref, type ExplorerProperty } from "@/lib/propertyExplorer/types"
 import PropertyThumb from "@/components/crm/PropertyThumb"
+import PromoBadges from "@/components/crm/PromoBadges"
 import { assessLocationFit, type ClientLocationContext } from "@/lib/propertyExplorer/locationFit"
 import { isCommuteMode } from "@/lib/propertyExplorer/commuteMode"
 import { computeSuggestions } from "@/lib/propertyExplorer/suggestions"
@@ -14,7 +15,7 @@ import { boundsForMarket, getMarketBySlug, isInsideMarket, isInsideState, isMark
 import { resolveDesiredAreaCenters, searchAreas, mergeDedupeByPlaceId, type AreaCenter } from "@/lib/propertyExplorer/multiArea"
 import { selectInMarketMatch, decideNameSearch, normalizePlace, shouldFetchSuggestions, computeVisible, nameSearchTextQuery, nameMatchesQuery, type NameSearchDecision } from "@/lib/propertyExplorer/nameSearch"
 import { StarRating } from "@/components/crm/StarRating"
-import { canonicalPropertyKey, selectMatchReasonLines, matchScoreTone, normalizeShortSpecial, isSpecialCurrent, evaluateLocatorCommission } from "@bc/companion-shared"
+import { canonicalPropertyKey, selectMatchReasonLines, matchScoreTone, evaluateLocatorCommission } from "@bc/companion-shared"
 import { createPortal } from "react-dom"
 import { searchProperties } from "@/lib/propertyExplorer/propertySearch"
 import { resolveShortlistIds, applyShortlist, shortlistStillValid, type MapFilterMode } from "@/lib/propertyExplorer/beastShortlist"
@@ -54,6 +55,14 @@ type Props = {
   /** Dispatches the EXISTING add-recommendation workflow verb. Property Explorer
    *  owns no recommendation storage of its own. */
   onRecommend?: (property: ExplorerProperty) => void
+  /** Opens the Map Property Editor for a place. Absent ⇒ the Edit Property control is not
+   *  rendered at all, which is how a non-owner sees no affordance. The REAL guard is
+   *  requirePlatformAdmin() inside /api/admin/owner/property-pricing — this is presentation. */
+  onEditProperty?: (placeId: string) => void
+  /** Bumped by the host after the Map Property Editor saves. The explorer re-reads the CATALOG
+   *  for that one place and merges it into the loaded results, so the card shows the new values
+   *  immediately — without a remount, which would drop the map's zoom and the pinned card. */
+  refreshCatalogToken?: { placeId: string; nonce: number } | null
   /** The toolbar search text. In Map mode it filters the properties ALREADY loaded
    *  — it never calls Places, so typing costs nothing. */
   query?: string
@@ -128,7 +137,7 @@ function getPinOpacity(m: PropertyMarker): number {
   return v ? parseFloat(v) : 1
 }
 
-export default function BeastPropertyExplorer({ serviceAreaSlugs, activeClient, primaryMarket = null, licenseState = null, onSelectProperty, query = "", searchName = "", onResolveName, recommendedUrls = [], onRecommend, actionsHost = null, marketHost = null, dropdownHost = null, onMatchCount }: Props) {
+export default function BeastPropertyExplorer({ serviceAreaSlugs, activeClient, primaryMarket = null, licenseState = null, onSelectProperty, query = "", searchName = "", onResolveName, recommendedUrls = [], onRecommend, onEditProperty, refreshCatalogToken = null, actionsHost = null, marketHost = null, dropdownHost = null, onMatchCount }: Props) {
   const hostRef = useRef<HTMLDivElement | null>(null)
   const mapRef = useRef<google.maps.Map | null>(null)
   const markersRef = useRef<PropertyMarker[]>([])
@@ -204,6 +213,33 @@ export default function BeastPropertyExplorer({ serviceAreaSlugs, activeClient, 
   const [radarOrigins, setRadarOrigins] = useState<{ x: number; y: number }[]>([])
   const [error, setError] = useState<string | null>(null)
   const [results, setResults] = useState<ExplorerProperty[]>([])
+
+  // ── ONE PROPERTY, RE-READ AFTER AN EDIT ───────────────────────────────────────────────────
+  // The same fetchCatalog + enrichProperties pair the search uses, narrowed to a single place,
+  // so there is no second enrichment path to drift. Anything it cannot read is left exactly as
+  // it was: a failed refresh shows stale values, which is better than blanking a card.
+  const refreshNonce = refreshCatalogToken?.nonce ?? 0
+  const refreshPlaceId = refreshCatalogToken?.placeId ?? null
+  useEffect(() => {
+    if (!refreshPlaceId || refreshNonce === 0) return
+    let cancelled = false
+    ;(async () => {
+      try {
+        const catalog = await fetchCatalog([refreshPlaceId], supabase)
+        if (cancelled) return
+        setResults((prev) => {
+          const target = prev.find((p) => p.placeId === refreshPlaceId)
+          if (!target) return prev
+          const [fresh] = enrichProperties([target], catalog)
+          return fresh ? prev.map((p) => (p.placeId === refreshPlaceId ? fresh : p)) : prev
+        })
+      } catch {
+        // Deliberately silent: the save already succeeded, and the card simply keeps showing
+        // what it had until the next search.
+      }
+    })()
+    return () => { cancelled = true }
+  }, [refreshPlaceId, refreshNonce])
   const [hovered, setHovered] = useState<ExplorerProperty | null>(null)
   const [selected, setSelected] = useState<ExplorerProperty | null>(null)
   const [dirty, setDirty] = useState(false)
@@ -1181,8 +1217,8 @@ export default function BeastPropertyExplorer({ serviceAreaSlugs, activeClient, 
   // matchScore stays the real client-fit value (card.matchScore) and is shown ONLY
   // when populated — never inferred from location fit (that was the old fake 100%).
   // The current special is NOT a reason line: it is a per-property offer, not a
-  // client-specific reason, so it lives in the green overlay badge on the image
-  // (shortSpecial below), not here — avoiding a duplicate of the badge.
+  // client-specific reason, so it lives in the promotional badge row on the image,
+  // not here — avoiding a duplicate of the badge.
   const reasonLines = card
     ? selectMatchReasonLines({
         location: fit && fit.tone !== "outside" ? fit.label : null,
@@ -1192,12 +1228,6 @@ export default function BeastPropertyExplorer({ serviceAreaSlugs, activeClient, 
   // property website. Never the Google Maps place URL (card.propertyUrl). Null when
   // there is no valid website → those elements are non-clickable, no substitution.
   const siteHref = card ? propertyWebsiteHref(card.websiteUrl) : null
-  // Compact GREEN overlay badge: the normalized SHORT special (e.g. "1 Month Free",
-  // "$200 Gift Card"), from canonical property_catalog.current_special. Shown ONLY
-  // when it normalizes to a short form AND the record is fresh (verified_at within
-  // the freshness window) — never stale/Unknown/raw long text. Null → no badge.
-  const shortSpecial =
-    card && isSpecialCurrent(card.verifiedAt) ? normalizeShortSpecial(card.currentSpecial) : null
   // Locator-facing commission STATUS (paying / not_paying / unverified), from trusted-
   // master property_catalog columns. Locator surface only; never on the client /r page.
   // Unknown ≠ No: blank/Unknown is "unverified", never assumed not-paying.
@@ -1526,17 +1556,26 @@ export default function BeastPropertyExplorer({ serviceAreaSlugs, activeClient, 
                     }}
                   />
                 )}
-                {/* Verified current special — compact green overlay, bottom-left,
-                    clear of the top-right ✕. Normalized short form only; hidden
-                    when absent/stale/unverified. */}
-                {shortSpecial && (
-                  <span className="pointer-events-none absolute bottom-2 left-2 z-[1] rounded-lg border border-[#8fb6ea] bg-[#e8f0fe] px-2.5 py-[3px] text-[11.5px] font-semibold leading-none text-[#1c3f75] shadow-sm">
-                    {shortSpecial}
-                  </span>
-                )}
+                {/* Promotional badges — move-in special then gift card, ONE ROW, bottom-left,
+                    clear of the top-right ✕. The right inset bounds the row inside the photo, so
+                    a long label truncates rather than running past the frame. What shows is
+                    decided by the shared resolver, not here. */}
+                <div className="pointer-events-none absolute bottom-2 left-2 right-2 z-[1]">
+                  <PromoBadges
+                    size="card"
+                    currentSpecial={card.currentSpecial}
+                    giftCardStatus={card.giftCardStatus}
+                    giftCardAmount={card.giftCardAmount}
+                  />
+                </div>
               </div>
             )
-            return siteHref ? (
+            // EDIT PROPERTY sits OVER the banner but OUTSIDE the website link. Nesting a
+            // button inside that anchor would be invalid markup and every click would open the
+            // property's site instead of the editor, so the two are siblings in a relative box.
+            // Top-LEFT: the card's own ✕ owns the top-right corner, and the special badge the
+            // bottom-left of the image itself.
+            const framed = siteHref ? (
               <a
                 href={siteHref}
                 target="_blank"
@@ -1549,6 +1588,19 @@ export default function BeastPropertyExplorer({ serviceAreaSlugs, activeClient, 
               </a>
             ) : (
               banner
+            )
+            if (!(selected && onEditProperty && card.placeId)) return framed
+            return (
+              <div className="relative">
+                {framed}
+                <button
+                  type="button"
+                  onClick={(e) => { e.stopPropagation(); e.preventDefault(); onEditProperty(card.placeId) }}
+                  className="absolute left-2 top-2 z-[2] inline-flex items-center gap-1 rounded-lg bg-[#111318]/90 px-2.5 py-[5px] text-[11.5px] font-semibold text-white shadow-sm transition-colors hover:bg-[#111318]"
+                >
+                  ✎ Edit Property
+                </button>
+              </div>
             )
           })()}
           {/* Name → address → Google rating. Name links to the property's own website. */}

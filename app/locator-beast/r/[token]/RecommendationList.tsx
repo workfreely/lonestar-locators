@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import { TOUR_TYPE_LABELS, TOUR_WINDOW_LABELS, normalizeShortSpecial, starFillPercent } from "@bc/companion-shared"
+import { TOUR_TYPE_LABELS, TOUR_WINDOW_LABELS, normalizeShortSpecial, starFillPercent, resolvePromoBadges, truncateBadgeLabel } from "@bc/companion-shared"
 import TourAvailabilityModal, { type Availability, type InitialAvailability } from "./TourAvailability"
 import { washerDryerLabel, washerDryerPillClass } from "@/lib/leads/washerDryer"
 import { averageRentSegments } from "@/lib/leads/averageRent"
@@ -32,6 +32,9 @@ export type ClientProperty = {
   /** Frozen at snapshot time (Phase 1); null on an un-enriched list. */
   startingPrice: number | null
   currentSpecial: string | null
+  /** Resident gift card, canonical-only. Never the agent bonus, which this page never receives. */
+  giftCardStatus?: string | null
+  giftCardAmount?: number | null
   googleRating: number | null
   /** Frozen client-facing washer/dryer status: "included" | "hookups". Absent = not verified. */
   washerDryer?: string | null
@@ -340,10 +343,40 @@ export default function RecommendationList({
                 <Heart filled={isFav} />
               </button>
               {(() => {
-                // Normalized SHORT special only (e.g. "1 Month Free", "$200 Gift Card") —
-                // never the raw long snapshot text; hidden when it doesn't normalize.
-                const shortSpecial = normalizeShortSpecial(p.currentSpecial)
-                return shortSpecial ? <div className="lbr-pill">{shortSpecial}</div> : null
+                // The SAME resolver the locator-facing cards use, so the two can never render
+                // different pills for the same data.
+                //
+                // No age rule anywhere: the last known offer shows until an agent changes it.
+                const badges = resolvePromoBadges({
+                  currentSpecial: p.currentSpecial,
+                  giftCardStatus: p.giftCardStatus,
+                  giftCardAmount: p.giftCardAmount,
+                })
+                if (badges.length === 0) return null
+                const cap = badges.length > 1 ? 16 : 24
+                return (
+                  <div className="lbr-promo">
+                    {badges.map((b) => (
+                      <span key={b.kind} className={b.kind === "special" ? "lbr-pill lbr-pill-special" : "lbr-pill lbr-pill-gift"} title={b.text}>
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                          {b.kind === "special" ? (
+                            <>
+                              <path d="M20.59 13.41 13.42 20.58a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82Z" />
+                              <circle cx="7" cy="7" r="1.5" />
+                            </>
+                          ) : (
+                            <>
+                              <rect x="3" y="8" width="18" height="4" rx="1" />
+                              <path d="M12 8v13M5 12v7a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-7" />
+                              <path d="M12 8S10.5 3 8 3a2.5 2.5 0 0 0 0 5M12 8s1.5-5 4-5a2.5 2.5 0 0 1 0 5" />
+                            </>
+                          )}
+                        </svg>
+                        <span className="lbr-pill-label">{truncateBadgeLabel(b.text, cap)}</span>
+                      </span>
+                    ))}
+                  </div>
+                )
               })()}
             </div>
             <div className="lbr-body">

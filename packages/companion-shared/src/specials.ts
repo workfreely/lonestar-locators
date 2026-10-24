@@ -297,3 +297,118 @@ export function evaluateSpecials(input?: SpecialInput | null): SpecialsResult {
     avgRent: formatRent(computeAvgRent({ ...src, text: fromLines?.source ?? src.text })),
   };
 }
+
+/* ────────────────────────────────────────────────────────────────────────────────────────────
+ * PROMOTIONAL BADGES — the one place that decides what a card shows.
+ *
+ * Four surfaces render these pills (Map, Recommended, Favorites, and the client-facing
+ * recommendation page). Each keeps its own classes, sizing and placement; none of them decides
+ * WHAT to show. That lives here, so gating and de-duplication cannot drift between the page a
+ * client sees and the one a locator does — which is exactly how the client page ended up with
+ * no freshness gate at all while the three internal surfaces had one.
+ *
+ * ── NOTHING EXPIRES ON A TIMER ──────────────────────────────────────────────────────────────
+ * The last known offer is shown until an agent CHANGES it. There is no age cutoff here, for
+ * either incentive.
+ *
+ * A 45-day rule used to hide specials on the locator cards. It solved the wrong problem: a
+ * promotion does not stop existing because nobody re-checked it, and silently blanking one made
+ * a verified concession look like a property that had none — an absence presented as a finding,
+ * which is the one thing this model exists to prevent. The age is now SURFACED instead, as a
+ * line in the Map Property Editor ("Updated 2 months ago"), so a locator can see what might want
+ * a phone call and decide. Removal is a deliberate act: No Special, a cleared field, or a gift
+ * card set to No.
+ *
+ * The dates are therefore not inputs here at all. Keeping them as unused parameters would invite
+ * exactly the gate this comment is removing, so they are gone from the signature; the editor
+ * reads them from its own endpoint, where they are displayed rather than enforced.
+ *
+ * THE AGENT BONUS IS NOT AN INPUT HERE. bonus_flat is locator compensation; it is not a resident
+ * incentive and must never reach a card as one. It is absent from the signature on purpose —
+ * there is no field for a caller to pass it through by mistake.
+ * ──────────────────────────────────────────────────────────────────────────────────────────── */
+
+export type PromoBadgeKind = "special" | "gift_card";
+export type PromoBadge = { kind: PromoBadgeKind; text: string };
+
+/** Does a normalized badge string describe a gift card? normalizeShortSpecial already extracts
+ *  "$500 Gift Card" from free text, which is why de-duplication is needed at all. */
+function isGiftCardText(text: string): boolean {
+  return /gift\s*card/i.test(text);
+}
+
+/**
+ * A badge label is already short by construction — normalizeShortSpecial returns a canonical
+ * form or null, never raw text. This is the last guard for an unusually long canonical form (a
+ * large amount, say): truncate on a word boundary with an ellipsis.
+ *
+ * It can only ever SHORTEN. Nothing here rewrites, strengthens or qualifies a claim — a
+ * truncated "Up to 12 Weeks Free" never becomes "12 Weeks Free", because the prefix is kept and
+ * the tail is what is dropped.
+ */
+export function truncateBadgeLabel(text: string, maxChars = 22): string {
+  const t = text.trim();
+  if (t.length <= maxChars) return t;
+  const cut = t.slice(0, maxChars - 1);
+  const atSpace = cut.lastIndexOf(" ");
+  return `${(atSpace > maxChars * 0.5 ? cut.slice(0, atSpace) : cut).trimEnd()}…`;
+}
+
+export type PromoBadgeInput = {
+  /** property_catalog.current_special — verbatim master text. Shown until an agent changes it. */
+  currentSpecial?: string | null;
+  /** property_catalog.gift_card_status — null/'yes'/'no'. Only 'yes' can produce a badge. */
+  giftCardStatus?: string | null;
+  giftCardAmount?: number | string | null;
+};
+
+/**
+ * The ordered badges a card should render: the move-in special first, the gift card second.
+ *
+ * Returns [] when there is nothing confirmed and current to show. Unknown is not an offer and
+ * neither is a confirmed absence, so both render nothing at all.
+ */
+export function resolvePromoBadges(input: PromoBadgeInput): PromoBadge[] {
+  // ── The move-in special ──────────────────────────────────────────────────────────────────
+  // normalizeShortSpecial is the ONLY filter: it returns null for "None" / "N/A" / "--" and for
+  // text it cannot read, which is how a cleared or explicitly-absent special stops rendering.
+  // Age is not consulted.
+  const specialText = normalizeShortSpecial(input.currentSpecial);
+
+  // ── The structured gift card ─────────────────────────────────────────────────────────────
+  // Its own state machine. A positive amount is required: the schema enforces "yes ⇒ amount > 0",
+  // and a badge reading "$0 Gift Card" would be worse than none.
+  const amount =
+    typeof input.giftCardAmount === "number"
+      ? input.giftCardAmount
+      : Number(String(input.giftCardAmount ?? "").replace(/[$,\s]/g, ""));
+  const giftConfirmed =
+    String(input.giftCardStatus ?? "").toLowerCase() === "yes" && Number.isFinite(amount) && amount > 0;
+  // No freshness gate — see the note above. The age is surfaced in the editor, not enforced here.
+  const structuredGift = giftConfirmed ? `$${withCommas(amount)} Gift Card` : null;
+
+  const badges: PromoBadge[] = [];
+
+  // ── DE-DUPLICATION ───────────────────────────────────────────────────────────────────────
+  // The special TEXT may itself describe a gift card, because normalizeShortSpecial extracts
+  // one. Three cases, and only the first is a duplicate:
+  //
+  //   text is a gift card AND a structured one exists → drop the text one; the column is the
+  //                                                     better record and carries its own date
+  //   text is a gift card and there is no structured  → render it, as a GIFT CARD badge
+  //   text is a concession                            → render it as the special
+  //
+  // A concession and a gift card are never duplicates of each other, so both show.
+  if (specialText) {
+    if (isGiftCardText(specialText)) {
+      if (!structuredGift) badges.push({ kind: "gift_card", text: specialText });
+    } else {
+      badges.push({ kind: "special", text: specialText });
+    }
+  }
+  if (structuredGift) badges.push({ kind: "gift_card", text: structuredGift });
+
+  // Special first, gift card second — the order is part of the approved design, and asserting
+  // it here means no surface has to remember it.
+  return badges.sort((a, b) => (a.kind === b.kind ? 0 : a.kind === "special" ? -1 : 1));
+}

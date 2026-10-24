@@ -224,6 +224,23 @@ export const OWNER_CORRECTABLE_FIELDS = new Set([
   // separate, additional gate and is not touched.
   "washer_dryer_included",
   "washer_dryer_connections",
+  // GIFT CARD — a resident promotion, owner-maintained like the special beside it. Three states
+  // have to survive: null (not researched), 'yes' (+ an amount), 'no' (confirmed none). The
+  // status is what carries the FACT; an amount alone could not express a confirmed 'no'.
+  //
+  // NOT the agent bonus. bonus_flat is locator compensation and stays under the commission
+  // firewall, which this does not touch — a gift card is resident-facing and carries no
+  // authority over what the locator is paid.
+  "gift_card_status",
+  "gift_card_amount",
+  "gift_card_checked_at",
+  // LOCATION NOTES. Existing landmark structure, not new fields — an owner driving the area is
+  // the best source for "across from Brooks City Base", and preserve-by-default otherwise freezes
+  // whatever the enrichment agent guessed first. Only landmark 1 and the cross streets are
+  // exposed; _type and landmarks 2-3 stay agent-owned because the editor has no vocabulary for
+  // them and a free-text type would corrupt a controlled column.
+  "nearby_landmark_1",
+  "cross_streets",
 ])
 
 export type Decision = { outcome: "write" | "skip"; reason: string }

@@ -17,7 +17,7 @@
  */
 import { readFileSync } from "node:fs"
 import { join } from "node:path"
-import { normalizeShortSpecial, isSpecialCurrent } from "@bc/companion-shared"
+import { normalizeShortSpecial, isSpecialCurrent, resolvePromoBadges } from "@bc/companion-shared"
 
 let pass = 0
 let fail = 0
@@ -84,16 +84,47 @@ console.log("\n=== 5. FRESHNESS — the gate, and the 45-day policy ===")
   ok("the 45-day policy is unchanged", isSpecialCurrent(days(44)) && !isSpecialCurrent(days(46)))
 }
 
-console.log("\n=== 6. THE GATE READS THE SPECIAL'S OWN DATE, falling back to the record's ===")
+console.log("\n=== 6. THERE IS NO LONGER AN AGE GATE ON THE CARDS ===")
 {
   const bm = read("components/crm/BestMatches.tsx")
   const lf = read("components/crm/LeadFavorites.tsx")
-  ok("Recommended Properties coalesces",
-    /isSpecialCurrent\(r\.current_special_checked_at \?\? r\.verified_at\)/.test(bm))
-  ok("Favorites coalesces",
-    /isSpecialCurrent\(fav\.current_special_checked_at \?\? fav\.verified_at\)/.test(lf))
-  ok("neither reads verified_at alone", !/isSpecialCurrent\((r|fav)\.verified_at\)/.test(bm + lf))
+  const map = read("components/crm/explorer/BeastPropertyExplorer.tsx")
+  const client = read("app/locator-beast/r/[token]/RecommendationList.tsx")
+  // THE RULE NOW: the last known special shows until an agent changes it. Age informs the
+  // editor; it decides nothing. These assert the gate cannot creep back in.
+  ok("no surface passes a date to the badge resolver",
+    ![bm, lf, map, client].some((f) => /specialCheckedAt|verifiedAt:|giftCardCheckedAt/.test(f)))
+  ok("no surface still calls isSpecialCurrent for a badge",
+    ![bm, lf, map].some((f) => /isSpecialCurrent/.test(f)))
+  ok("the resolver takes no date and no max age",
+    !/specialCheckedAt|maxAgeDays|requireSpecialFreshness/.test(read("packages/companion-shared/src/specials.ts")
+      .slice(read("packages/companion-shared/src/specials.ts").indexOf("export type PromoBadgeInput"))))
+  // Behaviour, live: an ancient special still renders.
+  {
+    const S = "Up to 8 Weeks Free on Select Homes"
+    ok("a two-year-old special still shows", resolvePromoBadges({ currentSpecial: S }).length === 1)
+    ok("…and so does an ancient gift card",
+      resolvePromoBadges({ giftCardStatus: "yes", giftCardAmount: 500 }).length === 1)
+    // Removal is an ACT, not a timer.
+    for (const cleared of ["No Special", "None", "N/A", "--", ""]) {
+      ok(`"${cleared || "(empty)"}" renders nothing`, resolvePromoBadges({ currentSpecial: cleared }).length === 0)
+    }
+    ok("a gift card set to No renders nothing",
+      resolvePromoBadges({ giftCardStatus: "no", giftCardAmount: null }).length === 0)
+  }
+  // The client resolver's SQL window is gone too.
+  {
+    const MIG = readFileSync(join(process.cwd(), "supabase/migrations/20261106000000_property_gift_card.sql"), "utf8")
+    const exec = MIG.replace(/--[^\n]*/g, "")
+    ok("the client resolver no longer wraps the canonical special in a 45-day case",
+      !/45 days/.test(exec), exec.split("\n").filter((l) => /45 days/.test(l)).join(" | "))
+    ok("…it simply coalesces snapshot then canonical",
+      /'currentSpecial', coalesce\(\s*nullif\(btrim\(i\.current_special\), ''\),\s*pc\.current_special\)/.test(exec))
+  }
+}
 
+console.log("\n=== 6b. isSpecialCurrent ITSELF still behaves (other callers rely on it) ===")
+{
   // The three production shapes, simulated through the real gate.
   const today = new Date().toISOString()
   const old = new Date(Date.now() - 60 * 86_400_000).toISOString()
@@ -104,6 +135,7 @@ console.log("\n=== 6. THE GATE READS THE SPECIAL'S OWN DATE, falling back to the
   ok("both absent → hidden", !gate(null, null))
   ok("both stale → hidden", !gate(old, old))
   ok("stale special date beats a fresh record date", !gate(old, today))
+  ok("the helper is still exported for other callers", typeof isSpecialCurrent === "function")
 }
 
 console.log("\n=== 7. THE READ PATH CARRIES THE NEW FIELD ===")

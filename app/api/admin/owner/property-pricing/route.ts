@@ -3,6 +3,8 @@ export const dynamic = "force-dynamic"
 
 import { NextResponse, type NextRequest } from "next/server"
 import { requirePlatformAdmin } from "@/lib/auth/requirePlatformAdmin"
+import { writeAttributes, OWNER_CORRECTABLE_ATTRIBUTE_KEYS } from "@/lib/propertyEnrichment/attributes"
+import type { AttributeCandidate } from "@/lib/propertyEnrichment/types"
 import { supabaseAdmin } from "@/lib/supabase/admin"
 import { enrichProperty } from "@/lib/propertyEnrichment/writer"
 import { SupabaseEnrichmentStore } from "@/lib/propertyEnrichment/stores/supabaseStore"
@@ -60,7 +62,10 @@ const READ_COLUMNS =
   "onebr_starting_rent, twobr_starting_rent, threebr_starting_rent, " +
   "current_special, current_special_source, current_special_checked_at, pricing_last_verified, " +
   "send_commission, escort_commission, bonus_flat, " +
-  "washer_dryer_included, washer_dryer_connections"
+  "washer_dryer_included, washer_dryer_connections, " +
+  "gift_card_status, gift_card_amount, gift_card_checked_at, current_special_checked_at, " +
+  // Display-only context for the Map panel header, and the location notes it shows.
+  "google_rating, property_image_url, property_image_url_backup, nearby_landmark_1, cross_streets"
 
 function cleanPlaceId(v: unknown): string | null {
   const s = typeof v === "string" ? v.trim() : ""
@@ -105,6 +110,49 @@ export async function GET(req: NextRequest) {
 
   // Through `unknown`: PostgREST's generated row type does not carry an index signature,
   // so a direct cast is rejected. Same shape the enrichment store reads.
+  // The owner-correctable tristate attributes for this property, read alongside the catalog row.
+  // A failed read yields an EMPTY map rather than an error: the scalar fields are still editable,
+  // and the controls fall back to "unknown", which is the honest answer when nothing was read.
+  const attrValues: Record<string, string> = {}
+  {
+    const { data: attrRows } = await supabaseAdmin
+      .from("property_attributes")
+      .select("attribute_key, value")
+      .eq("place_id", placeId)
+      .in("attribute_key", [...OWNER_CORRECTABLE_ATTRIBUTE_KEYS])
+    for (const a of (attrRows ?? []) as { attribute_key: string; value: string | null }[]) {
+      if (a.value === "yes" || a.value === "no" || a.value === "unknown") attrValues[a.attribute_key] = a.value
+    }
+  }
+
+  // COMMISSION VERIFICATION, DERIVED — not a stored boolean.
+  //
+  // There is deliberately no commission_verified column. A flag can drift from reality: it keeps
+  // saying "verified" long after the value under it changed. Provenance cannot, because it IS the
+  // record of who wrote the value and how. A commission counts as manually verified only when its
+  // latest provenance row says a human recorded it (manual_verified) AND the finding was verified
+  // rather than inferred — which, per the POST handler, means a supporting source was supplied.
+  //
+  // This also keeps "unknown" honest: a field with no provenance and no value is not unverified,
+  // it is unresearched, and the editor shows those differently.
+  //
+  // The same read also answers a smaller question for the editor's age lines: does a field's
+  // timestamp represent a VERIFICATION, or merely the last time somebody wrote it? The editor
+  // says "Verified 12 days ago" only for the former and "Updated …" for the latter, so the two
+  // must not be conflated here.
+  const fieldVerified: Record<string, boolean> = {}
+  {
+    const { data: prov } = await supabaseAdmin
+      .from("property_field_provenance")
+      .select("field_name, source_type, verification_status")
+      .eq("place_id", placeId)
+      .in("field_name", ["send_commission", "escort_commission", "bonus_flat", "current_special", "gift_card_status"])
+    for (const r of (prov ?? []) as { field_name: string; source_type: string; verification_status: string }[]) {
+      fieldVerified[r.field_name] = r.source_type === "manual_verified" && r.verification_status === "verified"
+    }
+  }
+  const commissionVerified = fieldVerified
+
   const row = data as unknown as Record<string, unknown>
   const num = (v: unknown) => (v === null || v === undefined || !Number.isFinite(Number(v)) ? null : Number(v))
   const s = (v: unknown) => (typeof v === "string" && v.trim() ? v.trim() : null)
@@ -135,6 +183,28 @@ export async function GET(req: NextRequest) {
     // the editor can show "Not Verified" rather than inventing a "No".
     washerDryerIncluded: s(row.washer_dryer_included),
     washerDryerConnections: s(row.washer_dryer_connections),
+    // GIFT CARD — three states, preserved across the round trip. A null status means NOBODY HAS
+    // RESEARCHED IT and is returned as null rather than coerced to "no", because the editor has to
+    // show "Unknown" rather than claim the property confirmed it has none.
+    giftCardStatus: s(row.gift_card_status),
+    giftCardAmount: num(row.gift_card_amount),
+    giftCardCheckedAt: s(row.gift_card_checked_at),
+    // Display-only context for the panel header; never written back from here.
+    googleRating: num(row.google_rating),
+    imageUrl: s(row.property_image_url),
+    imageUrlBackup: s(row.property_image_url_backup),
+    nearbyLandmark: s(row.nearby_landmark_1),
+    crossStreets: s(row.cross_streets),
+    // TRISTATE ATTRIBUTES, in their own vocabulary. A key with no row is ABSENT from this map,
+    // which the editor reads as "unknown" — distinct from a stored 'no'. That distinction is the
+    // whole reason these are tristate and not booleans.
+    attributes: attrValues,
+    // Per-field, derived from provenance. Absent key ⇒ never recorded by a human.
+    commissionVerified,
+    fieldVerified,
+    // The SPECIAL's own timestamp, for the editor's age line. Not a gate — nothing is hidden
+    // by it. Null ⇒ the editor says "Date unknown" rather than guessing.
+    currentSpecialCheckedAt: s(row.current_special_checked_at),
   })
 }
 
@@ -217,6 +287,87 @@ export async function PUT(req: NextRequest) {
     if (v) add("washer_dryer_connections", v)
   }
 
+  // ── LOCATION NOTES ────────────────────────────────────────────────────────────────────────
+  // Free text, trimmed and capped. Blank leaves the stored value alone, exactly like every other
+  // optional field here — there is no way to erase a landmark from this editor, deliberately.
+  for (const [key, column] of Object.entries({ nearbyLandmark: "nearby_landmark_1", crossStreets: "cross_streets" })) {
+    if (!(key in body)) continue
+    const v = typeof body[key] === "string" ? (body[key] as string).trim().slice(0, 300) : ""
+    if (v) add(column, v)
+  }
+
+  // ── GIFT CARD ─────────────────────────────────────────────────────────────────────────────
+  // A RESIDENT promotion, kept deliberately apart from bonus_flat (locator compensation) so
+  // neither can overwrite the other. Three states, mapped onto the contract this route already
+  // uses everywhere else:
+  //
+  //   key absent     → untouched
+  //   "yes" / "no"   → written; "no" is a CONFIRMED FINDING, not an absence
+  //   explicit null  → the owner cleared it back to unknown (ownerClear, exactly as commission does)
+  //
+  // The amount follows the status rather than standing alone: choosing "no" clears any stored
+  // amount in the same save, because an amount sitting under a confirmed "no" would be read by a
+  // card as a live offer. The database carries the same rule as a CHECK, so the two cannot disagree.
+  let touchedGiftCard = false
+  if ("giftCardStatus" in body) {
+    const raw = body.giftCardStatus
+    if (raw === null) {
+      touchedGiftCard = true
+      for (const column of ["gift_card_status", "gift_card_amount"]) {
+        candidates.push({
+          field: column, value: null, sourceType: "manual_verified",
+          sourceReference: sourceRef, verificationStatus, checkedAt,
+          ownerOverride: true, ownerClear: true,
+        })
+      }
+    } else {
+      const v = String(raw ?? "").trim().toLowerCase()
+      if (v === "yes" || v === "no") {
+        touchedGiftCard = true
+        add("gift_card_status", v)
+        if (v === "no") {
+          candidates.push({
+            field: "gift_card_amount", value: null, sourceType: "manual_verified",
+            sourceReference: sourceRef, verificationStatus, checkedAt,
+            ownerOverride: true, ownerClear: true,
+          })
+        }
+      } else if (v !== "") {
+        rejected.push("giftCardStatus")
+      }
+    }
+  }
+  if ("giftCardAmount" in body) {
+    const raw = body.giftCardAmount
+    const t = raw === null || raw === undefined ? "" : String(raw).trim().replace(/[$,\s]/g, "")
+    if (t !== "") {
+      const n = Number(t)
+      // POSITIVE, not merely non-negative: "yes, $0" is not a gift card, it is a confirmed
+      // absence — which is what status 'no' is for.
+      if (!Number.isFinite(n) || n <= 0 || n > 100_000) rejected.push("giftCardAmount")
+      // An amount is only meaningful under a confirmed offer. Sending one alongside "no" is a
+      // caller bug, not something to store and hope every reader ignores.
+      else if (String(body.giftCardStatus ?? "").trim().toLowerCase() === "no") rejected.push("giftCardAmount")
+      else { touchedGiftCard = true; add("gift_card_amount", Math.round(n * 100) / 100) }
+    }
+  }
+  // A CONFIRMED OFFER MUST CARRY ITS VALUE. The database enforces this too, but rejecting it
+  // here turns a constraint violation into a named field the editor can point at. Only when the
+  // caller is SETTING yes in this request — a save that touches something else entirely never
+  // has to restate an amount that is already stored.
+  if (String(body.giftCardStatus ?? "").trim().toLowerCase() === "yes") {
+    const amt = "giftCardAmount" in body
+      ? Number(String(body.giftCardAmount ?? "").trim().replace(/[$,\s]/g, ""))
+      : NaN
+    if (!Number.isFinite(amt) || amt <= 0) {
+      if (!rejected.includes("giftCardAmount")) rejected.push("giftCardAmount")
+    }
+  }
+
+  // Its OWN freshness stamp, like the special's. A commission-only or pricing-only edit must not
+  // restamp the gift card, and a gift-card edit must not restamp the pricing.
+  if (touchedGiftCard) add("gift_card_checked_at", checkedAt.slice(0, 10))
+
   // ── COMMISSION ────────────────────────────────────────────────────────────────────────────
   // Stored as TEXT in the vocabulary the shared classifier already reads, so the badge, the Map
   // and Beast Companion need no changes: a rate becomes "100%" / "0%", a bonus a bare amount
@@ -257,14 +408,61 @@ export async function PUT(req: NextRequest) {
   // would log a spurious change. The candidate's own `checkedAt` provenance stays full ISO.
   if (touchedPricing) add("pricing_last_verified", checkedAt.slice(0, 10))
 
+  // ── TRISTATE ATTRIBUTES (private yard, garages) ───────────────────────────────────────────
+  // A different table and a different writer from everything above, because these are structured
+  // property FEATURES rather than catalog columns. Same contract though: an absent key is
+  // untouched, and "unknown" is not sent as a value — the writer refuses to downgrade a known
+  // yes/no to unknown, so offering it as a write would be a silent no-op rather than a clear.
+  const attrCandidates: AttributeCandidate[] = []
+  for (const [key, attributeKey] of Object.entries({
+    privateYard: "private_yard",
+    attachedGarage: "attached_garage",
+    detachedGarage: "detached_garage",
+  })) {
+    if (!(key in body)) continue
+    const v = String(body[key] ?? "").trim().toLowerCase()
+    if (v === "") continue
+    if (v !== "yes" && v !== "no" && v !== "unknown") { rejected.push(key); continue }
+    attrCandidates.push({
+      attributeKey,
+      value: v as "yes" | "no" | "unknown",
+      sourceType: "manual_verified",
+      sourceReference: sourceRef,
+      verificationStatus,
+      checkedAt,
+      // Intent. Authority comes from ownerAuthorized on the request below, which is reachable
+      // only because requirePlatformAdmin() passed at the top of this handler.
+      ownerOverride: true,
+    })
+  }
+
   if (rejected.length > 0) {
     return NextResponse.json({ error: "bad_value", fields: rejected }, { status: 400 })
   }
-  if (candidates.length === 0) {
+  if (candidates.length === 0 && attrCandidates.length === 0) {
     return NextResponse.json({ error: "nothing_to_save" }, { status: 400 })
   }
 
-  const result = await enrichProperty(new SupabaseEnrichmentStore(), {
+  // Attributes first, in their own transaction. They carry no commission authority, so an
+  // attribute failure must not abort a commission save that would otherwise succeed — and the
+  // scalar writer's optimistic-concurrency token is unaffected by attribute rows.
+  const store = new SupabaseEnrichmentStore()
+  let attrWritten: string[] = []
+  if (attrCandidates.length > 0) {
+    const attrResult = await writeAttributes(store, {
+      placeId,
+      jobId: `owner:${guard.userId}:${Date.now()}`,
+      attributes: attrCandidates,
+      // See the note on ownerAuthorized in the scalar call below: server-decided, never body-claimed.
+      ownerAuthorized: true,
+    })
+    attrWritten = attrResult.results.filter((r) => r.outcome === "written").map((r) => r.attributeKey)
+  }
+  if (candidates.length === 0) {
+    return NextResponse.json({ ok: true, written: [], attributesWritten: attrWritten })
+  }
+
+  const result = await enrichProperty(store, {
     placeId,
     // Ties every audit row to the owner who made the change and when.
     jobId: `owner:${guard.userId}:${Date.now()}`,
@@ -287,6 +485,7 @@ export async function PUT(req: NextRequest) {
 
   return NextResponse.json({
     ok: true,
+    attributesWritten: attrWritten,
     written: result.results.filter((r) => r.outcome === "written").map((r) => r.field),
     // Returned so a skip is visible to the operator rather than looking like a save.
     skipped: result.results.filter((r) => r.outcome !== "written").map((r) => ({ field: r.field, reason: r.reason })),

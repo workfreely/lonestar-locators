@@ -14,8 +14,9 @@ import { favoriteMoveBlock } from "@/lib/leads/propertyCollections"
 import { isClientFavorite } from "@/lib/leads/favoriteOrigin"
 import { HiOutlineEnvelope, HiOutlineCalendarDays, HiCheck, HiOutlineDocumentText, HiOutlineClipboardDocumentCheck } from "react-icons/hi2"
 import { favoriteSecondaryAction } from "@/lib/leads/favoriteActions"
+import PromoBadges from "@/components/crm/PromoBadges"
 import { propertyWebsiteHref } from "@/lib/propertyExplorer/types"
-import { displayAddress, formatRating, normalizeShortSpecial, isSpecialCurrent, evaluateLocatorCommission } from "@bc/companion-shared"
+import { displayAddress, formatRating, evaluateLocatorCommission, resolvePromoBadges } from "@bc/companion-shared"
 import { StarRating } from "./StarRating"
 import { attachCatalogRatings } from "@/lib/propertyExplorer/catalog"
 import { utcToLocalTourValue, favoriteTourStateLabel } from "@/lib/leads/tourFollowUp"
@@ -518,7 +519,14 @@ export default function LeadFavorites({
               // Locator-facing status — Special (blue, compact, beside the name) +
               // Commission (green/red/neutral, on the far right of the actions row). fav
               // carries the canonical property_catalog fields via attachCatalogRatings.
-              const favShortSpecial = isSpecialCurrent(fav.current_special_checked_at ?? fav.verified_at) ? normalizeShortSpecial(fav.current_special) : null
+              // What the badge row will actually render — the SAME resolver the pills use, so the
+              // row's guard and its contents can never disagree (a gift-card-only property used
+              // to render an empty row under the old `favShortSpecial` guard).
+              const favPromo = resolvePromoBadges({
+                currentSpecial: fav.current_special,
+                giftCardStatus: fav.gift_card_status,
+                giftCardAmount: fav.gift_card_amount,
+              })
               const favCommission = evaluateLocatorCommission({
                 sendCommission: fav.send_commission,
                 escortCommission: fav.escort_commission,
@@ -621,12 +629,16 @@ export default function LeadFavorites({
                         {/* Address row — address left, Special (compact, current/verified
                             only) on the far right. mt-[7px] gives clear separation below the
                             top-right controls so the Special never reads as attached to Edit. */}
-                        {(fav.property_address || favShortSpecial) && (
+                        {(fav.property_address || favPromo.length > 0) && (
                           <div className="mt-[7px] flex items-center justify-between gap-2">
                             <p className="min-w-0 truncate text-[11px] text-[var(--crm-text-muted)]">{fav.property_address ? displayAddress(fav.property_address) : ""}</p>
-                            {favShortSpecial && (
-                              <span className="flex-none rounded-md border border-[#8fb6ea] bg-[#e8f0fe] px-1 py-[1px] text-[9px] font-semibold leading-none text-[#1c3f75]">{favShortSpecial}</span>
-                            )}
+                            <PromoBadges
+                              size="compact"
+                              className="min-w-0 max-w-[62%]"
+                              currentSpecial={fav.current_special}
+                              giftCardStatus={fav.gift_card_status}
+                              giftCardAmount={fav.gift_card_amount}
+                            />
                           </div>
                         )}
                         {/* Rating row — Google rating left, genuine Match % on the far right

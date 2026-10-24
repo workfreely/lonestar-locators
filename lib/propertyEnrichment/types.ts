@@ -138,6 +138,10 @@ export type AttributeCandidate = {
   sourceReference?: string | null
   verificationStatus: VerificationStatus
   checkedAt?: string | null
+  /** The owner is deliberately correcting an already-populated attribute. Inert on its own:
+   *  it only has effect when the REQUEST also carries ownerAuthorized, and the key is listed in
+   *  OWNER_CORRECTABLE_ATTRIBUTE_KEYS. Mirrors FieldCandidate.ownerOverride. */
+  ownerOverride?: boolean
 }
 
 export type AttributeInput = {
@@ -145,6 +149,10 @@ export type AttributeInput = {
   jobId: string
   attributes: AttributeCandidate[]
   dryRun?: boolean
+  /** REQUEST-LEVEL authorization, set only by a handler that passed requirePlatformAdmin — never
+   *  from anything in the request body. Without it, a candidate's own ownerOverride does nothing,
+   *  so a forged flag cannot buy authority. Mirrors EnrichmentInput.ownerAuthorized. */
+  ownerAuthorized?: boolean
 }
 
 export type AttributeResult = {

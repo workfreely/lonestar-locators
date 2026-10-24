@@ -22,6 +22,19 @@ import type {
 
 const TRISTATE = new Set(["yes", "no", "unknown"])
 
+/**
+ * The ONLY attribute keys an authorized owner may correct once they are already populated.
+ *
+ * Deliberately a short, named list rather than "anything an owner sends". These are the three
+ * the Map Property Editor exposes as tristate controls, and widening it is a decision someone
+ * has to make on purpose — the same shape as OWNER_CORRECTABLE_FIELDS for scalar columns.
+ */
+export const OWNER_CORRECTABLE_ATTRIBUTE_KEYS = new Set([
+  "private_yard",
+  "attached_garage",
+  "detached_garage",
+])
+
 // Authority for STRUCTURED ATTRIBUTE facts (distinct from scalar catalog fields):
 // trusted internal sources and official property/management sites describe amenities,
 // styles, views, etc. authoritatively. Google Places does not describe these; public
@@ -73,8 +86,10 @@ export function decideAttributeWrite(args: {
   candidateSourceType: SourceType
   candidateVerification: VerificationStatus
   existing: StoredAttribute | null
+  /** Set ONLY by a request that passed requirePlatformAdmin. See the owner branch below. */
+  ownerOverride?: boolean
 }): AttrDecision {
-  const { valueKind, candidateFact: cv, candidateFloorplanSpecific, candidateSourceType, candidateVerification, existing } = args
+  const { attributeKey, valueKind, candidateFact: cv, candidateFloorplanSpecific, candidateSourceType, candidateVerification, existing, ownerOverride } = args
 
   // No finding → never write, never null an existing value.
   if (cv === null) return { outcome: "skip", reason: "no_value" }
@@ -85,6 +100,37 @@ export function decideAttributeWrite(args: {
 
   const ev = existing ? existingFact(existing, valueKind) : null
   const authoritative = attrAuthoritative(candidateSourceType)
+
+  // ── THE OWNER EXCEPTION ───────────────────────────────────────────────────────────────────
+  // A human who has just stood in the building outranks preserve-by-default. Without this, an
+  // owner correcting an already-populated value is refused as a conflict and the stale answer
+  // stands — the same problem washer_dryer_included had, solved the same way.
+  //
+  // THREE LOCKS, ALL REQUIRED, exactly mirroring the scalar writer:
+  //   1. ownerOverride — set only by a route that passed requirePlatformAdmin;
+  //   2. sourceType manual_verified — the internal, non-public source type;
+  //   3. the key is named in OWNER_CORRECTABLE_ATTRIBUTE_KEYS.
+  //
+  // PUBLIC SOURCES ARE NOT WEAKENED BY THIS. A public_web or google_places candidate can never
+  // satisfy lock 2, so every rule below still applies to it unchanged. The owner branch is
+  // additive: it opens one door for one caller, and widens nothing else.
+  //
+  // Unknown ≠ No still holds even here. An owner choosing "Unknown" is asking to RESET a fact
+  // to not-researched, which is a clear, not an overwrite, and is handled by the explicit
+  // ownerClear path in the writer — not by writing the token 'unknown' over a known value.
+  if (
+    ownerOverride === true &&
+    candidateSourceType === "manual_verified" &&
+    OWNER_CORRECTABLE_ATTRIBUTE_KEYS.has(attributeKey)
+  ) {
+    if (valueKind === "tristate" && cv === "unknown" && (ev === "yes" || ev === "no")) {
+      return { outcome: "skip", reason: "owner_unknown_is_not_a_clear" }
+    }
+    if (ev === cv && (existing?.floorplanSpecific === true) === candidateFloorplanSpecific) {
+      return { outcome: "skip", reason: "unchanged" }
+    }
+    return { outcome: "write", reason: "owner_override" }
+  }
 
   // Empty → eligible. (Recording an explicit verified 'unknown' when nothing exists is
   // allowed: it documents "checked, not stated".)
@@ -182,6 +228,10 @@ export async function writeAttributes(store: AttributeStore, input: AttributeInp
           candidateSourceType: cand.sourceType,
           candidateVerification: cand.verificationStatus,
           existing: prior,
+          // BOTH halves required. The candidate's flag states intent; the request's states
+          // authority, and only a handler past requirePlatformAdmin can set it. Neither alone
+          // opens the owner branch.
+          ownerOverride: input.ownerAuthorized === true && cand.ownerOverride === true,
         })
         decision = d.outcome
         reason = d.reason

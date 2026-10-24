@@ -1,6 +1,7 @@
 "use client"
 import { useEffect, useRef, useState, useCallback } from "react"
 import BeastPropertyExplorer from "@/components/crm/explorer/BeastPropertyExplorer"
+import MapPropertyEditor from "@/components/crm/MapPropertyEditor"
 import { favoriteMoveBlock, visibleRecommendations } from "@/lib/leads/propertyCollections"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
@@ -137,6 +138,10 @@ export default function DashboardClient({ leads, nextActions, favorites, recomme
    *  Companion active-client payload. Never per-lead; never workflow. */
   followUpTemplates?: FollowUpOverrides }) {
   const router = useRouter()
+  // MAP PROPERTY EDITOR — which place the right-side panel is pointed at, and a nonce the
+  // explorer watches so a save re-reads that one property's catalog row. Null = panel closed.
+  const [mapEditorPlaceId, setMapEditorPlaceId] = useState<string | null>(null)
+  const [mapEditorRefresh, setMapEditorRefresh] = useState<{ placeId: string; nonce: number } | null>(null)
   const [selectedLeadId, setSelectedLeadId] = useState<string | number | null>(null)
   // The client the SESSION is on — the one Beast Companion is showing. It is a
   // REACTIVE twin of companionLeadIdRef (that ref serves the non-reactive guard in
@@ -4476,6 +4481,10 @@ export default function DashboardClient({ leads, nextActions, favorites, recomme
                 onMatchCount={onMatchCount}
                 primaryMarket={primaryMarket}
                 licenseState={licenseState}
+                // Presentation only — the same server-resolved platform-admin flag the
+                // Recommended Properties pencil uses. The API re-checks on every call.
+                onEditProperty={pricingEditorEnabled ? setMapEditorPlaceId : undefined}
+                refreshCatalogToken={mapEditorRefresh}
                 recommendedUrls={
                   // Same session client the map resolves its market from, NOT the
                   // CRM selection: the board (and therefore the map) is hidden
@@ -5336,6 +5345,24 @@ export default function DashboardClient({ leads, nextActions, favorites, recomme
             )}
           </div>
         </div>
+      )}
+
+      {/* MAP PROPERTY EDITOR — a right-side panel, rendered at the dashboard root so it is not
+          clipped by the map container and the map stays visible and usable behind it. It portals
+          to document.body itself; this only decides WHEN it exists and WHAT it points at.
+
+          onSaved bumps a nonce the explorer watches, which re-reads that one property's catalog
+          row — the card updates in place, with the pin still selected and the map where it was. */}
+      {mapEditorPlaceId && (
+        <MapPropertyEditor
+          placeId={mapEditorPlaceId}
+          open
+          onClose={() => setMapEditorPlaceId(null)}
+          onSaved={() => setMapEditorRefresh((prev) => ({
+            placeId: mapEditorPlaceId,
+            nonce: (prev?.nonce ?? 0) + 1,
+          }))}
+        />
       )}
     </div>
   )

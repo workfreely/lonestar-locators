@@ -143,7 +143,12 @@ const CSS = `
 @keyframes lbr-heart-pop{0%{transform:scale(1)}55%{transform:scale(1.30)}100%{transform:scale(1)}}
 .lbr-heart.is-popping{animation:lbr-heart-pop 300ms ease-out}
 @media (prefers-reduced-motion:reduce){.lbr-heart.is-popping{animation:none}}
-.lbr-pill{position:absolute;left:12px;bottom:12px;background:#e8f0fe;color:#1c3f75;font-size:12.5px;font-weight:600;padding:5px 11px;border:1px solid #8fb6ea;border-radius:8px;box-shadow:0 4px 10px rgba(14,37,69,.14)}
+.lbr-promo{position:absolute;left:12px;right:12px;bottom:12px;display:flex;flex-wrap:nowrap;align-items:center;gap:6px;min-width:0}
+.lbr-pill{display:inline-flex;align-items:center;gap:5px;min-width:0;background:#e8f0fe;color:#1c3f75;font-size:12.5px;font-weight:600;padding:5px 10px;border:1px solid #8fb6ea;border-radius:8px;box-shadow:0 4px 10px rgba(14,37,69,.14)}
+.lbr-pill svg{width:1em;height:1em;flex:none}
+.lbr-pill-label{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.lbr-pill-special{background:#e4f4ea;color:#16633a;border-color:#8fcaa6}
+.lbr-pill-gift{background:#e8f0fe;color:#1c3f75;border-color:#8fb6ea}
 .lbr-body{padding:16px 17px 17px;display:flex;flex-direction:column;flex:1}
 .lbr-pname{font-size:18px;font-weight:800;color:var(--navy);letter-spacing:-.01em;margin:0}
 /* Name is a link to the verified property website — inherits the heading style, underline on hover. */
