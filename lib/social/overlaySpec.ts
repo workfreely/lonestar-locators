@@ -828,6 +828,14 @@ function topAnchorPx(platform: string): number {
  *   headline  66px (its wider box, no rail refit)  → TikTok's fitted 57px
  *   feet      y1608 (its own caption zone y1548)   → TikTok's y1480
  *
+ * ── THE ANCHOR IS THE ONE THING EACH PLATFORM KEEPS ─────────────────────────────────────────
+ * Composition is shared; VERTICAL POSITION is not. Instagram sits higher than TikTok — 320 against
+ * TikTok's 380 — because the two interfaces crowd the frame differently, and each number was
+ * settled by reviewing a real post on a real phone, which is the only thing that settles it. So the
+ * anchor is read from the REQUESTED platform while everything else is read from the substituted
+ * one. A platform that is substituted but has no anchor of its own falls back to the composition
+ * platform's, so adding one to the map above can never silently leave it anchorless.
+ *
  * ── SCOPE ───────────────────────────────────────────────────────────────────────────────────
  * Market + Type only. instagram_story is deliberately NOT substituted: a Story's interface and crop
  * differ and no Story presenter has been reviewed, so one keeps today's geometry. A template or
@@ -835,6 +843,7 @@ function topAnchorPx(platform: string): number {
  */
 const PRESENTER_MODE_ANCHOR_PX: Record<string, number> = {
   tiktok: 380,
+  instagram: 320,
 }
 
 /** Platforms whose Presenter Mode composition is BORROWED from another platform, wholesale. The
@@ -861,7 +870,13 @@ const PRESENTER_MODE_TEMPLATES: ReadonlySet<string> = new Set(["market_type", "m
  *  not apply — in which case the caller keeps its existing anchor untouched. */
 export function presenterModeAnchorPx(template: string, platform: string): number | null {
   if (!PRESENTER_MODE_TEMPLATES.has(template)) return null
-  return PRESENTER_MODE_ANCHOR_PX[(platform ?? "").toLowerCase()] ?? null
+  const key = (platform ?? "").toLowerCase()
+  const own = PRESENTER_MODE_ANCHOR_PX[key]
+  if (typeof own === "number") return own
+  // Substituted but anchorless ⇒ take the composition platform's, so a platform can never borrow a
+  // composition and then be left with no anchor at all.
+  const borrowed = presenterCompositionPlatform(template, key)
+  return borrowed === key ? null : PRESENTER_MODE_ANCHOR_PX[borrowed] ?? null
 }
 
 /**
@@ -911,6 +926,9 @@ export function computeOverlayLayout(
   // attached, an enrolled platform is composed as the platform it borrows from, so the fitted font
   // sizes, margins and anchor are that platform's and not merely its anchor. Without a presenter,
   // or out of scope, this is the identity and nothing below can tell the difference.
+  // The anchor is the one value that stays the REQUESTED platform's — see the note on the anchor
+  // map. Everything below this line reads the substituted platform.
+  const requestedPlatform = platform
   if (hasPresenter) platform = presenterCompositionPlatform(template, platform)
 
   if (family === "hero") {
@@ -955,7 +973,7 @@ export function computeOverlayLayout(
     // PRESENTER MODE WINS OVER BOTH, when it applies: a centred lockup would sit on the figure,
     // and the ordinary top anchor is cut off by TikTok's grid crop. Null ⇒ it does not apply and
     // the anchor is exactly what it was.
-    const presenterAnchor = hasPresenter ? presenterModeAnchorPx(template, platform) : null
+    const presenterAnchor = hasPresenter ? presenterModeAnchorPx(template, requestedPlatform) : null
     const headTop = presenterAnchor ?? (centered ? (H - totalH) / 2 : topAnchorPx(platform))
     // Per-line tops for the compound two-line title: each line's top is the running sum of the
     // PRECEDING line sizes, so a smaller line 2 sits directly under line 1 with the same gap the

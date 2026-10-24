@@ -27,7 +27,8 @@ const lay = (t: OverlayTemplate, platform: string, presenter = false) =>
   computeOverlayLayout(t, buildTemplateHeadline(t, src), buildTemplateDetail(t, src), platform, presenter)
 // 380 after three reviewed SELF_ONLY tests on a real phone (480 → 440 → 380). The profile grid was
 // MEASURED at 3:4 (cells ~307x408, visible band y240-1680), not the 1:1 the first value assumed.
-const ANCHOR = 380
+const ANCHOR = 380        // TikTok, finalized
+const IG_ANCHOR = 320     // Instagram sits higher; everything else is TikTok's composition
 const MT = "market_type_centered" as OverlayTemplate
 const MT_TOP = "market_type" as OverlayTemplate
 
@@ -35,11 +36,13 @@ const MT_TOP = "market_type" as OverlayTemplate
 console.log("the anchor resolves only for TikTok × Market + Type:")
 ok(`market_type_centered on tiktok → ${ANCHOR}`, presenterModeAnchorPx("market_type_centered", "tiktok") === ANCHOR)
 ok(`market_type on tiktok → ${ANCHOR}`, presenterModeAnchorPx("market_type", "tiktok") === ANCHOR)
-// Instagram has NO anchor entry of its own — it borrows TikTok's whole composition instead, so the
-// anchor map still answers null for it while the LAYOUT lands on ANCHOR. Both are asserted.
-ok("Instagram has no anchor entry of its own", presenterModeAnchorPx("market_type_centered", "instagram") === null)
-ok(`…yet an Instagram presenter layout still lands at y${ANCHOR}, via the composition substitution`,
-  Math.round(lay("market_type_centered" as OverlayTemplate, "instagram", true).headline.topPx) === ANCHOR)
+// Instagram borrows TikTok's COMPOSITION but keeps its OWN anchor — the one value that is not
+// shared, because vertical position was settled per platform on a real phone.
+ok(`Instagram has its own anchor → ${IG_ANCHOR}`, presenterModeAnchorPx("market_type_centered", "instagram") === IG_ANCHOR)
+ok("…for the hidden top variant too", presenterModeAnchorPx("market_type", "instagram") === IG_ANCHOR)
+ok(`…and an Instagram presenter layout lands there (y${IG_ANCHOR}), not on TikTok's ${ANCHOR}`,
+  Math.round(lay("market_type_centered" as OverlayTemplate, "instagram", true).headline.topPx) === IG_ANCHOR)
+ok("the two anchors are genuinely different", IG_ANCHOR !== ANCHOR)
 ok("instagram_story is still NOT enrolled (different interface and crop, no reviewed test)",
   presenterModeAnchorPx("market_type_centered", "instagram_story") === null)
 for (const t of ["pov_price", "roomie", "special_feature", "what_mo_gets_you", "pov_regular_shmegular"]) {
@@ -152,30 +155,47 @@ console.log("\ngeometry — interface, grid crops, and the WORST-CASE 9:16 prese
   ok("no text line reaches the engagement rail", wide === 0)
 }
 
-// ── 5b. INSTAGRAM IS THE IDENTICAL TIKTOK COMPOSITION, NOT AN INSTAGRAM-DERIVED ONE ──────────
-// The requirement is not "Instagram at the same anchor" — it is the SAME COMPOSITION: same fitted
-// font sizes, same margins, same lockup, same presenter footing. Instagram's own safe area would
-// give a 66px headline (wider box, no rail refit) and feet at y1608; both are deliberately
-// overridden. So the assertions here are EQUALITY with TikTok, not clearances re-derived from
-// Instagram's numbers — a clearance test would pass just as happily on a different composition.
-console.log("\nInstagram composes a presenter post EXACTLY as the finalized TikTok one:")
+// ── 5b. INSTAGRAM = TIKTOK'S COMPOSITION, SHIFTED ────────────────────────────────────────────
+// Everything that makes the picture is TikTok's — fitted font sizes, margins, line breaking, gap,
+// treatment, and the figure's x / width / footing. The ONLY difference is the vertical offset, and
+// it is asserted as an exact rigid translation rather than "both are in range": a layout that
+// differed in some OTHER way would still satisfy a range check.
+console.log("\nInstagram is TikTok's composition shifted up, and nothing else:")
 {
   const ttL = lay(MT, "tiktok", true)
   const igL = lay(MT, "instagram", true)
-  ok("the two layouts are byte-identical", JSON.stringify(igL) === JSON.stringify(ttL))
+  const SHIFT = ANCHOR - IG_ANCHOR
+
+  ok(`the lockup sits ${SHIFT}px higher (y${Math.round(igL.headline.topPx)} vs y${Math.round(ttL.headline.topPx)})`,
+    Math.round(ttL.headline.topPx - igL.headline.topPx) === SHIFT)
+  ok(`…and the price line moves by exactly the same ${SHIFT}px`,
+    Math.round(ttL.detail!.topPx - igL.detail!.topPx) === SHIFT)
+  // RIGID TRANSLATION: shift Instagram's layout back down by SHIFT and it must equal TikTok's.
+  const shifted = JSON.parse(JSON.stringify(igL))
+  shifted.headline.topPx += SHIFT
+  shifted.detail.topPx += SHIFT
+  ok("shifting it back down reproduces TikTok's layout EXACTLY — nothing else differs",
+    JSON.stringify(shifted) === JSON.stringify(ttL))
+
   ok(`…same headline size (${igL.headline.fontPx}px, NOT Instagram's own 66px)`,
     igL.headline.fontPx === ttL.headline.fontPx && igL.headline.fontPx === 57)
-  ok(`…same price size (${igL.detail!.fontPx}px)`, igL.detail!.fontPx === ttL.detail!.fontPx)
-  ok(`…same anchor (y${Math.round(igL.headline.topPx)})`, Math.round(igL.headline.topPx) === ANCHOR)
+  ok(`…same price size (${igL.detail!.fontPx}px)`, igL.detail!.fontPx === ttL.detail!.fontPx && igL.detail!.fontPx === 52)
   ok(`…same ${Math.round(igL.detail!.topPx - (igL.headline.topPx + igL.headline.fontPx))}px headline→price gap`,
     Math.round(igL.detail!.topPx - (igL.headline.topPx + igL.headline.fontPx)) ===
     Math.round(ttL.detail!.topPx - (ttL.headline.topPx + ttL.headline.fontPx)))
   ok("…same side margins", igL.headline.sideMarginPx === ttL.headline.sideMarginPx && igL.detail!.sideMarginPx === ttL.detail!.sideMarginPx)
   ok("…same line breaking", JSON.stringify(igL.headline.lines) === JSON.stringify(ttL.headline.lines))
   ok("…and the same burned-in treatment", JSON.stringify(overlayTextFor(MT)) === JSON.stringify({ ...OVERLAY_TEXT }))
-  // What Instagram WOULD have produced, pinned so the override cannot silently stop happening.
   ok("Instagram's own geometry really would differ (the substitution is doing work)",
     lay(MT, "instagram", false).headline.fontPx === 66 && ttL.headline.fontPx === 57)
+
+  // y320 still has to clear the interface it is moving toward.
+  const igArea = safeAreaFor("instagram")
+  const header = igArea.zones.find((z) => z.kind === "header")!.rect
+  const igTop = Math.round(igL.headline.topPx), igBottom = Math.round(igL.detail!.topPx + igL.detail!.fontPx)
+  ok(`text y${igTop}–${igBottom} still clears Instagram's header (y${header.y + header.h}, ${igTop - (header.y + header.h)}px)`,
+    igTop >= header.y + header.h)
+  ok("…and stays inside the declared text box", igTop >= igArea.text.y && igBottom <= igArea.text.y + igArea.text.h)
 
   // The presenter's own placement goes through the SAME substitution, in the renderer.
   const sub = presenterCompositionPlatform(MT, "instagram")
@@ -184,19 +204,17 @@ console.log("\nInstagram composes a presenter post EXACTLY as the finalized TikT
     presenterBottomPx(sub) === 1480 && presenterBottomPx("instagram") === 1608)
   ok(`…at the same x${PRESENTER.xPx} and width ${PRESENTER.widthPx}`, PRESENTER.xPx === 110 && PRESENTER.widthPx === 400)
   ok("…with the same 4s intro and 0.6s fade", PRESENTER.defaultIntroSeconds === 4 && PRESENTER.fadeSeconds === 0.6)
-  // The renderer must apply it; a layout-only substitution would put the text and the figure on
-  // two different geometries, which is precisely the bug this shape of fix exists to prevent.
+  ok(`…and ${Math.round((presenterBottomPx(sub) - Math.round(PRESENTER.widthPx / (9 / 16))) - igBottom)}px of clearance to the tallest head`,
+    (presenterBottomPx(sub) - Math.round(PRESENTER.widthPx / (9 / 16))) - igBottom >= 40)
   const strip = (x: string) => x.replace(/\/\*[\s\S]*?\*\//g, "").replace(/\/\/[^\n]*/g, "")
-  const rv = strip(readFileSync("lib/social/renderVideo.ts", "utf8"))
   ok("the stripper works (a comment mentioning the call is not a call)",
     !strip("// platform: presenterCompositionPlatform(x)").includes("presenterCompositionPlatform"))
+  const rv = strip(readFileSync("lib/social/renderVideo.ts", "utf8"))
   ok("the renderer builds the presenter plan through the substitution",
     /buildPresenterPlan\(\{[\s\S]{0,400}?platform:\s*presenterCompositionPlatform\(/.test(rv))
   ok("…and there is exactly one call to it there", (rv.match(/presenterCompositionPlatform\(/g) ?? []).length === 1)
-
-  // Identical composition ⇒ identical draw plan ⇒ identical burned-in text, for the whole video.
-  ok("the draw plans match exactly", JSON.stringify(buildDrawPlan(igL)) === JSON.stringify(buildDrawPlan(ttL)))
   ok("both lines are drawn for the full duration (no time gating)", buildDrawPlan(igL).length === 2)
+  ok(`…at the Instagram anchor (y${Math.round(buildDrawPlan(igL)[0].topPx)})`, Math.round(buildDrawPlan(igL)[0].topPx) === IG_ANCHOR)
 }
 
 // ── 5c. WHAT MUST NOT MOVE ON INSTAGRAM ───────────────────────────────────────────────────────
@@ -216,6 +234,9 @@ console.log("\nInstagram WITHOUT a presenter, and Stories, are untouched:")
   ok("an out-of-scope template is never substituted",
     presenterCompositionPlatform("apartment_crush", "instagram") === "instagram")
   ok("TikTok itself is never substituted", presenterCompositionPlatform(MT, "tiktok") === "tiktok")
+  ok(`…and TikTok's finalized anchor is still ${ANCHOR}`,
+    Math.round(lay(MT, "tiktok", true).headline.topPx) === ANCHOR && presenterModeAnchorPx(MT, "tiktok") === ANCHOR)
+  ok("…including the hidden top variant", Math.round(lay(MT_TOP, "tiktok", true).headline.topPx) === ANCHOR)
 }
 
 // ── 6. STYLING AND THE RENDER PATH ────────────────────────────────────────────────────────────
