@@ -50,14 +50,19 @@ export async function generateMetadata({
   // crawlers get it without running client JS. The visual is the per-share
   // opengraph-image.tsx (Next wires og:image/twitter:image from it automatically),
   // family-consistent with the Smart Form preview.
-  // Kept short deliberately: this is the line iMessage prints UNDER the image, where it is
-  // truncated with an ellipsis rather than wrapped. "Jay Morris | Your Locator" is 25
-  // characters — shorter than the 31 this replaced, so it still survives the narrowest width.
+  // This is the line iMessage prints UNDER the image, where it is truncated with an ellipsis
+  // rather than wrapped, so its length is a real constraint:
+  //
+  //   "<name> | Your Locator"        the previous wording
+  //   "<name> | Realtor/Locator"     now — many locators are also licensed realtors
+  //
+  // "Your" was dropped to buy back characters for the longer role: a long display name is what
+  // actually pushes this line past the cut, and normal preview truncation handles the rest.
   //
   // ONLY THIS LINE CHANGES. The preview IMAGE still reads "<First>'s Custom List"
-  // (opengraph-image.tsx) — the personalised half. This is the duplicate text printed beneath
-  // it, so naming the locator here stops the two lines repeating the same words.
-  const genericTitle = "Your Locator"
+  // (opengraph-image.tsx). This is the duplicate text printed beneath it, so naming the locator
+  // here stops the two lines repeating the same words.
+  const genericTitle = "Realtor/Locator"
   const base = {
     metadataBase: new URL(CANONICAL_ORIGIN),
     title: genericTitle,
@@ -70,7 +75,12 @@ export async function generateMetadata({
     const supabase = await createClient()
     const { data } = await supabase.rpc("lb_resolve_client_recommendations", { p_token_hash: hashShareToken(token) })
     const share = (Array.isArray(data) ? data[0] : data) as { agent_name?: string | null } | undefined
-    agentName = share?.agent_name?.trim() || null
+    const resolved = share?.agent_name?.trim() || null
+    // The RPC's own last-resort name is the literal "Your Locator" — a placeholder, not a person.
+    // Letting it through would title the preview "Your Locator | Realtor/Locator", which says the
+    // same thing twice and names nobody. Treat it as absent so the title falls back to the role
+    // alone.
+    agentName = resolved && resolved.toLowerCase() !== "your locator" ? resolved : null
   } catch {
     /* preview metadata must never fail the page */
   }

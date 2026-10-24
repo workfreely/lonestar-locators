@@ -34,7 +34,48 @@ ok("lbr-recs-head still closes immediately after the count line",
 ok("Next Steps still follows it", page.indexOf("{countLine}") < page.indexOf("<h2>Next Steps</h2>"))
 
 console.log("\n3. THE PREVIEW TITLE — changed; the IMAGE deliberately is not:")
-ok('the title line is now "Your Locator"', /const genericTitle = "Your Locator"/.test(page))
+ok('the title line is "Realtor/Locator"', /const genericTitle = "Realtor\/Locator"/.test(page))
+ok('…with no "Your" prefix, which cost characters a long name needs',
+  !/genericTitle = "Your /.test(page))
+// THE PLACEHOLDER IS NOT A PERSON. The RPC's last-resort agent_name is the literal
+// "Your Locator"; letting it through would title the preview "Your Locator | Realtor/Locator",
+// which says the same thing twice and names nobody.
+ok("the RPC's placeholder name is treated as absent",
+  /resolved\.toLowerCase\(\) !== "your locator"/.test(page))
+ok("…so the fallback is the role ALONE", /: genericTitle$/m.test(page))
+// The AGENT'S OWN NAME, never a hard-coded one — the whole point is that every Locator Beast
+// user's share carries their branding.
+ok("…prefixed with the agent's resolved display name",
+  /const title = agentName \? `\$\{agentName\} \| \$\{genericTitle\}` : genericTitle/.test(page))
+ok("…read from the share RPC, not a constant",
+  /const resolved = share\?\.agent_name\?\.trim\(\) \|\| null/.test(page))
+// Comments stripped: the character-count note in that function uses a real name as an EXAMPLE,
+// and a raw scan reads the illustration as a hard-coded value.
+ok("…and no locator name is hard-coded in the metadata CODE",
+  !/Jay Morris/.test(
+    page.slice(page.indexOf("export async function generateMetadata"), page.indexOf("type Resolved"))
+      .replace(/\/\*[\s\S]*?\*\//g, "").replace(/^\s*\/\/.*$/gm, "")))
+// Proof the stripper is doing something: a phrase that exists ONLY in a comment must survive a
+// raw read and vanish from the stripped one. Without this, the assertion above could pass simply
+// because the stripper ate everything.
+{
+  const marker = "many locators are also licensed realtors"
+  const stripped = page.replace(/\/\*[\s\S]*?\*\//g, "").replace(/^\s*\/\/.*$/gm, "")
+  ok("…and the stripper works (a comment-only phrase is removed)",
+    page.includes(marker) && !stripped.includes(marker))
+}
+// It must reach BOTH the Open Graph and Twitter card, or only some apps show it.
+ok("the new title is used for Open Graph", /openGraph: \{ title,/.test(page))
+ok("…and the Twitter card", /twitter: \{ card: "summary_large_image" as const, title \}/.test(page))
+ok("…and the page title itself", /\.\.\.base,\s*title,/.test(page))
+// Everything else about the preview is untouched.
+{
+  const og = ogImage
+  ok("the OG image still renders the client's Custom List", /Custom List/.test(og))
+  ok("…and was not given the new wording", !/Realtor\/Locator/.test(og))
+  ok("the metadata still carries no description", !/description:/.test(page.slice(page.indexOf("const title = agentName"), page.indexOf("type Resolved"))))
+  ok("…and still never leaks client data into the title", !/client_first_name|clientFirst/.test(page.slice(page.indexOf("const title = agentName"), page.indexOf("type Resolved"))))
+}
 ok('"Your Custom List" is gone from the title', !/genericTitle = "Your Custom List"/.test(page))
 ok("the locator's name still prefixes it", /\$\{agentName\} \| \$\{genericTitle\}/.test(page))
 ok("og:title and twitter:title both follow the same value",
