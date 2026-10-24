@@ -5,6 +5,7 @@ import ReasonsControl from "./ReasonsControl"
 import PropertyPricingEditor from "./PropertyPricingEditor"
 import PropertyThumb from "./PropertyThumb"
 import PromoBadges from "./PromoBadges"
+import CommissionBadge from "./CommissionBadge"
 import { MAX_REASONS } from "@bc/companion-shared"
 import { displayReasons } from "@/lib/leads/bedroomPricing"
 import { placeIdFromPropertyUrl } from "@/lib/propertyExplorer/types"
@@ -363,15 +364,7 @@ export default function BestMatches({
                     }
                   />
                 ) : <span />}
-                {commission.state === "paying" ? (
-                  <span className="flex-none whitespace-nowrap rounded-lg border border-[#8ecaa6] bg-[#dff5e6] px-2.5 py-[3px] text-[11px] font-medium leading-none text-[#136c3a]">
-                    <span className="font-semibold">Commission:</span> {commission.text}
-                  </span>
-                ) : commission.state === "not_paying" ? (
-                  <span className="flex-none whitespace-nowrap rounded-lg border border-[#eaa9a5] bg-[#fdeaea] px-2.5 py-[3px] text-[11px] font-semibold leading-none text-[#b42318]">Not Paying Locators</span>
-                ) : (
-                  <span className="flex-none whitespace-nowrap rounded-lg border border-[#cbd4e0] bg-[#eef1f5] px-2.5 py-[3px] text-[11px] font-medium leading-none text-[#5a6b86]">Commission Not Verified</span>
-                )}
+                <CommissionBadge status={commission} size="row" className="flex-none" />
               </div>
             </div>
             </SortableRecommendation>

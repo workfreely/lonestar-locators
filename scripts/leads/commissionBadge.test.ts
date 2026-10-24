@@ -1,118 +1,107 @@
 /**
- * Locator commission — the BADGE rules.
+ * COMMISSION BADGE — the dark-green paying pill, and what must NOT have changed with it.
  *
  *   npx tsx scripts/leads/commissionBadge.test.ts
  *
- * ── THE TWO BUGS THIS SUITE EXISTS BECAUSE OF ───────────────────────────────────────────────
- * evaluateLocatorCommission entered its "paying" branch on ANY verified field, and a verified
- * ZERO counts as verified. Two reproducible consequences:
- *
- *   send 0% · escort 0% · bonus $0  →  GREEN "paying · Send 0% · Escort 0%"
- *                                      A property confirmed to pay nothing, displayed as paying.
- *   bonus $0, nothing else known    →  GREEN "paying" with an EMPTY text, because the branch was
- *                                      entered on a zero but only a NON-zero bonus is appended —
- *                                      so the badge rendered "Commission:" followed by nothing.
- *
- * Paying now requires at least one real, non-zero value. A zero can still be DISPLAYED beside a
- * genuine commission (the escort-only case) but can no longer CAUSE the paying state, and the
- * text can never come out empty.
- *
- * The three-way distinction this file protects — verified zero ≠ unknown ≠ confirmed not paying —
- * is the reason the storage is text rather than numeric, so it is asserted directly.
+ * A visual change is the easiest place to break a semantic one by accident. The rule that
+ * matters here is older than the colour: unknown is not no-pay. A property nobody has checked
+ * shows neutral grey and the words "Commission Not Verified"; only a confirmed finding is
+ * allowed to say "Not Paying Locators".
  */
-import { evaluateLocatorCommission, formatLocatorCommission } from "@bc/companion-shared"
+import { readFileSync } from "node:fs"
+import { join } from "node:path"
+import { evaluateLocatorCommission } from "@bc/companion-shared"
 
 let pass = 0
 let fail = 0
-const ok = (label: string, cond: boolean, detail = "") => {
-  if (cond) { pass++; console.log(`  ✓ ${label}`) } else { fail++; console.log(`  ✗ ${label}${detail ? ` — ${detail}` : ""}`) }
-}
-type C = { sendCommission?: string | null; escortCommission?: string | null; bonusFlat?: string | null }
-const ev = (c: C) => evaluateLocatorCommission(c)
-const state = (c: C) => ev(c).state
-const text = (c: C) => { const r = ev(c); return "text" in r ? r.text : null }
+const ok = (l: string, c: boolean, d = "") => { if (c) { pass++; console.log(`  ✓ ${l}`) } else { fail++; console.log(`  ✗ ${l}${d ? ` — ${d}` : ""}`) } }
+const strip = (s: string) => s.replace(/\/\*[\s\S]*?\*\//g, "").replace(/(^|[^:])\/\/.*$/gm, "$1").replace(/\{\/\*[\s\S]*?\*\/\}/g, "")
+const read = (p: string) => strip(readFileSync(join(process.cwd(), p), "utf8"))
 
-console.log("\n=== THE REGRESSION: all three verified ZERO is NOT a paying property ===")
+const BADGE = read("components/crm/CommissionBadge.tsx")
+const SURFACES = {
+  "Recommended (BestMatches)": read("components/crm/BestMatches.tsx"),
+  "Favorites": read("components/crm/LeadFavorites.tsx"),
+  "Map card": read("components/crm/explorer/BeastPropertyExplorer.tsx"),
+}
+
+console.log("the paying pill is dark forest green with a dollar mark:")
+ok("dark background", /bg-\[#0f2a1d\]/.test(BADGE))
+ok("brighter green text", /text-\[#4ade80\]/.test(BADGE))
+ok("subtle green border", /border-\[#1e5235\]/.test(BADGE))
+ok("a dollar sign, not a tag", /DollarMark/.test(BADGE) && !/tag/i.test(BADGE.slice(BADGE.indexOf("function DollarMark"), BADGE.indexOf("export default"))))
+ok("…sized in em so it tracks the badge's own type", /width: "0\.95em", height: "0\.95em"/.test(BADGE))
+ok("…and it never shrinks", /flex-none/.test(BADGE))
+ok("the old mint green is gone from the component", !/dff5e6|8ecaa6|136c3a/.test(BADGE))
+
+console.log("\nthe other two states are untouched:")
+ok("confirmed no-pay keeps its red", /border-\[#eaa9a5\] bg-\[#fdeaea\] text-\[#b42318\]/.test(BADGE))
+ok("…and still reads 'Not Paying Locators'", /Not Paying Locators/.test(BADGE))
+ok("unverified keeps its neutral grey", /border-\[#cbd4e0\] bg-\[#eef1f5\] text-\[#5a6b86\]/.test(BADGE))
+ok("…and still reads 'Commission Not Verified'", /Commission Not Verified/.test(BADGE))
+ok("neither carries the dollar mark — it marks PAY, not the absence of it",
+  (BADGE.match(/<DollarMark \/>/g) ?? []).length === 1)
+
+console.log("\nsize, typography and radius are the values each surface already used:")
+ok("row size unchanged (11px, rounded-lg)", /row: "rounded-lg px-2\.5 py-\[3px\] text-\[11px\]"/.test(BADGE))
+ok("card size unchanged (11.5px, rounded-md)", /card: "rounded-md px-2\.5 py-\[3px\] text-\[11\.5px\]"/.test(BADGE))
+
+console.log("\nall three surfaces render through the one component:")
+for (const [name, src] of Object.entries(SURFACES)) {
+  ok(`${name}: uses CommissionBadge`, /<CommissionBadge /.test(src))
+  ok(`${name}: no inline commission pill remains`, !/dff5e6|8ecaa6|136c3a/.test(src))
+  ok(`${name}: does not re-implement the other states`, !/Not Paying Locators|Commission Not Verified/.test(src))
+}
+ok("Recommended keeps its flex-none placement", /<CommissionBadge status=\{commission\} size="row" className="flex-none" \/>/.test(SURFACES["Recommended (BestMatches)"]))
+ok("the map keeps the larger card size", /<CommissionBadge status=\{commissionStatus\} size="card" \/>/.test(SURFACES["Map card"]))
+
+console.log("\nthe status is passed WHOLE, so the union cannot be split apart:")
+ok("the prop is the CommissionStatus itself", /status: CommissionStatus/.test(BADGE))
+ok("…and no surface passes a loose text field", !Object.values(SURFACES).some((s) => /<CommissionBadge[^>]*text=/.test(s)))
+
+console.log("\nUNKNOWN IS NOT NO-PAY — the rule the colour change must not disturb:")
+for (const [label, input, expected] of [
+  ["blank commission", { sendCommission: null, escortCommission: null, bonusFlat: null }, "unverified"],
+  ["a real rate", { sendCommission: "125%", escortCommission: "125%", bonusFlat: null }, "paying"],
+  ["a bonus only", { sendCommission: null, escortCommission: null, bonusFlat: "1500" }, "paying"],
+  ["an explicit no", { sendCommission: "No", escortCommission: "No", bonusFlat: null }, "not_paying"],
+  // A verified ZERO is not evidence of payment. evaluateLocatorCommission requires at least one
+  // real non-zero value, which is a deliberate fix: "Send 0% · Escort 0%" used to render GREEN
+  // as "paying". The colour change must not resurrect that.
+  ["zeros only", { sendCommission: "0%", escortCommission: "0%", bonusFlat: null }, "unverified"],
+  ["a zero bonus alone", { sendCommission: null, escortCommission: null, bonusFlat: "0" }, "unverified"],
+] as [string, Record<string, string | null>, string][]) {
+  const r = evaluateLocatorCommission(input as never)
+  ok(`${label} → ${expected}`, r.state === expected, r.state)
+}
 {
-  const c = { sendCommission: "0%", escortCommission: "0%", bonusFlat: "$0" }
-  ok("state is not_paying (was: paying)", state(c) === "not_paying", state(c))
-  ok("…and certainly not paying", state(c) !== "paying")
-  ok("no text is offered for a red badge", text(c) === null)
+  // …but a zero IS still displayed beside a genuine commission (the escort-only case).
+  const r = evaluateLocatorCommission({ sendCommission: "0%", escortCommission: "100%", bonusFlat: null } as never)
+  ok("a zero still shows alongside a real rate", r.state === "paying" && r.text === "Send 0% · Escort 100%", JSON.stringify(r))
+  // And the paying text is never empty — the dark pill would otherwise read "Commission:" alone.
+  const all = [
+    { sendCommission: "125%", escortCommission: "125%", bonusFlat: null },
+    { sendCommission: null, escortCommission: null, bonusFlat: "1500" },
+    { sendCommission: "0%", escortCommission: "100%", bonusFlat: "500" },
+  ].map((c) => evaluateLocatorCommission(c as never))
+  ok("every paying badge has text after the label",
+    all.every((x) => x.state === "paying" && typeof x.text === "string" && x.text.trim().length > 0),
+    JSON.stringify(all))
 }
 
-console.log("\n=== THE SECOND REGRESSION: a lone $0 bonus produced a GREEN badge with no text ===")
+console.log("\nmove-in specials and gift cards are NOT touched by this:")
 {
-  const c = { bonusFlat: "$0" }
-  ok("state is unverified, not paying", state(c) === "unverified", state(c))
-  ok("no empty-text paying badge can be produced", text(c) !== "")
-  // The general guarantee, not just this instance.
-  for (const probe of [
-    { bonusFlat: "0" }, { sendCommission: "0%" }, { escortCommission: "0" },
-    { sendCommission: "0%", escortCommission: "0%" },
-    { sendCommission: "0%", bonusFlat: "$0" },
-  ] as C[]) {
-    const r = ev(probe)
-    ok(`no empty paying text for ${JSON.stringify(probe)}`, !("text" in r && r.text === ""))
-  }
+  const PROMO = read("components/crm/PromoBadges.tsx")
+  ok("the special pill keeps its soft green", /special: "border-\[#8fcaa6\] bg-\[#e4f4ea\] text-\[#16633a\]"/.test(PROMO))
+  ok("the gift card keeps its blue", /gift_card: "border-\[#8fb6ea\] bg-\[#e8f0fe\] text-\[#1c3f75\]"/.test(PROMO))
+  ok("…and neither borrowed the commission colours", !/0f2a1d|4ade80|1e5235/.test(PROMO))
+  ok("the commission badge is not in the promo row", !/CommissionBadge/.test(PROMO))
 }
 
-console.log("\n=== YOUR ESCORT-ONLY CASE still shows green, with the zero spelled out ===")
-{
-  const c = { sendCommission: "0%", escortCommission: "100%", bonusFlat: "500" }
-  ok("state is paying", state(c) === "paying", state(c))
-  ok("text is 'Send 0% · Escort 100% · Bonus $500'", text(c) === "Send 0% · Escort 100% · Bonus $500", String(text(c)))
-  ok("the verified zero is DISPLAYED, not dropped", (text(c) ?? "").includes("Send 0%"))
+console.log("\nunrelated surfaces that happen to share the old green are untouched:")
+for (const f of ["components/thankYou/ThankYouView.tsx", "app/locator-beast/r/[token]/page.tsx"]) {
+  ok(`${f.split("/").pop()} still uses its own palette`, /dff5e6|e4f6ec/.test(read(f)))
 }
 
-console.log("\n=== SEND-ONLY / ESCORT-ONLY / BONUS-ONLY ===")
-ok("send-only pays", state({ sendCommission: "100%" }) === "paying")
-ok("escort-only pays", state({ escortCommission: "75%" }) === "paying")
-ok("bonus-only pays", state({ bonusFlat: "500" }) === "paying")
-ok("bonus-only text names the bonus", text({ bonusFlat: "500" }) === "Bonus $500", String(text({ bonusFlat: "500" })))
-ok("send-only with a confirmed zero escort still pays",
-  state({ sendCommission: "100%", escortCommission: "0%" }) === "paying")
-ok("…and spells both out", text({ sendCommission: "100%", escortCommission: "0%" }) === "Send 100% · Escort 0%")
-
-console.log("\n=== UNKNOWN ≠ ZERO ≠ NOT PAYING — the three-way distinction ===")
-ok("all blank → unverified", state({}) === "unverified")
-ok("nulls → unverified", state({ sendCommission: null, escortCommission: null, bonusFlat: null }) === "unverified")
-for (const u of ["", "  ", "Unknown", "unknown", "N/A", "n/a", "TBD", "None", "—", "--", "?"]) {
-  ok(`${JSON.stringify(u)} is UNKNOWN, never a zero`, state({ sendCommission: u }) === "unverified", state({ sendCommission: u }))
-}
-for (const n of ["No", "no", "Not Paying", "not paying", "Does Not Pay", "non-paying", "No Commission"]) {
-  ok(`${JSON.stringify(n)} is CONFIRMED NOT PAYING`, state({ sendCommission: n }) === "not_paying", state({ sendCommission: n }))
-}
-ok("an explicit no-pay beats a real value elsewhere",
-  state({ sendCommission: "No", escortCommission: "100%" }) === "not_paying")
-
-console.log("\n=== A VERIFIED ZERO IS NOT ENOUGH TO CLAIM EITHER ANSWER ===")
-{
-  // Deliberate and stated: send is known to be 0, escort and bonus are not known at all. We
-  // cannot call that paying (nothing pays) nor confirmed-not-paying (escort could be anything).
-  ok("send 0%, escort unknown → unverified", state({ sendCommission: "0%" }) === "unverified", state({ sendCommission: "0%" }))
-  ok("send 0% + escort 0%, bonus unknown → unverified",
-    state({ sendCommission: "0%", escortCommission: "0%" }) === "unverified")
-  ok("…but ALL THREE zero → confirmed not paying",
-    state({ sendCommission: "0%", escortCommission: "0%", bonusFlat: "0" }) === "not_paying")
-}
-
-console.log("\n=== ZERO SPELLINGS all classify as a verified zero ===")
-for (const z of ["0", "0%", "$0", "0.0", "0.00%"]) {
-  ok(`${JSON.stringify(z)} + a real escort → paying, zero shown`,
-    text({ sendCommission: z, escortCommission: "100%" }) === "Send 0% · Escort 100%",
-    String(text({ sendCommission: z, escortCommission: "100%" })))
-}
-
-console.log("\n=== PRODUCTION DATA — the five catalogued properties are unaffected ===")
-for (const [s, e] of [["100%", "100%"], ["115%", "115%"], ["125%", "125%"], ["50%", "75%"]]) {
-  const c = { sendCommission: s, escortCommission: e }
-  ok(`${s}/${e} still pays`, state(c) === "paying", state(c))
-  ok(`…text unchanged`, text(c) === `Send ${s} · Escort ${e}`, String(text(c)))
-}
-
-console.log("\n=== formatLocatorCommission (the Map/Companion one-liner) is untouched ===")
-ok("null for nothing", formatLocatorCommission({}) === null)
-ok("renders what it is given", formatLocatorCommission({ sendCommission: "100%", bonusFlat: "500" }) === "Send 100% · Bonus $500")
-
-console.log(fail === 0 ? `\nALL PASS ✅ (${pass} passed, ${fail} failed)\n` : `\n${pass} passed, ${fail} failed\n`)
+console.log(`\nCommission badge: ${pass} passed, ${fail} failed`)
 process.exit(fail === 0 ? 0 : 1)

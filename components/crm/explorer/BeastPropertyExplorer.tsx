@@ -5,6 +5,7 @@ import { loadGoogleMaps, MapsConfigError } from "@/lib/propertyExplorer/loadMaps
 import { hasCoordinates, placeUrl, displayAddress, propertyWebsiteHref, type ExplorerProperty } from "@/lib/propertyExplorer/types"
 import PropertyThumb from "@/components/crm/PropertyThumb"
 import PromoBadges from "@/components/crm/PromoBadges"
+import CommissionBadge from "@/components/crm/CommissionBadge"
 import { assessLocationFit, type ClientLocationContext } from "@/lib/propertyExplorer/locationFit"
 import { isCommuteMode } from "@/lib/propertyExplorer/commuteMode"
 import { computeSuggestions } from "@/lib/propertyExplorer/suggestions"
@@ -1634,22 +1635,9 @@ export default function BeastPropertyExplorer({ serviceAreaSlugs, activeClient, 
               this NEVER appears on the client /r recommendation page. */}
           {commissionStatus && (
             <p className="mt-2">
-              {commissionStatus.state === "paying" ? (
-                // Verified paying → light-green money pill (same family as the blue special).
-                <span className="inline-block rounded-md border border-[#8ecaa6] bg-[#dff5e6] px-2.5 py-[3px] text-[11.5px] font-medium leading-none text-[#136c3a]">
-                  <span className="font-semibold">Commission:</span> {commissionStatus.text}
-                </span>
-              ) : commissionStatus.state === "not_paying" ? (
-                // Explicitly verified not paying → red pill.
-                <span className="inline-block rounded-md border border-[#eaa9a5] bg-[#fdeaea] px-2.5 py-[3px] text-[11.5px] font-semibold leading-none text-[#b42318]">
-                  Not Paying Locators
-                </span>
-              ) : (
-                // Blank / Unknown → neutral pill (Unknown ≠ No; never assume no-pay).
-                <span className="inline-block rounded-md border border-[#cbd4e0] bg-[#eef1f5] px-2.5 py-[3px] text-[11.5px] font-medium leading-none text-[#5a6b86]">
-                  Commission Not Verified
-                </span>
-              )}
+              {/* Three states, one shared component — dark green when paying, red for a
+                  confirmed no-pay, neutral grey when nobody has checked. Unknown ≠ No. */}
+              <CommissionBadge status={commissionStatus} size="card" />
             </p>
           )}
           {/* Match Score — the REAL client-fit percentage only (card.matchScore),

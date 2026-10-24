@@ -15,6 +15,7 @@ import { isClientFavorite } from "@/lib/leads/favoriteOrigin"
 import { HiOutlineEnvelope, HiOutlineCalendarDays, HiCheck, HiOutlineDocumentText, HiOutlineClipboardDocumentCheck } from "react-icons/hi2"
 import { favoriteSecondaryAction } from "@/lib/leads/favoriteActions"
 import PromoBadges from "@/components/crm/PromoBadges"
+import CommissionBadge from "@/components/crm/CommissionBadge"
 import { propertyWebsiteHref } from "@/lib/propertyExplorer/types"
 import { displayAddress, formatRating, evaluateLocatorCommission, resolvePromoBadges } from "@bc/companion-shared"
 import { StarRating } from "./StarRating"
@@ -538,14 +539,8 @@ export default function LeadFavorites({
               const favMatchScore = typeof (fav as { match_score?: unknown }).match_score === "number" ? (fav as { match_score: number }).match_score : null
               const favShowMatch = favMatchScore !== null && Number.isFinite(favMatchScore) && favMatchScore > 0
               // Commission pill (shared across the operational row + fallback).
-              const favCommissionPill = favCommission.state === "paying" ? (
-                <span className="rounded-lg border border-[#8ecaa6] bg-[#dff5e6] px-2.5 py-[3px] text-[11px] font-medium leading-none text-[#136c3a]">
-                  <span className="font-semibold">Commission:</span> {favCommission.text}
-                </span>
-              ) : favCommission.state === "not_paying" ? (
-                <span className="rounded-lg border border-[#eaa9a5] bg-[#fdeaea] px-2.5 py-[3px] text-[11px] font-semibold leading-none text-[#b42318]">Not Paying Locators</span>
-              ) : (
-                <span className="rounded-lg border border-[#cbd4e0] bg-[#eef1f5] px-2.5 py-[3px] text-[11px] font-medium leading-none text-[#5a6b86]">Commission Not Verified</span>
+              const favCommissionPill = (
+                <CommissionBadge status={favCommission} size="row" />
               )
               // Top-right controls (✕ back to Recommendations / Edit Property) — placed on
               // the property-name row, matching Recommended's controls placement.
