@@ -783,19 +783,28 @@ function topAnchorPx(platform: string): number {
  * is visible, because text that jumps position when the avatar fades reads as a glitch.
  *
  * ── WHY A SEPARATE ANCHOR AND NOT THE EXISTING TOP ONE (y300 on TikTok) ─────────────────────
- * y300 is cut off by TikTok's profile-grid crop. Sources disagree on that crop — some report a
- * centred 1:1 (visible y420–1500), others ~3:4 (y240–1680) — so y480 is set against the STRICTER
- * reading and is safe under either. At y300 the headline sits 120px above the 1:1 crop and simply
- * is not in the thumbnail.
+ * y300 is cut off by TikTok's profile-grid crop and simply is not in the thumbnail.
  *
- * y480 was chosen from a measured envelope, not picked:
+ * ── THE CROP IS 3:4, MEASURED FROM A REAL PROFILE ───────────────────────────────────────────
+ * This was first set to 480 against published guidance that disagreed with itself — some sources
+ * report a centred 1:1 (visible y420-1500), others ~3:4 (y240-1680) — so the stricter reading was
+ * used. A screenshot of the ACTUAL profile grid then showed cells of roughly 307x408, a ratio of
+ * 0.75: it is 3:4, and the visible band is y240-1680. The 1:1 reading was wrong, and designing
+ * against it cost 40px of composition for a constraint that does not exist.
  *
- *   >= 420   the 1:1 grid crop            (binding)
+ * That is why this is 440 rather than 480. Under the assumed 1:1 crop, 440 left only 20px of
+ * headroom and was refused on that basis; under the real 3:4 crop it leaves 200px.
+ *
+ * The envelope, against the MEASURED crop:
+ *
+ *   >= 240   the 3:4 grid crop
  *   >= 160   TikTok's header / safe floor
  *   <= 598   40px clear of a 9:16 presenter's head at y769 (the tallest case)
  *   <= 700   above the expanded caption at y831
  *
- * 480 leaves 60px of grid padding and 158px above the tallest presenter.
+ * 440 leaves 200px of grid padding and 198px above the tallest presenter. A published private post
+ * also showed the headline AND the avatar staying visible with the caption EXPANDED, so the y831
+ * bound is conservative rather than binding.
  *
  * ── SCOPE ───────────────────────────────────────────────────────────────────────────────────
  * TikTok only, Market + Type only, by explicit instruction: this is a reviewed test, not a
@@ -804,7 +813,7 @@ function topAnchorPx(platform: string): number {
  * platform absent from either map resolves exactly as it does now.
  */
 const PRESENTER_MODE_ANCHOR_PX: Record<string, number> = {
-  tiktok: 480,
+  tiktok: 440,
 }
 
 /** The templates Presenter Mode governs. Market + Type only for now — both the visible centred one

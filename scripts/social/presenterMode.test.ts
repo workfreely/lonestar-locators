@@ -25,7 +25,9 @@ function ok(name: string, cond: boolean, detail = "") {
 const src = { market: "Dallas", propertyType: "Apartment", budgetRange: "1450", priceLabelMode: "starting_at", special: "8 Weeks Free", socialSpecial: null, amenities: "Pool" } as never
 const lay = (t: OverlayTemplate, platform: string, presenter = false) =>
   computeOverlayLayout(t, buildTemplateHeadline(t, src), buildTemplateDetail(t, src), platform, presenter)
-const ANCHOR = 480
+// 440 since the real profile grid was measured at 3:4 (cells ~307x408, visible band y240-1680).
+// It was 480 while the crop was assumed to be a stricter 1:1.
+const ANCHOR = 440
 const MT = "market_type_centered" as OverlayTemplate
 const MT_TOP = "market_type" as OverlayTemplate
 
@@ -123,10 +125,15 @@ console.log("\ngeometry — interface, grid crops, and the WORST-CASE 9:16 prese
   ok(`…and the 9:16 presenter's head (y${pTop916}, gap ${pTop916 - bottom}px)`, pTop916 - bottom >= 40, `${pTop916 - bottom}px`)
   ok(`the presenter itself clears the rail (reaches x${PRESENTER.xPx + PRESENTER.widthPx}, rail x${rail.x})`,
     PRESENTER.xPx + PRESENTER.widthPx <= rail.x)
-  for (const [name, gTop, gBottom] of [["1:1", 420, 1500], ["3:4", 240, 1680]] as const) {
-    ok(`${name} grid crop: text fully visible with ${top - gTop}px padding`, top >= gTop && bottom <= gBottom)
+  // 3:4 is the MEASURED crop (a real profile screenshot: cells ~307x408 → 0.75). 1:1 is kept as the
+  // conservative case, because the published guidance that claimed it has not been retracted — if a
+  // future TikTok build does crop square, this still says whether the lockup survives it.
+  for (const [name, gTop, gBottom, measured] of [["3:4", 240, 1680, true], ["1:1", 420, 1500, false]] as const) {
+    ok(`${name} grid crop${measured ? " (measured)" : " (conservative)"}: text fully visible, ${top - gTop}px padding`,
+      top >= gTop && bottom <= gBottom)
     ok(`${name} grid crop: the 9:16 presenter's head is visible`, pTop916 >= gTop)
   }
+  ok("the measured 3:4 crop leaves generous headroom (>=150px)", top - 240 >= 150, `${top - 240}px`)
   // Horizontal: every line's INK, since both renderers centre on the canvas.
   let wide = 0
   for (const b of [L.headline, L.detail!]) b.lines.forEach((line, i) => {
