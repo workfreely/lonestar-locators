@@ -3,7 +3,7 @@ export const runtime = "nodejs"
 import { NextResponse, type NextRequest } from "next/server"
 import { requirePlatformAdmin } from "@/lib/auth/requirePlatformAdmin"
 import { supabaseAdmin } from "@/lib/supabase/admin"
-import { buildTikTokCaptionPayload } from "@/lib/social/composePost"
+import { buildTikTokCaptionPayload, isOverlayTemplate } from "@/lib/social/composePost"
 import { getValidTikTokAccessToken } from "@/lib/social/tiktokServer"
 import {
   fetchTikTokCreatorInfo,
@@ -65,7 +65,7 @@ export async function POST(req: NextRequest) {
   // Reuse an existing, currently-rendered Social Beast post's video + caption (RLS owner-scoped).
   const { data: post } = await supabase
     .from("social_posts")
-    .select("id, destination, platform, render_status, rendered_storage_path, caption, hashtags, social_special, source_content_id, source:source_content_id(market, property_type, special, budget_range, amenities)")
+    .select("id, destination, platform, render_status, rendered_storage_path, caption, hashtags, social_special, source_content_id, overlay_template, source:source_content_id(market, property_type, special, budget_range, amenities)")
     .eq("id", body.postId)
     .maybeSingle()
   if (!post) return NextResponse.json({ error: "not_found" }, { status: 404 })
@@ -73,6 +73,7 @@ export async function POST(req: NextRequest) {
     id: string; destination: string | null; platform: string | null
     render_status: string; rendered_storage_path: string | null
     caption: string | null; hashtags: string[] | null; social_special: string | null; source_content_id: string | null
+    overlay_template: string | null
     source: { market: string | null; property_type: string | null; special: string | null; budget_range: string | null; amenities: string | null } | { market: string | null; property_type: string | null; special: string | null; budget_range: string | null; amenities: string | null }[] | null
   }
   if (p.render_status !== "ready" || !p.rendered_storage_path) {
@@ -125,6 +126,7 @@ export async function POST(req: NextRequest) {
       caption: p.caption,
       socialSpecial: p.social_special,
       sourceContentId: p.source_content_id,
+      overlayTemplate: isOverlayTemplate(p.overlay_template) ? p.overlay_template : null,
       source: Array.isArray(p.source) ? p.source[0] : p.source,
     })
     const title = truncateToRunes(fullCaption, TIKTOK_TITLE_MAX)

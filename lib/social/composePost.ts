@@ -1606,6 +1606,13 @@ export function buildTikTokCaptionPayload(input: {
   caption: string | null | undefined
   socialSpecial: string | null | undefined
   sourceContentId: string | null | undefined
+  /** The post's saved overlay template — threaded for the SAME reason Instagram's payload threads
+   *  it: buildCaption picks the OPENER from the template, so omitting it sends a generator-owned
+   *  caption out under a seed-rotated legacy hook instead of the one the draft was approved with.
+   *  Instagram was fixed for this; TikTok was still passing nothing, so a template-drafted TikTok
+   *  post with a generated caption had its first line changed at publish time. A MANUAL caption is
+   *  unaffected either way — publishCaption returns it verbatim. */
+  overlayTemplate?: OverlayTemplate | null
   source: { market: string | null; property_type: string | null; special: string | null; budget_range: string | null; amenities: string | null } | null | undefined
 }): string {
   const s = input.source ?? null
@@ -1617,7 +1624,7 @@ export function buildTikTokCaptionPayload(input: {
     budgetRange: s?.budget_range ?? null,
     amenities: s?.amenities ?? null,
   }
-  const body = publishCaption(input.caption, meta, input.sourceContentId ?? undefined)
+  const body = publishCaption(input.caption, meta, input.sourceContentId ?? undefined, input.overlayTemplate ?? null)
   // TikTok hashtags computed independently from Instagram's, limited to 5.
   const tags = buildHashtags(meta.market, TIKTOK_MAX_HASHTAGS, meta.propertyType)
   // LAST STEP, TikTok only: make the blank lines survive TikTok's rendering. Applied after the
