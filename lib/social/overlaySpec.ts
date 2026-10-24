@@ -812,27 +812,45 @@ function topAnchorPx(platform: string): number {
  * future TikTok build ever crops square, this lockup's first line would be the part it loses. That
  * trade was made knowingly in favour of the composition against the crop that actually exists.
  *
- * ── INSTAGRAM ───────────────────────────────────────────────────────────────────────────────
- * Instagram is enrolled at the SAME 380 after TikTok settled there, rather than the 387 approved
- * earlier — one number is easier to reason about than two 7px apart, and 380 verifies clean against
- * Instagram's own interface, which is roomier than TikTok's in every direction that matters here:
+ * ── INSTAGRAM BORROWS TIKTOK'S COMPOSITION WHOLESALE ────────────────────────────────────────
+ * Instagram does NOT get its own anchor, and does not re-derive anything from its own safe area.
+ * By explicit instruction, a presenter post on Instagram is composed EXACTLY as the reviewed and
+ * finalized TikTok one: same anchor, same fitted font sizes, same margins, same presenter x, width
+ * and footing. The whole point is to judge the identical composition on Instagram first, so an
+ * independently-calculated layout — however well justified against estimated safe areas — is the
+ * wrong answer here. Those estimates already misled this work once.
  *
- *   header ends y150  (TikTok 160)      → 230px of clearance
- *   caption begins y1548 (TikTok 1420)  → the lockup is nowhere near it
- *   rail starts x978  (TikTok 930)      → the headline keeps its full 66px, no refit
- *   9:16 presenter head y897            → 377px of clearance (TikTok 258px)
+ * It is implemented as a PLATFORM SUBSTITUTION rather than a second set of numbers: when Presenter
+ * Mode applies, Instagram resolves to TikTok's platform geometry before ANY of it is computed, so
+ * there is exactly one composition and no way for the two to drift. What Instagram would have
+ * produced on its own, and which this deliberately overrides:
  *
- * It is needed MORE on Instagram than on TikTok, not less: without it the centred lockup sits at
- * y890-1030 and a 9:16 presenter's head reaches y897, so the figure comes up THROUGH the text.
+ *   headline  66px (its wider box, no rail refit)  → TikTok's fitted 57px
+ *   feet      y1608 (its own caption zone y1548)   → TikTok's y1480
  *
  * ── SCOPE ───────────────────────────────────────────────────────────────────────────────────
- * Market + Type only, on the two feed surfaces. instagram_story is deliberately NOT listed: a
- * Story's interface and crop are different and no Story presenter test has been reviewed, so one
- * keeps today's geometry. A template or platform absent from either map resolves as it does now.
+ * Market + Type only. instagram_story is deliberately NOT substituted: a Story's interface and crop
+ * differ and no Story presenter has been reviewed, so one keeps today's geometry. A template or
+ * platform absent from either map resolves exactly as it does now.
  */
 const PRESENTER_MODE_ANCHOR_PX: Record<string, number> = {
   tiktok: 380,
-  instagram: 380,
+}
+
+/** Platforms whose Presenter Mode composition is BORROWED from another platform, wholesale. The
+ *  value is the platform whose geometry is used for everything: safe area, margins, headline
+ *  fitting, anchor, and the presenter's own x / width / footing. */
+const PRESENTER_MODE_COMPOSITION_PLATFORM: Record<string, string> = {
+  instagram: "tiktok",
+}
+
+/** The platform whose geometry composes this template's Presenter Mode layout. Identity for
+ *  everything out of scope, so a non-presenter render and every other template are untouched.
+ *  Used by BOTH the layout and the renderer's presenter plan — one substitution, one composition. */
+export function presenterCompositionPlatform(template: string, platform: string): string {
+  if (!PRESENTER_MODE_TEMPLATES.has(template)) return platform
+  const key = (platform ?? "").toLowerCase()
+  return PRESENTER_MODE_COMPOSITION_PLATFORM[key] ?? platform
 }
 
 /** The templates Presenter Mode governs. Market + Type only for now — both the visible centred one
@@ -889,6 +907,11 @@ export function computeOverlayLayout(
   const family = templateFamily(template)
   const H = OVERLAY_CANVAS.h
   const detail = (detailText ?? "").trim()
+  // PRESENTER MODE COMPOSITION SUBSTITUTION — before any geometry is read. With a presenter
+  // attached, an enrolled platform is composed as the platform it borrows from, so the fitted font
+  // sizes, margins and anchor are that platform's and not merely its anchor. Without a presenter,
+  // or out of scope, this is the identity and nothing below can tell the difference.
+  if (hasPresenter) platform = presenterCompositionPlatform(template, platform)
 
   if (family === "hero") {
     const margins = heroMargins(platform)

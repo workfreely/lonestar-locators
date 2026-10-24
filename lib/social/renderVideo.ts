@@ -8,7 +8,7 @@ import { execFile } from "node:child_process"
 import { promises as fs } from "node:fs"
 import path from "node:path"
 import os from "node:os"
-import { OVERLAY_TEXT, computeOverlayLayout, overlayTextFor, type OverlayLayout, type OverlayFace, type OverlayTextStyle } from "@/lib/social/overlaySpec"
+import { OVERLAY_TEXT, computeOverlayLayout, overlayTextFor, presenterCompositionPlatform, type OverlayLayout, type OverlayFace, type OverlayTextStyle } from "@/lib/social/overlaySpec"
 import { DELIVERY_SIZE } from "@/lib/social/deliverySize"
 import { buildPresenterFilter, buildPresenterPlan, decoderForPresenterClip, type PresenterPlan } from "@/lib/social/presenterSpec"
 import { trimPresenterClip } from "@/lib/social/presenterTrim"
@@ -526,7 +526,10 @@ export async function renderReel(ffmpegPath: string, input: RenderInput): Promis
   }
 
   const presenterPlan = presenterLocal
-    ? buildPresenterPlan({ inputIndex: 1 + voiceCount, introSeconds: input.presenterIntroSeconds ?? null, side: input.presenterSide ?? null, widthPx: input.presenterWidthPx ?? null, bottomInsetPxOverride: input.presenterBottomInsetPx ?? null, platform: input.platform })
+    ? buildPresenterPlan({ inputIndex: 1 + voiceCount, introSeconds: input.presenterIntroSeconds ?? null, side: input.presenterSide ?? null, widthPx: input.presenterWidthPx ?? null, bottomInsetPxOverride: input.presenterBottomInsetPx ?? null,
+        // THE SAME substitution the layout used, so the figure's footing and the text's anchor can
+        // never come from two different platforms.
+        platform: presenterCompositionPlatform(input.template ?? "market_type", input.platform ?? "instagram") })
     : null
   // Same template string the layout above was computed from, so the burned-in treatment and the
   // geometry can never come from two different templates.
