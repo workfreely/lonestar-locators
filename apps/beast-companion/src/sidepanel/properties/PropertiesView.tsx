@@ -469,8 +469,18 @@ export function PropertiesView({
                 {shortSpecial && <span className="bc-cp-special">{shortSpecial}</span>}
                 {commissionStatus && (
                   commissionStatus.state === "paying" ? (
-                    <span className="bc-cp-commission">
-                      <span className="bc-cp-commission-label">Commission:</span> {commissionStatus.text}
+                    <span className="bc-cp-commission"
+                          aria-label={`Commission: ${commissionStatus.text}`}
+                          title={`Commission: ${commissionStatus.text}`}>
+                      {/* The dollar mark belongs to the PAYING state alone — it marks
+                          compensation, not the absence of it, so the no-pay and unverified
+                          chips below stay text-only. Matches the web app's CommissionBadge. */}
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.25}
+                           strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                        <path d="M12 2v20" />
+                        <path d="M17 6.5c0-1.9-2.2-3-5-3s-5 1.1-5 3 2.2 2.9 5 3.4 5 1.4 5 3.6-2.2 3.5-5 3.5-5-1.3-5-3.2" />
+                      </svg>
+                      <span className="bc-cp-commission-label">{commissionStatus.text}</span>
                     </span>
                   ) : commissionStatus.state === "not_paying" ? (
                     <span className="bc-cp-commission bc-cp-commission--nopay">Not Paying Locators</span>

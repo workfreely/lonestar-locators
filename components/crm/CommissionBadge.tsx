@@ -67,11 +67,18 @@ export default function CommissionBadge({
   const s = SIZES[size]
   if (status.state === "paying") {
     return (
+      // THE WORD IS GONE, THE MEANING IS NOT. "Commission:" was dropped to buy back width on a
+      // chip that sits beside two others, leaving the dollar mark to carry the category. That
+      // works visually and not at all for a screen reader, which skips the decorative icon and
+      // would announce a bare "Send 125% · Escort 125%" — a number with no subject. The
+      // accessible name puts the word back for exactly the readers who lost it.
       <span
+        aria-label={`Commission: ${status.text}`}
+        title={`Commission: ${status.text}`}
         className={`inline-flex items-center gap-1 whitespace-nowrap border font-medium leading-none ${s} border-[#1e5235] bg-[#0f2a1d] text-[#4ade80] ${className}`}
       >
         <DollarMark />
-        <span className="font-semibold">Commission:</span> {status.text}
+        <span className="font-semibold">{status.text}</span>
       </span>
     )
   }

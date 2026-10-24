@@ -978,21 +978,41 @@
   font-weight: 600;
   line-height: 1.3;
 }
-/* Locator commission (Send / Escort / Bonus) — operational locator info as a compact
-   light-green money-style highlight (matches the Map card). Locator surface only; never on /r. */
+/* Locator commission (Send / Escort / Bonus) — operational locator info, dark-green money chip.
+   Locator surface only; never on /r.
+
+   It used to be the same soft mint as the move-in special beside it, so the two read as one kind
+   of thing. They are not: a special is a renter incentive and a commission is agent
+   compensation. These values are the web app's CommissionBadge.tsx verbatim, so the chip looks
+   identical whether a property is viewed on the map or here.
+
+   inline-flex (was inline-block) so the dollar mark sits on the text baseline; the no-pay and
+   unverified variants below carry no icon and are unaffected by the change. */
 .bc-cp-commission {
-  display: inline-block;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
   padding: 3px 9px;
   border-radius: 8px;
-  border: 1px solid #8ecaa6;
-  background: #dff5e6;
-  color: #136c3a;
+  border: 1px solid #1e5235;
+  background: #0f2a1d;
+  color: #4ade80;
   font-size: 11.5px;
   font-weight: 500;
   line-height: 1.3;
 }
+/* Sized in em so it tracks the chip's own font size, and never shrinks. */
+.bc-cp-commission svg {
+  width: 0.95em;
+  height: 0.95em;
+  flex: none;
+  opacity: 0.9;
+}
+/* Carries the commission VALUE now that the word "Commission:" has been dropped from the chip —
+   the dollar mark carries the category visually, and the chip's aria-label carries it for screen
+   readers. Kept as a class rather than inlined so the weight stays in one place. */
 .bc-cp-commission-label {
-  color: #136c3a;
+  color: #4ade80;
   font-weight: 600;
 }
 /* Explicitly verified NOT paying → red chip (light red fill, red border/text). */

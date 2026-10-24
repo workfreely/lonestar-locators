@@ -34,11 +34,26 @@ ok("…sized in em so it tracks the badge's own type", /width: "0\.95em", height
 ok("…and it never shrinks", /flex-none/.test(BADGE))
 ok("the old mint green is gone from the component", !/dff5e6|8ecaa6|136c3a/.test(BADGE))
 
+console.log("\nthe word 'Commission:' is gone from the paying chip, but not its meaning:")
+{
+  const paying = BADGE.slice(BADGE.indexOf('status.state === "paying"'), BADGE.indexOf('status.state === "not_paying"'))
+  ok("no visible 'Commission:' label remains", !/>Commission:</.test(paying))
+  ok("…the value is still rendered", /\{status\.text\}/.test(paying))
+  ok("…and the dollar mark still carries the category visually", /<DollarMark \/>/.test(paying))
+  // A decorative icon is skipped by assistive tech, so without this the chip announces a bare
+  // "Send 125% · Escort 125%" — a number with no subject.
+  ok("the chip has an accessible name that still says Commission",
+    /aria-label=\{`Commission: \$\{status\.text\}`\}/.test(paying))
+  ok("…and a hover title too", /title=\{`Commission: \$\{status\.text\}`\}/.test(paying))
+  ok("the icon is still marked decorative", /aria-hidden="true"/.test(BADGE))
+}
+
 console.log("\nthe other two states are untouched:")
 ok("confirmed no-pay keeps its red", /border-\[#eaa9a5\] bg-\[#fdeaea\] text-\[#b42318\]/.test(BADGE))
 ok("…and still reads 'Not Paying Locators'", /Not Paying Locators/.test(BADGE))
 ok("unverified keeps its neutral grey", /border-\[#cbd4e0\] bg-\[#eef1f5\] text-\[#5a6b86\]/.test(BADGE))
-ok("…and still reads 'Commission Not Verified'", /Commission Not Verified/.test(BADGE))
+ok("…and still reads 'Commission Not Verified' — the word stays where it is useful",
+  /Commission Not Verified/.test(BADGE))
 ok("neither carries the dollar mark — it marks PAY, not the absence of it",
   (BADGE.match(/<DollarMark \/>/g) ?? []).length === 1)
 
