@@ -216,7 +216,20 @@ ok("the route never reads ownerOverride from the body", !/body\.ownerOverride/.t
 
 // ── 4. THE PANEL: ONE SAVE PATH, AND NO INVENTED STATE ────────────────────────────────────────
 console.log("\nthe panel reuses the existing infrastructure:")
-ok("it posts to the SAME owner endpoint", /const ENDPOINT = "\/api\/admin\/owner\/property-pricing"/.test(PANEL))
+ok("it saves to the SAME owner endpoint", /const ENDPOINT = "\/api\/admin\/owner\/property-pricing"/.test(PANEL))
+// THE VERB, NOT JUST THE URL. The route exports GET and PUT; a POST returns 405 and the save
+// silently fails. This shipped once because the endpoint was asserted and the method was not,
+// so the assertion now reads the ROUTE's exported handlers and requires the panel to match.
+{
+  const ROUTE_SRC = read("app/api/admin/owner/property-pricing/route.ts")
+  const verbs = [...ROUTE_SRC.matchAll(/export async function (GET|POST|PUT|PATCH|DELETE)\(/g)].map((m) => m[1])
+  const writeVerb = verbs.find((v) => v !== "GET")
+  ok(`the route exposes exactly one write verb (${writeVerb})`, !!writeVerb && verbs.filter((v) => v !== "GET").length === 1, verbs.join(","))
+  const panelMethod = PANEL.match(/method: "(GET|POST|PUT|PATCH|DELETE)"/)?.[1]
+  ok(`the panel uses it (${panelMethod})`, panelMethod === writeVerb, `panel=${panelMethod} route=${writeVerb}`)
+  ok("…and the existing editor agrees",
+    read("components/crm/PropertyPricingEditor.tsx").match(/method: "(GET|POST|PUT|PATCH|DELETE)"/)?.[1] === writeVerb)
+}
 ok("…and defines no endpoint of its own", (PANEL.match(/\/api\//g) ?? []).length === 1)
 ok("it reuses commissionToInput rather than reimplementing unknown-vs-zero",
   /import \{ commissionToInput \} from "@\/components\/crm\/PropertyPricingEditor"/.test(PANEL))

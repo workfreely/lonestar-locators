@@ -242,7 +242,10 @@ export default function MapPropertyEditor({
       const payload: Record<string, unknown> = { placeId: loaded.placeId, ...changes }
       if (source.trim()) payload.pricingSource = source.trim()
       const r = await fetch(ENDPOINT, {
-        method: "POST",
+        // PUT, matching the route's exported handler. It exports GET and PUT — a POST is a 405,
+        // and that is exactly how this shipped broken once: the endpoint URL was asserted, the
+        // VERB was not.
+        method: "PUT",
         headers: { "content-type": "application/json" },
         body: JSON.stringify(payload),
       })
