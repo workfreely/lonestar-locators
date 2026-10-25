@@ -423,6 +423,12 @@ const CSS = `
    untouched. Mobile-only (inside this media query); shared Footer not modified. */
 .lbr-legal span:has(> a[target="_blank"]) > span[aria-hidden="true"]{display:none}
 .lbr-recs{padding:20px 16px 8px}
+/* The gap between Next Steps and the FIRST property card, on mobile only. 24px let the
+   roadmap sit close enough to the cards to read as part of them; 32px separates the
+   instruction from the thing it is instructing about. This is the roadmap's own bottom
+   margin, so it is the only gap it can touch: card-to-card spacing is .lbr-grid's own gap
+   below, which is unchanged, and the desktop value stays at the base rule's 24px. */
+.lbr-steps--roadmap{margin-bottom:32px}
 .lbr-grid{grid-template-columns:1fr;gap:20px}
 .lbr-ph{aspect-ratio:16/11}
 /* Mobile breathing room (spacing only — card structure unchanged). */
