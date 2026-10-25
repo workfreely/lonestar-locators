@@ -25,13 +25,21 @@ export default function WasherDryerBadge({ status, className = "" }: { status: W
   // Unknown and unsettled both render nothing. There is no "unverified" chip: a badge that says
   // nothing still occupies the row and still invites a glance.
   if (!status) return null
-  // INCLUDED IS THE STRONGER CLAIM and takes the green treatment, matching the approved card.
-  // Hookups is the weaker fact, so it reads neutral — the same distinction the client-facing
-  // pill already draws (.lbr-wd--inc green, .lbr-wd--hk grey). The two surfaces should not
-  // disagree about which of the two is the bigger promise.
+  // GREEN, BUT NOT *THE* GREEN. Included is the stronger of the two washer/dryer facts and keeps
+  // a green family, matching the approved card — but it shares a row with the commission badge,
+  // which is the number a locator is actually scanning for. Wearing that badge's exact palette
+  // made two equally loud chips compete for the same glance.
+  //
+  // So this is the same hue, desaturated and dimmed: saturation drops from roughly 66% to 16%,
+  // and contrast against its own fill from about 8.7:1 to 6.8:1 — still comfortably past the
+  // 4.5:1 readable threshold, just no longer shouting. The commission badge is untouched and
+  // remains the strongest green on the card.
+  //
+  // Hookups stays neutral, the weaker fact, which is the same distinction the client-facing
+  // pill already draws (.lbr-wd--inc green, .lbr-wd--hk grey).
   const tone =
     status === "included"
-      ? "border-[#1e5235] bg-[#0f2a1d] text-[#4ade80]"
+      ? "border-[#2a3a33] bg-[#16211c] text-[#8fae9f]"
       : "border-[var(--crm-border)] bg-[var(--crm-panel)] text-[var(--crm-text-secondary)]"
   return (
     <span

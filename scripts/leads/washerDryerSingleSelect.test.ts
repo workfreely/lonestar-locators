@@ -320,9 +320,22 @@ for (const file of ["components/crm/PropertyPricingEditor.tsx", "components/crm/
 console.log("\nthe badge matches the approved card:")
 {
   const BADGE = read("components/crm/WasherDryerBadge.tsx")
-  ok("Included takes the green treatment", /border-\[#1e5235\] bg-\[#0f2a1d\] text-\[#4ade80\]/.test(BADGE))
-  ok("…the same family as the commission badge",
+  ok("Included takes a MUTED green", /border-\[#2a3a33\] bg-\[#16211c\] text-\[#8fae9f\]/.test(BADGE))
+  // It must not wear the commission badge's palette: two equally loud chips on one row compete
+  // for the glance that belongs to the number a locator is scanning for.
+  ok("…and never the commission badge's palette", !/#1e5235|#0f2a1d|#4ade80/.test(BADGE))
+  ok("the commission badge keeps the bright green, untouched",
     /border-\[#1e5235\] bg-\[#0f2a1d\] text-\[#4ade80\]/.test(read("components/crm/CommissionBadge.tsx")))
+  // Readable is the floor the muting must not cross: #8fae9f on #16211c is ~6.8:1, past the
+  // 4.5:1 normal-text threshold, while the commission pair sits at ~8.7:1.
+  ok("…and the muted pair is still comfortably readable", (() => {
+    const lin = (h: string) => [1, 3, 5].map((i) => parseInt(h.slice(i, i + 2), 16) / 255)
+      .map((c) => (c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4))
+    const L = (h: string) => { const [r, g, b] = lin(h); return 0.2126 * r + 0.7152 * g + 0.0722 * b }
+    const ratio = (a: string, b: string) => (Math.max(L(a), L(b)) + 0.05) / (Math.min(L(a), L(b)) + 0.05)
+    const wd = ratio("#8fae9f", "#16211c"), comm = ratio("#4ade80", "#0f2a1d")
+    return wd >= 4.5 && wd < comm
+  })())
   ok("Hookups reads neutral, as the client pill already does", /crm-text-secondary/.test(BADGE))
   ok("no icon — the approved card has text only", !/<svg/.test(BADGE))
 }
