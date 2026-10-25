@@ -2,6 +2,9 @@
 
 import { useCallback, useEffect, useRef, useState } from "react"
 import { supabase } from "@/lib/supabase/client"
+// The pure rule module, NOT renderVideo — that one imports node:child_process and
+// cannot be pulled into a client bundle.
+import { voiceClipsFit } from "@/lib/social/voiceFit"
 
 // Voice Clips control for the Social Beast post editor. Sits 50/50 beside Music. The
 // trigger matches the Music <select> height/width; opening it reveals the reusable
@@ -15,6 +18,17 @@ type Props = {
   hookId: string | null
   ctaId: string | null
   onChange: (next: { hookId: string | null; ctaId: string | null }) => void
+  /** Absent ⇒ no recommendations are fetched and the control behaves exactly as before. */
+  postId?: string | null
+  /** Raised when the current selection has a HARD factual conflict, so the editor can stop a publish. */
+  onBlocksPublishChange?: (blocked: boolean) => void
+  /**
+   * The source video's length, read from the preview player's metadata. The server does not know
+   * it — social_content.duration_s is null on every row — so the browser, which has already
+   * loaded the video, is the cheapest place to learn it. Null/absent ⇒ no fit check here; the
+   * renderer still refuses an overlapping pair.
+   */
+  videoDurationSeconds?: number | null
 }
 
 async function readDuration(file: File): Promise<number | null> {
@@ -29,7 +43,32 @@ async function readDuration(file: File): Promise<number | null> {
   })
 }
 
-export default function VoiceClipsControl({ triggerClassName, hookId, ctaId, onChange }: Props) {
+/** What the suggestions endpoint returns, narrowed to what this control renders. */
+type Suggested = { id: string | null; displayName: string; why?: string[]; reasons?: string[]; eligibility?: string; transcript?: string | null; transcriptStatus?: string }
+type Warning = { level: "hard" | "soft"; reasons: string[] } | null
+type Suggestions = {
+  property: { name: string | null; market: string | null; propertyType: string | null; propertyTypeSource: string | null; startingRent: number | null }
+  recommended: { hooks: Suggested[]; ctas: Suggested[] }
+  conditional: Suggested[]
+  rejected: Suggested[]
+  warnings: { hook: Warning; cta: Warning }
+  blocksPublish: boolean
+}
+
+export default function VoiceClipsControl({ triggerClassName, hookId, ctaId, onChange, postId, onBlocksPublishChange, videoDurationSeconds }: Props) {
+  // RECOMMENDATIONS ARE ADVISORY. They are fetched, displayed and never applied: nothing here
+  // calls onChange on its own, so opening this control cannot alter a saved draft.
+  const [sug, setSug] = useState<Suggestions | null>(null)
+  useEffect(() => {
+    if (!postId) return
+    let alive = true
+    fetch(`/api/admin/social-autopilot/posts/${postId}/voice-suggestions`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((j) => { if (alive && j) setSug(j) })
+      .catch(() => {})
+    return () => { alive = false }
+    // hookId/ctaId are dependencies because the WARNING is about what is currently selected.
+  }, [postId, hookId, ctaId])
   const [open, setOpen] = useState(false)
   const [clips, setClips] = useState<Clip[]>([])
   const [busy, setBusy] = useState(false)
@@ -53,7 +92,10 @@ export default function VoiceClipsControl({ triggerClassName, hookId, ctaId, onC
     } catch { /* ignore */ }
   }, [])
 
+  // Loaded on open as before, and ONCE up front when a fit check is possible — the overlap
+  // warning has to be true of a closed control too, and it needs the selected clips' durations.
   useEffect(() => { if (open) load() }, [open, load])
+  useEffect(() => { if (!open && (hookId || ctaId) && clips.length === 0) load() }, [open, hookId, ctaId, clips.length, load])
   useEffect(() => {
     if (!open) return
     // The menu is a DOM descendant of wrapRef again, so one containment check covers both the
@@ -73,6 +115,20 @@ export default function VoiceClipsControl({ triggerClassName, hookId, ctaId, onC
 
   const hooks = clips.filter((c) => c.clipType === "hook")
   const ctas = clips.filter((c) => c.clipType === "cta")
+
+  // ── WOULD THE TWO SELECTED CLIPS TALK OVER EACH OTHER? ──────────────────────────────────────
+  // The hook plays from the start and the CTA runs to the end, so a pair longer than the video
+  // overlaps. Computed from the clip list this control already has and the duration the preview
+  // player already loaded — no new request, no new column. The renderer enforces the same rule
+  // from the probed duration; this is the half that tells someone BEFORE they render.
+  const [fit, setFit] = useState<{ hook: number; cta: number; video: number } | null>(null)
+  useEffect(() => {
+    const h = clips.find((c) => c.id === hookId)?.durationSeconds ?? null
+    const c = clips.find((c) => c.id === ctaId)?.durationSeconds ?? null
+    const v = videoDurationSeconds ?? null
+    setFit(h !== null && c !== null && v !== null && !voiceClipsFit(v, h, c) ? { hook: h, cta: c, video: v } : null)
+  }, [clips, hookId, ctaId, videoDurationSeconds])
+  useEffect(() => { onBlocksPublishChange?.((sug?.blocksPublish ?? false) || fit !== null) }, [sug?.blocksPublish, fit, onBlocksPublishChange])
   const nameById = (id: string | null) => clips.find((c) => c.id === id)?.name
   // Closed-field value, parallel to Music's "No Music" / "Original Audio" — a plain state label, never
   // clip filenames (those stay in the menu + the hover title).
@@ -114,7 +170,14 @@ export default function VoiceClipsControl({ triggerClassName, hookId, ctaId, onC
 
   const preview = (url?: string | null) => { if (url) { const a = new Audio(url); a.play().catch(() => {}) } }
 
-  const section = (label: string, type: "hook" | "cta", list: Clip[], selectedId: string | null, place: string) => (
+  const section = (label: string, type: "hook" | "cta", list: Clip[], selectedId: string | null, place: string) => {
+    const recs = (type === "hook" ? sug?.recommended.hooks : sug?.recommended.ctas) ?? []
+    // A conditional clip belongs to THIS section when it is one of this section's clips. The
+    // membership test is the whole rule: an unmatched id (a clip the library no longer has) belongs
+    // to neither section rather than to both.
+    const cond = (sug?.conditional ?? []).filter((c) => !!c.id && list.some((l) => l.id === c.id))
+    const warning = (type === "hook" ? sug?.warnings.hook : sug?.warnings.cta) ?? null
+    return (
     <div className="mb-2">
       <div className="flex items-center justify-between px-1">
         <span className="text-[10.5px] uppercase tracking-wide text-[var(--crm-text-muted)]">{label} <span className="normal-case">· {place}</span></span>
@@ -124,6 +187,60 @@ export default function VoiceClipsControl({ triggerClassName, hookId, ctaId, onC
             onChange={(e) => { const f = e.target.files?.[0]; if (f) upload(type, f); e.currentTarget.value = "" }} />
         </label>
       </div>
+      {/* THE WARNING COMES FIRST, because it is about what is already chosen. A hard conflict is
+          factual — wrong market, a price the verified rent does not support, the wrong property
+          type — and blocks publishing. A soft one is a claim that needs confirming, not
+          correcting, so it informs without stopping anything. */}
+      {warning && (
+        <p className={`mx-1 mb-1 rounded-md border px-1.5 py-1 text-[10.5px] leading-snug ${
+          warning.level === "hard"
+            ? "border-red-500/40 bg-red-500/10 text-red-600 dark:text-red-400"
+            : "border-amber-500/40 bg-amber-500/10 text-amber-600 dark:text-amber-400"}`}>
+          <span className="font-semibold">{warning.level === "hard" ? "Conflicts with verified property details — publishing is blocked." : "Needs your confirmation."}</span>{" "}
+          {warning.reasons.join("; ")}
+        </p>
+      )}
+
+      {/* RECOMMENDED. The same rows as below, in a labelled group, each carrying the reason it was
+          recommended. Clicking one is an ordinary manual selection — there is no second code path. */}
+      {recs.length > 0 && (
+        <div className="mb-1">
+          <div className="px-1 text-[10px] uppercase tracking-wide text-emerald-600">Recommended</div>
+          {recs.map((r) => {
+            const c = r.id ? list.find((x) => x.id === r.id) : null
+            return (
+              <div key={r.id ?? r.displayName} className={`flex items-start gap-1 px-2 py-1 rounded-md ${selectedId === r.id ? "bg-[var(--crm-panel)]" : "hover:bg-[var(--crm-panel)]"}`}>
+                <button type="button" className="flex-1 text-left" disabled={!r.id}
+                  onClick={() => r.id && onChange({ hookId: type === "hook" ? r.id : hookId, ctaId: type === "cta" ? r.id : ctaId })}>
+                  <span className="block text-[12.5px] text-[var(--crm-text-primary)] truncate">{selectedId === r.id ? "✓ " : ""}{r.displayName}</span>
+                  {(r.why ?? []).map((w, i) => <span key={i} className="block text-[10px] text-[var(--crm-text-muted)]">· {w}</span>)}
+                </button>
+                {c?.previewUrl && <button type="button" aria-label="Preview" className="mt-[2px] text-[var(--crm-text-muted)] hover:text-[var(--crm-text-primary)]" onClick={() => preview(c.previewUrl)}>▶</button>}
+              </div>
+            )
+          })}
+        </div>
+      )}
+
+      {/* CONDITIONAL. Compatible, but making a claim nothing in the database can settle — a client
+          experience, a current special. Shown so the library does not look smaller than it is, and
+          labelled so choosing one is a decision rather than an accident. */}
+      {cond.length > 0 && (
+        <div className="mb-1">
+          <div className="px-1 text-[10px] uppercase tracking-wide text-amber-600">Needs confirmation</div>
+          {cond.map((r) => (
+            <div key={r.id ?? r.displayName} className={`flex items-start gap-1 px-2 py-1 rounded-md ${selectedId === r.id ? "bg-[var(--crm-panel)]" : "hover:bg-[var(--crm-panel)]"}`}>
+              <button type="button" className="flex-1 text-left" disabled={!r.id}
+                onClick={() => r.id && onChange({ hookId: type === "hook" ? r.id : hookId, ctaId: type === "cta" ? r.id : ctaId })}>
+                <span className="block text-[12.5px] text-[var(--crm-text-primary)] truncate">{selectedId === r.id ? "✓ " : ""}{r.displayName}</span>
+                {(r.why ?? []).map((w, i) => <span key={i} className="block text-[10px] text-amber-600">· {w}</span>)}
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {recs.length > 0 && <div className="px-1 text-[10px] uppercase tracking-wide text-[var(--crm-text-muted)]">All {type === "hook" ? "hooks" : "CTAs"}</div>}
       <button type="button" onClick={() => onChange({ hookId: type === "hook" ? null : hookId, ctaId: type === "cta" ? null : ctaId })}
         className={`w-full text-left text-[12.5px] px-2 py-1 rounded-md ${!selectedId ? "bg-[var(--crm-panel)] font-semibold" : "hover:bg-[var(--crm-panel)]"} text-[var(--crm-text-primary)]`}>
         None
@@ -140,7 +257,8 @@ export default function VoiceClipsControl({ triggerClassName, hookId, ctaId, onC
       ))}
       {/* No empty-state sentence: an empty section is just "None" + "+ Upload", which is self-evident. */}
     </div>
-  )
+    )
+  }
 
   return (
     <div className="relative" ref={wrapRef}>
@@ -156,6 +274,15 @@ export default function VoiceClipsControl({ triggerClassName, hookId, ctaId, onC
           <path d="M6 8l4 4 4-4" />
         </svg>
       </button>
+      {/* THE OVERLAP WARNING SITS OUTSIDE THE MENU, because it is true whether the menu is open or
+          shut and it stops a publish. Everything else in this control is advisory; this is not. */}
+      {fit && (
+        <p className="mt-1 rounded-md border border-red-500/40 bg-red-500/10 px-1.5 py-1 text-[10.5px] leading-snug text-red-600 dark:text-red-400">
+          <span className="font-semibold">Hook and CTA don&rsquo;t fit — publishing is blocked.</span>{" "}
+          {fit.hook.toFixed(1)}s + {fit.cta.toFixed(1)}s is longer than this {fit.video.toFixed(1)}s video, so they
+          would play over each other. Choose a shorter clip or longer footage — nothing is trimmed to make them fit.
+        </p>
+      )}
       {open && (
         <div
           role="listbox"

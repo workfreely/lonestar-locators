@@ -237,7 +237,52 @@ export function buildDrawPlan(layout: OverlayLayout): DrawPlanItem[] {
 /** The one place the mix is tuned. `duckLevel` is the gain the music bed falls to while a voice clip
  *  plays; `rampSeconds` is how long the fall/return takes. The mix format exists only so inputs of
  *  differing layout/rate combine deterministically — it is NOT loudness normalization. */
+import { parseLoudnorm } from "./voiceNormalize"
+import { voiceClipsFit } from "./voiceFit"
+
 export const VOICE_MIX = { duckLevel: 0.2, rampSeconds: 0.25, sampleRate: 48000, channelLayout: "stereo" } as const
+
+/**
+ * THE FINAL MIX LEVEL — one master pass over the finished audio, after everything is mixed.
+ *
+ * Measured on real listing footage with a real hook and CTA: the mix lands at −16.4 LUFS on its
+ * own, and TikTok and Instagram both normalise toward roughly −14 on ingest. Arriving two dB
+ * under means handing the platform two dB of its own gain to apply however it likes. Arriving at
+ * −14 means it changes almost nothing.
+ *
+ * ── THE CEILING IS NOT NEGOTIABLE, AND −1 WAS NOT ENOUGH ────────────────────────────────────
+ * Asked for −1 dBTP, the finished AAC measured −0.55 — close enough to full scale that a
+ * platform's own re-encode can clip between samples. −1.5 costs 0.04 dB of loudness and lands at
+ * −1.41. That is the entire argument for the number.
+ *
+ * ── IT IS NOT A SECOND NORMALISATION OF THE VOICE ───────────────────────────────────────────
+ * The voice is normalised once, as a clip. This acts on the MIX. Measured either way: the hook's
+ * loudness range is 3.00 before this stage and 2.90 after, so it costs 0.1 dB of the delivery's
+ * dynamics. Nothing is squashed; astats reports a flat factor of 0 in every render.
+ *
+ * `enabled: false` restores the previous behaviour exactly — the stage is skipped, not neutered.
+ */
+export const MASTER_LOUDNESS = { enabled: true, targetLufs: -14, truePeakDb: -1.5, loudnessRange: 11 } as const
+
+/** PASS ONE of the master stage: measure the finished mix. */
+export function masterMeasureFilter(): string {
+  return `loudnorm=I=${MASTER_LOUDNESS.targetLufs}:TP=${MASTER_LOUDNESS.truePeakDb}:LRA=${MASTER_LOUDNESS.loudnessRange}:print_format=json`
+}
+
+/** PASS TWO: apply it, with pass one's numbers. linear=true keeps it one gain factor over the
+ *  whole video rather than a level that moves — the same reason the clip stage uses it. */
+export function masterApplyFilter(m: { inputI: number; inputTp: number; inputLra: number; inputThresh: number }): string {
+  return [
+    "loudnorm=linear=true",
+    `I=${MASTER_LOUDNESS.targetLufs}`,
+    `TP=${MASTER_LOUDNESS.truePeakDb}`,
+    `LRA=${MASTER_LOUDNESS.loudnessRange}`,
+    `measured_I=${m.inputI}`,
+    `measured_TP=${m.inputTp}`,
+    `measured_LRA=${m.inputLra}`,
+    `measured_thresh=${m.inputThresh}`,
+  ].join(":")
+}
 
 /** Duration (seconds) + audio-stream presence, parsed from `ffmpeg -i <file>` stderr. We have no
  *  ffprobe dependency (and adding one would mean a new binary to trace into the lambda), and ffmpeg
@@ -387,6 +432,10 @@ export type VoiceWindow = { startSeconds: number; endSeconds: number }
  *  longer than the source simply covers the whole video instead of extending it. Overlap on a very
  *  short video is allowed and left alone — the envelope below takes the max of both windows, so the
  *  bed is ducked wherever EITHER clip is active. No clip is ever moved to avoid an overlap. */
+// The rule itself lives in voiceFit.ts so the editor can share it; re-exported here
+// because every existing caller and test reaches for it through this module.
+export { voiceClipsFit } from "./voiceFit"
+
 export function computeVoiceWindows(videoDurationSeconds: number, hookDurationSeconds: number | null, ctaDurationSeconds: number | null): { hook: VoiceWindow | null; cta: VoiceWindow | null } {
   const D = Math.max(0, videoDurationSeconds)
   const hook = hookDurationSeconds === null ? null : { startSeconds: 0, endSeconds: Math.min(hookDurationSeconds, D) }
@@ -561,6 +610,14 @@ export async function renderReel(ffmpegPath: string, input: RenderInput): Promis
       ctaDuration = p.durationSeconds
       extraInputs.push(ctaPath)
     }
+    // REFUSE RATHER THAN OVERLAP. Loud, like the unreadable-clip failures above: a video with the
+    // hook and the CTA speaking over each other is worse than a render that did not happen.
+    if (!voiceClipsFit(source.durationSeconds, hookDuration, ctaDuration)) {
+      throw new Error(
+        `voice clips: the Hook (${hookDuration!.toFixed(1)}s) and CTA (${ctaDuration!.toFixed(1)}s) do not fit in this ` +
+        `${source.durationSeconds.toFixed(1)}s video — they would overlap. Choose a shorter clip or longer footage.`,
+      )
+    }
     const windows = computeVoiceWindows(source.durationSeconds, hookDuration, ctaDuration)
     audioFilter = buildAudioFilter({
       // "No Music" drops the BED, not the voice — so the bed is used only when the source actually has
@@ -588,6 +645,47 @@ export async function renderReel(ffmpegPath: string, input: RenderInput): Promis
       else resolve()
     })
   })
+
+  // ── THE MASTER PASS ───────────────────────────────────────────────────────────────────────
+  // Last, over the finished file, so it sees exactly what a viewer will hear — bed, hook, CTA,
+  // ducking and all. Doing it here rather than inside the big filter graph is what makes it a
+  // real two-pass: the mix has to exist before it can be measured.
+  //
+  // The VIDEO IS COPIED, not re-encoded, so this costs an audio pass and nothing else, and it
+  // cannot change a single pixel of a render that was already correct.
+  await applyMasterLoudness(ffmpegPath, input.outputPath, input.workDir)
+}
+
+/**
+ * Bring the finished render to MASTER_LOUDNESS, in place.
+ *
+ * FAILING HERE MUST NOT COST THE RENDER. A video that is 2 dB quiet is worth far more than no
+ * video at all, so every failure path leaves the original output exactly where it was. The
+ * caller is never told, because there is nothing for it to do differently.
+ */
+export async function applyMasterLoudness(ffmpegPath: string, outputPath: string, workDir: string): Promise<boolean> {
+  if (!MASTER_LOUDNESS.enabled) return false
+  try {
+    const stderr = await new Promise<string>((resolve) => {
+      execFile(ffmpegPath, ["-nostdin", "-hide_banner", "-nostats", "-i", outputPath, "-af", masterMeasureFilter(), "-f", "null", "-"],
+        { maxBuffer: 1024 * 1024 * 16 }, (_e, _o, se) => resolve(String(se)))
+    })
+    const m = parseLoudnorm(stderr)
+    // No measurement ⇒ nothing to apply. A silent video measures -inf and lands here, which is
+    // right: there is no such thing as normalising silence.
+    if (!m) return false
+    const tmp = path.join(workDir, "master.mp4")
+    await new Promise<void>((resolve, reject) => {
+      execFile(ffmpegPath, ["-nostdin", "-hide_banner", "-loglevel", "error", "-y", "-i", outputPath,
+        "-af", masterApplyFilter(m), "-map", "0:v", "-map", "0:a", "-c:v", "copy",
+        "-c:a", "aac", "-b:a", "192k", "-ar", String(VOICE_MIX.sampleRate), "-movflags", "+faststart", tmp],
+        { maxBuffer: 1024 * 1024 * 16 }, (err, _o, se) => err ? reject(new Error(String(se).slice(0, 400))) : resolve())
+    })
+    await fs.rename(tmp, outputPath)
+    return true
+  } catch {
+    return false // the un-mastered render stands
+  }
 }
 
 /** Run `ffmpeg -i <file>` purely to read its stderr banner (duration + stream list). ffmpeg exits

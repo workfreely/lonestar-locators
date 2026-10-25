@@ -283,6 +283,13 @@ export default function PostEditor({ postId, from }: { postId: string; from?: st
   const [tagInput, setTagInput] = useState("")
   const [audioChoice, setAudioChoice] = useState("original")
   const [voiceHookId, setVoiceHookId] = useState<string | null>(null)
+  /** Raised by VoiceClipsControl when the SELECTED audio conflicts with verified property facts.
+   *  A factual conflict — wrong market, an unsupported price, the wrong property type — is not a
+   *  style note, so it stops the publish rather than warning beside it. */
+  const [voiceBlocksPublish, setVoiceBlocksPublish] = useState(false)
+  // The SOURCE video's length, learned from the preview player's own metadata. Used only to warn
+  // when a Hook and a CTA cannot both fit; the server has no duration column to read.
+  const [sourceSeconds, setSourceSeconds] = useState<number | null>(null)
   // AI PRESENTER — one object rather than five useStates, so "off" is a single assignment that
   // cannot leave a stray setting behind.
   const [presenter, setPresenter] = useState<PresenterValue>({ presenterId: null, introSeconds: null, side: null, widthPx: null, audioVoiceClipId: null })
@@ -1220,7 +1227,12 @@ export default function PostEditor({ postId, from }: { postId: string; from?: st
               post.approvedAt ? (
                 <button type="button" className={btn} disabled={busy} onClick={() => void setApproved(false)}>Move to Working</button>
               ) : (
-                <button type="button" className={btn} disabled={busy} onClick={() => void setApproved(true)}>Mark ready</button>
+                // THE GATE IS HERE, not beside the Post buttons. "Mark ready" is the single door a
+                // post goes through to become publishable, so blocking it blocks every downstream
+                // destination at once — scheduling included, which is the path nobody is watching.
+                <button type="button" className={btn} disabled={busy || voiceBlocksPublish}
+                  title={voiceBlocksPublish ? "The selected hook or CTA conflicts with this video — a factual detail, or the two clips not fitting without overlapping. Change the audio or clear it before marking this ready." : undefined}
+                  onClick={() => void setApproved(true)}>Mark ready</button>
               )
             )}
             {!unlocked && (
@@ -1307,6 +1319,7 @@ export default function PostEditor({ postId, from }: { postId: string; from?: st
                   onLoadedMetadata={(e) => {
                     const v = e.currentTarget
                     if (v.videoWidth > 0 && v.videoHeight > 0) setSourceDims({ w: v.videoWidth, h: v.videoHeight })
+                    if (Number.isFinite(v.duration) && v.duration > 0) setSourceSeconds(v.duration)
                   }}
                   onLoadedData={() => setVideoReady(true)}
                   className="w-full h-full object-cover"
@@ -1888,6 +1901,9 @@ export default function PostEditor({ postId, from }: { postId: string; from?: st
                   <div className={`mt-1 ${locked ? "opacity-45 pointer-events-none" : ""}`} title={locked ? LOCK_HINT : undefined} aria-disabled={locked || undefined}>
                     <VoiceClipsControl
                       triggerClassName={control}
+                      postId={postId}
+                      onBlocksPublishChange={setVoiceBlocksPublish}
+                      videoDurationSeconds={sourceSeconds}
                       hookId={voiceHookId}
                       ctaId={voiceCtaId}
                       onChange={({ hookId, ctaId }) => { setVoiceHookId(hookId); setVoiceCtaId(ctaId) }}
