@@ -105,14 +105,18 @@ console.log("\n=== 2b. THE LABELS SAY WASHER/DRYER, AND CONNECTIONS COMES FIRST 
   // Stripped: the comment recording WHY "Appliances included" was wrong is worth keeping, and a
   // comment is not a label. What must not survive is the rendered word.
   ok("no RENDERED label says 'Appliances'", !/Appliances/i.test(read("components/crm/PropertyPricingEditor.tsx")))
-  ok("both labels name W/D", /W\/D Connections/.test(ed) && /W\/D Included/.test(ed))
-  // Compared on the RENDERED spans, not on any occurrence in the file: a comment that names a
-  // label is not a label, and position-in-source was silently measuring both.
-  ok("Connections is rendered LEFT of Included",
-    ed.indexOf(">W/D Connections</span>") < ed.indexOf(">W/D Included</span>"))
-  ok("each label still sits with its own field",
-    /W\/D Connections<\/span>[\s\S]{0,160}setWdConnections/.test(ed) &&
-    /W\/D Included<\/span>[\s\S]{0,160}setWdIncluded/.test(ed))
+  // ONE MENU NOW. Two questions about the same appliance were two chances to answer the wrong
+  // one, so "W/D Connections" and "W/D Included" are gone as separate controls — replaced by a
+  // single "Washer & Dryer" whose options carry the distinction. Both COLUMNS are untouched;
+  // the assertions below on the route are what prove that.
+  ok("one rendered washer/dryer control, not two",
+    /<span className=\{label\}>Washer &amp; Dryer<\/span>/.test(ed) && (ed.match(/<select\s+value=\{wdSelect\}/g) ?? []).length === 1)
+  ok("…and neither old label is rendered any more",
+    !/>W\/D Connections<\/span>/.test(ed) && !/>W\/D Included<\/span>/.test(ed))
+  ok("the menu is the shared option list", /WASHER_DRYER_SELECT_OPTIONS\.map/.test(ed))
+  ok("…in the approved order, Not Verified last",
+    /WASHER_DRYER_SELECT_OPTIONS[\s\S]*?\{ value: "", label: "Not Verified" \},\s*\]/.test(
+      readFileSync(join(process.cwd(), "lib/propertyIntel/washerDryerSingleSelect.ts"), "utf8")))
   // The database mapping is what must NOT move.
   const route = read("app/api/admin/owner/property-pricing/route.ts")
   ok("washerDryerConnections still writes washer_dryer_connections",
@@ -124,8 +128,9 @@ console.log("\n=== 2b. THE LABELS SAY WASHER/DRYER, AND CONNECTIONS COMES FIRST 
 console.log("\n=== 3. 'NOT VERIFIED' KEEPS THE STORED VALUE ===")
 {
   const ed = read("components/crm/PropertyPricingEditor.tsx")
-  ok("the editor sends a dropdown only when it CHANGED",
-    /wdIncluded && wdIncluded !== loadedWd\.inc/.test(ed) && /wdConnections && wdConnections !== loadedWd\.conn/.test(ed))
+  ok("the editor sends a column only when the menu was TOUCHED",
+    /if \(wdTouched\) \{[\s\S]{0,400}?w\.included !== loadedWd\.inc\) body\.washerDryerIncluded/.test(ed) &&
+    /w\.connections !== loadedWd\.conn\) body\.washerDryerConnections/.test(ed))
   ok("an empty selection is never sent", !/body\.washerDryerIncluded = ""/.test(ed))
 
   const route = read("app/api/admin/owner/property-pricing/route.ts")

@@ -5,10 +5,11 @@ import { createPortal } from "react-dom"
 import PropertyThumb from "@/components/crm/PropertyThumb"
 import { StarRating } from "@/components/crm/StarRating"
 import { commissionToInput } from "@/components/crm/PropertyPricingEditor"
+import { asCatalogWasherDryerIncluded, asCatalogWasherDryerConnections } from "@/lib/propertyIntel/washerDryerCatalog"
 import {
-  CATALOG_WD_INCLUDED_OPTIONS, CATALOG_WD_CONNECTIONS_OPTIONS,
-  asCatalogWasherDryerIncluded, asCatalogWasherDryerConnections,
-} from "@/lib/propertyIntel/washerDryerCatalog"
+  WASHER_DRYER_SELECT_OPTIONS, toSingleSelect, fromSingleSelect, describeStoredPair,
+  changeConsequences, type WasherDryerSelectValue,
+} from "@/lib/propertyIntel/washerDryerSingleSelect"
 import { MOVE_IN_SPECIAL_OPTIONS, specialToSelection, selectionToSpecial } from "@/lib/propertyIntel/moveInSpecials"
 import { ageLabel } from "@/lib/propertyIntel/relativeAge"
 
@@ -105,8 +106,11 @@ export default function MapPropertyEditor({
   const [specialDetails, setSpecialDetails] = useState("")
   const [giftStatus, setGiftStatus] = useState<Tri>("unknown")
   const [giftAmount, setGiftAmount] = useState("")
-  const [wdIncluded, setWdIncluded] = useState("")
-  const [wdConnections, setWdConnections] = useState("")
+  // The SAME one-menu-over-two-columns control the pencil uses, with the same rule: until this
+  // is touched, neither column is sent.
+  const [wdSelect, setWdSelect] = useState<WasherDryerSelectValue>("")
+  const [wdTouched, setWdTouched] = useState(false)
+  const [wdState, setWdState] = useState(() => toSingleSelect(null, null))
   const [attrs, setAttrs] = useState<Record<string, Tri>>({})
   const [landmark, setLandmark] = useState("")
   const [crossStreets, setCrossStreets] = useState("")
@@ -125,8 +129,10 @@ export default function MapPropertyEditor({
     setSpecialDetails(sel.details)
     setGiftStatus(d.giftCardStatus === "yes" || d.giftCardStatus === "no" ? d.giftCardStatus : "unknown")
     setGiftAmount(amountToInput(d.giftCardAmount))
-    setWdIncluded(d.washerDryerIncluded ?? "")
-    setWdConnections(d.washerDryerConnections ?? "")
+    {
+      const st = toSingleSelect(d.washerDryerIncluded, d.washerDryerConnections)
+      setWdState(st); setWdSelect(st.value); setWdTouched(false)
+    }
     const a: Record<string, Tri> = {}
     for (const { key } of ATTRIBUTES) {
       const v = d.attributes?.[key]
@@ -196,8 +202,11 @@ export default function MapPropertyEditor({
       }
     }
 
-    if (wdIncluded !== (loaded.washerDryerIncluded ?? "")) out.washerDryerIncluded = wdIncluded
-    if (wdConnections !== (loaded.washerDryerConnections ?? "")) out.washerDryerConnections = wdConnections
+    if (wdTouched) {
+      const w = fromSingleSelect(wdSelect)
+      if (w.included && w.included !== (loaded.washerDryerIncluded ?? "")) out.washerDryerIncluded = w.included
+      if (w.connections && w.connections !== (loaded.washerDryerConnections ?? "")) out.washerDryerConnections = w.connections
+    }
     for (const { key, field } of ATTRIBUTES) {
       const stored = loaded.attributes?.[key] === "yes" || loaded.attributes?.[key] === "no" ? loaded.attributes[key] : "unknown"
       if ((attrs[key] ?? "unknown") !== stored) out[field] = attrs[key]
@@ -206,7 +215,7 @@ export default function MapPropertyEditor({
     if (crossStreets.trim() !== (loaded.crossStreets ?? "")) out.crossStreets = crossStreets.trim()
     return out
   }, [loaded, send, escort, bonus, specialChoice, specialDetails, giftStatus, giftAmount,
-      wdIncluded, wdConnections, attrs, landmark, crossStreets, cleared])
+      wdSelect, wdTouched, attrs, landmark, crossStreets, cleared])
 
   const dirty = Object.keys(changes).length > 0
   // "Yes" means a confirmed offer, and a confirmed offer has a value. Caught here so the locator
@@ -492,19 +501,37 @@ export default function MapPropertyEditor({
             {/* ── AMENITIES ──────────────────────────────────────────────────────────── */}
             <section className="space-y-3 border-t border-[var(--crm-border-soft)] pt-4">
               <h3 className={sectionTitle}>Amenities / Features</h3>
+              {/* ONE MENU, the same as the Recommended Properties pencil. Two questions about
+                  the same appliance were two chances to answer the wrong one. */}
               <div>
-                <label className={label}>Washer / Dryer</label>
-                <select className={field} value={wdIncluded} onChange={(e) => setWdIncluded(asCatalogWasherDryerIncluded(e.target.value) ?? "")}>
-                  <option value="">Not verified</option>
-                  {CATALOG_WD_INCLUDED_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+                <label className={label}>Washer &amp; Dryer</label>
+                <select
+                  className={field}
+                  value={wdSelect}
+                  onChange={(e) => { setWdSelect(e.target.value as WasherDryerSelectValue); setWdTouched(true) }}
+                >
+                  {wdState.ambiguous && <option value="">{describeStoredPair(wdState.stored)}</option>}
+                  {WASHER_DRYER_SELECT_OPTIONS.map((o) => (
+                    <option key={o.value || "unverified"} value={o.value}>{o.label}</option>
+                  ))}
                 </select>
-              </div>
-              <div>
-                <label className={label}>W/D Connections</label>
-                <select className={field} value={wdConnections} onChange={(e) => setWdConnections(asCatalogWasherDryerConnections(e.target.value) ?? "")}>
-                  <option value="">Not verified</option>
-                  {CATALOG_WD_CONNECTIONS_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
-                </select>
+                {wdState.lossy && !wdTouched && (
+                  <p className="mt-1 text-[10px] leading-snug text-[var(--crm-text-muted)]">{wdState.lossy}.</p>
+                )}
+                {/* The same warning the pencil shows — one menu over two columns means an
+                    option can assert the opposite of a column it does not display. */}
+                {wdTouched && changeConsequences(wdState.stored, wdSelect).length > 0 && (
+                  <p className="mt-1 rounded-md border border-amber-500/40 bg-amber-500/10 px-1.5 py-1 text-[10px] leading-snug text-amber-600 dark:text-amber-400">
+                    Saving replaces{" "}
+                    {changeConsequences(wdState.stored, wdSelect).map((c, i) => (
+                      <span key={c.column}>
+                        {i > 0 && " and "}
+                        {c.column} “{c.from}” with “{c.to}”
+                      </span>
+                    ))}
+                    .
+                  </p>
+                )}
               </div>
               {ATTRIBUTES.map(({ key, label: lbl }) => (
                 <div key={key}>

@@ -177,7 +177,12 @@ ok("…and W/D verification still exists elsewhere (the Property Intelligence pe
 // ── 7. THE CARD LAYOUT ────────────────────────────────────────────────────────────────────────
 console.log("\nthe commission badge has its own row:")
 ok("the reasons get the full width", /<div className="mt-2 w-full">/.test(CARD))
-ok("…and the badge sits on a right-aligned row below", /<div className="mt-1\.5 flex w-full justify-end">[\s\S]{0,160}?<CommissionBadge/.test(CARD))
+// The badge still sits on its own row beneath the reasons; that row now also carries the
+// washer/dryer badge on the left, and justify-between keeps the commission hard right whether
+// or not the left badge renders.
+ok("…and the badge sits on the bottom row, still hard right",
+  /<div className="mt-1\.5 flex w-full flex-wrap items-center justify-end gap-x-2 gap-y-1">[\s\S]{0,260}?<CommissionBadge/.test(CARD))
+ok("…with the washer\/dryer badge to its left", /<WasherDryerBadge status=\{washerDryerShown\} className="mr-auto" \/>[\s\S]{0,160}?<CommissionBadge/.test(CARD))
 ok("…no longer flex-none inside the reasons row", !/<CommissionBadge status=\{commission\} size="row" className="flex-none" \/>/.test(CARD))
 ok("the badge component itself is unchanged", /<CommissionBadge status=\{commission\} size="row" \/>/.test(CARD))
 ok("Favorites' layout is untouched", /<CommissionBadge status=\{favCommission\} size="row" \/>/.test(read("components/crm/LeadFavorites.tsx")))

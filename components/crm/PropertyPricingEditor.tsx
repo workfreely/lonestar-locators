@@ -2,8 +2,11 @@
 
 import { useEffect, useState } from "react"
 import DateTimePicker from "./DateTimePicker"
-import { CATALOG_WD_INCLUDED_OPTIONS, CATALOG_WD_CONNECTIONS_OPTIONS,
-  asCatalogWasherDryerIncluded, asCatalogWasherDryerConnections } from "@/lib/propertyIntel/washerDryerCatalog"
+import { asCatalogWasherDryerIncluded, asCatalogWasherDryerConnections } from "@/lib/propertyIntel/washerDryerCatalog"
+import {
+  WASHER_DRYER_SELECT_OPTIONS, toSingleSelect, fromSingleSelect, washerDryerSelectLabel,
+  describeStoredPair, changeConsequences, type WasherDryerSelectValue,
+} from "@/lib/propertyIntel/washerDryerSingleSelect"
 import { ClientUnitWasherDryerField } from "./ClientUnitWasherDryer"
 import type { WasherDryerStatus } from "@/lib/leads/washerDryer"
 import { deriveWasherDryer } from "@/lib/propertyIntel/washerDryerResolver"
@@ -137,8 +140,11 @@ export default function PropertyPricingEditor({
   const [twobr, setTwobr] = useState("")
   const [threebr, setThreebr] = useState("")
   const [special, setSpecial] = useState("")
-  const [wdIncluded, setWdIncluded] = useState("")
-  const [wdConnections, setWdConnections] = useState("")
+  // ONE MENU OVER TWO COLUMNS. `wdTouched` is what protects the stored pair: until somebody
+  // actually changes this control, neither column is sent, whatever the menu happens to show.
+  const [wdSelect, setWdSelect] = useState<WasherDryerSelectValue>("")
+  const [wdTouched, setWdTouched] = useState(false)
+  const [wdState, setWdState] = useState(() => toSingleSelect(null, null))
   // What was LOADED, so Save can send a dropdown only when it actually changed — the same rule
   // the commission fields already follow, and the reason a legacy value is never resubmitted.
   const [loadedWd, setLoadedWd] = useState({ inc: "", conn: "" })
@@ -179,7 +185,7 @@ export default function PropertyPricingEditor({
     // a glimpse of the wrong building's numbers is worse than a moment of nothing.
     setOnebr(""); setTwobr(""); setThreebr("")
     setSpecial(""); setSource("")
-    setWdIncluded(""); setWdConnections(""); setLoadedWd({ inc: "", conn: "" })
+    setWdSelect(""); setWdTouched(false); setWdState(toSingleSelect(null, null)); setLoadedWd({ inc: "", conn: "" })
     setSend(""); setEscort(""); setBonus("")
     setLoadedCommission({ send: "", escort: "", bonus: "" })
     setAddress(null)
@@ -200,7 +206,8 @@ export default function PropertyPricingEditor({
         {
           const inc = asCatalogWasherDryerIncluded(d.washerDryerIncluded) ?? ""
           const conn = asCatalogWasherDryerConnections(d.washerDryerConnections) ?? ""
-          setWdIncluded(inc); setWdConnections(conn); setLoadedWd({ inc, conn })
+          const st = toSingleSelect(inc, conn)
+          setWdState(st); setWdSelect(st.value); setWdTouched(false); setLoadedWd({ inc, conn })
         }
         setSource(d.pricingSource ?? "")
         setAddress(d.address ?? null)
@@ -239,6 +246,20 @@ export default function PropertyPricingEditor({
   // the wrong client, is not an option.
   const canClientWd = !!canonicalPropertyKey && typeof onSaveWasherDryer === "function"
 
+  // What this choice would REPLACE. Empty while untouched, and empty for a choice that only
+  // fills a column nobody had answered — adding information is not discarding any.
+  const wdReplaces = wdTouched ? changeConsequences(wdState.stored, wdSelect) : []
+
+  // What the two columns WOULD hold after this save. An untouched menu means the loaded pair,
+  // so the per-client section below reflects the property as it stands; a touched one lets an
+  // admin see the consequence of the change they are making before they commit it.
+  const effectiveWd = wdTouched
+    ? {
+        inc: fromSingleSelect(wdSelect).included ?? loadedWd.inc,
+        conn: fromSingleSelect(wdSelect).connections ?? loadedWd.conn,
+      }
+    : loadedWd
+
   async function save() {
     setSaving(true)
     setError(null)
@@ -254,8 +275,14 @@ export default function PropertyPricingEditor({
       if (source.trim()) body.pricingSource = source.trim()
       // CHANGED ONLY. "Not Verified" leaves the stored value alone — it is the absence of an
       // answer, not an instruction to erase one, exactly as a blank rent is.
-      if (wdIncluded && wdIncluded !== loadedWd.inc) body.washerDryerIncluded = wdIncluded
-      if (wdConnections && wdConnections !== loadedWd.conn) body.washerDryerConnections = wdConnections
+      // TOUCHED ONLY. An untouched menu sends nothing, so opening the editor to change a rent
+      // can never rewrite a washer/dryer column — including the 42 ambiguous rows the menu
+      // cannot represent, and the 327 where it shows one fact and the column holds two.
+      if (wdTouched) {
+        const w = fromSingleSelect(wdSelect)
+        if (w.included && w.included !== loadedWd.inc) body.washerDryerIncluded = w.included
+        if (w.connections && w.connections !== loadedWd.conn) body.washerDryerConnections = w.connections
+      }
       // TWO REASONS A COMMISSION FIELD IS OMITTED, and the second one matters more than it looks.
       //
       // BLANK means "nobody has checked". Sending 0 for it would manufacture a verified zero out
@@ -431,11 +458,11 @@ export default function PropertyPricingEditor({
                     <ClientUnitWasherDryerField
                       value={clientWd}
                       onChange={setClientWd}
-                      propertyWide={CATALOG_WD_INCLUDED_OPTIONS.find((o) => o.value === wdIncluded)?.label ?? "not recorded"}
+                      propertyWide={washerDryerSelectLabel(wdSelect)}
                       // Derived from the two selects ABOVE as they stand, so setting W/D Included
                       // to Yes updates the answer immediately — the admin sees the consequence of
                       // the property edit they are making, in the same panel.
-                      derived={deriveWasherDryer(wdIncluded, wdConnections)}
+                      derived={deriveWasherDryer(effectiveWd.inc, effectiveWd.conn)}
                       idPrefix={`ppe-${placeId}`}
                     />
                   </div>
@@ -482,23 +509,42 @@ export default function PropertyPricingEditor({
                     a field about washers should not make the reader guess which appliances are
                     meant. Connections sits on the LEFT because it is the weaker fact of the two,
                     so the pair reads from hookups up to included. */}
-                <div className="mt-3 grid grid-cols-2 gap-2">
-                  <div>
-                    <span className={label}>W/D Connections</span>
-                    <select value={wdConnections} onChange={(e) => setWdConnections(e.target.value)} className={`${field} mt-1`}>
-                      {CATALOG_WD_CONNECTIONS_OPTIONS.map((o) => (
-                        <option key={o.value || "none"} value={o.value}>{o.label}</option>
+                <div className="mt-3">
+                  <span className={label}>Washer &amp; Dryer</span>
+                  <select
+                    value={wdSelect}
+                    onChange={(e) => { setWdSelect(e.target.value as WasherDryerSelectValue); setWdTouched(true) }}
+                    className={`${field} mt-1`}
+                  >
+                    {/* AN AMBIGUOUS ROW IS SHOWN AS ITSELF. 42 properties store a pair no option
+                        can state — "Connections: Select Units" with Included never answered, and
+                        two smaller shapes. Rather than snap them to the nearest option, the
+                        current selection spells out both stored values and disappears the moment
+                        a person chooses something. */}
+                    {wdState.ambiguous && <option value="">{describeStoredPair(wdState.stored)}</option>}
+                    {WASHER_DRYER_SELECT_OPTIONS.map((o) => (
+                      <option key={o.value || "unverified"} value={o.value}>{o.label}</option>
+                    ))}
+                  </select>
+                  {wdState.lossy && !wdTouched && (
+                    <p className="mt-1 text-[10px] leading-snug text-[var(--crm-text-muted)]">{wdState.lossy}.</p>
+                  )}
+                  {/* SAY WHAT GOES AWAY, BEFORE IT GOES. The menu shows one answer; the row
+                      holds two, and an option can assert the opposite of a column it does not
+                      display. Saving is not blocked — this is a correction a person is entitled
+                      to make — but they make it having read which verified fact it replaces. */}
+                  {wdReplaces.length > 0 && (
+                    <p className="mt-1 rounded-md border border-amber-500/40 bg-amber-500/10 px-1.5 py-1 text-[10px] leading-snug text-amber-600 dark:text-amber-400">
+                      Saving replaces{" "}
+                      {wdReplaces.map((c, i) => (
+                        <span key={c.column}>
+                          {i > 0 && " and "}
+                          {c.column} “{c.from}” with “{c.to}”
+                        </span>
                       ))}
-                    </select>
-                  </div>
-                  <div>
-                    <span className={label}>W/D Included</span>
-                    <select value={wdIncluded} onChange={(e) => setWdIncluded(e.target.value)} className={`${field} mt-1`}>
-                      {CATALOG_WD_INCLUDED_OPTIONS.map((o) => (
-                        <option key={o.value || "none"} value={o.value}>{o.label}</option>
-                      ))}
-                    </select>
-                  </div>
+                      .
+                    </p>
+                  )}
                 </div>
                 <p className="mt-1.5 text-[10px] text-[var(--crm-text-muted)]">
                   Not Verified keeps the stored value — saving never clears one.

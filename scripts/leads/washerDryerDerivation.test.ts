@@ -204,7 +204,10 @@ console.log("\nthe editor does not ask for what the property already proves:")
   ok("…and a way to override it", /setOverride\(true\)/.test(FIELD))
   ok("a disagreement is shown, not silently resolved", /derived\.status !== value \? derived : null/.test(FIELD))
   const PPE = read("components/crm/PropertyPricingEditor.tsx")
-  ok("the editor derives from the catalog selects it already holds", /derived=\{deriveWasherDryer\(wdIncluded, wdConnections\)\}/.test(PPE))
+  // From the pair the save WOULD leave behind — the loaded one while untouched, the menu's
+  // canonical pair once changed — so an admin sees the consequence before committing it.
+  ok("the editor derives from the pair the save would leave", /derived=\{deriveWasherDryer\(effectiveWd\.inc, effectiveWd\.conn\)\}/.test(PPE))
+  ok("…and that pair is the loaded one until the menu is touched", /const effectiveWd = wdTouched/.test(PPE))
   ok("…and still never prefills the stored value from them", /setClientWd\(washerDryer\)/.test(PPE) && !/setClientWd\(derive/.test(PPE))
 }
 

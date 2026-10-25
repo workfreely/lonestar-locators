@@ -67,10 +67,17 @@ for (const [name, src] of Object.entries(SURFACES)) {
   ok(`${name}: no inline commission pill remains`, !/dff5e6|8ecaa6|136c3a/.test(src))
   ok(`${name}: does not re-implement the other states`, !/Not Paying Locators|Commission Not Verified/.test(src))
 }
-// The badge moved onto its OWN right-aligned row beneath the reasons, so it no longer needs
-// flex-none to defend its width — the reasons are not competing with it any more.
-ok("Recommended renders it on its own right-aligned row",
-  /<div className="mt-1\.5 flex w-full justify-end">[\s\S]{0,160}?<CommissionBadge status=\{commission\} size="row" \/>/.test(SURFACES["Recommended (BestMatches)"]))
+// The badge sits on the bottom row beneath the reasons, which it now shares with the
+// washer/dryer badge. justify-between holds it hard right whether or not the left badge
+// renders, so the number a locator scans for never moves; it still needs no flex-none, because
+// the reasons are not competing with it any more.
+ok("Recommended renders it hard right on the bottom row",
+  /<div className="mt-1\.5 flex w-full flex-wrap items-center justify-end gap-x-2 gap-y-1">[\s\S]{0,260}?<CommissionBadge status=\{commission\} size="row" \/>/.test(SURFACES["Recommended (BestMatches)"]))
+ok("…and is the LAST thing on that row", (() => {
+  const src = SURFACES["Recommended (BestMatches)"]
+  const row = src.slice(src.indexOf("flex w-full flex-wrap items-center justify-end"))
+  return row.indexOf("<CommissionBadge") < row.indexOf("</div>") && row.indexOf("<WasherDryerBadge") < row.indexOf("<CommissionBadge")
+})())
 ok("the map keeps the larger card size", /<CommissionBadge status=\{commissionStatus\} size="card" \/>/.test(SURFACES["Map card"]))
 
 console.log("\nthe status is passed WHOLE, so the union cannot be split apart:")

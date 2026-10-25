@@ -9,6 +9,7 @@ import { DEFAULT_TIMEZONE } from "@/lib/timezone"
 import { resolveWorkHoursFromProfile, type WorkHours } from "@/lib/workflow/autoDueDate"
 import { greetingName, displayFullName, sanitizeFollowUpOverrides, type FollowUpOverrides } from "@bc/companion-shared"
 import { reconcilePrimaryMarket } from "@/lib/markets/catalog"
+import { attachWasherDryer } from "@/lib/propertyIntel/attachWasherDryer"
 import { attachCatalogRatings } from "@/lib/propertyExplorer/catalog"
 import { DEMO_ALL_LEADS, DEMO_NEXT_ACTIONS, DEMO_FAVORITES, DEMO_RECOMMENDATIONS, DEFAULT_AVG_COMMISSION_PER_LEASE } from "@/lib/demo/demoWorkspace"
 import { DEFAULT_PROJECTION_METHOD, type ProjectionMethod } from "@/lib/leads/commissionEstimate"
@@ -221,7 +222,11 @@ async function getRecommendations() {
 
   // Same read-side rating resolution as favorites (property_catalog is the single
   // source of truth). One batched catalog query.
-  return attachCatalogRatings(data || [], supabase)
+  const withCatalog = await attachCatalogRatings(data || [], supabase)
+  // …plus the two washer/dryer columns, which the catalog RPC does not return. The card's
+  // washer/dryer badge resolves from them when no per-client confirmation exists; nothing is
+  // written, and a failed read just means no badge.
+  return attachWasherDryer(withCatalog)
 }
 
 // Scheduled tours — the canonical lead_tours appointments (source of truth) used

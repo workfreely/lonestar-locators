@@ -165,27 +165,35 @@ export default function ReasonsControl({
       // importantly, is allowed to SHRINK. Without min-w-0 a flex item refuses to go
       // below its content width, so a long reason would push against the commission
       // badge instead of ellipsing.
-      <div className="flex min-w-0 flex-1 items-center gap-1.5">
+      // ONE LINE PER REASON, READABLE WITHOUT OPENING THE EDITOR.
+      //
+      // They used to be joined into a single ellipsed line, which on a narrow CRM column meant
+      // the locator could read the commute and nothing else — and the amenities, the one part
+      // they chose by hand, were always the part that fell off. Each reason now gets its own
+      // line, at the same type size as before.
+      //
+      // DELIBERATELY NOT BOXES. Three bordered panels would read as a redesign of a card whose
+      // compactness is the point; three short lines cost roughly two lines of height and no
+      // chrome at all. Each line still truncates individually, so an unusually long reason
+      // ellipses on its own rather than pushing the card wider.
+      <div className="flex min-w-0 flex-1 flex-col gap-[1px]">
         <button
           type="button"
           onClick={begin}
-          // The CONTROL stays muted and fixed-width — it is chrome, not content.
-          className="flex-none text-[10.5px] font-medium text-[var(--crm-text-muted)] underline decoration-[var(--crm-border)] underline-offset-2 transition-colors hover:text-[var(--crm-text-primary)]"
+          // The CONTROL stays muted and self-width — it is chrome, not content.
+          className="self-start text-[10.5px] font-medium text-[var(--crm-text-muted)] underline decoration-[var(--crm-border)] underline-offset-2 transition-colors hover:text-[var(--crm-text-primary)]"
         >
           Why I chose this · Edit
         </button>
-        {shown.length > 0 && (
+        {shown.map((line, i) => (
           // The saved reasons are CONTENT, so they take the same bright treatment as
-          // the Google rating figure rather than the muted tone of the control.
-          //
-          // `truncate` ellipses the joined display string only. Every reason is still
-          // in the array in its original order — nothing is dropped, reordered, or
+          // the Google rating figure rather than the muted tone of the control. Every
+          // reason is rendered, in its stored order — nothing is dropped, reordered or
           // preferentially shortened, and the commute reason is not special-cased.
-          // The editor and the canonical row keep the full text.
-          <span className="min-w-0 truncate text-[10.5px] text-[var(--crm-text-secondary)]">
-            {shown.join(" · ")}
+          <span key={`${line}-${i}`} className="min-w-0 truncate text-[10.5px] leading-[1.35] text-[var(--crm-text-secondary)]">
+            {line}
           </span>
-        )}
+        ))}
       </div>
     )
   }

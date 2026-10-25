@@ -4,6 +4,8 @@ import { SectionCard } from "./LeadPanelSections"
 import ReasonsControl from "./ReasonsControl"
 import PropertyPricingEditor from "./PropertyPricingEditor"
 import ClientUnitWasherDryer from "./ClientUnitWasherDryer"
+import WasherDryerBadge from "./WasherDryerBadge"
+import { resolveWithOverride } from "@/lib/propertyIntel/washerDryerResolver"
 import PropertyThumb from "./PropertyThumb"
 import PromoBadges from "./PromoBadges"
 import CommissionBadge from "./CommissionBadge"
@@ -159,6 +161,16 @@ export default function BestMatches({
             const clientPropertyKey = r.canonical_property_key ? String(r.canonical_property_key) : null
             const clientWasherDryer = clientPropertyKey ? washerDryerByKey?.get(clientPropertyKey) ?? null : null
             const canConfirmWasherDryer = !!clientPropertyKey && typeof onSaveWasherDryer === "function"
+            // THE SAME ANSWER THE CLIENT WOULD GET. A saved confirmation first, then a
+            // conclusive catalog reading, then nothing — resolveWithOverride is the one place
+            // that decides, so the internal badge and the client's badge cannot disagree. A
+            // catalog-derived value shows here WITHOUT being written; share preparation is
+            // still the only thing that persists one.
+            const washerDryerShown = resolveWithOverride(
+              clientWasherDryer,
+              (r as { washer_dryer_included?: string | null }).washer_dryer_included ?? null,
+              (r as { washer_dryer_connections?: string | null }).washer_dryer_connections ?? null,
+            ).status
 
             // The SAVED reasons (canonical, locator-owned) and the DISPLAY list (those plus
             // the derived bedroom price). They are deliberately separate values: the editor
@@ -345,9 +357,19 @@ export default function BestMatches({
                   />
                 ) : <span />}
               </div>
-              {/* Its own row, aligned right. Same component, same dark-green styling, same
-                  dollar mark and the same three verification states — only the position moved. */}
-              <div className="mt-1.5 flex w-full justify-end">
+              {/* THE BOTTOM ROW: what the property has on the left, what it pays on the right.
+                  JUSTIFY-END PLUS mr-auto, NOT justify-between. Measured at 240–480px: with
+                  space-between, a row holding only the commission badge — every property without
+                  a confirmed washer/dryer, which is most of them — puts its single child at the
+                  START, so the badge a locator scans for would jump to the left. And when the
+                  row wraps, space-between left-aligns the wrapped line too. Pushing the left
+                  badge with mr-auto instead pins the commission right in all three cases: both
+                  badges, commission alone, and wrapped onto two lines.
+                  flex-wrap is what keeps a narrow CRM column honest — on a card too tight for
+                  both, the commission drops to its own line rather than overlapping the left
+                  badge or pushing the card into horizontal scroll. */}
+              <div className="mt-1.5 flex w-full flex-wrap items-center justify-end gap-x-2 gap-y-1">
+                <WasherDryerBadge status={washerDryerShown} className="mr-auto" />
                 <CommissionBadge status={commission} size="row" />
               </div>
             </div>

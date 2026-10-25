@@ -52,9 +52,10 @@ ok("only the two exact values pass", asWasherDryerStatus("included") === "includ
 console.log("\nthe per-client value is never prefilled from the property-wide one:")
 ok("the editor seeds it from the PROP, not the catalog fetch", /setClientWd\(washerDryer\)/.test(PPE))
 ok("…and never from a catalog field", !/setClientWd\((wdIncluded|wdConnections|d\.washerDryer)/.test(PPE))
-ok("the catalog value appears only as read-only context", /propertyWide=\{CATALOG_WD_INCLUDED_OPTIONS/.test(PPE))
+ok("the catalog value appears only as read-only context", /propertyWide=\{washerDryerSelectLabel\(wdSelect\)\}/.test(PPE))
 ok("…and the context prop cannot become a value", !/value=\{propertyWide/.test(FIELD))
-ok("the standalone control reads no catalog field at all", !/washer_dryer_included|washerDryerIncluded|CATALOG_WD/.test(FIELD))
+ok("the standalone control reads no catalog field at all",
+  !/washer_dryer_included|washerDryerIncluded|CATALOG_WD|WASHER_DRYER_SELECT_OPTIONS/.test(FIELD))
 
 // ── 3. THE ADMIN BOUNDARY ─────────────────────────────────────────────────────────────────────
 console.log("\na non-admin cannot reach Property Intelligence:")
