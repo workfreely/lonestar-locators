@@ -423,12 +423,6 @@ const CSS = `
    untouched. Mobile-only (inside this media query); shared Footer not modified. */
 .lbr-legal span:has(> a[target="_blank"]) > span[aria-hidden="true"]{display:none}
 .lbr-recs{padding:20px 16px 8px}
-/* The gap between Next Steps and the FIRST property card, on mobile only. 24px let the
-   roadmap sit close enough to the cards to read as part of them; 32px separates the
-   instruction from the thing it is instructing about. This is the roadmap's own bottom
-   margin, so it is the only gap it can touch: card-to-card spacing is .lbr-grid's own gap
-   below, which is unchanged, and the desktop value stays at the base rule's 24px. */
-.lbr-steps--roadmap{margin-bottom:32px}
 .lbr-grid{grid-template-columns:1fr;gap:20px}
 .lbr-ph{aspect-ratio:16/11}
 /* Mobile breathing room (spacing only — card structure unchanged). */
@@ -447,8 +441,14 @@ const CSS = `
 .lbr-ta-cell{min-height:44px}
 .lbr-ta-chip{min-height:44px;padding:10px 16px;box-sizing:border-box}
 .lbr-steps{margin:22px 16px 0;padding:22px 20px}
-/* Mobile roadmap: vertical 1/2/3, more compact than the old large bottom card. */
-.lbr-steps--roadmap{margin:0 0 16px;padding:15px 16px;border-radius:16px;box-shadow:0 6px 20px -12px rgba(14,37,69,.28)}
+/* Mobile roadmap: vertical 1/2/3, more compact than the old large bottom card.
+   THE BOTTOM MARGIN IS THE GAP ABOVE THE FIRST PROPERTY CARD — 32px, so the instruction
+   reads as separate from the thing it is instructing about. It lives in this shorthand
+   rather than in a later margin-bottom rule: a second rule looks like it wins and does
+   not, because this shorthand resets all four sides and nothing above it survives.
+   Card-to-card spacing is .lbr-grid's own gap, unchanged at 20px; desktop keeps the base
+   rule's 24px. */
+.lbr-steps--roadmap{margin:0 0 32px;padding:15px 16px;border-radius:16px;box-shadow:0 6px 20px -12px rgba(14,37,69,.28)}
 /* Next Steps mobile sizes live on the --roadmap selectors (the ones that WIN over the
    generic .lbr-steps mobile rules), so the intended sizes actually apply. */
 .lbr-steps--roadmap h2{font-size:26px;margin:0 0 14px}
