@@ -88,3 +88,29 @@ export function searchAmenities(query: string): RecommendationAmenity[] {
   if (!q) return [...RECOMMENDATION_AMENITIES]
   return RECOMMENDATION_AMENITIES.filter((a) => a.label.toLowerCase().includes(q))
 }
+
+/** The searchable options, as the shared AmenitySelect wants them. */
+export const RECOMMENDATION_AMENITY_LABELS: readonly string[] =
+  RECOMMENDATION_AMENITIES.map((a) => a.label)
+
+/**
+ * A value being ENTERED now → what gets stored.
+ *
+ * A known label lands on its canonical spelling, so picking "Walk-in Closets" always stores the
+ * same string. Anything else is the locator's own wording and is kept EXACTLY as typed — this is
+ * deliberately not Social Beast's resolveAmenityForEntry, which would canonicalize a phrase
+ * against a different vocabulary and rewrite words a locator chose on purpose.
+ */
+export function resolveRecommendationAmenity(raw: string, sanitize: (s: string) => string): string {
+  const hit = amenityByLabel(raw)
+  return hit ? hit.label : sanitize(raw)
+}
+
+/**
+ * Comparison only. Two spellings of the same standardized amenity share a key, so "Walk-In
+ * Closets" cannot be added alongside "Walk-in Closets"; custom wording falls back to its own
+ * lowercased text. Never used to rewrite a stored value.
+ */
+export function recommendationAmenityKey(raw: string): string {
+  return amenityByLabel(raw)?.value ?? (raw ?? "").trim().toLowerCase()
+}

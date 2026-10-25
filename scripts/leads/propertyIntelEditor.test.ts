@@ -106,8 +106,10 @@ console.log("\n=== 2b. THE LABELS SAY WASHER/DRYER, AND CONNECTIONS COMES FIRST 
   // comment is not a label. What must not survive is the rendered word.
   ok("no RENDERED label says 'Appliances'", !/Appliances/i.test(read("components/crm/PropertyPricingEditor.tsx")))
   ok("both labels name W/D", /W\/D Connections/.test(ed) && /W\/D Included/.test(ed))
+  // Compared on the RENDERED spans, not on any occurrence in the file: a comment that names a
+  // label is not a label, and position-in-source was silently measuring both.
   ok("Connections is rendered LEFT of Included",
-    ed.indexOf("W/D Connections") < ed.indexOf("W/D Included"))
+    ed.indexOf(">W/D Connections</span>") < ed.indexOf(">W/D Included</span>"))
   ok("each label still sits with its own field",
     /W\/D Connections<\/span>[\s\S]{0,160}setWdConnections/.test(ed) &&
     /W\/D Included<\/span>[\s\S]{0,160}setWdIncluded/.test(ed))

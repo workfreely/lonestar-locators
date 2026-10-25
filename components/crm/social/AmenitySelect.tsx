@@ -14,7 +14,37 @@ import { AMENITY_BANK, amenityEquivalenceKey, canonicalizeAmenity, resolveAmenit
 // amenityEquivalenceKey owns that mapping; a value with no alias returns its own key, so this is a
 // drop-in for the plain lowercase compare it replaces. It is used for COMPARISON ONLY — the saved
 // chip keeps its own wording and is never rewritten.
-const key = (s: string) => amenityEquivalenceKey(s)
+/**
+ * THE VOCABULARY THIS CONTROL SEARCHES.
+ *
+ * Social Beast's own bank is the DEFAULT, so every existing call site — the Post Editor and
+ * Research — behaves exactly as before, down to the 3-feature cap. The recommendation editor
+ * passes its own, because "Why I chose this for you" offers the client's Smart Form must-haves
+ * rather than marketing keywords, and because its stored wording must survive a round trip
+ * untouched: `resolveEntry` there keeps a typed phrase as typed instead of canonicalizing it.
+ *
+ * Only the vocabulary is swappable. The chips, the typeahead, the custom fallback, the
+ * equivalence-aware de-duplication and the keyboard handling are the same control either way,
+ * which is the entire point of reusing it.
+ */
+export type AmenityVocabulary = {
+  /** The searchable options. */
+  bank: readonly string[]
+  /** A value being ENTERED now → what gets stored. */
+  resolveEntry: (raw: string) => string
+  /** Typed text → a storable custom value, or "" when there is nothing usable in it. */
+  sanitizeCustom: (raw: string) => string
+  /** Comparison only — two spellings that mean the same thing share a key. */
+  equivalenceKey: (raw: string) => string
+}
+
+export const SOCIAL_AMENITY_VOCABULARY: AmenityVocabulary = {
+  bank: AMENITY_BANK,
+  resolveEntry: resolveAmenityForEntry,
+  sanitizeCustom: sanitizeCustomAmenity,
+  equivalenceKey: amenityEquivalenceKey,
+}
+
 const MAX = 3 // Post Editor workflow: at most 3 amenities (the caption uses the first 3, in order)
 // Research reuses this control for OBSERVED features, where the 3-cap must not
 // apply: three marketing keywords are a curated ranking layer, never the
@@ -25,12 +55,19 @@ export default function AmenitySelect({
   value,
   onChange,
   max = MAX,
+  vocabulary = SOCIAL_AMENITY_VOCABULARY,
+  placeholder,
 }: {
   value: string[]
   onChange: (next: string[]) => void
   /** Selection cap. Defaults to the marketing MAX of 3; research passes a higher one. */
   max?: number
+  /** Defaults to Social Beast's own bank — see AmenityVocabulary. */
+  vocabulary?: AmenityVocabulary
+  placeholder?: string
 }) {
+  const { bank: BANK, resolveEntry, sanitizeCustom, equivalenceKey } = vocabulary
+  const key = (s: string) => equivalenceKey(s)
   const [query, setQuery] = useState("")
   const [open, setOpen] = useState(false)
   const wrapRef = useRef<HTMLDivElement>(null)
@@ -52,27 +89,27 @@ export default function AmenitySelect({
   const q = query.trim()
   const matches = useMemo(() => {
     const qq = q.toLowerCase()
-    return AMENITY_BANK.filter((a) => !selectedKeys.has(key(a)) && (!qq || a.toLowerCase().includes(qq)))
-  }, [q, selectedKeys])
+    return BANK.filter((a) => !selectedKeys.has(key(a)) && (!qq || a.toLowerCase().includes(qq)))
+  }, [q, selectedKeys, BANK])
 
   // The custom row is offered only when there is a query that is not already an exact canonical or
   // selected value.
-  const canonicalOfQuery = canonicalizeAmenity(q)
-  const customCandidate = sanitizeCustomAmenity(q)
+  const canonicalOfQuery = resolveEntry(q)
+  const customCandidate = sanitizeCustom(q)
   // Typing an ALIAS of a bank entry must not offer "Add custom" — that is how a duplicate wording
   // gets created in the first place. key() is equivalence-aware, so the bank check below now
   // catches "Hardwood Floors" as well as "Hardwood Flooring".
   const showCustom =
     !!customCandidate &&
-    !selectedKeys.has(key(canonicalizeAmenity(customCandidate) || customCandidate)) &&
-    !AMENITY_BANK.some((a) => key(a) === key(canonicalOfQuery))
+    !selectedKeys.has(key(resolveEntry(customCandidate) || customCandidate)) &&
+    !BANK.some((a) => key(a) === key(canonicalOfQuery))
 
   const add = (raw: string) => {
     if (value.length >= max) return // cap (3 for marketing, higher for research)
     // resolveAmenityForEntry, not canonicalizeAmenity: this value is being entered NOW, so an
     // alias ("Hardwood Floors") should land on the canonical spelling rather than become a second
     // variant. Stored values are never passed through here.
-    const v = resolveAmenityForEntry(raw) // known variant or alias → canonical; unknown → trimmed custom
+    const v = resolveEntry(raw) // known variant or alias → canonical; unknown → kept as entered
     if (!v) return
     if (selectedKeys.has(key(v))) { setQuery(""); return } // no exact duplicates
     const next = [...value, v]
@@ -82,7 +119,7 @@ export default function AmenitySelect({
     if (next.length < max) { setOpen(true); setTimeout(() => inputRef.current?.focus(), 0) } else setOpen(false)
   }
   const addCustom = () => {
-    const v = sanitizeCustomAmenity(query)
+    const v = sanitizeCustom(query)
     if (!v) return
     add(v)
   }
@@ -118,7 +155,7 @@ export default function AmenitySelect({
               else if (e.key === "Escape") setOpen(false)
               else if (e.key === "Backspace" && !query && value.length) remove(value.length - 1)
             }}
-            placeholder={value.length ? "Add another…" : "Search amenities…"}
+            placeholder={value.length ? "Add another…" : (placeholder ?? "Search amenities…")}
           />
         )}
       </div>

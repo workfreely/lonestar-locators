@@ -9,8 +9,26 @@ import {
   type BedroomValue, type StructuredReasons,
 } from "@/lib/leads/structuredReasons"
 import {
-  RECOMMENDATION_AMENITIES, MAX_RECOMMENDATION_AMENITIES, amenityByLabel, searchAmenities,
+  MAX_RECOMMENDATION_AMENITIES, RECOMMENDATION_AMENITY_LABELS,
+  resolveRecommendationAmenity, recommendationAmenityKey,
 } from "@/lib/leads/recommendationAmenities"
+import AmenitySelect, { type AmenityVocabulary } from "@/components/crm/social/AmenitySelect"
+
+/**
+ * THE RECOMMENDATION VOCABULARY, handed to Social Beast's own selector.
+ *
+ * The control is reused wholesale — chips, typeahead, custom fallback, equivalence-aware
+ * de-duplication, Enter/Backspace handling — and only the words it searches are swapped. Social
+ * Beast keeps its own bank and its 3-feature cap untouched; this one offers the Smart Form
+ * must-have labels and caps at two, because a recommendation reason is a highlight, not a
+ * feature list.
+ */
+const RECOMMENDATION_VOCABULARY: AmenityVocabulary = {
+  bank: RECOMMENDATION_AMENITY_LABELS,
+  resolveEntry: (raw) => resolveRecommendationAmenity(raw, sanitizeHighlight),
+  sanitizeCustom: sanitizeHighlight,
+  equivalenceKey: recommendationAmenityKey,
+}
 
 /**
  * "Why I chose this · Edit" — the locator-side editor for one recommendation's
@@ -65,7 +83,6 @@ export default function ReasonsControl({
   // Parsed from the SAVED strings, which stay the storage format. Legacy lines the parser could
   // not claim ride along in `structured.legacy` and are written back untouched.
   const [structured, setStructured] = useState<StructuredReasons>(() => parseReasons(reasons))
-  const [amenityQuery, setAmenityQuery] = useState("")
   const patch = (next: Partial<StructuredReasons>) => setStructured((s) => ({ ...s, ...next }))
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -104,7 +121,6 @@ export default function ReasonsControl({
     // Seed from the CURRENT saved value every time it opens, so a cancelled edit
     // never leaks into the next one.
     setStructured(parseReasons(reasons))
-    setAmenityQuery("")
     setArRent(txt(averageRent?.quotedRent)); setArWeeks(txt(averageRent?.concessionWeeks))
     setArMonths(txt(averageRent?.concessionMonths)); setArTerm(txt(averageRent?.leaseMonths))
     setArShow(averageRent?.show === true)
@@ -274,79 +290,18 @@ export default function ReasonsControl({
         <span className="block text-[9.5px] font-semibold uppercase tracking-wide text-[var(--crm-text-muted)]">
           3 · Amenities · optional, up to {MAX_RECOMMENDATION_AMENITIES} highlights
         </span>
-        {structured.amenities.length > 0 && (
-          <div className="mt-1.5 flex flex-wrap gap-1">
-            {structured.amenities.map((label) => (
-              <span
-                key={label}
-                // A typed chip is dashed; a standardized one is solid. The agent can see at a
-                // glance which wording came from the shared vocabulary and which is their own.
-                className={`inline-flex items-center gap-1 rounded-md border bg-[var(--crm-panel)] px-1.5 py-[2px] text-[11px] text-[var(--crm-text-primary)] ${
-                  isCustomHighlight(label) ? "border-dashed border-[var(--crm-text-muted)]" : "border-[var(--crm-border)]"
-                }`}
-                title={isCustomHighlight(label) ? "Your own wording — not a verified property feature" : "Standardized amenity"}
-              >
-                {label}
-                <button
-                  type="button"
-                  aria-label={`Remove ${label}`}
-                  onClick={() => patch({ amenities: structured.amenities.filter((a) => a !== label) })}
-                  className="text-[var(--crm-text-muted)] transition-colors hover:text-red-500"
-                >
-                  ✕
-                </button>
-              </span>
-            ))}
-          </div>
-        )}
-        {structured.amenities.length < MAX_RECOMMENDATION_AMENITIES ? (
-          <>
-            <input
-              value={amenityQuery}
-              placeholder="Search amenities, or type your own…"
-              maxLength={MAX_HIGHLIGHT_LEN}
-              onChange={(e) => setAmenityQuery(e.target.value)}
-              className="mt-1.5 w-full rounded-lg border border-[var(--crm-border)] bg-[var(--crm-panel)] px-2 py-1 text-[11.5px] text-[var(--crm-text-primary)] outline-none focus:border-[var(--crm-text-muted)]"
-            />
-            <div className="mt-1 max-h-[108px] overflow-y-auto">
-              {searchAmenities(amenityQuery)
-                .filter((a) => !structured.amenities.some((sel) => amenityByLabel(sel)?.value === a.value))
-                .map((a) => (
-                  <button
-                    key={a.value}
-                    type="button"
-                    onClick={() => { patch({ amenities: [...structured.amenities, a.label] }); setAmenityQuery("") }}
-                    className="block w-full rounded px-1.5 py-[3px] text-left text-[11.5px] text-[var(--crm-text-secondary)] transition-colors hover:bg-[var(--crm-card)] hover:text-[var(--crm-text-primary)]"
-                  >
-                    {a.label}
-                  </button>
-                ))}
-              {/* THE CUSTOM FALLBACK. Offered only when the text is not already one of the
-                  labels above and not already chosen — otherwise it would duplicate a chip the
-                  locator can simply click. Sanitized on the way in, so a pasted phrase cannot
-                  smuggle in the " + " joiner and split itself into two highlights. */}
-              {(() => {
-                const custom = sanitizeHighlight(amenityQuery)
-                if (!custom) return null
-                if (amenityByLabel(custom)) return null
-                if (structured.amenities.some((sel) => sel.toLowerCase() === custom.toLowerCase())) return null
-                return (
-                  <button
-                    type="button"
-                    onClick={() => { patch({ amenities: [...structured.amenities, custom] }); setAmenityQuery("") }}
-                    className="mt-0.5 block w-full rounded border border-dashed border-[var(--crm-border)] px-1.5 py-[3px] text-left text-[11.5px] text-[var(--crm-text-secondary)] transition-colors hover:bg-[var(--crm-card)] hover:text-[var(--crm-text-primary)]"
-                  >
-                    Use “{custom}” as your own wording
-                  </button>
-                )
-              })()}
-            </div>
-          </>
-        ) : (
-          <p className="mt-1.5 text-[10.5px] text-[var(--crm-text-muted)]">
-            Two highlights — remove one to pick or type a different one.
-          </p>
-        )}
+        {/* THE SOCIAL BEAST SELECTOR, with this editor's vocabulary. Identical interaction to
+            Features Observed, which is the point — a locator who has used one has used both. */}
+        <AmenitySelect
+          value={structured.amenities}
+          onChange={(next) => patch({ amenities: next })}
+          max={MAX_RECOMMENDATION_AMENITIES}
+          vocabulary={RECOMMENDATION_VOCABULARY}
+          placeholder="Search amenities, or type your own…"
+        />
+        <p className="mt-1 text-[10px] leading-snug text-[var(--crm-text-muted)]">
+          Your own wording is kept exactly as typed and is never a verified property feature.
+        </p>
       </div>
 
       {/* PREVIOUSLY SAVED REASONS. Lines the parser could not confidently claim — a typo, a

@@ -131,16 +131,27 @@ console.log("\n=== 5. SAVING ONE FIELD NEVER ERASES ANOTHER ===")
 
 console.log("\n=== 6. THE EDITOR ===")
 {
+  // THE CONTROL MOVED. It is no longer a field in "Why I chose this for you" — that editor holds
+  // exactly three slots — and lives instead where property facts are verified: inside Property
+  // Intelligence for an admin, and as a standalone client-only control for every other locator.
+  // The vocabulary, the save path and the data model are the same ones as before.
   const rc = read("components/crm/ReasonsControl.tsx")
-  ok("the dropdown appears only when a handler is supplied", /const showWasherDryer = typeof onSaveWasherDryer === "function"/.test(rc))
-  ok("so Favorites, which passes neither prop, is unchanged", /washerDryer\?: WasherDryerStatus \| null/.test(rc))
-  ok("it is seeded from the saved value each time the editor opens", /setWdDraft\(washerDryer \?\? null\)/.test(rc))
-  ok("the status is written only when it actually changed", /wdChanged = showWasherDryer && wdDraft !== \(washerDryer \?\? null\)/.test(rc))
-  ok("it reads its options from the shared module", /WASHER_DRYER_OPTIONS\.map/.test(rc))
-  ok("the three-reason maximum is untouched", /slice\(0, MAX_REASONS\)/.test(rc))
+  ok("the reasons editor holds no washer/dryer field", !/WASHER_DRYER|washerDryer|wdDraft/.test(rc))
+
+  const cu = read("components/crm/ClientUnitWasherDryer.tsx")
+  ok("the control appears only when a handler is supplied", /typeof onSaveWasherDryer === "function"/.test(read("components/crm/BestMatches.tsx")))
+  ok("it is seeded from the saved value each time it opens", /setDraft\(value\)/.test(cu))
+  ok("the status is written only when it actually changed", /if \(draft === value\) \{ setOpen\(false\); return \}/.test(cu))
+  ok("it reads its options from the shared module", /WASHER_DRYER_OPTIONS\.map/.test(cu))
+  ok("the three-reason maximum is untouched", /cleaned\.length > MAX_REASONS/.test(rc))
+
+  const lf0 = read("components/crm/LeadFavorites.tsx")
+  ok("so Favorites, which passes neither prop, is unchanged", !/washerDryer/.test(lf0))
 
   const bm = read("components/crm/BestMatches.tsx")
-  ok("Recommended Properties supplies both props", /washerDryer=\{washerDryerByKey\?\.get/.test(bm) && /onSaveWasherDryer=\{/.test(bm))
+  ok("Recommended Properties supplies both props", /washerDryer=\{clientWasherDryer\}/.test(bm) && /onSaveWasherDryer=\{/.test(bm))
+  ok("…routed to Property Intelligence, not to the reasons editor",
+    /<PropertyPricingEditor[\s\S]{0,400}?onSaveWasherDryer=\{onSaveWasherDryer\}/.test(bm) && !/ReasonsControl[\s\S]{0,900}?onSaveWasherDryer/.test(bm))
 
   const lf = read("components/crm/LeadFavorites.tsx")
   ok("Favorites supplies neither", !/washerDryer/.test(lf))
@@ -154,16 +165,16 @@ console.log("\n=== 6. THE EDITOR ===")
     const collapsed = src.slice(src.indexOf("if (!open) {"), src.indexOf("return (", src.indexOf("const shown = previewReasons")))
     ok("the COLLAPSED card row shows nothing about washer/dryer",
       !/washerDryer|wdDraft|Washer/.test(collapsed))
-    ok("the dropdown lives only in the opened editor",
-      /showWasherDryer && \(/.test(src.slice(src.indexOf("const shown = previewReasons"))))
+    ok("the control lives only in the opened panel",
+      /\{open && \(/.test(read("components/crm/ClientUnitWasherDryer.tsx")))
 
     // The workspace card must not render the client-facing pill, its classes, or its labels.
     const bmRaw = raw("components/crm/BestMatches.tsx")
     for (const leak of ["lbr-wd", "washerDryerLabel", "washerDryerPillClass", "Washer & Dryer Included", "Washer & Dryer Hookups"]) {
       ok(`the workspace card never renders ${leak}`, !bmRaw.includes(leak))
     }
-    ok("BestMatches only passes the value through — it renders no new element",
-      /washerDryer=\{washerDryerByKey/.test(bmRaw) && !/<[A-Za-z][^>]*lbr-wd/.test(bmRaw))
+    ok("BestMatches only passes the value through — it renders no client pill",
+      /washerDryer=\{clientWasherDryer\}/.test(bmRaw) && !/<[A-Za-z][^>]*lbr-wd/.test(bmRaw))
 
     // And the pill's CSS is confined to the client page's own stylesheet.
     ok("no CRM stylesheet defines the pill",

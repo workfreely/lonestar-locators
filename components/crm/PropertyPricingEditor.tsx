@@ -4,6 +4,9 @@ import { useEffect, useState } from "react"
 import DateTimePicker from "./DateTimePicker"
 import { CATALOG_WD_INCLUDED_OPTIONS, CATALOG_WD_CONNECTIONS_OPTIONS,
   asCatalogWasherDryerIncluded, asCatalogWasherDryerConnections } from "@/lib/propertyIntel/washerDryerCatalog"
+import { ClientUnitWasherDryerField } from "./ClientUnitWasherDryer"
+import type { WasherDryerStatus } from "@/lib/leads/washerDryer"
+import { deriveWasherDryer } from "@/lib/propertyIntel/washerDryerResolver"
 
 /**
  * Owner-only property pricing editor — the pencil on a Recommended Properties card.
@@ -104,12 +107,21 @@ export default function PropertyPricingEditor({
   placeId,
   propertyName,
   onSaved,
+  canonicalPropertyKey,
+  washerDryer = null,
+  onSaveWasherDryer,
 }: {
   /** Resolved from the row's property_url. Absent ⇒ the caller does not render this at all. */
   placeId: string
   propertyName?: string | null
   /** Fired after a successful save so the card can re-read the derived pricing reason. */
   onSaved?: () => void
+  /** THIS CLIENT'S UNIT. The (lead, property) pair the per-client W/D status belongs to. Absent,
+   *  or without a handler, and the section is not rendered — the property-wide fields are
+   *  unaffected either way, because the two save to different places. */
+  canonicalPropertyKey?: string | null
+  washerDryer?: WasherDryerStatus | null
+  onSaveWasherDryer?: (canonicalPropertyKey: string, next: WasherDryerStatus | null) => Promise<boolean>
 }) {
   const [open, setOpen] = useState(false)
   // STARTS TRUE. With `false`, the first render after opening showed the FORM — holding the
@@ -130,6 +142,10 @@ export default function PropertyPricingEditor({
   // What was LOADED, so Save can send a dropdown only when it actually changed — the same rule
   // the commission fields already follow, and the reason a legacy value is never resubmitted.
   const [loadedWd, setLoadedWd] = useState({ inc: "", conn: "" })
+  // THIS CLIENT'S UNIT, held separately from everything above because it saves somewhere else.
+  // Seeded from the prop rather than from the route's response: the catalog read knows nothing
+  // about this client, and must never be allowed to supply a default for their card.
+  const [clientWd, setClientWd] = useState<WasherDryerStatus | null>(washerDryer)
   const [source, setSource] = useState("")
   const [checkedAt, setCheckedAt] = useState(todayIso())
   // The shared CRM picker is a normal element we render, so it has to be opened explicitly —
@@ -154,6 +170,10 @@ export default function PropertyPricingEditor({
     setError(null)
     setNote(null)
     setDateOpen(false)
+    // The per-client value re-seeds from the prop, NOT from the fetch below. It is the only
+    // field here that does not come from property_catalog, and the whole point is that the
+    // catalog cannot speak for one client's floor plan.
+    setClientWd(washerDryer)
     // BLANK THE FORM BEFORE FETCHING. Opening the editor on a second property must never show
     // the first one's figures, not even for a frame — these are prices and commission rates, and
     // a glimpse of the wrong building's numbers is worse than a moment of nothing.
@@ -199,7 +219,7 @@ export default function PropertyPricingEditor({
       }
     })()
     return () => { alive = false }
-  }, [open, placeId])
+  }, [open, placeId, washerDryer])
 
   // Escape closes, matching every other dismissible surface in the CRM.
   useEffect(() => {
@@ -213,6 +233,11 @@ export default function PropertyPricingEditor({
     window.addEventListener("keydown", onKey)
     return () => window.removeEventListener("keydown", onKey)
   }, [open])
+
+  // The per-client section exists only when the caller supplied BOTH the pair it belongs to and
+  // somewhere to save it. Rendering a control that could not persist, or that might be pointed at
+  // the wrong client, is not an option.
+  const canClientWd = !!canonicalPropertyKey && typeof onSaveWasherDryer === "function"
 
   async function save() {
     setSaving(true)
@@ -261,8 +286,25 @@ export default function PropertyPricingEditor({
       // `in` rather than truthiness: a deliberate clear sends null, which is falsy but IS a save.
       const anyCommission = "sendCommission" in body || "escortCommission" in body || "bonusFlat" in body
       const anyWasherDryer = "washerDryerIncluded" in body || "washerDryerConnections" in body
-      if (!body.onebr && !body.twobr && !body.threebr && !body.currentSpecial && !anyCommission && !anyWasherDryer) {
-        setError("Enter at least one price, a special, a commission value, or a washer/dryer status.")
+      // TWO DESTINATIONS, TWO QUESTIONS. The property-wide fields go to the admin route; this
+      // client's unit goes to lead_property_reasons through the caller's handler. Either may be
+      // the only thing that changed, so each is asked independently.
+      const clientWdChanged = canClientWd && clientWd !== washerDryer
+      const anyProperty = !!(body.onebr || body.twobr || body.threebr || body.currentSpecial) || anyCommission || anyWasherDryer
+      if (!anyProperty && !clientWdChanged) {
+        setError(canClientWd
+          ? "Change a price, a special, a commission value, a washer/dryer status, or this client's unit."
+          : "Enter at least one price, a special, a commission value, or a washer/dryer status.")
+        return
+      }
+
+      // A W/D-ONLY SAVE MUST NOT CALL THE ADMIN ROUTE. With nothing property-wide to write there
+      // is nothing for it to do, and a PUT carrying only placeId would stamp checkedAt on a
+      // property nobody actually re-checked.
+      if (!anyProperty) {
+        const okClient = await onSaveWasherDryer!(canonicalPropertyKey!, clientWd)
+        if (!okClient) { setError("Couldn't save this client's washer/dryer. Please try again."); return }
+        setOpen(false)
         return
       }
 
@@ -283,6 +325,19 @@ export default function PropertyPricingEditor({
       if (skipped.length > 0) setNote(`Saved. ${skipped.length} field(s) were left unchanged by the write policy.`)
 
       onSaved?.()
+
+      // NEVER REPORT SUCCESS IF EITHER WRITE FAILED. The property-wide save already landed, so
+      // the message says exactly that and names what did not — telling someone "saved" when the
+      // thing their client's card actually shows did not save is the failure mode worth spending
+      // a sentence on. The editor stays open so the save can be retried.
+      if (clientWdChanged) {
+        const okClient = await onSaveWasherDryer!(canonicalPropertyKey!, clientWd)
+        if (!okClient) {
+          setNote(null)
+          setError("Property details saved, but this client's washer/dryer didn't save. Try that part again.")
+          return
+        }
+      }
       if (skipped.length === 0) setOpen(false)
     } catch {
       setError("Couldn't save. Please try again.")
@@ -362,6 +417,29 @@ export default function PropertyPricingEditor({
                 <p className="mt-1.5 text-[10px] text-[var(--crm-text-muted)]">
                   Starting rents. Leave a field blank to keep its stored value — saving never clears a price.
                 </p>
+
+                {/* ── THIS CLIENT'S UNIT ────────────────────────────────────────────────────
+                    Visibly separated from everything above it, because it is a different KIND
+                    of fact saved to a different place: the two fields above describe the
+                    building and live in property_catalog; this one is a locator's confirmation
+                    for ONE client and lives on lead_property_reasons, where the client's card
+                    reads it. The rule between them is one-way and manual — a property-wide
+                    "Yes" never fills this in, because "Select Units" is true of 224 properties
+                    and says nothing about the floor plan this client is being shown. */}
+                {canClientWd && (
+                  <div className="mt-3 border-t border-[var(--crm-border)] pt-3">
+                    <ClientUnitWasherDryerField
+                      value={clientWd}
+                      onChange={setClientWd}
+                      propertyWide={CATALOG_WD_INCLUDED_OPTIONS.find((o) => o.value === wdIncluded)?.label ?? "not recorded"}
+                      // Derived from the two selects ABOVE as they stand, so setting W/D Included
+                      // to Yes updates the answer immediately — the admin sees the consequence of
+                      // the property edit they are making, in the same panel.
+                      derived={deriveWasherDryer(wdIncluded, wdConnections)}
+                      idPrefix={`ppe-${placeId}`}
+                    />
+                  </div>
+                )}
 
                 <div className="mt-3">
                   <span className={label}>Current special</span>

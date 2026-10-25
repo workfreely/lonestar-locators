@@ -3,6 +3,7 @@
 import { SectionCard } from "./LeadPanelSections"
 import ReasonsControl from "./ReasonsControl"
 import PropertyPricingEditor from "./PropertyPricingEditor"
+import ClientUnitWasherDryer from "./ClientUnitWasherDryer"
 import PropertyThumb from "./PropertyThumb"
 import PromoBadges from "./PromoBadges"
 import CommissionBadge from "./CommissionBadge"
@@ -152,6 +153,12 @@ export default function BestMatches({
             // id — the pencil is then not offered, because an editor with no confident
             // property to write against could only guess.
             const pricingPlaceId = placeIdFromPropertyUrl(r.property_url)
+            // THIS CLIENT'S UNIT. Keyed by the canonical pair, not by place_id — the status
+            // belongs to (this client, this property), and a property with no catalog place_id
+            // can still have one confirmed.
+            const clientPropertyKey = r.canonical_property_key ? String(r.canonical_property_key) : null
+            const clientWasherDryer = clientPropertyKey ? washerDryerByKey?.get(clientPropertyKey) ?? null : null
+            const canConfirmWasherDryer = !!clientPropertyKey && typeof onSaveWasherDryer === "function"
 
             // The SAVED reasons (canonical, locator-owned) and the DISPLAY list (those plus
             // the derived bedroom price). They are deliberately separate values: the editor
@@ -192,7 +199,7 @@ export default function BestMatches({
                       ) : (
                         <p className="min-w-0 truncate text-[12.5px] font-semibold text-[var(--crm-text-primary)]">{r.property_name}</p>
                       )}
-                      {(onRemoveRecommendation || onMoveToFavorite || (canEditPricing && pricingPlaceId)) && (
+                      {(onRemoveRecommendation || onMoveToFavorite || (canEditPricing && pricingPlaceId) || canConfirmWasherDryer) && (
                         <div className="flex flex-none items-center gap-1.5">
                           {onRemoveRecommendation && (
                             <button
@@ -214,13 +221,34 @@ export default function BestMatches({
                               to write against, and offering an editor that could not save
                               (or worse, could be pointed at the wrong property) is not an
                               option. */}
-                          {canEditPricing && pricingPlaceId && (
+                          {/* ONE POSITION, TWO EXPERIENCES, SPLIT BY WHAT THE PERSON MAY EDIT.
+                              A platform admin opens the full Property Intelligence editor, which
+                              now carries this client's W/D confirmation as its own separated
+                              section. Every other locator gets ONLY that confirmation, in the
+                              same place on the card.
+
+                              This is presentation; it is not the authorization. The property
+                              fields are protected by requirePlatformAdmin on the route, and the
+                              per-client status by RLS on lead_property_reasons — the same policy
+                              that already governs the reasons and favorites a locator saves for
+                              their own client. Neither is enforced by hiding a control. */}
+                          {canEditPricing && pricingPlaceId ? (
                             <PropertyPricingEditor
                               placeId={pricingPlaceId}
                               propertyName={r.property_name}
                               onSaved={onPricingSaved}
+                              canonicalPropertyKey={clientPropertyKey}
+                              washerDryer={clientWasherDryer}
+                              onSaveWasherDryer={onSaveWasherDryer}
                             />
-                          )}
+                          ) : canConfirmWasherDryer ? (
+                            <ClientUnitWasherDryer
+                              canonicalPropertyKey={clientPropertyKey as string}
+                              propertyName={r.property_name}
+                              value={clientWasherDryer}
+                              onSave={onSaveWasherDryer!}
+                            />
+                          ) : null}
                           {onMoveToFavorite && (
                             <button
                               type="button"

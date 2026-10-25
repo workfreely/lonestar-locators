@@ -1,6 +1,8 @@
 import { NextResponse, type NextRequest } from "next/server"
 import { createClient } from "@/lib/supabase/server"
 import { generateShareToken } from "@/lib/clientShare/token"
+import { supabaseAdmin } from "@/lib/supabase/admin"
+import { backfillDerivedWasherDryer } from "@/lib/clientShare/washerDryerBackfill"
 
 // Client Recommendation share snapshots — authenticated agent API (CP2).
 //
@@ -38,6 +40,29 @@ export async function POST(req: NextRequest) {
   const leadId = Number(rawLeadId)
   if (!Number.isInteger(leadId) || leadId <= 0) {
     return NextResponse.json({ error: "valid leadId required" }, { status: 400 })
+  }
+
+  // ── REUSE WHAT PROPERTY INTELLIGENCE ALREADY VERIFIED ───────────────────────
+  // Before the snapshot is taken, fill in the washer/dryer status for pairs that have
+  // none and whose catalog data conclusively settles it, so a locator is never asked to
+  // retype a fact already verified against the property. It writes ONLY into empty
+  // values, never over a person's confirmation, and never from "Select Units" or a
+  // connections-only row — see the resolver.
+  //
+  // It runs here rather than inside the snapshot SQL so the rule stays in one readable
+  // place and needs no migration; the snapshot still freezes
+  // lead_property_reasons.washer_dryer_status exactly as it always has.
+  //
+  // Authorization is the caller's own: the pairs come from their RLS-filtered read and
+  // the write goes back through the same connection, so a non-member fills nothing.
+  const wd = await backfillDerivedWasherDryer(supabase as never, supabaseAdmin as never, leadId)
+  // A stored confirmation that DISAGREES with conclusive property data is reported, never
+  // resolved — both values stand until a person looks at them.
+  for (const c of wd.conflicts) {
+    console.warn(
+      `[client-share] washer/dryer conflict lead=${leadId} property=${c.canonicalPropertyKey} ` +
+        `confirmed=${c.manual} derived=${c.derived} (${c.basis}) — left unchanged`,
+    )
   }
 
   // A fresh raw token is generated HERE; it is used ONLY if prepare decides to mint a
@@ -83,6 +108,10 @@ export async function POST(req: NextRequest) {
     reused: row?.reused ?? false,
     prefix,
     url,
+    // Reported for review, not acted on: what was filled in from verified property data,
+    // and any pair where a person's confirmation and that data disagree.
+    washerDryerFilled: wd.filled.length,
+    washerDryerConflicts: wd.conflicts,
   })
 }
 

@@ -68,7 +68,7 @@ ok("the approved examples all format", [
 ].every(([a, b]) => formatAmenities([a, b]) === `${a}${AMENITY_JOINER}${b}`))
 ok("search filters by label", searchAmenities("gar").every((a) => /gar/i.test(a.label)) && searchAmenities("gar").length > 0)
 ok("an empty query returns everything", searchAmenities("").length === RECOMMENDATION_AMENITIES.length)
-ok("the editor caps selection in the UI too", /structured\.amenities\.length < MAX_RECOMMENDATION_AMENITIES/.test(EDITOR))
+ok("the editor caps selection in the UI too", /max=\{MAX_RECOMMENDATION_AMENITIES\}/.test(EDITOR))
 ok("no free-text amenity entry remains", !/placeholder="Short fragment/.test(EDITOR))
 
 console.log("\n…and the list REUSES the existing shared sources:")
@@ -92,7 +92,7 @@ console.log("\n…and selecting one is NOT a verification:")
   ok("…and writes no verification", !/verification_status|verified_at|checked_at|setVerified/i.test(EDITOR))
   // The word "verified" now appears, but only in the chip's own denial. A typed highlight must
   // say out loud that it is NOT a confirmed property feature, which is the point of requirement 7.
-  ok("…and the typed chip denies being verified", /not a verified property feature/i.test(EDITOR))
+  ok("…and typed wording denies being verified", /never a verified property feature/i.test(EDITOR))
   ok("…with no affirmative claim anywhere", !/\bis verified\b|\bVerified\b(?! property feature)/.test(EDITOR.replace(/not a verified property feature/gi, "")))
 }
 
@@ -164,7 +164,12 @@ ok("editing a reason does not clear it", !/setArRent\(""\)|setArShow\(false\)/.t
 console.log("\nthe confusing controls are gone:")
 ok("no '+ Add Reason'", !/Add Reason/i.test(EDITOR))
 ok("no washer/dryer verification dropdown", !/WASHER_DRYER_OPTIONS|asWasherDryerStatus/.test(EDITOR))
-ok("…and the card stopped passing it", !/onSaveWasherDryer=\{/.test(CARD))
+// The card passes the handler again — but to the PROPERTY INTELLIGENCE editor, never to the
+// reasons editor. That split is the whole arrangement: W/D is verified where property facts are
+// verified, and "Why I chose this for you" keeps exactly three slots.
+ok("…and the reasons editor still never receives it", !/ReasonsControl[\s\S]{0,900}?onSaveWasherDryer/.test(CARD))
+ok("the card routes it to the Property Intelligence editor instead",
+  /<PropertyPricingEditor[\s\S]{0,400}?onSaveWasherDryer=\{onSaveWasherDryer\}/.test(CARD))
 ok("W/D is still choosable as an AMENITY", RECOMMENDATION_AMENITIES.some((a) => a.label === "W/D Included"))
 ok("…and W/D verification still exists elsewhere (the Property Intelligence pencil)",
   /washerDryerIncluded|washer_dryer_included/.test(read("components/crm/PropertyPricingEditor.tsx")))
@@ -278,7 +283,7 @@ console.log("\ntyped input is sanitized so it cannot break the format:")
   ok("a slash SURVIVES — \"W/D\" must not become \"W D\"", sanitizeHighlight("W/D Included") === "W/D Included")
   ok("it is capped in length", sanitizeHighlight("x".repeat(80)).length === MAX_HIGHLIGHT_LEN)
   ok("whitespace-only is nothing", sanitizeHighlight("   ") === "")
-  ok("the input enforces the same cap", new RegExp(`maxLength=\\{MAX_HIGHLIGHT_LEN\\}`).test(EDITOR))
+  ok("the shared control sanitizes with it", /sanitizeCustom: sanitizeHighlight/.test(EDITOR))
 }
 
 console.log("\nthe other slots are not reachable through custom wording:")
@@ -291,12 +296,26 @@ console.log("\nthe other slots are not reachable through custom wording:")
 
 console.log("\nthe custom entry reuses the ONE search input (requirement 9):")
 {
-  ok("no second control was added", (EDITOR.match(/placeholder="Search amenities/g) ?? []).length === 1)
-  ok("the input offers its own text as wording", /as your own wording/.test(EDITOR))
-  ok("…sanitized first", /sanitizeHighlight\(amenityQuery\)/.test(EDITOR))
-  ok("…and never when it duplicates a label", /if \(amenityByLabel\(custom\)\) return null/.test(EDITOR))
-  ok("…or a chip already chosen", /sel\.toLowerCase\(\) === custom\.toLowerCase\(\)/.test(EDITOR))
-  ok("a typed chip is visually distinct", /isCustomHighlight\(label\)[\s\S]{0,120}?border-dashed/.test(EDITOR))
+  const SELECT = read("components/crm/social/AmenitySelect.tsx")
+  ok("it is Social Beast's own selector, not a second control",
+    /from "@\/components\/crm\/social\/AmenitySelect"/.test(EDITOR) && /<AmenitySelect/.test(EDITOR))
+  ok("no hand-rolled chip list remains", !/searchAmenities\(amenityQuery\)|amenityQuery/.test(EDITOR))
+  ok("only the VOCABULARY is swapped", /vocabulary=\{RECOMMENDATION_VOCABULARY\}/.test(EDITOR))
+  ok("…and the control still offers custom wording", /Add custom feature/.test(SELECT))
+  ok("…sanitized through the recommendation rules", /sanitizeCustom: sanitizeHighlight/.test(EDITOR))
+  ok("…and de-duplicated by meaning", /equivalenceKey: recommendationAmenityKey/.test(EDITOR))
+  ok("typed wording is kept exactly as typed", /kept exactly as typed/.test(EDITOR))
+}
+
+console.log("\nSOCIAL BEAST IS UNCHANGED by the reuse:")
+{
+  const SELECT = read("components/crm/social/AmenitySelect.tsx")
+  ok("its bank is still the DEFAULT vocabulary", /vocabulary = SOCIAL_AMENITY_VOCABULARY/.test(SELECT))
+  ok("…built from AMENITY_BANK and its own resolvers",
+    /bank: AMENITY_BANK/.test(SELECT) && /resolveEntry: resolveAmenityForEntry/.test(SELECT) && /sanitizeCustom: sanitizeCustomAmenity/.test(SELECT))
+  ok("its three-feature cap is untouched", /const MAX = 3/.test(SELECT))
+  const POST = read("components/crm/social/PropertyResearch.tsx")
+  ok("Features Observed passes no vocabulary, so it keeps the default", !/vocabulary=/.test(POST))
 }
 
 console.log("\nnothing reaches Property Intelligence (requirements 6 + 7):")
