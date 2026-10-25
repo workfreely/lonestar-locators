@@ -51,6 +51,8 @@ export default function BestMatches({
   onReorder,
   washerDryerByKey,
   onSaveWasherDryer,
+  agentTopPickId,
+  onSetAgentTopPick,
   averageRentByKey,
   onSaveAverageRent,
 }: {
@@ -89,6 +91,12 @@ export default function BestMatches({
   washerDryerByKey?: Map<string, WasherDryerStatus | null>
   /** Persist the status for ONE client-property pair. Absent → no dropdown is offered. */
   onSaveWasherDryer?: (canonicalPropertyKey: string, next: WasherDryerStatus | null) => Promise<boolean>
+  /** THE AGENT'S "My Top Pick for You" — the recommendation id, or null. At most one per
+   *  client by construction: it is a single value, not a flag per row. Deliberately NOT the
+   *  client's own Top Pick, which lives on leads.top_pick_favorite_id and is never read here. */
+  agentTopPickId?: number | string | null
+  /** Set or clear it. `null` clears. Absent → the star is not offered at all. */
+  onSetAgentTopPick?: (recommendationId: number | string | null) => Promise<boolean>
   /** The confirmed average-rent figures per canonical_property_key, for THIS client. */
   averageRentByKey?: Map<string, AverageRentInputs>
   /** Persist all five figures for ONE pair. Absent → no average-rent control is offered. */
@@ -155,6 +163,11 @@ export default function BestMatches({
             // id — the pencil is then not offered, because an editor with no confident
             // property to write against could only guess.
             const pricingPlaceId = placeIdFromPropertyUrl(r.property_url)
+            // THE AGENT'S OWN PICK. Derived by comparing this row's id against the single
+            // value on the lead — never stored per row, so two rows cannot both claim it and
+            // nothing has to be cleared when the pick moves.
+            const isAgentTopPick = agentTopPickId != null && String(agentTopPickId) === String(r.id)
+            const canPickTop = typeof onSetAgentTopPick === "function"
             // THIS CLIENT'S UNIT. Keyed by the canonical pair, not by place_id — the status
             // belongs to (this client, this property), and a property with no catalog place_id
             // can still have one confirmed.
@@ -211,8 +224,46 @@ export default function BestMatches({
                       ) : (
                         <p className="min-w-0 truncate text-[12.5px] font-semibold text-[var(--crm-text-primary)]">{r.property_name}</p>
                       )}
-                      {(onRemoveRecommendation || onMoveToFavorite || (canEditPricing && pricingPlaceId) || canConfirmWasherDryer) && (
+                      {/* AMBER, NOT GREEN. The green ★ badge in Favorites is the CLIENT'S Top
+                          Pick; this is the agent's own recommendation, and the two appear in
+                          the same workspace minutes apart. Different colour, different wording
+                          and different section are what stop them reading as the same fact. */}
+                      {isAgentTopPick && (
+                        <span
+                          className="flex-none inline-flex items-center gap-[3px] rounded border border-amber-500/40 bg-amber-500/12 px-1.5 py-[1px] text-[10px] font-semibold text-amber-500"
+                          title="Your top pick for this client — shown on their recommendation page"
+                        >
+                          <span aria-hidden>★</span>My Top Pick for You
+                        </span>
+                      )}
+                      {(onRemoveRecommendation || onMoveToFavorite || (canEditPricing && pricingPlaceId) || canConfirmWasherDryer || canPickTop) && (
                         <div className="flex flex-none items-center gap-1.5">
+                          {/* MY TOP PICK — first in the row, immediately left of the ✕, in the
+                              same 22×22 footprint as the controls it joins, so the row and the
+                              card height are unchanged.
+
+                              Clicking an unselected star sets this row as the pick; clicking
+                              the selected one clears it. Selecting a different row needs no
+                              clearing step, because the designation is ONE value on the lead
+                              rather than a flag on each row — moving it is a single write. */}
+                          {canPickTop && (
+                            <button
+                              type="button"
+                              aria-pressed={isAgentTopPick}
+                              aria-label={isAgentTopPick ? `Remove ${r.property_name} as your top pick` : `Set ${r.property_name} as your top pick`}
+                              title={isAgentTopPick ? "Your top pick — click to remove" : "Set as top pick"}
+                              onClick={() => onSetAgentTopPick!(isAgentTopPick ? null : r.id)}
+                              className={`inline-flex h-[22px] w-[22px] items-center justify-center rounded-md transition-colors duration-[120ms] ${
+                                isAgentTopPick
+                                  ? "text-[#f5a524]"
+                                  : "text-[var(--crm-text-muted)] hover:text-[#f5a524]"
+                              }`}
+                            >
+                              <svg viewBox="0 0 24 24" width="14" height="14" fill={isAgentTopPick ? "currentColor" : "none"} stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round" aria-hidden>
+                                <path d="M12 2.8l2.83 5.73 6.32.92-4.57 4.46 1.08 6.29L12 17.23l-5.66 2.97 1.08-6.29L2.85 9.45l6.32-.92z" />
+                              </svg>
+                            </button>
+                          )}
                           {onRemoveRecommendation && (
                             <button
                               type="button"

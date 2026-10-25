@@ -791,6 +791,57 @@ export default function DashboardClient({ leads, nextActions, favorites, recomme
   }
 
   /**
+   * THE AGENT'S "My Top Pick for You" — set, move, or clear it for the selected client.
+   *
+   * ONE VALUE ON THE LEAD, so "at most one per client" is structural rather than a rule this
+   * function has to enforce: moving the pick is a single update, and nothing has to be cleared
+   * off the previous row first. `null` clears it.
+   *
+   * IT NEVER TOUCHES leads.top_pick_favorite_id. That column is the CLIENT'S own Top Pick,
+   * owned by the Tour Follow-Up and application workflows, and a client who favorites something
+   * the agent did not pick must keep that choice intact. Two columns, two owners, no derivation
+   * between them — the only thing they share is the word "pick".
+   *
+   * Nothing else moves either: no recommendation is created, removed or reordered, and no
+   * favorite is written.
+   */
+  const handleSetAgentTopPick = async (recommendationId: number | string | null) => {
+    if (!selectedLeadId) return false
+    // IT MUST BE THIS CLIENT'S OWN RECOMMENDATION. The id comes from a card rendered for the
+    // selected lead, so in practice it always is — but the column's foreign key only promises
+    // the row EXISTS, not that it belongs here, and a lead pointing at another lead's
+    // recommendation would be nonsense stored permanently. Clearing (null) is always allowed.
+    //
+    // This is a correctness guard, not the authorization boundary: that is RLS on `leads`,
+    // which decides whether this agent may write this row at all, exactly as it does for the
+    // eight other lead-column writes on this page.
+    if (recommendationId !== null) {
+      const ownsIt = localRecommendationsRef.current.some(
+        (r: any) => String(r.id) === String(recommendationId) && String(r.lead_id) === String(selectedLeadId),
+      )
+      if (!ownsIt) {
+        console.error("[agent-top-pick] refusing: recommendation does not belong to this lead")
+        return false
+      }
+    }
+    const updates = { agent_top_pick_recommendation_id: recommendationId === null ? null : Number(recommendationId) }
+    // Optimistic, then persisted — the same shape every other lead-column write here uses, so a
+    // star responds immediately and survives the refresh because the row itself changed.
+    setLocalLeads((prev) => prev.map((l: any) => (String(l.id) === String(selectedLeadId) ? { ...l, ...updates } : l)))
+    if (isDemoLeadId(selectedLeadId)) return true
+    const { error } = await supabase.from("leads").update(updates).eq("id", selectedLeadId)
+    if (error) {
+      console.error("[agent-top-pick] save failed:", error.message)
+      // Put the previous value back rather than leaving a star the database does not agree with.
+      setLocalLeads((prev) => prev.map((l: any) => (String(l.id) === String(selectedLeadId)
+        ? { ...l, agent_top_pick_recommendation_id: (selectedLead as any)?.agent_top_pick_recommendation_id ?? null }
+        : l)))
+      return false
+    }
+    return true
+  }
+
+  /**
    * Persist the four CONFIRMED average-rent figures and the display decision for ONE pair.
    *
    * Its own columns on the row the reasons already live on, so it cannot disturb them, the
@@ -4814,6 +4865,8 @@ export default function DashboardClient({ leads, nextActions, favorites, recomme
                     onReorder={handleReorderRecommendations}
                     washerDryerByKey={washerDryerByKey}
                     onSaveWasherDryer={handleSaveWasherDryer}
+                    agentTopPickId={(selectedLead as any)?.agent_top_pick_recommendation_id ?? null}
+                    onSetAgentTopPick={handleSetAgentTopPick}
                     averageRentByKey={averageRentByKey}
                     onSaveAverageRent={handleSaveAverageRent}
                   />

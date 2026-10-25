@@ -212,6 +212,15 @@ const CSS = `
   border-radius:999px;font-size:12.5px;font-weight:700;line-height:1.2;white-space:nowrap}
 .lbr-wd--inc{background:var(--pill-bg);color:var(--pill-tx)}
 .lbr-wd--hk{background:var(--line-soft);color:var(--ink)}
+/* MY TOP PICK — the agent's own recommendation, over the image's UPPER LEFT. The heart keeps
+   the upper right and the special keeps the lower left, so the three overlays never meet.
+   Navy is the page's existing --navy token, the same fill as the Next Steps circles and the
+   View Property buttons; the star is --gold. position:absolute means it costs the card no
+   height at all. */
+.lbr-toppick{position:absolute;top:12px;left:12px;z-index:2;display:inline-flex;align-items:center;gap:6px;
+  background:var(--navy);color:#fff;font-size:12.5px;font-weight:700;line-height:1.2;
+  padding:6px 11px;border-radius:999px;white-space:nowrap;box-shadow:0 2px 8px rgba(6,18,38,.28)}
+.lbr-toppick svg{flex:none;color:var(--gold)}
 .lbr-check{color:var(--green);flex:none;margin-top:2px}
 .lbr-cardfoot{display:flex;align-items:flex-end;justify-content:space-between;gap:12px;margin-top:16px}
 .lbr-pl{font-size:12px;color:var(--muted)}
@@ -683,6 +692,12 @@ export default async function ClientRecommendationsPage({
   // separate read RPC so the core resolver signature stays stable. Failure is
   // non-fatal: the page still renders in the pre-Done state.
   const { data: tourStateData } = await supabase.rpc("lb_get_client_tour_state", { p_token_hash: tokenHash })
+  // THE AGENT'S "My Top Pick for You", as a position within this list. Read live from the lead
+  // and joined through this share's own items, so a pick that was cleared, moved, or whose
+  // property is no longer on the list comes back null and nothing renders. Best-effort: a
+  // failure here must never cost the client their recommendations.
+  const { data: agentTopPickData } = await supabase.rpc("lb_agent_top_pick_index", { p_token_hash: tokenHash })
+  const agentTopPickIndex = typeof agentTopPickData === "number" ? agentTopPickData : null
   const tourState = (Array.isArray(tourStateData) ? tourStateData[0] : tourStateData) as
     | { doneSelecting?: boolean; availability?: { tourType: TourType; dates: { date: string; windows: TourWindow[] }[] } | null }
     | null
@@ -777,6 +792,7 @@ export default async function ClientRecommendationsPage({
           </section>
 
           <RecommendationList
+            agentTopPickIndex={agentTopPickIndex}
             properties={properties}
             token={token}
             initialDoneSelecting={doneSelecting}

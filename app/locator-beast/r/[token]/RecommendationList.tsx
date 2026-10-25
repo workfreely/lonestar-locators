@@ -172,9 +172,14 @@ export default function RecommendationList({
   token,
   initialDoneSelecting = false,
   initialAvailability = null,
+  agentTopPickIndex = null,
 }: {
   properties: ClientProperty[]
   token: string
+  /** The position of the agent's "My Top Pick for You" within this list, or null for none.
+   *  READ-ONLY here: the client is shown the agent's recommendation and given no control over
+   *  it — there is no setter, no handler and no server route they could reach. */
+  agentTopPickIndex?: number | null
   /** True once the client has pressed Done Selecting Favorites on this list. */
   initialDoneSelecting?: boolean
   /** The client's previously-submitted availability (for reload / Edit), if any. */
@@ -333,6 +338,18 @@ export default function RecommendationList({
                   media
                 )
               })()}
+              {/* MY TOP PICK — upper LEFT, so it never meets the heart (upper right) or the
+                  special (lower left). Absolutely positioned over the image, so it adds no
+                  height to the card. Rendered for exactly one property, and only when the
+                  agent has chosen one: a null index renders nothing at all. */}
+              {agentTopPickIndex !== null && p.index === agentTopPickIndex && (
+                <div className="lbr-toppick">
+                  <svg viewBox="0 0 24 24" width="15" height="15" fill="currentColor" aria-hidden="true">
+                    <path d="M12 2.8l2.83 5.73 6.32.92-4.57 4.46 1.08 6.29L12 17.23l-5.66 2.97 1.08-6.29L2.85 9.45l6.32-.92z" />
+                  </svg>
+                  My Top Pick for You
+                </div>
+              )}
               <button
                 type="button"
                 className={`lbr-heart${popIndex === p.index ? " is-popping" : ""}`}

@@ -646,9 +646,13 @@ export default function LeadFavorites({
                                 className="flex-none inline-flex items-center gap-[3px] rounded
                                            border border-emerald-600/40 bg-emerald-600/12
                                            px-1.5 py-[1px] text-[10px] font-semibold text-emerald-600"
-                                title="Top Pick — the property this lead is moving on. Set by the Tour Follow-Up outcome."
+                                title="Client's Top Pick — the property this lead is moving on. Set by the Tour Follow-Up outcome, not by the agent's own recommendation."
                               >
-                                <span aria-hidden>★</span>Top Pick
+                                {/* LABEL ONLY. "Top Pick" became ambiguous the moment the agent
+                                    got one of their own on the Recommended cards; saying whose
+                                    it is costs two words. The green styling, the placement and
+                                    everything that WRITES top_pick_favorite_id are unchanged. */}
+                                <span aria-hidden>★</span>Client&apos;s Top Pick
                               </span>
                             )}
                           </div>
