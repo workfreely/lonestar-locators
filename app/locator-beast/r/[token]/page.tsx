@@ -214,11 +214,30 @@ const CSS = `
 .lbr-wd--hk{background:var(--line-soft);color:var(--ink)}
 /* MY TOP PICK — the agent's own recommendation, over the image's UPPER LEFT. The heart keeps
    the upper right and the special keeps the lower left, so the three overlays never meet.
-   Navy is the page's existing --navy token, the same fill as the Next Steps circles and the
-   View Property buttons; the star is --gold. position:absolute means it costs the card no
-   height at all. */
+   position:absolute means it costs the card no height at all.
+
+   TRANSLUCENT, NOT SOLID — AND STILL THE PAGE'S OWN NAVY. Filled opaquely it was the darkest,
+   hardest-edged thing on the card and won every glance against the photograph under it. At 72%
+   the image reads through, and the blur keeps the words legible over the busy part of a photo
+   rather than relying on opacity alone.
+
+   The same navy as the Next Steps circles and the View Property buttons, deliberately: a muted
+   slate was tried at 82% and, counter-intuitively, was both LESS see-through (18% of the photo
+   versus 28%) and less legible, because navy is dark enough that even at lower opacity it
+   darkens the area behind the text more. It also kept the badge on a palette the page already
+   runs on instead of introducing a fourth colour.
+
+   READABILITY IS THE FLOOR IT MUST NOT CROSS. White on this fill composites to 6.2:1 over a
+   white photo — the worst case — and 17.3:1 over a black one, so it stays well past the 4.5:1
+   normal-text threshold whatever it lands on. The gold star, the wording, the position, the
+   shadow and every dimension are unchanged.
+
+   -webkit-backdrop-filter IS LOAD-BEARING: Safari and every iOS browser still need the prefix,
+   and this badge is looked at on a phone more than anywhere else. Without it the fill simply
+   stays flat there — readable, just not blurred. */
 .lbr-toppick{position:absolute;top:12px;left:12px;z-index:2;display:inline-flex;align-items:center;gap:6px;
-  background:var(--navy);color:#fff;font-size:12.5px;font-weight:700;line-height:1.2;
+  background:rgba(14,37,69,.72);-webkit-backdrop-filter:blur(6px);backdrop-filter:blur(6px);
+  color:#fff;font-size:12.5px;font-weight:700;line-height:1.2;
   padding:6px 11px;border-radius:999px;white-space:nowrap;box-shadow:0 2px 8px rgba(6,18,38,.28)}
 .lbr-toppick svg{flex:none;color:var(--gold)}
 .lbr-check{color:var(--green);flex:none;margin-top:2px}

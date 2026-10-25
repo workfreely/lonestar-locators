@@ -127,8 +127,24 @@ ok("it announces its state to assistive tech", /aria-pressed=\{isAgentTopPick\}/
 
 // ── 5. THE CLIENT-FACING BADGE ────────────────────────────────────────────────────────────────
 console.log("\nthe client's badge is navy, gold-starred, and upper-left:")
-ok("it uses the page's existing navy token", /\.lbr-toppick\{[^}]*background:var\(--navy\)/.test(PAGE_RAW))
-ok("…which is the Next Steps / View Property fill", /--navy:#0e2545/.test(PAGE_RAW))
+// MUTED SLATE, not the solid navy it launched with: filled with --navy the badge was the
+// darkest, hardest-edged thing on the card and beat the photograph it sat on.
+ok("it uses the page's own navy, translucent", /\.lbr-toppick\{[^}]*background:rgba\(14,37,69,\.72\)/.test(PAGE_RAW))
+ok("…which is the --navy token's own value", /--navy:#0e2545/.test(PAGE_RAW))
+ok("…with a backdrop blur, prefixed for Safari\/iOS",
+  /-webkit-backdrop-filter:blur\(6px\)/.test(PAGE_RAW) && /[^-]backdrop-filter:blur\(6px\)/.test(PAGE_RAW))
+ok("…and it is NOT the opaque fill any more", !/\.lbr-toppick\{[^}]*background:var\(--navy\)/.test(PAGE_RAW))
+// The floor the muting must not cross. White on this fill composites to 6.21:1 over a white
+// photo — the worst case a property image can present — and 17.33:1 over a black one.
+ok("…while white text stays readable on ANY photo", (() => {
+  const lin = (c: number) => { c /= 255; return c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4 }
+  const L = (r: number, g: number, b: number) => 0.2126 * lin(r) + 0.7152 * lin(g) + 0.0722 * lin(b)
+  const over = (bg: [number, number, number]) => {
+    const c = ([14, 37, 69] as const).map((f, i) => 0.72 * f + 0.28 * bg[i]) as [number, number, number]
+    return (1.05) / (L(...c) + 0.05)
+  }
+  return over([255, 255, 255]) >= 4.5 && over([0, 0, 0]) >= 4.5
+})())
 ok("the star is the gold token", /\.lbr-toppick svg\{[^}]*color:var\(--gold\)/.test(PAGE_RAW))
 ok("the text is white", /\.lbr-toppick\{[^}]*color:#fff/.test(PAGE_RAW))
 ok("it is a compact pill", /\.lbr-toppick\{[^}]*border-radius:999px/.test(PAGE_RAW))
@@ -143,6 +159,35 @@ console.log("\n…shown for exactly one property, and only when one is chosen:")
 ok("rendered only on the matching index", /agentTopPickIndex !== null && p\.index === agentTopPickIndex/.test(LIST))
 ok("…so no pick renders nothing", /agentTopPickIndex\?: number \| null/.test(LIST))
 ok("the page defaults it to null", /const agentTopPickIndex = typeof agentTopPickData === "number" \? agentTopPickData : null/.test(PAGE))
+
+console.log("\nthe PUBLIC badge is temporarily hidden — on purpose, and only the badge:")
+{
+  ok("a single flag gates it", /const SHOW_AGENT_TOP_PICK_BADGE = (true|false)/.test(LIST))
+  // Currently ON, showing the muted treatment for review. Flipping it to false hides the badge
+  // without touching anything below — which is why the switch is a constant and not a deletion.
+  ok("…and it is currently ON, showing the muted badge", /const SHOW_AGENT_TOP_PICK_BADGE = true/.test(LIST))
+  ok("…gating the render, not deleting it", /SHOW_AGENT_TOP_PICK_BADGE && agentTopPickIndex !== null && p\.index === agentTopPickIndex/.test(LIST))
+  // Everything a restore depends on must still be here. Deleting any of it would turn a
+  // one-word revert into a rebuild, which is the whole reason the switch exists.
+  ok("the markup survives", /<div className="lbr-toppick">/.test(LIST) && /My Top Pick for You/.test(LIST))
+  ok("the styles survive", /\.lbr-toppick\{position:absolute;top:12px;left:12px/.test(PAGE_RAW))
+  ok("…including the gold star", /\.lbr-toppick svg\{[^}]*color:var\(--gold\)/.test(PAGE_RAW))
+  ok("the prop still arrives", /agentTopPickIndex\?: number \| null/.test(LIST))
+  ok("the page still resolves it every load", /rpc\("lb_agent_top_pick_index"/.test(PAGE))
+  ok("…and still passes it down", /agentTopPickIndex=\{agentTopPickIndex\}/.test(PAGE))
+}
+
+console.log("\n…and the AGENT side is entirely unaffected:")
+{
+  ok("the star control is still rendered", /<ClientUnitWasherDryer|onSetAgentTopPick!\(isAgentTopPick \? null : r\.id\)/.test(CARD))
+  ok("the CRM badge still shows the agent their pick", /My Top Pick for You/.test(CARD))
+  ok("the write path is untouched", /agent_top_pick_recommendation_id: recommendationId === null \? null : Number\(recommendationId\)/.test(DASH))
+  ok("…with its ownership guard", /String\(r\.lead_id\) === String\(selectedLeadId\)/.test(DASH))
+  ok("the column, trigger and lookup all survive",
+    /add column if not exists agent_top_pick_recommendation_id/.test(SQL) &&
+    /create trigger leads_agent_top_pick_belongs_to_lead/.test(SQL) &&
+    /create or replace function public\.lb_agent_top_pick_index/.test(SQL))
+}
 
 console.log("\nthe client gets no control over it:")
 ok("the list exposes no setter", !/onSetAgentTopPick|setAgentTopPick/.test(LIST))

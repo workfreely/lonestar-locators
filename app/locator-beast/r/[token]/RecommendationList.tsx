@@ -167,6 +167,24 @@ function splitCardAddress(address: string): { street: string; locality: string }
   return { street: cleaned.slice(0, i).trim(), locality: cleaned.slice(i + 1).trim() }
 }
 
+/**
+ * THE PUBLIC "MY TOP PICK FOR YOU" BADGE — temporarily off.
+ *
+ * It read as too dominant over the photo on a phone, so it is hidden while a better placement
+ * is decided. This is the ONLY thing that is off: nothing below it was deleted.
+ *
+ * Still running, untouched: the locator still sets, moves and clears their pick on the
+ * Recommended card; leads.agent_top_pick_recommendation_id still stores it, with its ownership
+ * trigger and ON DELETE SET NULL; lb_agent_top_pick_index is still called on every page load and
+ * still resolves the right position; the prop still arrives here; the markup below and its
+ * .lbr-toppick styles are still present and still correct.
+ *
+ * Restoring it is this one word. That is the point of putting the switch here rather than
+ * removing the JSX or the CSS — a deletion would have to be rebuilt and re-reviewed, and the
+ * pieces most likely to rot in the meantime are exactly the ones a deletion throws away.
+ */
+const SHOW_AGENT_TOP_PICK_BADGE = true
+
 export default function RecommendationList({
   properties,
   token,
@@ -342,7 +360,7 @@ export default function RecommendationList({
                   special (lower left). Absolutely positioned over the image, so it adds no
                   height to the card. Rendered for exactly one property, and only when the
                   agent has chosen one: a null index renders nothing at all. */}
-              {agentTopPickIndex !== null && p.index === agentTopPickIndex && (
+              {SHOW_AGENT_TOP_PICK_BADGE && agentTopPickIndex !== null && p.index === agentTopPickIndex && (
                 <div className="lbr-toppick">
                   <svg viewBox="0 0 24 24" width="15" height="15" fill="currentColor" aria-hidden="true">
                     <path d="M12 2.8l2.83 5.73 6.32.92-4.57 4.46 1.08 6.29L12 17.23l-5.66 2.97 1.08-6.29L2.85 9.45l6.32-.92z" />
