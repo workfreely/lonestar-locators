@@ -213,14 +213,19 @@ console.log("\nthe bottom row cannot overlap or overflow a narrow card:")
 }
 
 // ── 7. THE THREE REASONS, READABLE WITHOUT EDITING ────────────────────────────────────────────
-console.log("\nthe three reasons read without opening the editor:")
+console.log("\nthe collapsed card keeps ONE inline row of reasons:")
 {
   const CTRL = read("components/crm/ReasonsControl.tsx")
-  ok("each reason is its own line", /\{shown\.map\(\(line, i\) => \(/.test(CTRL))
+  ok("joined by the · separator", /\{shown\.join\(" · "\)\}/.test(CTRL))
+  ok("…in one element, not one per reason", !/\{shown\.map\(/.test(CTRL))
   ok("…none dropped", !/shown\.slice\(/.test(CTRL))
   ok("…and the stored order is kept", !/shown\.sort|\[\.\.\.shown\]\.reverse/.test(CTRL))
-  ok("no boxed sections were introduced", !/rounded-lg border[\s\S]{0,120}\{line\}/.test(CTRL))
-  ok("the type size is unchanged", /text-\[10\.5px\][\s\S]{0,140}\{line\}/.test(CTRL))
+  ok("no boxed sections and no block elements between reasons",
+    !/<div[^>]*>\s*\{line\}|rounded-lg border[\s\S]{0,120}\{shown/.test(CTRL))
+  ok("the type size is unchanged", /text-\[10\.5px\] leading-\[1\.35\]">[\s\S]{0,900}shown\.join/.test(CTRL))
+  ok("it is inline text that wraps, not a flex row that stacks",
+    /<div className="min-w-0 flex-1 text-\[10\.5px\] leading-\[1\.35\]">/.test(CTRL) &&
+    !/truncate[\s\S]{0,200}shown\.join/.test(CTRL))
 }
 
 // ── 8. THE CLIENT-FACING PAGE ─────────────────────────────────────────────────────────────────

@@ -161,39 +161,37 @@ export default function ReasonsControl({
 
   if (!open) {
     return (
-      // flex-1 + min-w-0 so this half ABSORBS the row's spare width and, more
-      // importantly, is allowed to SHRINK. Without min-w-0 a flex item refuses to go
-      // below its content width, so a long reason would push against the commission
-      // badge instead of ellipsing.
-      // ONE LINE PER REASON, READABLE WITHOUT OPENING THE EDITOR.
+      // ONE INLINE ROW, as continuous text: the control, then every reason joined by "·".
       //
-      // They used to be joined into a single ellipsed line, which on a narrow CRM column meant
-      // the locator could read the commute and nothing else — and the amenities, the one part
-      // they chose by hand, were always the part that fell off. Each reason now gets its own
-      // line, at the same type size as before.
+      // Stacking them one per line was a regression — vertically stacked reasons are the
+      // CLIENT'S card, and this is the locator's, where compact height is the point.
       //
-      // DELIBERATELY NOT BOXES. Three bordered panels would read as a redesign of a card whose
-      // compactness is the point; three short lines cost roughly two lines of height and no
-      // chrome at all. Each line still truncates individually, so an unusually long reason
-      // ellipses on its own rather than pushing the card wider.
-      <div className="flex min-w-0 flex-1 flex-col gap-[1px]">
+      // DELIBERATELY NOT A FLEX ROW. As flex items the control and the reasons are two
+      // unbreakable blocks, so the moment they do not both fit, the control is pushed onto its
+      // own line and the card reads as two rows at ordinary CRM widths. As INLINE text they
+      // flow and wrap as one sentence, exactly as specified — no line breaks, no block
+      // elements and no separators inserted between reasons; any wrapping is the browser's.
+      //
+      // Wrapping rather than truncating is what keeps every reason readable without opening the
+      // editor, which is what the old ellipsis used to cost — and the amenities a locator chose
+      // by hand were always the part that fell off the end.
+      <div className="min-w-0 flex-1 text-[10.5px] leading-[1.35]">
         <button
           type="button"
           onClick={begin}
-          // The CONTROL stays muted and self-width — it is chrome, not content.
-          className="self-start text-[10.5px] font-medium text-[var(--crm-text-muted)] underline decoration-[var(--crm-border)] underline-offset-2 transition-colors hover:text-[var(--crm-text-primary)]"
+          // The CONTROL stays muted — it is chrome, not content. align-baseline keeps it
+          // sitting on the same text baseline as the reasons it introduces.
+          className="align-baseline font-medium text-[var(--crm-text-muted)] underline decoration-[var(--crm-border)] underline-offset-2 transition-colors hover:text-[var(--crm-text-primary)]"
         >
           Why I chose this · Edit
         </button>
-        {shown.map((line, i) => (
-          // The saved reasons are CONTENT, so they take the same bright treatment as
-          // the Google rating figure rather than the muted tone of the control. Every
-          // reason is rendered, in its stored order — nothing is dropped, reordered or
-          // preferentially shortened, and the commute reason is not special-cased.
-          <span key={`${line}-${i}`} className="min-w-0 truncate text-[10.5px] leading-[1.35] text-[var(--crm-text-secondary)]">
-            {line}
-          </span>
-        ))}
+        {shown.length > 0 && (
+          // The saved reasons are CONTENT, so they take the same bright treatment as the
+          // Google rating figure rather than the muted tone of the control. Every reason is in
+          // the string, in its stored order — nothing is dropped, reordered or preferentially
+          // shortened, and the commute is not special-cased.
+          <span className="text-[var(--crm-text-secondary)]"> {shown.join(" · ")}</span>
+        )}
       </div>
     )
   }

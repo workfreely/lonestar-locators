@@ -83,16 +83,21 @@ ok("the reasons get a full-width row", /<div className="mt-2 w-full">[\s\S]{0,60
 ok("the CONTROL text stays muted", /Why I chose this · Edit[\s\S]{0,40}<\/button>/.test(ctrl) &&
   /text-\[var\(--crm-text-muted\)\][\s\S]{0,400}Why I chose this · Edit/.test(ctrl))
 ok("the saved REASON text uses the Google-rating colour, not the muted tone",
-  /min-w-0 truncate text-\[10\.5px\] leading-\[1\.35\] text-\[var\(--crm-text-secondary\)\]/.test(ctrl))
+  /<span className="text-\[var\(--crm-text-secondary\)\]"> \{shown\.join/.test(ctrl))
 ok("that is the same token the Google rating figure uses",
   /tabular-nums text-\[var\(--crm-text-secondary\)\]/.test(best))
-// EACH reason is its own line now — joined into one ellipsed line, the amenities a locator
-// picked by hand were always the part that fell off a narrow column. Every line still
-// truncates individually, so one long reason cannot widen the card.
-ok("each reason is its own line", /\{shown\.map\(\(line, i\) => \(/.test(ctrl))
-ok("…and each still ellipses on its own", /truncate/.test(ctrl))
-ok("the reasons half can shrink, so the ellipsis can engage",
-  /flex min-w-0 flex-1 flex-col/.test(ctrl))
+// ONE INLINE ROW, joined by "·". Stacking them is the CLIENT's card; this is the locator's,
+// where compact height is the point. It wraps on a narrow column rather than truncating, so
+// every reason stays readable without opening the editor.
+ok("the reasons are one joined inline string", /\{shown\.join\(" · "\)\}/.test(ctrl))
+ok("…not one element per reason", !/\{shown\.map\(/.test(ctrl))
+ok("…and nothing stacks them", !/flex-col/.test(ctrl.slice(ctrl.indexOf("if (!open)"), ctrl.indexOf("return (", ctrl.indexOf("const shown = previewReasons")))))
+// INLINE TEXT, not a flex row. As flex items the control and the reasons are two unbreakable
+// blocks, so the control gets pushed onto its own line the moment they do not both fit — two
+// rows at ordinary CRM widths, which is the thing being corrected.
+ok("the collapsed half is inline text, not a flex row",
+  /<div className="min-w-0 flex-1 text-\[10\.5px\] leading-\[1\.35\]">/.test(ctrl))
+ok("…so the control flows with the reasons", /className="align-baseline font-medium/.test(ctrl))
 ok("…and no reason is dropped from the preview", !/shown\.slice\(/.test(ctrl))
 // The three inline pills became the shared CommissionBadge, on its own row.
 ok("the commission badge is the shared component on the bottom row",
