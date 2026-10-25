@@ -129,18 +129,19 @@ ok("it announces its state to assistive tech", /aria-pressed=\{isAgentTopPick\}/
 console.log("\nthe client's badge is navy, gold-starred, and upper-left:")
 // MUTED SLATE, not the solid navy it launched with: filled with --navy the badge was the
 // darkest, hardest-edged thing on the card and beat the photograph it sat on.
-ok("it uses the page's own navy, translucent", /\.lbr-toppick\{[^}]*background:rgba\(14,37,69,\.72\)/.test(PAGE_RAW))
+ok("it uses the page's own navy, translucent", /\.lbr-toppick\{[^}]*background:rgba\(14,37,69,\.65\)/.test(PAGE_RAW))
 ok("…which is the --navy token's own value", /--navy:#0e2545/.test(PAGE_RAW))
 ok("…with a backdrop blur, prefixed for Safari\/iOS",
   /-webkit-backdrop-filter:blur\(6px\)/.test(PAGE_RAW) && /[^-]backdrop-filter:blur\(6px\)/.test(PAGE_RAW))
 ok("…and it is NOT the opaque fill any more", !/\.lbr-toppick\{[^}]*background:var\(--navy\)/.test(PAGE_RAW))
-// The floor the muting must not cross. White on this fill composites to 6.21:1 over a white
-// photo — the worst case a property image can present — and 17.33:1 over a black one.
+// The floor the muting must not cross. White on this fill composites to 4.95:1 over a white
+// photo — the worst case a property image can present — and 17.79:1 over a black one.
+// 60% was asked for and fails at 4.23:1; 62% is the literal break-even with zero margin.
 ok("…while white text stays readable on ANY photo", (() => {
   const lin = (c: number) => { c /= 255; return c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4 }
   const L = (r: number, g: number, b: number) => 0.2126 * lin(r) + 0.7152 * lin(g) + 0.0722 * lin(b)
   const over = (bg: [number, number, number]) => {
-    const c = ([14, 37, 69] as const).map((f, i) => 0.72 * f + 0.28 * bg[i]) as [number, number, number]
+    const c = ([14, 37, 69] as const).map((f, i) => 0.65 * f + 0.35 * bg[i]) as [number, number, number]
     return (1.05) / (L(...c) + 0.05)
   }
   return over([255, 255, 255]) >= 4.5 && over([0, 0, 0]) >= 4.5

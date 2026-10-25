@@ -227,16 +227,26 @@ const CSS = `
    darkens the area behind the text more. It also kept the badge on a palette the page already
    runs on instead of introducing a fourth colour.
 
-   READABILITY IS THE FLOOR IT MUST NOT CROSS. White on this fill composites to 6.2:1 over a
-   white photo — the worst case — and 17.3:1 over a black one, so it stays well past the 4.5:1
-   normal-text threshold whatever it lands on. The gold star, the wording, the position, the
-   shadow and every dimension are unchanged.
+   READABILITY IS THE FLOOR, AND IT SETS THE OPACITY. White text over a PURE WHITE photo is the
+   worst case a property image can present, and that case is what the alpha is solved against:
+
+        60%  4.23:1  fails
+        62%  4.50:1  exactly the threshold, no margin at all
+        65%  4.95:1  ← here
+        72%  6.21:1  where it started
+
+   62% is literally the lightest passing value, and that is precisely why it is not used: a
+   figure sitting exactly on 4.5 has nothing left for a blown-out highlight brighter than the
+   white it was solved against, or for subpixel antialiasing thinning the glyphs. 65% is the
+   lightest value with real margin. Over a black photo it is 17.8:1.
+
+   The gold star, the wording, the position, the shadow and every dimension are unchanged.
 
    -webkit-backdrop-filter IS LOAD-BEARING: Safari and every iOS browser still need the prefix,
    and this badge is looked at on a phone more than anywhere else. Without it the fill simply
    stays flat there — readable, just not blurred. */
 .lbr-toppick{position:absolute;top:12px;left:12px;z-index:2;display:inline-flex;align-items:center;gap:6px;
-  background:rgba(14,37,69,.72);-webkit-backdrop-filter:blur(6px);backdrop-filter:blur(6px);
+  background:rgba(14,37,69,.65);-webkit-backdrop-filter:blur(6px);backdrop-filter:blur(6px);
   color:#fff;font-size:12.5px;font-weight:700;line-height:1.2;
   padding:6px 11px;border-radius:999px;white-space:nowrap;box-shadow:0 2px 8px rgba(6,18,38,.28)}
 .lbr-toppick svg{flex:none;color:var(--gold)}
