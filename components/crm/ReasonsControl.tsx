@@ -2,8 +2,15 @@
 
 import { useState } from "react"
 import { MAX_REASONS } from "@bc/companion-shared"
-import { WASHER_DRYER_OPTIONS, asWasherDryerStatus, type WasherDryerStatus } from "@/lib/leads/washerDryer"
 import { averageRentLine, type AverageRentInputs } from "@/lib/leads/averageRent"
+import {
+  BEDROOM_OPTIONS, parseReasons, buildReasons, formatBedroomPrice, reasonOverflow,
+  rentColumnFor, sanitizeHighlight, isCustomHighlight, MAX_HIGHLIGHT_LEN,
+  type BedroomValue, type StructuredReasons,
+} from "@/lib/leads/structuredReasons"
+import {
+  RECOMMENDATION_AMENITIES, MAX_RECOMMENDATION_AMENITIES, amenityByLabel, searchAmenities,
+} from "@/lib/leads/recommendationAmenities"
 
 /**
  * "Why I chose this · Edit" — the locator-side editor for one recommendation's
@@ -22,10 +29,9 @@ export default function ReasonsControl({
   reasons,
   previewReasons,
   onSave,
-  washerDryer,
-  onSaveWasherDryer,
   averageRent,
   onSaveAverageRent,
+  startingRents,
 }: {
   /** The SAVED reasons. This is what the editor seeds from and what onSave receives. */
   reasons: string[]
@@ -41,25 +47,28 @@ export default function ReasonsControl({
   previewReasons?: string[]
   onSave: (next: string[]) => Promise<boolean>
   /**
-   * OPTIONAL washer/dryer control. Both props must be supplied for the dropdown to appear, so
-   * every existing call site — Favorites included — renders exactly as it did. Recommended
-   * Properties passes them because that is the list a client is sent.
-   */
-  washerDryer?: WasherDryerStatus | null
-  onSaveWasherDryer?: (next: WasherDryerStatus | null) => Promise<boolean>
-  /**
    * OPTIONAL average-rent control, on the same terms as the washer/dryer one: both props or
    * neither, so Favorites and every other caller are untouched.
    */
   averageRent?: AverageRentInputs | null
   onSaveAverageRent?: (next: AverageRentInputs) => Promise<boolean>
+  /**
+   * The property's CANONICAL starting rents, straight from Property Intelligence
+   * (property_catalog.*_starting_rent). Used to PREFILL the price when a bedroom type is first
+   * chosen and nothing is saved yet — never to replace a price already stored on this
+   * recommendation, and never written back. Absent ⇒ the field simply starts blank.
+   */
+  startingRents?: Record<string, number | null> | null
 }) {
   const [open, setOpen] = useState(false)
-  const [draft, setDraft] = useState<string[]>(reasons)
+  // ── THE THREE SLOTS ───────────────────────────────────────────────────────────────────────
+  // Parsed from the SAVED strings, which stay the storage format. Legacy lines the parser could
+  // not claim ride along in `structured.legacy` and are written back untouched.
+  const [structured, setStructured] = useState<StructuredReasons>(() => parseReasons(reasons))
+  const [amenityQuery, setAmenityQuery] = useState("")
+  const patch = (next: Partial<StructuredReasons>) => setStructured((s) => ({ ...s, ...next }))
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [wdDraft, setWdDraft] = useState<WasherDryerStatus | null>(washerDryer ?? null)
-  const showWasherDryer = typeof onSaveWasherDryer === "function"
 
   // ── AVERAGE RENT ──────────────────────────────────────────────────────────────────────────
   // Four figures a person confirms, held as TEXT while editing so a half-typed "17" is not read
@@ -82,12 +91,20 @@ export default function ReasonsControl({
   // the locator is previewing the real thing rather than an approximation of it. Null means the
   // figures do not yet justify a line, which is the preview that matters most.
   const arPreview = averageRentLine({ ...arDraft, show: true })
+  /** What this state would save, and what would not fit on the client's card. */
+  const overflow = reasonOverflow(structured, MAX_REASONS)
+  /** Previously CONFIRMED figures. They keep the block visible even when reason 2 is incomplete,
+   *  so saved work is never hidden — let alone cleared — by an unrelated edit. */
+  const hasSavedAverageRent =
+    averageRent?.quotedRent != null || averageRent?.concessionWeeks != null ||
+    averageRent?.concessionMonths != null || averageRent?.leaseMonths != null ||
+    averageRent?.show === true
 
   function begin() {
     // Seed from the CURRENT saved value every time it opens, so a cancelled edit
     // never leaks into the next one.
-    setDraft(reasons.length ? reasons : [""])
-    setWdDraft(washerDryer ?? null)
+    setStructured(parseReasons(reasons))
+    setAmenityQuery("")
     setArRent(txt(averageRent?.quotedRent)); setArWeeks(txt(averageRent?.concessionWeeks))
     setArMonths(txt(averageRent?.concessionMonths)); setArTerm(txt(averageRent?.leaseMonths))
     setArShow(averageRent?.show === true)
@@ -96,14 +113,20 @@ export default function ReasonsControl({
   }
 
   async function save() {
-    const cleaned = draft.map((r) => r.trim()).filter(Boolean).slice(0, MAX_REASONS)
+    // buildReasons returns the ORIGINAL array verbatim when nothing changed, so opening the
+    // editor on a legacy property and pressing Save rewrites nothing.
+    //
+    // NOT SLICED. Truncating here is what silently deleted a line when a locator added Bedrooms
+    // & Price to a property that already had a distance and two amenity lines. Over the limit,
+    // the editor shows what would not fit and this never runs.
+    const cleaned = buildReasons(structured)
+    if (cleaned.length > MAX_REASONS) {
+      setError(`A client sees ${MAX_REASONS} reasons. Remove or combine a line before saving.`)
+      return
+    }
     setSaving(true)
     setError(null)
     const okSaved = await onSave(cleaned)
-    // Two independent writes to two independent columns. The status only goes out when it
-    // actually CHANGED, so pressing Save after editing reasons alone never touches it.
-    const wdChanged = showWasherDryer && wdDraft !== (washerDryer ?? null)
-    const okWd = okSaved && wdChanged ? await onSaveWasherDryer!(wdDraft) : true
     const arChanged = showAverageRent && (
       arDraft.quotedRent !== (averageRent?.quotedRent ?? null) ||
       arDraft.concessionWeeks !== (averageRent?.concessionWeeks ?? null) ||
@@ -113,7 +136,7 @@ export default function ReasonsControl({
     )
     const okAr = okSaved && arChanged ? await onSaveAverageRent!(arDraft) : true
     setSaving(false)
-    if (!okSaved || !okWd || !okAr) { setError("Couldn't save. Please try again."); return }
+    if (!okSaved || !okAr) { setError("Couldn't save. Please try again."); return }
     setOpen(false)
   }
 
@@ -156,60 +179,229 @@ export default function ReasonsControl({
       <p className="mb-1.5 text-[10.5px] font-semibold uppercase tracking-wide text-[var(--crm-text-muted)]">
         Why I chose this for you
       </p>
-      <div className="flex flex-col gap-1.5">
-        {draft.map((value, i) => (
-          <div key={i} className="flex items-center gap-1.5">
-            <input
-              value={value}
-              autoFocus={i === 0}
-              // 40 chars, not 60: on the client card a reason renders at 18px on
-              // mobile (the max-width:640px block scales it UP from 13.5px), where
-              // ~40 characters is the last width that stays on ONE line at 375px.
-              // Every approved example fits — the longest, "Within your $1,600–$1,700
-              // budget", is 32.
-              maxLength={40}
-              placeholder="Short fragment — e.g. Washer & dryer included"
-              onChange={(e) => setDraft((d) => d.map((v, j) => (j === i ? e.target.value : v)))}
-              onKeyDown={(e) => { if (e.key === "Enter") void save() }}
-              className="min-w-0 flex-1 rounded-lg border border-[var(--crm-border)] bg-[var(--crm-panel)] px-2 py-1 text-[11.5px] text-[var(--crm-text-primary)] outline-none focus:border-[var(--crm-text-muted)]"
-            />
-            <button
-              type="button"
-              aria-label="Remove reason"
-              onClick={() => setDraft((d) => d.filter((_, j) => j !== i))}
-              className="flex-none px-1 text-[11px] leading-none text-[var(--crm-text-muted)] transition-colors hover:text-red-500"
-            >
-              ✕
-            </button>
-          </div>
-        ))}
+      {/* ── 1 · DISTANCE ────────────────────────────────────────────────────────────────
+          Automatic, and read-only here. It is generated upstream from commute_minutes and this
+          editor must not touch its calculation, wording or position — it is simply shown so the
+          locator can see the first line a client will read. */}
+      <div className="rounded-lg border border-[var(--crm-border)] p-2">
+        <span className="block text-[9.5px] font-semibold uppercase tracking-wide text-[var(--crm-text-muted)]">
+          1 · Distance · automatic
+        </span>
+        <p className="mt-0.5 text-[11.5px] text-[var(--crm-text-primary)]">
+          {structured.distance ?? <span className="text-[var(--crm-text-muted)]">No commute generated for this client yet</span>}
+        </p>
       </div>
-      {/* WASHER / DRYER — a client-specific confirmation, not a property fact. Deliberately
-          NOT prefilled from property_catalog: 224 properties record "Select Units" and 3
-          "Specific Floor Plans", so a property-level yes is not a promise about the plan this
-          client would lease. Unset renders nothing on the client's card. */}
-      {showWasherDryer && (
-        <div className="mt-2">
-          <label className="mb-1 block text-[10px] font-semibold uppercase tracking-wide text-[var(--crm-text-muted)]">
-            Washer &amp; dryer
-          </label>
-          <select
-            value={wdDraft ?? ""}
-            onChange={(e) => setWdDraft(asWasherDryerStatus(e.target.value))}
-            className="w-full rounded-lg border border-[var(--crm-border)] bg-[var(--crm-panel)] px-2 py-1 text-[11.5px] text-[var(--crm-text-primary)] outline-none focus:border-[var(--crm-text-muted)]"
-          >
-            {WASHER_DRYER_OPTIONS.map((o) => (
-              <option key={o.value || "none"} value={o.value}>{o.label}</option>
-            ))}
-          </select>
+
+      {/* ── 2 · BEDROOMS & PRICE ───────────────────────────────────────────────────────────
+          A dropdown and a number, not a sentence. Choosing a bedroom type PREFILLS the price
+          from Property Intelligence when that column holds one — but only into an EMPTY field,
+          so a price already saved on this recommendation is never replaced by a newer canonical
+          value. Nothing here writes back to property_catalog: this price belongs to one client's
+          recommendation. With no price the reason is simply omitted. */}
+      <div className="mt-2 rounded-lg border border-[var(--crm-border)] p-2">
+        <span className="block text-[9.5px] font-semibold uppercase tracking-wide text-[var(--crm-text-muted)]">
+          2 · Bedrooms &amp; price
+        </span>
+        <div className="mt-1.5 grid grid-cols-2 gap-1.5">
+          <div>
+            <span className="block text-[9.5px] text-[var(--crm-text-muted)]">Bedrooms</span>
+            <select
+              value={structured.bedroom ?? ""}
+              onChange={(e) => {
+                const nextBed = (e.target.value || null) as BedroomValue | null
+                const col = rentColumnFor(nextBed)
+                const canonical = col ? startingRents?.[col] : null
+                // Prefill ONLY an empty field.
+                const nextPrice = structured.price.trim() === "" && typeof canonical === "number" && canonical > 0
+                  ? String(canonical)
+                  : structured.price
+                patch({ bedroom: nextBed, price: nextPrice })
+              }}
+              className="mt-0.5 w-full rounded-lg border border-[var(--crm-border)] bg-[var(--crm-panel)] px-2 py-1 text-[11.5px] text-[var(--crm-text-primary)] outline-none focus:border-[var(--crm-text-muted)]"
+            >
+              <option value="">Not specified</option>
+              {BEDROOM_OPTIONS.map((b) => <option key={b.value} value={b.value}>{b.label}</option>)}
+            </select>
+          </div>
+          <div>
+            <span className="block text-[9.5px] text-[var(--crm-text-muted)]">Starting price</span>
+            <input
+              inputMode="decimal"
+              value={structured.price}
+              placeholder="1,725"
+              onChange={(e) => patch({ price: e.target.value })}
+              className="mt-0.5 w-full rounded-lg border border-[var(--crm-border)] bg-[var(--crm-panel)] px-2 py-1 text-[11.5px] text-[var(--crm-text-primary)] outline-none focus:border-[var(--crm-text-muted)]"
+            />
+          </div>
         </div>
-      )}
+        {/* The exact line a client will read, or nothing — the same preview discipline the
+            Average Rent block uses. */}
+        <p className="mt-1.5 text-[11px] text-[var(--crm-text-muted)]">
+          {formatBedroomPrice(structured.bedroom, structured.price)
+            ? <span className="font-semibold text-emerald-500">{formatBedroomPrice(structured.bedroom, structured.price)}</span>
+            : "Pick a bedroom type and confirm a price to include this reason."}
+        </p>
+      </div>
+
       {/* AVERAGE RENT — four figures the locator CONFIRMS for this client, and the switch that
           lets them see it. Nothing is read from the advertised special: "Up to 10 Weeks Free on
           Select Homes" is a ceiling on an offer that may not apply to this floor plan, move-in
           or term. The preview is the real client-facing line, so an incomplete entry shows the
           locator exactly what it shows a client — nothing. */}
-      {showAverageRent && (
+      {/* ── 3 · AMENITIES ──────────────────────────────────────────────────────────────────
+          Two highlights, each either a standardized label or a short phrase the locator types.
+          The standardized labels reuse the values the Smart Form list and the property attribute
+          registry already own, so a pick reads as the same thing they do.
+
+          THE SAME INPUT DOES BOTH, which is what keeps this compact: typing filters the list, and
+          when the text matches no label it offers itself as custom wording. There is no second
+          control and no mode switch — the alternative was another form inside a form.
+
+          TWO HIGHLIGHTS TOTAL. Picks and typed phrases share one array, so the cap cannot be
+          circumvented by mixing them.
+
+          NEITHER KIND IS A VERIFICATION. Choosing "Private Yard" means the locator is telling
+          THIS client about it; it writes text on lead_property_reasons and never touches
+          property_attributes, never marks anything verified, and never flows into Property
+          Intelligence. An amenity appearing here says nothing about whether this property has it.
+          A TYPED phrase says even less — it is the locator's own wording, and confirming it is
+          true is their job before the recommendation goes out. The chips show which is which.
+
+          Washer & dryer VERIFICATION is deliberately gone from this editor — it was a second
+          property data-entry workflow living inside a client-facing one. It stays on the
+          Property Intelligence pencil, where it belongs. */}
+      <div className="mt-2 rounded-lg border border-[var(--crm-border)] p-2">
+        <span className="block text-[9.5px] font-semibold uppercase tracking-wide text-[var(--crm-text-muted)]">
+          3 · Amenities · optional, up to {MAX_RECOMMENDATION_AMENITIES} highlights
+        </span>
+        {structured.amenities.length > 0 && (
+          <div className="mt-1.5 flex flex-wrap gap-1">
+            {structured.amenities.map((label) => (
+              <span
+                key={label}
+                // A typed chip is dashed; a standardized one is solid. The agent can see at a
+                // glance which wording came from the shared vocabulary and which is their own.
+                className={`inline-flex items-center gap-1 rounded-md border bg-[var(--crm-panel)] px-1.5 py-[2px] text-[11px] text-[var(--crm-text-primary)] ${
+                  isCustomHighlight(label) ? "border-dashed border-[var(--crm-text-muted)]" : "border-[var(--crm-border)]"
+                }`}
+                title={isCustomHighlight(label) ? "Your own wording — not a verified property feature" : "Standardized amenity"}
+              >
+                {label}
+                <button
+                  type="button"
+                  aria-label={`Remove ${label}`}
+                  onClick={() => patch({ amenities: structured.amenities.filter((a) => a !== label) })}
+                  className="text-[var(--crm-text-muted)] transition-colors hover:text-red-500"
+                >
+                  ✕
+                </button>
+              </span>
+            ))}
+          </div>
+        )}
+        {structured.amenities.length < MAX_RECOMMENDATION_AMENITIES ? (
+          <>
+            <input
+              value={amenityQuery}
+              placeholder="Search amenities, or type your own…"
+              maxLength={MAX_HIGHLIGHT_LEN}
+              onChange={(e) => setAmenityQuery(e.target.value)}
+              className="mt-1.5 w-full rounded-lg border border-[var(--crm-border)] bg-[var(--crm-panel)] px-2 py-1 text-[11.5px] text-[var(--crm-text-primary)] outline-none focus:border-[var(--crm-text-muted)]"
+            />
+            <div className="mt-1 max-h-[108px] overflow-y-auto">
+              {searchAmenities(amenityQuery)
+                .filter((a) => !structured.amenities.some((sel) => amenityByLabel(sel)?.value === a.value))
+                .map((a) => (
+                  <button
+                    key={a.value}
+                    type="button"
+                    onClick={() => { patch({ amenities: [...structured.amenities, a.label] }); setAmenityQuery("") }}
+                    className="block w-full rounded px-1.5 py-[3px] text-left text-[11.5px] text-[var(--crm-text-secondary)] transition-colors hover:bg-[var(--crm-card)] hover:text-[var(--crm-text-primary)]"
+                  >
+                    {a.label}
+                  </button>
+                ))}
+              {/* THE CUSTOM FALLBACK. Offered only when the text is not already one of the
+                  labels above and not already chosen — otherwise it would duplicate a chip the
+                  locator can simply click. Sanitized on the way in, so a pasted phrase cannot
+                  smuggle in the " + " joiner and split itself into two highlights. */}
+              {(() => {
+                const custom = sanitizeHighlight(amenityQuery)
+                if (!custom) return null
+                if (amenityByLabel(custom)) return null
+                if (structured.amenities.some((sel) => sel.toLowerCase() === custom.toLowerCase())) return null
+                return (
+                  <button
+                    type="button"
+                    onClick={() => { patch({ amenities: [...structured.amenities, custom] }); setAmenityQuery("") }}
+                    className="mt-0.5 block w-full rounded border border-dashed border-[var(--crm-border)] px-1.5 py-[3px] text-left text-[11.5px] text-[var(--crm-text-secondary)] transition-colors hover:bg-[var(--crm-card)] hover:text-[var(--crm-text-primary)]"
+                  >
+                    Use “{custom}” as your own wording
+                  </button>
+                )
+              })()}
+            </div>
+          </>
+        ) : (
+          <p className="mt-1.5 text-[10.5px] text-[var(--crm-text-muted)]">
+            Two highlights — remove one to pick or type a different one.
+          </p>
+        )}
+      </div>
+
+      {/* PREVIOUSLY SAVED REASONS. Lines the parser could not confidently claim — a typo, a
+          hand-written phrase — are shown and EDITABLE, not frozen. They are deliberately kept
+          out of the structured controls above: forcing "W/D inlcuded" into the amenity dropdown
+          means guessing which amenity a misspelling meant, which is the one thing this design
+          refuses to do. Editing one here is the locator saying what it should be, in their own
+          words; leaving it alone preserves it exactly. */}
+      {structured.legacy.length > 0 && (
+        <div className="mt-2 rounded-lg border border-[var(--crm-border)] p-2">
+          <span className="block text-[9.5px] font-semibold uppercase tracking-wide text-[var(--crm-text-muted)]">
+            Previously saved reasons
+          </span>
+          {structured.legacy.map((line, i) => (
+            <div key={i} className="mt-1.5 flex items-center gap-1.5">
+              <input
+                value={line}
+                onChange={(e) => patch({ legacy: structured.legacy.map((l, j) => (j === i ? e.target.value : l)) })}
+                className="min-w-0 flex-1 rounded-lg border border-[var(--crm-border)] bg-[var(--crm-panel)] px-2 py-1 text-[11.5px] text-[var(--crm-text-primary)] outline-none focus:border-[var(--crm-text-muted)]"
+              />
+              <button
+                type="button"
+                aria-label={`Remove ${line}`}
+                onClick={() => patch({ legacy: structured.legacy.filter((_, j) => j !== i) })}
+                className="flex-none px-1 text-[11px] leading-none text-[var(--crm-text-muted)] transition-colors hover:text-red-500"
+              >
+                ✕
+              </button>
+            </div>
+          ))}
+          <p className="mt-1.5 text-[10px] text-[var(--crm-text-muted)]">
+            Kept exactly as saved unless you change them. New recommendations use the three sections above.
+          </p>
+        </div>
+      )}
+
+      {/* OVER THE LIMIT. A client's card shows three reasons, and this used to be enforced by
+          slicing on save — so a fourth line was not hidden, it was deleted. The locator is shown
+          precisely which lines would not fit and Save is blocked until they decide. */}
+      {overflow.dropped.length > 0 && (
+        <div className="mt-2 rounded-lg border border-amber-500/50 bg-amber-500/10 p-2">
+          <p className="text-[10.5px] font-semibold text-amber-400">
+            {overflow.lines.length} reasons — a client sees {MAX_REASONS}.
+          </p>
+          <p className="mt-1 text-[10.5px] text-[var(--crm-text-secondary)]">
+            These would not be sent: {overflow.dropped.map((d) => `“${d}”`).join(", ")}. Remove or
+            combine a line to continue — nothing is deleted for you.
+          </p>
+        </div>
+      )}
+
+      {/* Revealed once a bedroom and price are supplied — EXCEPT when figures are already
+          saved, which must stay reachable however incomplete reason 2 happens to be. Nothing is
+          enabled automatically and no logic below changed. */}
+      {showAverageRent && (Boolean(formatBedroomPrice(structured.bedroom, structured.price)) || hasSavedAverageRent) && (
         <div className="mt-2 rounded-lg border border-[var(--crm-border)] p-2">
           <label className="flex items-center gap-1.5">
             <input type="checkbox" checked={arShow} onChange={(e) => setArShow(e.target.checked)} />
@@ -246,18 +438,9 @@ export default function ReasonsControl({
         </div>
       )}
       {error && <p className="mt-1.5 text-[10.5px] font-medium text-red-500">{error}</p>}
+      {/* "+ Add reason" is gone with the free-text rows it fed: the three slots ARE the reasons
+          now, and a fourth blank line had nowhere to go. Save and Cancel are unchanged. */}
       <div className="mt-2 flex items-center gap-2">
-        <button
-          type="button"
-          disabled={draft.length >= MAX_REASONS}
-          onClick={() => setDraft((d) => [...d, ""])}
-          className="text-[10.5px] font-medium text-[var(--crm-text-secondary)] transition-colors hover:text-[var(--crm-text-primary)] disabled:opacity-40 disabled:hover:text-[var(--crm-text-secondary)]"
-        >
-          + Add reason
-        </button>
-        <span className="text-[10px] text-[var(--crm-text-muted)]">
-          {draft.filter((d) => d.trim()).length}/{MAX_REASONS}
-        </span>
         <div className="ml-auto flex items-center gap-1.5">
           <button
             type="button"
@@ -268,7 +451,7 @@ export default function ReasonsControl({
           </button>
           <button
             type="button"
-            disabled={saving}
+            disabled={saving || overflow.dropped.length > 0}
             onClick={() => void save()}
             className="rounded-lg bg-[var(--crm-accent)] px-2.5 py-1 text-[10.5px] font-semibold text-white transition-[filter,opacity] hover:brightness-110 disabled:opacity-60"
           >

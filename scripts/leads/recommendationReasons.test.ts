@@ -6,6 +6,7 @@
 //
 // Run: npx tsx scripts/leads/recommendationReasons.test.ts
 import { readFileSync } from "node:fs"
+import { join } from "node:path"
 import path from "node:path"
 import { collectRecommendationReasons, AUTO_REASON_LIMIT, MAX_REASONS } from "@bc/companion-shared"
 
@@ -71,8 +72,9 @@ ok("budget wording is only the two vetted forms",
 
 console.log("\nMANUAL EDITOR — 0–3, saved to the existing row:")
 ok("the control exists with the approved label", /Why I chose this · Edit/.test(ctrl))
-ok("it sits on the LEFT of the operational row (card's left edge)",
-  /justify-between gap-\d">[\s\S]{0,600}ReasonsControl/.test(best))
+// The reasons now own a FULL-WIDTH row of their own; the commission badge sits on the next
+// row, right-aligned. They no longer share a justify-between row.
+ok("the reasons get a full-width row", /<div className="mt-2 w-full">[\s\S]{0,600}ReasonsControl/.test(best))
 
 // ── Readability + the commission badge's protected space ────────────────────
 // Measured in a harness built from these exact class strings: BEFORE, the badge
@@ -87,10 +89,10 @@ ok("that is the same token the Google rating figure uses",
 ok("reasons stay on ONE line and ellipse", /truncate/.test(ctrl))
 ok("the reasons half can shrink, so the ellipsis can engage",
   /flex min-w-0 flex-1 items-center/.test(ctrl))
-ok("every commission badge is flex-none and never wraps", (() => {
-  const badges = best.match(/className="[^"]*bg-\[#(dff5e6|fdeaea|eef1f5)\][^"]*"/g) ?? []
-  return badges.length === 3 && badges.every((b) => /flex-none/.test(b) && /whitespace-nowrap/.test(b))
-})())
+// The three inline pills became the shared CommissionBadge, on its own row.
+ok("the commission badge is the shared component on its own row",
+  /<div className="mt-1\.5 flex w-full justify-end">[\s\S]{0,160}?<CommissionBadge/.test(best))
+ok("…and no inline commission pill is left in the card", !/bg-\[#(dff5e6|fdeaea|eef1f5)\]/.test(best))
 // Truncation is VISUAL only: the joined string is ellipsed by CSS, so no reason is
 // dropped, reordered, or preferentially shortened — the commute reason included.
 ok("the display string is the reasons joined in their stored order",
@@ -98,18 +100,23 @@ ok("the display string is the reasons joined in their stored order",
 ok("no reason is sliced or filtered for display",
   !/reasons\.slice\(/.test(ctrl.split("if (!open)")[1] ?? ""))
 ok("the editor still seeds from the FULL saved reasons",
-  /setDraft\(reasons\.length \? reasons : \[""\]\)/.test(ctrl))
-ok("the editor caps at MAX_REASONS", /draft\.length >= MAX_REASONS/.test(ctrl) && /slice\(0, MAX_REASONS\)/.test(ctrl))
-ok("blank rows are dropped rather than saved as empty bullets",
-  /draft\.map\(\(r\) => r\.trim\(\)\)\.filter\(Boolean\)/.test(ctrl))
+  /setStructured\(parseReasons\(reasons\)\)/.test(ctrl))
+// It no longer SLICES at MAX_REASONS — truncating silently deleted a line when a price pushed
+// a legacy reason past the limit. The cap is now enforced by refusing the save and showing the
+// locator exactly which lines would not be sent.
+ok("the editor refuses to save past MAX_REASONS rather than truncating",
+  !/slice\(0, MAX_REASONS\)/.test(ctrl) && /cleaned\.length > MAX_REASONS/.test(ctrl))
+// There are no blank rows to drop any more — a slot with nothing in it emits no line at all.
+ok("an empty slot emits no line", /if \(bp\) lines\.push\(bp\)/.test(
+  readFileSync(join(process.cwd(), "lib/leads/structuredReasons.ts"), "utf8")))
 ok("zero reasons is a valid save (not blocked)", !/disabled=\{[^}]*draft\.length === 0/.test(ctrl))
 ok("it re-seeds from the saved value on open, so a cancel cannot leak",
-  /setDraft\(reasons\.length \? reasons : \[""\]\)/.test(ctrl))
+  /setStructured\(parseReasons\(reasons\)\)/.test(ctrl))
 ok("a failed save surfaces an error and keeps the editor open",
   /if \(!okSaved\) \{ setError/.test(ctrl))
-// The client card scales reasons UP to 18px on mobile; ~40 chars is the last width
-// that stays on one line at 375px. 60 allowed a silent two-line wrap.
-ok("input is capped at 40 chars so a fragment cannot wrap on mobile", /maxLength=\{40\}/.test(ctrl))
+// Free-text length no longer applies: the lines are GENERATED, so their length is bounded by
+// the formats themselves rather than by a maxLength on an input nobody types into.
+ok("reason text is generated, not typed", !/maxLength=\{40\}/.test(ctrl) && /formatBedroomPrice/.test(ctrl))
 
 console.log("\nPERSISTENCE — client-property specific, reuses the existing column:")
 ok("writes the CANONICAL client-property table", /from\("lead_property_reasons"\)/.test(canon) && /\.upsert\(/.test(canon))

@@ -275,10 +275,12 @@ export default function BestMatches({
               {/* Operational row — Recommended has no Guest Card / Schedule Tour actions,
                   so Commission aligns to the bottom-right of the card. Present whenever
                   there is a commission state (always ≥ "Not Verified"). */}
-              {/* The commission badge is flex-none + nowrap, and the reasons half is
-                  flex-1 + min-w-0, so a long reason ellipses instead of squeezing,
-                  wrapping or compressing the badge. */}
-              <div className="mt-2 flex items-center justify-between gap-3">
+              {/* TWO ROWS, NOT ONE. The reasons and the commission badge used to share a
+                  flex row, so three reasons competed with a nowrap chip for the same width and
+                  the reasons ellipsed — the one thing on the card a locator actually reads at a
+                  glance. The reasons now get the full content width and the badge sits on its
+                  own row beneath them, right-aligned. */}
+              <div className="mt-2 w-full">
                 {/* "Why I chose this" — compact, secondary, anchored to the card's left
                     edge (the operational row spans the full card, so this aligns with
                     the property image above it). Expands an inline editor. The
@@ -291,14 +293,21 @@ export default function BestMatches({
                     // amenity). Nothing here can write the price back.
                     previewReasons={shownReasons}
                     onSave={(next) => onSaveReasons(String(r.canonical_property_key), next)}
-                    // Washer/dryer rides on the SAME client-property pair as the reasons.
-                    // Supplied only here, so Favorites keeps the editor it has always had.
-                    washerDryer={washerDryerByKey?.get(String(r.canonical_property_key)) ?? null}
-                    onSaveWasherDryer={
-                      onSaveWasherDryer
-                        ? (next) => onSaveWasherDryer(String(r.canonical_property_key), next)
-                        : undefined
-                    }
+                    // Washer/dryer VERIFICATION no longer lives in this editor — it was a
+                    // property data-entry workflow inside a client-facing one, and it stays on
+                    // the Property Intelligence pencil. W/D is still choosable as an AMENITY
+                    // here, which is a recommendation highlight rather than a property fact.
+                    // The property's canonical starting rents, for PREFILL only.
+                    startingRents={{
+                      studio_starting_rent: r.studio_starting_rent ?? null,
+                      onebr_starting_rent: r.onebr_starting_rent ?? null,
+                      twobr_starting_rent: r.twobr_starting_rent ?? null,
+                      threebr_starting_rent: r.threebr_starting_rent ?? null,
+                      fourbr_starting_rent: r.fourbr_starting_rent ?? null,
+                      townhome_starting_rent: r.townhome_starting_rent ?? null,
+                      loft_starting_rent: r.loft_starting_rent ?? null,
+                      penthouse_starting_rent: r.penthouse_starting_rent ?? null,
+                    }}
                     averageRent={averageRentByKey?.get(String(r.canonical_property_key)) ?? null}
                     onSaveAverageRent={
                       onSaveAverageRent
@@ -307,7 +316,11 @@ export default function BestMatches({
                     }
                   />
                 ) : <span />}
-                <CommissionBadge status={commission} size="row" className="flex-none" />
+              </div>
+              {/* Its own row, aligned right. Same component, same dark-green styling, same
+                  dollar mark and the same three verification states — only the position moved. */}
+              <div className="mt-1.5 flex w-full justify-end">
+                <CommissionBadge status={commission} size="row" />
               </div>
             </div>
             </SortableRow>

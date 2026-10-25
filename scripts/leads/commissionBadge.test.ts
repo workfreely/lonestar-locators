@@ -67,7 +67,10 @@ for (const [name, src] of Object.entries(SURFACES)) {
   ok(`${name}: no inline commission pill remains`, !/dff5e6|8ecaa6|136c3a/.test(src))
   ok(`${name}: does not re-implement the other states`, !/Not Paying Locators|Commission Not Verified/.test(src))
 }
-ok("Recommended keeps its flex-none placement", /<CommissionBadge status=\{commission\} size="row" className="flex-none" \/>/.test(SURFACES["Recommended (BestMatches)"]))
+// The badge moved onto its OWN right-aligned row beneath the reasons, so it no longer needs
+// flex-none to defend its width — the reasons are not competing with it any more.
+ok("Recommended renders it on its own right-aligned row",
+  /<div className="mt-1\.5 flex w-full justify-end">[\s\S]{0,160}?<CommissionBadge status=\{commission\} size="row" \/>/.test(SURFACES["Recommended (BestMatches)"]))
 ok("the map keeps the larger card size", /<CommissionBadge status=\{commissionStatus\} size="card" \/>/.test(SURFACES["Map card"]))
 
 console.log("\nthe status is passed WHOLE, so the union cannot be split apart:")
