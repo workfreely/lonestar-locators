@@ -287,9 +287,16 @@ export default function PostEditor({ postId, from }: { postId: string; from?: st
    *  A factual conflict — wrong market, an unsupported price, the wrong property type — is not a
    *  style note, so it stops the publish rather than warning beside it. */
   const [voiceBlocksPublish, setVoiceBlocksPublish] = useState(false)
-  // The SOURCE video's length, learned from the preview player's own metadata. Used only to warn
-  // when a Hook and a CTA cannot both fit; the server has no duration column to read.
+  // The SOURCE video's length, learned from the preview player's own metadata. The server has no
+  // duration column to read, so the player that is already on screen is the only thing that knows.
+  // Drives the timestamp on the preview AND the Hook/CTA fit warning — one number, both uses.
   const [sourceSeconds, setSourceSeconds] = useState<number | null>(null)
+  // How long the CHOSEN clips are. Reported by VoiceClipsControl, which has the library loaded;
+  // the editor never fetches it a second time.
+  const [voiceSeconds, setVoiceSeconds] = useState<{ hookSeconds: number | null; ctaSeconds: number | null }>({ hookSeconds: null, ctaSeconds: null })
+  // Swapping the source video must not leave the previous clip's timestamp on screen for the
+  // moment before the new player reports its own metadata.
+  useEffect(() => { setSourceSeconds(null) }, [post?.previewUrl, post?.renderedPreviewUrl])
   // AI PRESENTER — one object rather than five useStates, so "off" is a single assignment that
   // cannot leave a stray setting behind.
   const [presenter, setPresenter] = useState<PresenterValue>({ presenterId: null, introSeconds: null, side: null, widthPx: null, audioVoiceClipId: null })
@@ -1300,7 +1307,9 @@ export default function PostEditor({ postId, from }: { postId: string; from?: st
               // renderVersion, not the URL: the URL is re-signed on every load() and would remount
               // (and reset playback) on each poll, where the version only changes when the artifact
               // actually does.
-              <video key={post.renderVersion ?? 0} ref={previewVideoRef} src={post.renderedPreviewUrl!} controls controlsList="nofullscreen" disablePictureInPicture playsInline preload="metadata" className="w-full h-full object-cover" />
+              <video key={post.renderVersion ?? 0} ref={previewVideoRef} src={post.renderedPreviewUrl!} controls controlsList="nofullscreen" disablePictureInPicture playsInline preload="metadata"
+                onLoadedMetadata={(e) => { const v = e.currentTarget; if (Number.isFinite(v.duration) && v.duration > 0) setSourceSeconds(v.duration) }}
+                className="w-full h-full object-cover" />
             ) : post.previewUrl ? (
               <>
                 {/* muted / controls / preload are DELIBERATELY unchanged: muted by default with
@@ -1391,8 +1400,31 @@ export default function PostEditor({ postId, from }: { postId: string; from?: st
                 </svg>
               </button>
             )}
+            {/* THE VIDEO'S LENGTH, where every video player puts it. EDITOR ONLY — this is a DOM
+                element over the preview, nowhere near renderVideo's draw plan, so it cannot reach
+                a rendered file, TikTok or Instagram. pointer-events-none so it sits above the
+                native controls without taking a click from them. */}
+            {sourceSeconds !== null && (
+              <div className="pointer-events-none absolute bottom-2 right-2 z-10 rounded-md bg-black/60 px-1.5 py-0.5 text-[11px] font-medium leading-none text-white tabular-nums backdrop-blur-sm">
+                {sourceSeconds.toFixed(1)}s
+              </div>
+            )}
             <SafeAreaOverlay platform={safeArea === "off" ? "instagram" : safeArea} show={safeArea !== "off"} />
           </div>
+
+          {/* ONE LINE OF TIMING, and only when there is audio to time. Hook-only, CTA-only or both;
+              absent entirely when neither is selected. The overlap WARNING is not repeated here —
+              VoiceClipsControl already owns it, and saying it twice would make it look like two
+              different problems. */}
+          {(voiceSeconds.hookSeconds !== null || voiceSeconds.ctaSeconds !== null) && (
+            <p className="mt-1.5 text-[10.5px] tabular-nums text-[var(--crm-text-muted)]">
+              {[
+                voiceSeconds.hookSeconds !== null ? `Hook ${voiceSeconds.hookSeconds.toFixed(1)}s` : null,
+                voiceSeconds.ctaSeconds !== null ? `CTA ${voiceSeconds.ctaSeconds.toFixed(1)}s` : null,
+                sourceSeconds !== null ? `${sourceSeconds.toFixed(1)}s` : null,
+              ].filter(Boolean).join(" · ")}
+            </p>
+          )}
 
           {/* Safe-area toggle — shows what each app's UI will cover. Presentational: the headline
               fitter reads the same numbers from lib/social/platformSafeArea. */}
@@ -1904,6 +1936,7 @@ export default function PostEditor({ postId, from }: { postId: string; from?: st
                       postId={postId}
                       onBlocksPublishChange={setVoiceBlocksPublish}
                       videoDurationSeconds={sourceSeconds}
+                      onSelectionDurationsChange={setVoiceSeconds}
                       hookId={voiceHookId}
                       ctaId={voiceCtaId}
                       onChange={({ hookId, ctaId }) => { setVoiceHookId(hookId); setVoiceCtaId(ctaId) }}

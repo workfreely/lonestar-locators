@@ -16,7 +16,7 @@ export async function GET() {
   const { supabase } = guard
   const { data, error } = await supabase
     .from("social_voice_clips")
-    .select("id, clip_type, name, storage_path, duration_seconds, created_at")
+    .select("id, clip_type, name, storage_path, duration_seconds, duration_original, created_at")
     .order("created_at", { ascending: false })
   if (error) return NextResponse.json({ error: "list_failed" }, { status: 500 })
   const clips = await Promise.all(
@@ -27,7 +27,13 @@ export async function GET() {
         const { data: signed } = await supabase.storage.from("social-media").createSignedUrl(path, SIGNED_URL_TTL)
         previewUrl = signed?.signedUrl ?? null
       }
-      return { id: r.id, clipType: r.clip_type, name: r.name, durationSeconds: r.duration_seconds, previewUrl, createdAt: r.created_at }
+      // THE MEASURED LENGTH WHEN THERE IS ONE. duration_seconds is whole seconds, rounded at
+      // upload — fine as a label, wrong as arithmetic: a 4.07s hook and a 5.27s CTA round to 5
+      // and 6, and 5 + 6 does not fit in a 10.3s video while 4.07 + 5.27 comfortably does. The
+      // editor's overlap check does that sum, so it needs the real number.
+      const measured = Number(r.duration_original)
+      const durationSeconds = Number.isFinite(measured) && measured > 0 ? measured : r.duration_seconds
+      return { id: r.id, clipType: r.clip_type, name: r.name, durationSeconds, previewUrl, createdAt: r.created_at }
     }),
   )
   return NextResponse.json({ clips })

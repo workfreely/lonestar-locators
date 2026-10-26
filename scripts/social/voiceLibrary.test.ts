@@ -408,6 +408,44 @@ console.log("\nthe spoken price is checked against the price the video displays:
   ok("…and the shared rule module stays dependency-free, so the client can use it", !/^import /m.test(FIT))
 }
 
+// ── THE DURATION INDICATOR IS EDITOR CHROME, NOT VIDEO ────────────────────────────────────────
+// A timestamp drawn over the preview must never reach a rendered file. The only thing that writes
+// pixels into an MP4 is renderVideo's draw plan, and this badge is a DOM element in the editor —
+// these assertions keep it that way, and keep its arithmetic on measured seconds.
+console.log("\nthe video-duration indicator is editor-only:")
+{
+  const P = read("components/crm/social/PostEditor.tsx")
+  ok("the preview carries a timestamp", /\{sourceSeconds\.toFixed\(1\)\}s/.test(P))
+  ok("…bottom-right, over the player", /absolute bottom-2 right-2/.test(P))
+  ok("…not taking clicks from the native controls", /pointer-events-none absolute bottom-2 right-2/.test(P))
+  ok("…read from the player's own metadata", /setSourceSeconds\(v\.duration\)/.test(P))
+  ok("…and forgotten when the footage changes", /setSourceSeconds\(null\)/.test(P))
+
+  // ONE LINE, ONLY WHEN THERE IS AUDIO. Hook-only, CTA-only, both — never an empty "·".
+  ok("the timing line appears only when a clip is selected",
+    /voiceSeconds\.hookSeconds !== null \|\| voiceSeconds\.ctaSeconds !== null/.test(P))
+  ok("…and omits the part that is not selected", /\.filter\(Boolean\)\.join\(" · "\)/.test(P))
+  ok("…reusing the lengths the voice control already knows", /onSelectionDurationsChange=\{setVoiceSeconds\}/.test(P))
+
+  // Nothing about this reaches the renderer.
+  const RV = read("lib/social/renderVideo.ts")
+  // The renderer DOES format seconds — in the refusal message when two clips will not fit. What
+  // it must never do is draw them, so this looks at the drawing surface, not at every number.
+  ok("the renderer draws no timestamp", !/sourceSeconds/.test(RV) && !/drawtext[^\n]*duration/i.test(RV))
+  const OS = read("lib/social/overlaySpec.ts")
+  ok("…and neither does the overlay spec", !/duration.*badge|timestamp/i.test(OS))
+
+  // MEASURED SECONDS, NOT ROUNDED ONES. duration_seconds is whole seconds; 5 + 6 does not fit in
+  // a 10.3s video while the real 4.07 + 5.27 does, and the overlap check does that sum.
+  // Deleting a clip destroys the uploaded original too, and the × sits beside every row.
+  ok("deleting a clip asks first", /window\.confirm\(/.test(read("components/crm/social/VoiceClipsControl.tsx")))
+  ok("…and names the clip being deleted", /Delete .{0,4}\$\{name\}/.test(read("components/crm/social/VoiceClipsControl.tsx")))
+
+  const VC = read("app/api/admin/social-autopilot/voice-clips/route.ts")
+  ok("the clips API prefers the measured duration", /duration_original/.test(VC))
+  ok("…falling back to the rounded one", /Number\.isFinite\(measured\) && measured > 0 \? measured : r\.duration_seconds/.test(VC))
+}
+
 console.log("\nmanual selections survive, and the renderer never second-guesses them:")
 {
   const RP = read("lib/social/renderPost.ts")

@@ -29,6 +29,15 @@ type Props = {
    * renderer still refuses an overlapping pair.
    */
   videoDurationSeconds?: number | null
+  /**
+   * The lengths of the clips CURRENTLY selected, reported upward as they become known.
+   *
+   * This control already fetches the library, so it is the only place that knows how long the
+   * chosen hook and CTA are. The editor needs those numbers to print its timing line, and
+   * fetching the list a second time to learn them would be a second source of truth for the same
+   * fact. Null means "nothing selected for that slot", not "unknown".
+   */
+  onSelectionDurationsChange?: (d: { hookSeconds: number | null; ctaSeconds: number | null }) => void
 }
 
 async function readDuration(file: File): Promise<number | null> {
@@ -55,7 +64,7 @@ type Suggestions = {
   blocksPublish: boolean
 }
 
-export default function VoiceClipsControl({ triggerClassName, hookId, ctaId, onChange, postId, onBlocksPublishChange, videoDurationSeconds }: Props) {
+export default function VoiceClipsControl({ triggerClassName, hookId, ctaId, onChange, postId, onBlocksPublishChange, videoDurationSeconds, onSelectionDurationsChange }: Props) {
   // RECOMMENDATIONS ARE ADVISORY. They are fetched, displayed and never applied: nothing here
   // calls onChange on its own, so opening this control cannot alter a saved draft.
   const [sug, setSug] = useState<Suggestions | null>(null)
@@ -129,6 +138,11 @@ export default function VoiceClipsControl({ triggerClassName, hookId, ctaId, onC
     setFit(h !== null && c !== null && v !== null && !voiceClipsFit(v, h, c) ? { hook: h, cta: c, video: v } : null)
   }, [clips, hookId, ctaId, videoDurationSeconds])
   useEffect(() => { onBlocksPublishChange?.((sug?.blocksPublish ?? false) || fit !== null) }, [sug?.blocksPublish, fit, onBlocksPublishChange])
+
+  // The same two lookups the fit check just did, handed to whoever asked for them.
+  const hookSeconds = clips.find((c) => c.id === hookId)?.durationSeconds ?? null
+  const ctaSeconds = clips.find((c) => c.id === ctaId)?.durationSeconds ?? null
+  useEffect(() => { onSelectionDurationsChange?.({ hookSeconds, ctaSeconds }) }, [hookSeconds, ctaSeconds, onSelectionDurationsChange])
   const nameById = (id: string | null) => clips.find((c) => c.id === id)?.name
   // Closed-field value, parallel to Music's "No Music" / "Original Audio" — a plain state label, never
   // clip filenames (those stay in the menu + the hover title).
@@ -158,7 +172,16 @@ export default function VoiceClipsControl({ triggerClassName, hookId, ctaId, onC
     } catch (e) { setErr((e as Error).message.slice(0, 120)) } finally { setBusy(false) }
   }
 
-  async function remove(id: string) {
+  /**
+   * DELETE IS PERMANENT AND WAS ONE CLICK AWAY.
+   *
+   * This removes the row AND the uploaded original from storage, with no undo. In a 52-row menu
+   * the × sits a few pixels from the row you meant to select, and a misplaced click silently
+   * destroyed a recording — it had to be re-imported from the copy on disk. One confirm, naming
+   * the clip, is the whole fix; nothing else about the control changes.
+   */
+  async function remove(id: string, name: string) {
+    if (!window.confirm(`Delete “${name}” from the library?\n\nThis removes the uploaded recording as well, and cannot be undone.`)) return
     setBusy(true)
     try {
       await fetch(`/api/admin/social-autopilot/voice-clips?id=${id}`, { method: "DELETE" })
@@ -249,10 +272,10 @@ export default function VoiceClipsControl({ triggerClassName, hookId, ctaId, onC
         <div key={c.id} className={`flex items-center gap-1 px-2 py-1 rounded-md ${selectedId === c.id ? "bg-[var(--crm-panel)]" : "hover:bg-[var(--crm-panel)]"}`}>
           <button type="button" className="flex-1 text-left text-[12.5px] text-[var(--crm-text-primary)] truncate"
             onClick={() => onChange({ hookId: type === "hook" ? c.id : hookId, ctaId: type === "cta" ? c.id : ctaId })}>
-            {selectedId === c.id ? "✓ " : ""}{c.name}{c.durationSeconds ? ` · ${c.durationSeconds}s` : ""}
+            {selectedId === c.id ? "✓ " : ""}{c.name}{c.durationSeconds ? ` · ${c.durationSeconds.toFixed(1)}s` : ""}
           </button>
           {c.previewUrl && <button type="button" aria-label="Preview" className="text-[var(--crm-text-muted)] hover:text-[var(--crm-text-primary)]" onClick={() => preview(c.previewUrl)}>▶</button>}
-          <button type="button" aria-label="Delete" className="text-[var(--crm-text-muted)] hover:text-red-500" onClick={() => remove(c.id)}>×</button>
+          <button type="button" aria-label="Delete" className="text-[var(--crm-text-muted)] hover:text-red-500" onClick={() => remove(c.id, c.name)}>×</button>
         </div>
       ))}
       {/* No empty-state sentence: an empty section is just "None" + "+ Upload", which is self-evident. */}
