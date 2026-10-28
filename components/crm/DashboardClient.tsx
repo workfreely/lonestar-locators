@@ -3261,7 +3261,20 @@ export default function DashboardClient({ leads, nextActions, favorites, recomme
         // post-List-Sent ladder and would create an FU successor, advance
         // follow_up_count and archive the lead as "ghosted" on a Final — none of
         // which has anything to do with a tour.
-        if (isTourFollowUpRow({ action_key: followRow?.action_key ?? null, title: completedTitle ?? null })) {
+        //
+        // ATTRIBUTION USES THE ID THE COMPANION CAPTURED, not the title. followRow
+        // above only matches OPEN rows, so if the agent answers the CRM outcome
+        // modal before tapping "Yes, Sent" the rung is already completed and
+        // followRow is undefined — the send would then be recorded against a title
+        // with no action_id. The id was captured when the composer opened and
+        // identifies the rung whose text actually went out, whatever its status is
+        // now. Looked up here rather than in the shared resolver above so the
+        // Contact FU and post-list paths keep the exact rows they resolve today.
+        const sentRow =
+          localNextActionsRef.current.find((a: any) => payload.actionId != null && String(a.id) === String(payload.actionId)) ??
+          followRow ??
+          null
+        if (isTourFollowUpRow({ action_key: sentRow?.action_key ?? null, title: completedTitle ?? null })) {
           // Which ATTEMPT was sent, so history says "the 2nd Tour Follow-Up text
           // went out" rather than just "a text went out".
           recordTimelineEvent({
@@ -3271,10 +3284,10 @@ export default function DashboardClient({ leads, nextActions, favorites, recomme
             sequence: null,
             occurredAt: now,
             metadata: {
-              action_id: followRow?.id ?? null,
-              action_key: followRow?.action_key ?? null,
-              action_title: completedTitle,
-              property_id: followRow?.property_id ?? null,
+              action_id: payload.actionId ?? sentRow?.id ?? null,
+              action_key: sentRow?.action_key ?? null,
+              action_title: sentRow?.title ?? completedTitle,
+              property_id: sentRow?.property_id ?? null,
             },
           })
           const nextMap = {

@@ -306,11 +306,18 @@ console.log("\n6b. SEND — the Contact Follow-Up mechanism, reused:")
   ok("the tour branch lives in the existing complete-follow-up handler", h.length > 0)
   ok("…beside the existing Contact FU branch", /isContactFollowUpAction\(contactKey\)/.test(dash))
   ok("it recognises ANY rung, by key or stored title",
-    /isTourFollowUpRow\(\{ action_key: followRow\?\.action_key \?\? null, title: completedTitle \?\? null \}\)/.test(h))
+    /isTourFollowUpRow\(\{ action_key: sentRow\?\.action_key \?\? null, title: completedTitle \?\? null \}\)/.test(h))
+  // The id Companion captured is the authority, so attribution survives the agent
+  // answering the CRM outcome modal BEFORE tapping "Yes, Sent" (which completes the
+  // rung, after which the shared open-rows resolver can no longer find it).
+  ok("…resolved from the id Companion captured, not from the title",
+    /payload\.actionId != null && String\(a\.id\) === String\(payload\.actionId\)/.test(h))
+  ok("…falling back to the shared resolver only if that id finds nothing",
+    /\?\?\s*\n?\s*followRow \?\?\s*\n?\s*null/.test(h))
 
   // What it records — the two existing mechanisms, nothing else.
   ok("it writes a text_sent timeline event", /type: "text_sent"/.test(h))
-  ok("…tagged with WHICH attempt was sent", /action_id: followRow\?\.id/.test(h) && /action_key: followRow\?\.action_key/.test(h))
+  ok("…tagged with WHICH attempt was sent", /action_id: payload\.actionId \?\? sentRow\?\.id \?\? null/.test(h) && /action_key: sentRow\?\.action_key/.test(h))
   ok("it updates Last Action, the existing mechanism", /latestOutreachRef\.current = nextMap/.test(h) && /setLatestOutreach\(nextMap\)/.test(h))
   ok("…and pushes it to the shared agenda", /postCompanionActiveClient\(lead, localNextActionsRef\.current\)/.test(h))
   eq("exactly one timeline write — no duplicate event", (h.match(/recordTimelineEvent\(\{/g) ?? []).length, 1)

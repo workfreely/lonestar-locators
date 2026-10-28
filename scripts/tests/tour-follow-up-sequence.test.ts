@@ -240,8 +240,10 @@ ok((lpv.match(/onTourFollowUp\(\)/g) ?? []).length === 1,
 const dash = readFileSync("components/crm/DashboardClient.tsx", "utf8")
 const tourBranch = dash.slice(dash.indexOf("// ── TOUR LADDER branch (any rung)"), dash.indexOf("// The synthetic client-only completed row"))
 ok(tourBranch.length > 0, "the tour branch is present in the send/confirm handler")
-ok(/isTourFollowUpRow\(\{ action_key: followRow\?\.action_key/.test(tourBranch),
+ok(/isTourFollowUpRow\(\{ action_key: sentRow\?\.action_key/.test(tourBranch),
   "it recognises ANY rung, by key or stored title")
+ok(/action_id: payload\.actionId/.test(tourBranch),
+  "…and attributes the send to the id Companion captured, not the title")
 // Comment lines stripped first: the branch's own prose NAMES the things it must not
 // do, and matching that prose would pass or fail for the wrong reason.
 const tourCode = tourBranch.split("\n").filter((l) => !l.trim().startsWith("//")).join("\n")
