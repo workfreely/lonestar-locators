@@ -46,7 +46,9 @@ alter table public.lead_next_actions
       'follow_up_3',
       'final_follow_up',
       'reconnect_client',
-      'email_guest_card'
+      'email_guest_card',
+      -- preserved from 20260924000001; lb_client_resume_search inserts this key
+      'resume_search'
     )
   );
 
