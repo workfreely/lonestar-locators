@@ -192,13 +192,28 @@ console.log("\n6b. SHARED RANKING AND EVERY OTHER SURFACE ARE UNTOUCHED:")
   const { execSync } = require("node:child_process") as typeof import("node:child_process")
   const changed = execSync("git diff --name-only HEAD", { encoding: "utf8" }).split("\n").filter(Boolean)
   const mustNotChange = [
-    "lib/nextActions.ts", "lib/nextAction.ts", "lib/workflowEngine.ts",
-    "lib/leads/actionRelevance.ts", "lib/leads/actionCompletion.ts", "lib/leads/setupTourWorkflow.ts",
+    "lib/nextAction.ts", "lib/workflowEngine.ts",
+    "lib/leads/actionRelevance.ts", "lib/leads/actionCompletion.ts",
     "lib/leads/stageTransition.ts", "app/api/admin/leads/update-stage/route.ts",
     "lib/followup/gate.ts", "lib/followup/engine.ts", "lib/followup/autoEnroll.ts",
     "components/crm/FollowUpRow.tsx", "components/crm/LeadCard.tsx", "lib/actionDisplay.ts",
   ]
   for (const f of mustNotChange) ok(`untouched — ${f}`, !changed.includes(f), "MODIFIED")
+
+  // TWO FILES LEFT THAT LIST, deliberately, in the Tour Follow-Up numbering release.
+  // File-level immutability was only ever a proxy for "the behaviour Do First relies
+  // on is intact", so that behaviour is now asserted directly instead of by hash —
+  // a weaker guard would have been to simply delete the two lines.
+  const na = readFileSync("lib/nextActions.ts", "utf8")
+  ok("lib/nextActions.ts — the guest-card precedence rule still exists",
+    /openManual\.some\(isGuestCardRow\)/.test(na) && /filter\(\(a\) => !isTourFollowUpRow\(a\)\)/.test(na))
+  ok("…and it now suppresses ANY ladder rung, not just the 1st",
+    /isLadderRow\(\{ action_key:/.test(na))
+  const stw = readFileSync("lib/leads/setupTourWorkflow.ts", "utf8")
+  ok("lib/leads/setupTourWorkflow.ts — a linked Favorite still gets its per-property rung",
+    /createTourFollowUpForProperty\(/.test(stw) && /tourFollowUpDueForTour\(scheduledAt\)/.test(stw))
+  ok("…and a failed create is now reported instead of dropped",
+    /reason === "error"/.test(stw) && /onError\?\./.test(stw))
 }
 
 console.log("\n6c. THE TASK SHEET'S CALENDAR — stylesheet facts:")

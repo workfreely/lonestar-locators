@@ -67,7 +67,21 @@ import { outstandingFavoriteGuestCards } from "@/lib/leads/guestCardAggregate"
 import GuestCardBulkModal, { type BulkGuestCardItem } from "./GuestCardBulkModal"
 import GuestCardGuardModal, { type GuestCardGuardView } from "./GuestCardGuardModal"
 import { completeTourFollowUp } from "@/lib/leads/tourFollowUpWorkflow"
-import { isTourFollowUpRow, isTourFollowUpSendAction } from "@/lib/leads/tourFollowUp"
+import { isTourFollowUpRow, tourFollowUpKeyOf, rungAfter, type TourFollowUpKey } from "@/lib/leads/tourFollowUp"
+
+// Which rung a row IS, and whether a further attempt can be scheduled once it
+// completes. One resolver for every path that opens the outcome modal (the
+// property card, the Companion hand-off, the voice command) so they can never
+// disagree about the question asked or whether a date is offered. A row with no
+// recognisable key or title is rung 1 — the shape every follow-up had before
+// action_key existed.
+function tourRungState(row: { action_key?: string | null; title?: string | null } | null | undefined): {
+  rung: TourFollowUpKey
+  canScheduleNext: boolean
+} {
+  const rung = tourFollowUpKeyOf({ action_key: row?.action_key ?? null, title: row?.title ?? null }) ?? "tour_follow_up"
+  return { rung, canScheduleNext: rungAfter(rung) !== null }
+}
 import { completeApplicationOutcome } from "@/lib/leads/applicationOutcomeWorkflow"
 import { completeConfirmLease } from "@/lib/leads/confirmLeaseWorkflow"
 import { DEFAULT_PROJECTION_METHOD, type ProjectionMethod } from "@/lib/leads/commissionEstimate"
@@ -352,7 +366,7 @@ export default function DashboardClient({ leads, nextActions, favorites, recomme
         const tour = (localToursRef.current ?? []).find(
           (t: any) => String(t.lead_id) === String(lead.id) && t.status === "scheduled",
         ) ?? null
-        setTourFollowUp({ lead, tour, favorite, actionId: action?.id ?? null })
+        setTourFollowUp({ lead, tour, favorite, actionId: action?.id ?? null, ...tourRungState(action) })
         return
       }
       case "application": {
@@ -478,7 +492,7 @@ export default function DashboardClient({ leads, nextActions, favorites, recomme
   // Tour Follow-Up outcome modal ("How did the tour go?"). Scoped to ONE
   // tour/property; completing it records the outcome + drives the next canonical
   // action. Opened from the Workspace Favorite or the Companion verb.
-  const [tourFollowUp, setTourFollowUp] = useState<null | { lead: any; tour: any; favorite: any; actionId: number | string | null }>(null)
+  const [tourFollowUp, setTourFollowUp] = useState<null | { lead: any; tour: any; favorite: any; actionId: number | string | null; rung: TourFollowUpKey; canScheduleNext: boolean }>(null)
   // "Apply" (start_application) confirmation — advancing to 'applied' only on the
   // agent's explicit confirmation that the client submitted the application.
   const [confirmApply, setConfirmApply] = useState<null | { lead: any; action: any }>(null)
@@ -1486,7 +1500,14 @@ export default function DashboardClient({ leads, nextActions, favorites, recomme
   // supplies property_name; `actionId` is that property's open tour_follow_up row.
   function openTourFollowUp(lead: any, tour: any, favorite: any, actionId: number | string | null) {
     if (!lead || !tour) return
-    setTourFollowUp({ lead, tour, favorite, actionId })
+    // Resolve the rung from the row itself (by id — the caller already matched it),
+    // so the modal asks that rung's question and offers a date only when a further
+    // rung exists. A row with no recognisable key or title is rung 1, the shape
+    // every tour follow-up had before action_key existed.
+    const row = actionId != null
+      ? localNextActionsRef.current.find((a: any) => String(a.id) === String(actionId)) ?? null
+      : null
+    setTourFollowUp({ lead, tour, favorite, actionId, ...tourRungState(row) })
   }
   function handleTourFollowUp(lead: any, args: { tour: any; favorite: any; actionId: number | string | null }) {
     openTourFollowUp(lead, args.tour, args.favorite, args.actionId)
@@ -1508,16 +1529,23 @@ export default function DashboardClient({ leads, nextActions, favorites, recomme
       tour: { id: tf.tour.id, property_id: propertyId, scheduled_at: tf.tour.scheduled_at },
       favorite: { id: propertyId, property_name: tf.favorite?.property_name ?? tf.tour.property_name ?? null },
       outcome,
-      followUpActionRow: tf.actionId != null ? { id: tf.actionId } : null,
+      followUpActionRow: tf.actionId != null
+        ? { id: tf.actionId, action_key: tf.rung, title: null }
+        : null,
       setupTourRow: setupRow ? { id: setupRow.id } : null,
       followUpDueAt: extras.followUpDueAt ?? null,
       note: extras.note ?? null,
       now,
       onOptimistic: (patch) => {
         leadPatch = patch.leadPatch
-        setLocalTours((prev) =>
-          prev.map((t) => (String(t.id) === String(patch.tourId) ? { ...t, status: patch.tourStatus, outcome: patch.tourOutcome } : t)),
-        )
+        // Rungs 2-3 do not write lead_tours, so they must not patch it locally
+        // either — otherwise the card would show the original tour outcome
+        // overwritten by a change the database never made.
+        if (patch.recordsTourOutcome) {
+          setLocalTours((prev) =>
+            prev.map((t) => (String(t.id) === String(patch.tourId) ? { ...t, status: patch.tourStatus, outcome: patch.tourOutcome } : t)),
+          )
+        }
         nextActions = nextActions.map((a: any) => {
           if (patch.completedActionId != null && String(a.id) === String(patch.completedActionId)) return { ...a, completed: true, completed_at: now, status: "completed" }
           if (patch.reopenedSetupTourId != null && String(a.id) === String(patch.reopenedSetupTourId)) return { ...a, completed: false, completed_at: null, status: "open", due_at: now }
@@ -1527,6 +1555,9 @@ export default function DashboardClient({ leads, nextActions, favorites, recomme
       onActionCreated: (action) => {
         nextActions = [...nextActions, action]
       },
+      // Same visible-failure channel the other CRM writes use (window.alert), so a
+      // failed rung is never a console line the locator will not see.
+      onError: (message) => window.alert(message),
     })
     setLocalNextActions(nextActions)
     const updatedLead = { ...tf.lead, ...leadPatch }
@@ -3217,48 +3248,44 @@ export default function DashboardClient({ leads, nextActions, favorites, recomme
           return
         }
 
-        // ── TOUR LADDER branch (2nd / 3rd Tour Follow-Up) ─────────────────────
-        // Same send/confirm UX as the other two sequences, but a DIFFERENT
-        // completion: complete this exact rung and record the text, full stop.
+        // ── TOUR LADDER branch (any rung) ─────────────────────────────────────
+        // Same send/confirm path as the contact and post-list ladders — the agent
+        // confirmed the text went out, so RECORD THE OUTREACH: a text_sent timeline
+        // event and Last Action, exactly the two mechanisms those ladders use.
         //
-        // It must not reach completeFollowUp below, which belongs to the post-List-
-        // Sent ladder and would create an FU successor, advance follow_up_count and
-        // archive the lead as "ghosted" on a Final — none of which has anything to
-        // do with a tour. The next rung is created where the workflow establishes
-        // one (a new tour at that property), never because this one was completed.
+        // It stops there. The rung stays OPEN because the client has not answered
+        // yet, and what they say — plus the date of the next attempt — belongs to
+        // the CRM's outcome modal. A send is not a response.
         //
-        // Rung 1 never arrives here: the Companion routes it to the CRM outcome
-        // modal instead (isTourFollowUpSendAction excludes it).
-        if (isTourFollowUpSendAction(String(followRow?.action_key ?? "") || completedTitle)) {
-          if (!followRow) return
-          const marked = localNextActionsRef.current.map((a: any) =>
-            String(a.id) === String(followRow.id)
-              ? { ...a, completed: true, completed_at: now, status: "completed" }
-              : a
-          )
-          if (!isDemoLeadId(lead.id)) {
-            void completeAction(supabase, followRow.id, now).then((ok) => {
-              if (!ok) {
-                console.error("[tour-follow-up] complete row failed for lead", lead.id, "action", followRow.id)
-                return
-              }
-              // The method is known — the Companion launched the SMS composer. Written
-              // only after the completion landed, so history never claims a text for a
-              // rung that stayed open.
-              recordTimelineEvent({ leadId: lead.id, type: "text_sent", method: "text", sequence: null, occurredAt: now })
-            })
-          }
-          setLocalNextActions(marked)
+        // It must also never reach completeFollowUp below, which belongs to the
+        // post-List-Sent ladder and would create an FU successor, advance
+        // follow_up_count and archive the lead as "ghosted" on a Final — none of
+        // which has anything to do with a tour.
+        if (isTourFollowUpRow({ action_key: followRow?.action_key ?? null, title: completedTitle ?? null })) {
+          // Which ATTEMPT was sent, so history says "the 2nd Tour Follow-Up text
+          // went out" rather than just "a text went out".
+          recordTimelineEvent({
+            leadId: lead.id,
+            type: "text_sent",
+            method: "text",
+            sequence: null,
+            occurredAt: now,
+            metadata: {
+              action_id: followRow?.id ?? null,
+              action_key: followRow?.action_key ?? null,
+              action_title: completedTitle,
+              property_id: followRow?.property_id ?? null,
+            },
+          })
           const nextMap = {
             ...latestOutreachRef.current,
             [String(lead.id)]: { type: "text_sent" as const, method: "text" as const, occurredAt: now },
           }
           latestOutreachRef.current = nextMap
           setLatestOutreach(nextMap)
-          postCompanionActiveClient(lead, marked)
+          postCompanionActiveClient(lead, localNextActionsRef.current)
           return
         }
-
         // The synthetic client-only completed row that used to live here is GONE.
         // It fabricated `{ id: "local-fu-…", completed: true, status: "completed" }`
         // purely in React state when `followRow` wasn't found, so Last Action read
@@ -5087,6 +5114,8 @@ export default function DashboardClient({ leads, nextActions, favorites, recomme
         scheduledAt={tourFollowUp?.tour?.scheduled_at ?? null}
         timeZone={timeZone}
         workHours={workHours}
+        rung={tourFollowUp?.rung ?? "tour_follow_up"}
+        canScheduleNext={tourFollowUp?.canScheduleNext ?? true}
         onSubmit={handleTourFollowUpOutcome}
       />
 

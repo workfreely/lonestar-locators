@@ -162,6 +162,6 @@ export function utcToLocalTourValue(iso: string, timeZone?: string | null): stri
 // drift that package exists to prevent. Re-exported for the existing call sites.
 export {
   TOUR_FOLLOW_UP_LADDER, tourFollowUpTitle, isTourFollowUpRow, tourFollowUpKeyOf,
-  isTourFollowUpSendAction, nextTourFollowUpKey, TOUR_FOLLOW_UP_SMS, buildTourFollowUpSmsBody,
+  tourFollowUpQuestion, rungAfter, nextTourFollowUpKey, TOUR_FOLLOW_UP_SMS, buildTourFollowUpSmsBody,
   type TourFollowUpKey, type TourFollowUpRow,
 } from "@bc/companion-shared"

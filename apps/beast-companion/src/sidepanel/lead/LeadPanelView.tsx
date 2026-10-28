@@ -1,6 +1,6 @@
 import { useState } from "react";
 import type { LeadSummaryDTO, NextActionDTO } from "@bc/companion-shared";
-import { formatWorkflowActionLabel, formatLastActionLabel, isFollowUpAction, isContactFollowUpAction, isTourFollowUpSendAction, formatDateDisplay, formatDueDateTime, isPastDue, formatPersonName, formatPhone, formatUnitDisplay,
+import { formatWorkflowActionLabel, formatLastActionLabel, isFollowUpAction, isContactFollowUpAction, isTourFollowUpRow, formatDateDisplay, formatDueDateTime, isPastDue, formatPersonName, formatPhone, formatUnitDisplay,
   compactDesiredAreas,
 } from "@bc/companion-shared";
 import { SectionCard, Field, StageBadge, StatusPill, Button } from "./primitives";
@@ -393,13 +393,18 @@ export function LeadPanelBody({
   // their own. Rung 1 is NOT here: its prompt is the CRM outcome modal below
   // (WORKFLOW_PROMPT_OWNER.tour_follow_up === "crm"), which records the outcome,
   // Top Pick and stage that a bare "yes, sent" would silently skip.
+  // Tour rungs are NOT send/confirm actions: all three open the CRM outcome modal,
+  // which is the only place an outcome is recorded and the next attempt is dated.
   const isFollowUp =
     isFollowUpAction(openAction?.title) ||
-    isContactFollowUpAction(openAction?.title) ||
-    isTourFollowUpSendAction(openAction?.title);
+    isContactFollowUpAction(openAction?.title);
   const isSetupTour = (openAction?.title ?? "").trim().toLowerCase() === "setup tour";
   const isGuestCard = (openAction?.title ?? "").trim().toLowerCase() === "email guest card";
-  const isTourFollowUp = (openAction?.title ?? "").trim().toLowerCase() === "tour follow-up";
+  // ANY rung — 1st, 2nd or 3rd — offers the same hand-off button.
+  const isTourFollowUp = isTourFollowUpRow({
+    action_key: (openAction as { action_key?: string | null } | undefined)?.action_key ?? null,
+    title: openAction?.title ?? null,
+  });
   const isApply = (openAction?.title ?? "").trim().toLowerCase() === "apply";
   const isCheckApp = (openAction?.title ?? "").trim().toLowerCase() === "check app";
   const isConfirmLease = (openAction?.title ?? "").trim().toLowerCase() === "confirm lease";
@@ -593,12 +598,13 @@ export function LeadPanelBody({
                   {formatWorkflowActionLabel(openAction.title)}
                 </Button>
               ) : isTourFollowUp && onTourFollowUp ? (
-                // Opens the canonical "How did the tour go?" outcome modal in the
-                // CRM tab for THIS property's tour (same workflow as the Workspace).
+                // Opens the canonical outcome modal in the CRM tab for THIS
+                // property's rung (same workflow as the Workspace). The modal asks
+                // this rung's own question and dates the next attempt.
                 <Button
                   variant="solid"
                   onClick={() => onTourFollowUp()}
-                  title="Text this follow-up, then record how the tour went"
+                  title="Text this follow-up, then record the outcome in the CRM"
                 >
                   {formatWorkflowActionLabel(openAction.title)}
                 </Button>

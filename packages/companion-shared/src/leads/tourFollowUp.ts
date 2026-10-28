@@ -4,16 +4,21 @@
 // rows and the Companion renders the send/confirm for them. A second copy in
 // lib/leads would be the drift this package exists to prevent.
 //
-// ── THE TWO HALVES OF THE LADDER ARE NOT THE SAME KIND OF STEP ──────────────────
-// Rung 1 (tour_follow_up) asks "how did the tour go" and its answer is an OUTCOME:
-// it sets lead_tours.status/outcome, Top Pick, the stage, and the next workflow
-// action. WORKFLOW_PROMPT_OWNER already records that decision — `tour_follow_up:
-// "crm"` — because that prompt is the CRM's contextual outcome modal.
+// ── EVERY RUNG IS ONE OUTREACH ATTEMPT, AND THE CRM PROMPTS ALL THREE ───────────
+// A rung is an outreach attempt, NOT a property visit. Scheduling the next rung is
+// how the locator says "I'll reach out again on this date" — it never implies
+// another tour. WORKFLOW_PROMPT_OWNER records the whole ladder as `tour_follow_up:
+// "crm"`: all three rungs open the CRM's contextual outcome modal, which is the one
+// place an outcome is recorded and the next rung is dated.
 //
-// Rungs 2 and 3 are plain follow-up texts: send, confirm, done. They have the same
-// shape as the post-list ladder, whose prompt is companion-owned, so they travel
-// the SAME send/confirm path the Companion already uses — no new control and no
-// second completion system.
+// The Companion still opens the SMS composer with that rung's approved template and
+// hands off to the CRM tab. What it must NOT do is run its own send/confirm sheet
+// for a rung: that would complete the row with no chance to choose the next date,
+// and it is the duplicate confirmation this ladder deliberately does not have.
+//
+// Only rung 1 describes the visit, so only rung 1 may write lead_tours.status and
+// outcome. Rungs 2 and 3 are later conversations about a tour already recorded, and
+// rewriting its history from them would destroy the original answer.
 
 export const TOUR_FOLLOW_UP_LADDER = ["tour_follow_up", "tour_follow_up_2", "tour_follow_up_3"] as const;
 export type TourFollowUpKey = (typeof TOUR_FOLLOW_UP_LADDER)[number];
@@ -27,6 +32,34 @@ const LADDER_TITLE: Record<TourFollowUpKey, string> = {
 /** The title stored on the row. Kept in step with FULL in labels/workflowActions. */
 export function tourFollowUpTitle(key: TourFollowUpKey): string {
   return LADDER_TITLE[key];
+}
+
+/**
+ * The question the CRM outcome modal asks AT THIS RUNG. The outcome choices are the
+ * same at every rung — a client who becomes ready on the 2nd attempt must still be
+ * able to go straight to Ready to Apply — but asking "how did the tour go?" on the
+ * 3rd attempt would be asking about a visit that was already reported on the 1st.
+ */
+const LADDER_QUESTION: Record<TourFollowUpKey, string> = {
+  tour_follow_up: "How did the tour go?",
+  tour_follow_up_2: "Have they made a decision about the apartment?",
+  tour_follow_up_3: "Are they still considering the apartment?",
+};
+
+export function tourFollowUpQuestion(key: TourFollowUpKey): string {
+  return LADDER_QUESTION[key];
+}
+
+/**
+ * The rung that follows this one once it is completed, or null at the end of the
+ * ladder. Position-based, so it answers "is there a next attempt to schedule?"
+ * without consulting the rows — which is what the modal needs BEFORE it offers a
+ * date. There is no 4th rung: Pause Search is a separate workflow, and offering a
+ * date for a step that does not exist would promise something nothing creates.
+ */
+export function rungAfter(key: TourFollowUpKey): TourFollowUpKey | null {
+  const i = TOUR_FOLLOW_UP_LADDER.indexOf(key);
+  return TOUR_FOLLOW_UP_LADDER[i + 1] ?? null;
 }
 
 export type TourFollowUpRow = {
@@ -54,19 +87,6 @@ export function tourFollowUpKeyOf(r: TourFollowUpRow): TourFollowUpKey | null {
   if (title === "2nd tour follow-up") return "tour_follow_up_2";
   if (title === "3rd tour follow-up") return "tour_follow_up_3";
   return null;
-}
-
-/**
- * Is this a rung the COMPANION sends and confirms?
- *
- * Rungs 2 and 3 only. Rung 1 is deliberately excluded: its prompt is the CRM's
- * outcome modal (WORKFLOW_PROMPT_OWNER.tour_follow_up === "crm"), and routing it
- * here instead would complete the row without ever recording the outcome, Top Pick
- * or stage advance that modal exists to capture.
- */
-export function isTourFollowUpSendAction(titleOrKey: string | null | undefined): boolean {
-  const key = tourFollowUpKeyOf({ action_key: titleOrKey ?? null, title: titleOrKey ?? null });
-  return key === "tour_follow_up_2" || key === "tour_follow_up_3";
 }
 
 const isOpenRow = (r: TourFollowUpRow) =>

@@ -50,6 +50,9 @@ export async function completeSetupTour(opts: {
   onOptimistic?: (updatedLead: any, tourFollowUpDue: string) => void
   // Reflect the created tour_follow_up action row.
   onWorkflowAction?: (action: any) => void
+  // A write failed and the locator must hear about it. Optional so existing callers
+  // compile unchanged; wiring it is what turns a console line into a visible error.
+  onError?: (message: string) => void
   // Reflect the per-property "Send Guest Card" action created for this scheduled
   // property (Phase 1 of Schedule Tour → Send Guest Card → Tour Follow-Up).
   onGuestCardCreated?: (action: any) => void
@@ -57,7 +60,7 @@ export async function completeSetupTour(opts: {
   // "Tour Scheduled" under the linked Favorite immediately (no manual refresh).
   onTourScheduled?: (tour: { id: number | string | null; lead_id: number | string; property_id: number | null; scheduled_at: string; status: "scheduled" }) => void
 }): Promise<void> {
-  const { lead, actionRow, scheduledAt, propertyId, propertyName, now, onOptimistic, onWorkflowAction, onTourScheduled, onGuestCardCreated } = opts
+  const { lead, actionRow, scheduledAt, propertyId, propertyName, now, onOptimistic, onWorkflowAction, onError, onTourScheduled, onGuestCardCreated } = opts
 
   const demo = isDemoLeadId(lead.id)
   const favoriteId = propertyId === "" || propertyId == null ? null : Number(propertyId)
@@ -143,7 +146,13 @@ export async function completeSetupTour(opts: {
       { id: favoriteId, property_name: propertyName ?? null },
       tourFollowUpDueForTour(scheduledAt),
     )
-    if (followUp) onWorkflowAction?.(followUp)
+    if (followUp.ok) onWorkflowAction?.(followUp.action)
+    // "exists" (this property already has an open rung) and "spent" (all three
+    // used) are correct answers. An error is not, and must not pass as one.
+    else if (followUp.reason === "error") {
+      console.error("[setup-tour] tour follow-up could not be created:", followUp.message)
+      onError?.(`The tour was scheduled, but its Tour Follow-Up could not be created: ${followUp.message}`)
+    }
   }
 
   // 6) Send Guest Card — the per-property action for THIS scheduled property

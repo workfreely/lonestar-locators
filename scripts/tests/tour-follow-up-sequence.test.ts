@@ -17,10 +17,10 @@ import {
   isTourFollowUpRow,
   tourFollowUpKeyOf,
   tourFollowUpTitle,
-  isTourFollowUpSendAction,
   buildTourFollowUpSmsBody,
   TOUR_FOLLOW_UP_SMS,
 } from "../../packages/companion-shared/src/index"
+import * as shared from "../../packages/companion-shared/src/index"
 import { planForOutcome } from "../../lib/leads/tourFollowUp"
 import { formatWorkflowActionLabel, isFollowUpAction, isContactFollowUpAction } from "../../lib/leads/workflowActionLabels"
 import { actionRelevanceRank, RELEVANCE_FOREGROUND, RELEVANCE_BACKGROUND } from "../../lib/leads/actionRelevance"
@@ -153,18 +153,14 @@ eq(nextTourFollowUpKey(kaleahAltitude), "tour_follow_up_2",
 eq(nextTourFollowUpKey([...kaleahAltitude, open_("tour_follow_up_2")]), null,
   "...and once created, it cannot be created twice")
 
-// ── 9. ONE send/confirm path, and it is the existing Companion one ───────────
-// Rungs 2 and 3 are "send a text, confirm it went" steps — the same shape as the
-// post-list and contact ladders — so they travel the Companion path those already
-// use. Rung 1 is excluded on purpose: its prompt is the CRM outcome modal, which
-// records the outcome, Top Pick and stage advance a bare "yes, sent" would skip.
-ok(!isTourFollowUpSendAction("tour_follow_up"), "rung 1 does NOT take the send/confirm path")
-ok(isTourFollowUpSendAction("tour_follow_up_2"), "rung 2 takes the send/confirm path")
-ok(isTourFollowUpSendAction("tour_follow_up_3"), "rung 3 takes the send/confirm path")
-ok(isTourFollowUpSendAction("2nd Tour Follow-Up"), "…resolved from the stored title too")
-ok(!isTourFollowUpSendAction("Tour Follow-Up"), "…and rung 1's title is still excluded")
-ok(!isTourFollowUpSendAction("FU2"), "a post-list follow-up is not a tour rung")
-ok(!isTourFollowUpSendAction("Contact FU2"), "a contact attempt is not a tour rung")
+// ── 9. ONE completion path for the whole ladder: the CRM outcome modal ───────
+// Rungs 2 and 3 used to travel the Companion's own send/confirm sheet, which
+// completed the row with no chance to date the next attempt. That was the
+// duplicate confirmation. Every rung now opens the CRM outcome modal, and the
+// Companion keeps only what it is good at: opening the composer and handing off.
+ok(!("isTourFollowUpSendAction" in shared), "the send/confirm claim on rungs 2-3 is gone entirely")
+ok(!/isTourFollowUpSendAction/.test(readFileSync("packages/companion-shared/src/leads/tourFollowUp.ts", "utf8")),
+  "…removed at the source, not just unexported")
 eq(buildTourFollowUpSmsBody("2nd Tour Follow-Up", "Ka'Leah"),
   "Hey Ka'Leah! How did the other tours go? Did any stand out?",
   "the builder renders rung 2 from its title")
@@ -183,17 +179,25 @@ ok(!/tourFuConfirm|handleTourFollowUpSent|TOUR_FOLLOW_UP_SMS/.test(panel),
 ok(!/Did you follow up on the tour\?/.test(panel),
   "…and no second confirmation popup")
 const lpv = readFileSync("apps/beast-companion/src/sidepanel/lead/LeadPanelView.tsx", "utf8")
-ok(/isTourFollowUpSendAction\(openAction\?\.title\)/.test(lpv),
-  "rungs 2/3 reuse the EXISTING Send Follow-Up button")
+ok(/isTourFollowUpRow\(\{/.test(lpv),
+  "the hand-off button is offered for ANY rung, by the shared matcher")
+ok(!/isTourFollowUpSendAction/.test(lpv),
+  "…and no rung is routed to the send/confirm button any more")
 ok((lpv.match(/onSendFollowUp\(\)/g) ?? []).length === 1,
-  "…and there is still exactly one of it")
+  "the post-list / contact Send Follow-Up button is untouched — still exactly one")
 ok(/isTourFollowUp && onTourFollowUp/.test(lpv),
-  "rung 1 still opens the canonical CRM outcome modal")
+  "every rung opens the canonical CRM outcome modal")
 const prod = readFileSync("apps/beast-companion/src/sidepanel/ProductionPanel.tsx", "utf8")
 ok(/buildTourFollowUpSmsBody\(open\.title, name\)/.test(prod),
-  "the existing onSendFollowUp builds the tour body")
+  "a rung's template comes from the shared send handler, like a Contact FU's")
+ok(!/isTourFollowUpSendAction/.test(prod),
+  "…and the rung-only send/confirm claim is gone")
+ok(/isFollowUpAction\(a\.title\) \|\| isContactFollowUpAction\(a\.title\) \|\| isTourFollowUpRow\(/.test(prod),
+  "ONE finder serves the post-list ladder, the contact chase and the tour ladder")
 ok((prod.match(/setFollowUpConfirm\(\{/g) ?? []).length === 1,
-  "one confirmation sheet, reused — no new sheet was added")
+  "one confirmation sheet with ONE caller — nothing was duplicated for tours")
+ok((prod.match(/aria-label="Confirm follow-up sent"/g) ?? []).length === 1,
+  "…and still exactly one sheet in the UI")
 
 // ── 10b. Rung 1: the text IS connected, and it added nothing else ────────────
 // The locator was retyping the approved first template by hand (Ka'Leah, Oct 24
@@ -207,18 +211,18 @@ eq(buildTourFollowUpSmsBody("Tour Follow-Up", "Ka'Leah"),
   buildTourFollowUpSmsBody("tour_follow_up", "Ka'Leah"),
   "…from its stored title too")
 const tfHandler = prod.slice(prod.indexOf("const onTourFollowUp = () =>"), prod.indexOf("const onStartApplication"))
-ok(/buildTourFollowUpSmsBody\("tour_follow_up", name\)/.test(tfHandler),
-  "the existing Tour Follow-Up button launches the first template")
-ok(/launchCommunication\("text", lead\.phone,/.test(tfHandler),
-  "…through the same launcher every other outreach uses")
+ok(/onSendFollowUp\(\);/.test(tfHandler),
+  "the rung button delegates to the shared send mechanism")
+ok(!/launchCommunication|setFollowUpConfirm|buildTourFollowUpSmsBody/.test(tfHandler),
+  "…and reimplements no part of it")
 ok(/verb: "open-tour-follow-up"/.test(tfHandler),
-  "…and still hands off to the canonical CRM outcome modal")
-ok(tfHandler.indexOf('verb: "open-tour-follow-up"') < tfHandler.indexOf("launchCommunication("),
+  "…it only adds the hand-off to the canonical CRM outcome modal")
+ok(tfHandler.indexOf('verb: "open-tour-follow-up"') < tfHandler.indexOf("onSendFollowUp()"),
   "the modal is opened BEFORE the composer, so focus is not pulled off a half-typed text")
-ok(!/setFollowUpConfirm|setPendingContact/.test(tfHandler),
-  "rung 1 opens NO Companion confirmation sheet — the modal is its prompt")
-ok(!/completeAction|complete-follow-up/.test(tfHandler),
-  "…and completes nothing itself")
+ok(!/setPendingContact/.test(tfHandler),
+  "no other prompt is opened alongside it")
+ok(!/completeAction/.test(tfHandler),
+  "…and the Companion completes nothing itself")
 // The outcome modal must stay a pure decision form — no second texting path in it.
 const modal = readFileSync("components/crm/TourFollowUpModal.tsx", "utf8")
 ok(!/sms:|tel:|launchCommunication|openSMS/.test(modal),
@@ -227,21 +231,26 @@ ok(!/sms:|tel:|launchCommunication|openSMS/.test(modal),
 ok((lpv.match(/onTourFollowUp\(\)/g) ?? []).length === 1,
   "there is still exactly one Tour Follow-Up button")
 
-// ── 11. Completion does the right thing, and only that ───────────────────────
+// ── 11. The send/confirm path RECORDS a rung's send, and stops there ─────────
+// Same mechanism as the contact and post-list ladders, different ending: a rung's
+// confirmation records the outreach and leaves the rung open, because the CRM's
+// outcome modal owns what the client said and when to try again. It must also not
+// fall through to the post-list ladder's completion, which would invent an FU
+// successor, advance follow_up_count and archive the lead as "ghosted" on a Final.
 const dash = readFileSync("components/crm/DashboardClient.tsx", "utf8")
-const tourBranch = dash.slice(dash.indexOf("// ── TOUR LADDER branch"), dash.indexOf("// The synthetic client-only completed row"))
-ok(/completeAction\(supabase, followRow\.id, now\)/.test(tourBranch),
-  "it completes the exact captured rung by id")
-ok(/type: "text_sent"/.test(tourBranch), "it records the text")
-ok(tourBranch.indexOf("completeAction(") < tourBranch.indexOf('type: "text_sent"'),
-  "…only after the completion lands")
+const tourBranch = dash.slice(dash.indexOf("// ── TOUR LADDER branch (any rung)"), dash.indexOf("// The synthetic client-only completed row"))
+ok(tourBranch.length > 0, "the tour branch is present in the send/confirm handler")
+ok(/isTourFollowUpRow\(\{ action_key: followRow\?\.action_key/.test(tourBranch),
+  "it recognises ANY rung, by key or stored title")
 // Comment lines stripped first: the branch's own prose NAMES the things it must not
 // do, and matching that prose would pass or fail for the wrong reason.
 const tourCode = tourBranch.split("\n").filter((l) => !l.trim().startsWith("//")).join("\n")
+ok(/type: "text_sent"/.test(tourCode), "it records the confirmed send on the timeline")
+ok(/return/.test(tourCode), "…then returns")
+ok(!/completeAction\(|completed: true/.test(tourCode),
+  "…without completing the rung — a send is not the client's answer")
 ok(!/getNextFollowUpAction|follow_up_count|completeFollowUp\(|archive/.test(tourCode),
-  "it creates NO successor and never touches the post-list ladder's count or archive")
-ok(/postCompanionActiveClient\(lead, marked\)/.test(tourBranch),
-  "it updates the shared agenda on both surfaces")
+  "a rung can still never reach the post-list ladder's count or archive")
 
 // ── 12. The other sequences are untouched ────────────────────────────────────
 ok(/isContactFollowUpAction\(contactKey\)/.test(dash), "the contact-FU branch is unchanged")

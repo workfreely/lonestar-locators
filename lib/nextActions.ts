@@ -1,5 +1,6 @@
 import { actionRelevanceRank, RELEVANCE_FOREGROUND, type RelevanceRank } from "@/lib/leads/actionRelevance"
 import { isOnHold } from "@/lib/leads/holdWorkflow"
+import { isTourFollowUpRow as isLadderRow } from "@bc/companion-shared"
 
 // Unified Next Action ranking (CRM v1.1.0 Phase 1).
 //
@@ -223,9 +224,10 @@ export function rankLeadActions(
   const isGuestCardRow = (a: ManualNextAction) =>
     String((a as any).action_key ?? "").toLowerCase() === "email_guest_card" ||
     a.title.trim().toLowerCase() === "email guest card"
+  // ANY rung of the ladder. The local copy this replaces matched rung 1 only, so a
+  // 2nd/3rd Tour Follow-Up escaped the guest-card precedence rule below.
   const isTourFollowUpRow = (a: ManualNextAction) =>
-    String((a as any).action_key ?? "").toLowerCase() === "tour_follow_up" ||
-    a.title.trim().toLowerCase() === "tour follow-up"
+    isLadderRow({ action_key: (a as any).action_key ?? null, title: a.title ?? null })
   if (openManual.some(isGuestCardRow)) {
     openManual = openManual.filter((a) => !isTourFollowUpRow(a))
   }

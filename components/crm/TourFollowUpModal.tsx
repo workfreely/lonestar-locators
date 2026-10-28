@@ -5,13 +5,26 @@ import { DEFAULT_TIMEZONE } from "@/lib/timezone"
 import { TOUR_OUTCOMES, TOUR_OUTCOME_LABELS, type TourOutcome } from "@bc/companion-shared"
 import { formatDueDateTime } from "@/lib/actionDisplay"
 import { autoDueInDays, type WorkHours } from "@/lib/workflow/autoDueDate"
-import { localTourToUtc } from "@/lib/leads/tourFollowUp"
+import { localTourToUtc, tourFollowUpTitle, tourFollowUpQuestion, type TourFollowUpKey } from "@/lib/leads/tourFollowUp"
 import DateTimePicker from "./DateTimePicker"
 
-// Tour Follow-Up — a FAST workflow decision, not a form. "How did the tour go?"
-// for ONE tour/property. Still Deciding / Other add a compact second step:
-// "When should we follow up?" (Tomorrow · 2 Days · 3 Days · Pick a Date) →
-// one dated manual "Follow Up". The parent runs the ONE canonical completion.
+// Tour Follow-Up — a FAST workflow decision, not a form, for ONE tour/property.
+//
+// ONE modal serves all three rungs. The outcome choices never change — a client who
+// becomes ready on the 2nd attempt must still reach Ready to Apply in one tap — but
+// the QUESTION is contextual, because by the 2nd attempt the tour has already been
+// reported on:
+//   1st  "How did the tour go?"
+//   2nd  "Have they made a decision about the apartment?"
+//   3rd  "Are they still considering the apartment?"
+//
+// Still Deciding / Other add the compact second step, "When should we follow up?"
+// (Tomorrow · 2 Days · 3 Days · Pick a Date). That date schedules the NEXT NUMBERED
+// RUNG — an outreach attempt, not another tour visit.
+//
+// canScheduleNext false = the ladder ends here. Those outcomes then complete
+// immediately WITHOUT asking for a date, because nothing would be created with it
+// and offering one would promise a 4th step that does not exist.
 
 // Outcomes that ask "when should we follow up?" before completing.
 const NEEDS_FOLLOW_UP: TourOutcome[] = ["still_deciding", "other"]
@@ -23,6 +36,8 @@ export default function TourFollowUpModal({
   scheduledAt,
   timeZone,
   workHours,
+  rung = "tour_follow_up",
+  canScheduleNext = true,
   onSubmit,
 }: {
   open: boolean
@@ -31,6 +46,10 @@ export default function TourFollowUpModal({
   scheduledAt: string | null
   timeZone?: string | null
   workHours?: WorkHours
+  /** Which rung is being completed. Drives the heading and the question. */
+  rung?: TourFollowUpKey
+  /** Is there a further rung to schedule once this one completes? */
+  canScheduleNext?: boolean
   onSubmit: (outcome: TourOutcome, extras: { followUpDueAt?: string | null; note?: string | null }) => void
 }) {
   // "outcome" step → optional "followup" step (Still Deciding / Other).
@@ -57,7 +76,9 @@ export default function TourFollowUpModal({
   const context = scheduledAt ? formatDueDateTime(scheduledAt, { verbose: true, timeZone: tz }) : null
 
   function chooseOutcome(o: TourOutcome) {
-    if (NEEDS_FOLLOW_UP.includes(o)) {
+    // Ask for a date only when there is a rung left to put it on. On the last rung
+    // the outcome is recorded and the ladder ends — no date, no empty promise.
+    if (NEEDS_FOLLOW_UP.includes(o) && canScheduleNext) {
       setPending(o)
       setStep("followup")
       return
@@ -83,7 +104,7 @@ export default function TourFollowUpModal({
           <div className="min-w-0">
             {/* Action · Property on ONE line, same size/weight (Last Action pattern). */}
             <h3 className="truncate text-[18px] font-bold text-[var(--crm-text-primary)]">
-              Tour Follow-Up{propertyName ? ` · ${propertyName}` : ""}
+              {tourFollowUpTitle(rung)}{propertyName ? ` · ${propertyName}` : ""}
             </h3>
             {context && <p className="mt-0.5 text-[12px] text-[var(--crm-text-muted)]">{context}</p>}
           </div>
@@ -101,7 +122,7 @@ export default function TourFollowUpModal({
 
         {step === "outcome" ? (
           <div className="space-y-2.5 overflow-y-auto px-5 py-4">
-            <p className="text-[12.5px] font-semibold uppercase tracking-[0.1em] text-[var(--crm-text-secondary)]">How did the tour go?</p>
+            <p className="text-[12.5px] font-semibold uppercase tracking-[0.1em] text-[var(--crm-text-secondary)]">{tourFollowUpQuestion(rung)}</p>
             <div className="space-y-2">
               {TOUR_OUTCOMES.map((o) => (
                 <button key={o} type="button" className={outcomeBtn} onClick={() => chooseOutcome(o)}>

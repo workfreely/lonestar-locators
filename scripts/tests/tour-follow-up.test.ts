@@ -9,7 +9,7 @@
  * durable one-per-lead Top Pick, the correct next canonical action, +2h per tour,
  * and the Companion "Toured · Property" alignment.
  */
-import { planForOutcome, tourFollowUpDueForTour, favoriteTourStateLabel } from "@/lib/leads/tourFollowUp"
+import { planForOutcome, tourFollowUpDueForTour, favoriteTourStateLabel, rungAfter, tourFollowUpTitle, type TourFollowUpKey } from "@/lib/leads/tourFollowUp"
 import { tourStatusForOutcome, TOUR_OUTCOME_LABELS, type TourOutcome } from "@bc/companion-shared"
 import { rankLeadActions } from "@/lib/nextActions"
 import { getNextAction } from "@/lib/nextAction"
@@ -71,7 +71,7 @@ ok(tourStatusForOutcome("didnt_tour") === "no_show" && tourStatusForOutcome("sti
 
 // ── Simulated reconciliation (mirrors completeTourFollowUp) ──
 type SimState = { lead: any; tours: any[]; actions: any[] }
-function simulate(state: SimState, tour: any, outcome: TourOutcome, opts: { followUpDueAt?: string; setupTourId?: any } = {}): SimState {
+function simulate(state: SimState, tour: any, outcome: TourOutcome, opts: { followUpDueAt?: string; setupTourId?: any; completedRung?: TourFollowUpKey } = {}): SimState {
   const plan = planForOutcome(outcome)
   const propId = tour.property_id
   const tours = state.tours.map((t) => (String(t.id) === String(tour.id) ? { ...t, status: plan.tourStatus, outcome } : t))
@@ -85,7 +85,13 @@ function simulate(state: SimState, tour: any, outcome: TourOutcome, opts: { foll
     return a
   })
   if (plan.createStartApplication) actions = [...actions, { id: "apply-x", lead_id: LEAD, title: "Apply", action_key: "start_application", property_id: propId, completed: false, status: "open", due_at: iso(0) }]
-  else if (plan.createFollowUpTask) actions = [...actions, { id: "fu-x", lead_id: LEAD, title: "Follow Up", action_key: null, action_type: "manual", completed: false, status: "open", due_at: opts.followUpDueAt ?? iso(24 * HOUR) }]
+  else if (plan.createFollowUpTask) {
+    // The NEXT NUMBERED RUNG at the chosen date — never a generic manual "Follow
+    // Up" (action_key null), which no matcher on either surface could resolve.
+    const completedKey = (opts.completedRung ?? "tour_follow_up") as TourFollowUpKey
+    const next = rungAfter(completedKey)
+    if (next) actions = [...actions, { id: `${next}-x`, lead_id: LEAD, title: tourFollowUpTitle(next), action_key: next, action_type: "workflow", origin: "workflow", property_id: propId, completed: false, status: "open", due_at: opts.followUpDueAt ?? iso(24 * HOUR) }]
+  }
   return { lead: { ...state.lead, top_pick_favorite_id: topPick, crm_status }, tours, actions }
 }
 
@@ -140,9 +146,15 @@ function baseState(): SimState {
   ok(s.tours.find((t) => t.property_id === FOUNDRY).outcome === "still_deciding", "outcome = still_deciding")
   ok(s.lead.crm_status === "ready_to_tour", "Still Deciding does NOT advance to Applied")
   ok(String(s.lead.top_pick_favorite_id) === String(FOUNDRY), "Still Deciding preserves existing Top Pick")
-  const fu = s.actions.filter((a) => a.title === "Follow Up" && a.action_key === null)
-  ok(fu.length === 1 && fu[0].due_at === due, "creates exactly one dated manual Follow Up (not another Tour Follow-Up)")
-  ok(fu[0].action_key !== "tour_follow_up", "the decision Follow Up is NOT a tour_follow_up")
+  // THE CORRECTED BEHAVIOUR: the next OUTREACH ATTEMPT, at the date chosen.
+  const generic = s.actions.filter((a) => a.title === "Follow Up" && a.action_key == null)
+  ok(generic.length === 0, "creates NO generic manual 'Follow Up' — that row was the Companion dead end")
+  const rung2 = s.actions.filter((a) => a.action_key === "tour_follow_up_2")
+  ok(rung2.length === 1 && rung2[0].due_at === due, "creates exactly one 2nd Tour Follow-Up, dated as chosen")
+  ok(rung2[0].title === "2nd Tour Follow-Up", "…titled as the 2nd attempt")
+  ok(String(rung2[0].property_id) === String(FOUNDRY), "…scoped to the property it follows up on")
+  ok(rung2[0].action_type === "workflow" && rung2[0].origin === "workflow",
+    "…a workflow row, so both surfaces can resolve it")
 }
 
 // Didn't Like It — Top Pick removed iff it was this property; Favorite + tour preserved; reopen Schedule Tour.

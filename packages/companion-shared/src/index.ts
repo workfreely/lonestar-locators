@@ -247,7 +247,7 @@ export {
 export type { WorkflowActionKey, ActionType, ActionOrigin, ActionStatus } from "./leads/actionKeys";
 export {
   TOUR_FOLLOW_UP_LADDER, tourFollowUpTitle, isTourFollowUpRow, tourFollowUpKeyOf,
-  isTourFollowUpSendAction, nextTourFollowUpKey, TOUR_FOLLOW_UP_SMS, buildTourFollowUpSmsBody,
+  tourFollowUpQuestion, rungAfter, nextTourFollowUpKey, TOUR_FOLLOW_UP_SMS, buildTourFollowUpSmsBody,
 } from "./leads/tourFollowUp";
 export type { TourFollowUpKey, TourFollowUpRow } from "./leads/tourFollowUp";
 
