@@ -62,8 +62,17 @@ ok("…exactly once", (code.match(/onTourFollowUp!?\(lead,/g) ?? []).length === 
   String((code.match(/onTourFollowUp!?\(lead,/g) ?? []).length))
 ok("…with { tour: scheduledTour, favorite: fav, actionId: tfAction.id }",
   /onTourFollowUp!?\(lead, \{ tour: scheduledTour, favorite: fav, actionId: tfAction\.id \}\)/.test(code))
-ok("the tfAction lookup is untouched (open, property-scoped, tour_follow_up)",
-  /action_key \?\? ""\) === "tour_follow_up"/.test(code) && /!a\.completed/.test(code))
+// The lookup's THREE properties, asserted individually rather than as one literal.
+// The key test moved from an inline `=== "tour_follow_up"` into the shared
+// isTourFollowUpRow matcher when the ladder gained its 2nd and 3rd rungs — a card's
+// open follow-up may now be any of them. Open and property-scoped are unchanged, and
+// are now asserted explicitly instead of only being claimed in this label.
+ok("the tfAction lookup is open…",
+  /!a\.completed/.test(code))
+ok("…property-scoped…",
+  /String\(a\.property_id \?\? ""\) === String\(fav\.id\)/.test(code))
+ok("…and matches any rung of the tour ladder",
+  /isTourFollowUpRow\(a\)/.test(code))
 ok("the component still issues no write of its own for this action",
   !/showTourFollowUp[\s\S]{0,200}?(supabase|fetch\(|\.update\(|\.insert\()/.test(code))
 

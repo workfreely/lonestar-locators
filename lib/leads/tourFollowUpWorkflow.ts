@@ -16,7 +16,7 @@ import { supabase } from "@/lib/supabase/client"
 import { isDemoLeadId } from "@/lib/demo/demoWorkspace"
 import { recordTimelineEvent } from "@/lib/leads/timeline"
 import { createManualTask } from "@/lib/leads/createManualTask"
-import { planForOutcome } from "@/lib/leads/tourFollowUp"
+import { planForOutcome, nextTourFollowUpKey, tourFollowUpTitle, type TourFollowUpRow } from "@/lib/leads/tourFollowUp"
 export { planForOutcome, type TourOutcomePlan } from "@/lib/leads/tourFollowUp"
 
 type FavoriteRow = { id: number | string; property_name?: string | null; property_address?: string | null }
@@ -33,12 +33,32 @@ export type CreatedTourFollowUpAction = {
   completed_at: string | null
 }
 
+// The pure ladder lives in lib/leads/tourFollowUp.ts (no DB), so tests and the
+// components can import it without the browser Supabase client. Re-exported here
+// because this module is where the ladder is written.
+export {
+  TOUR_FOLLOW_UP_LADDER, nextTourFollowUpKey, isTourFollowUpRow, tourFollowUpTitle,
+  type TourFollowUpKey,
+} from "@/lib/leads/tourFollowUp"
+
 /**
- * Create the per-property "Tour Follow-Up" for a scheduled tour, due = that
- * tour + 2h (dueAt is passed pre-computed by the caller). Per-property dedup
- * keyed on (lead_id, property_id, action_key) — the twin of
- * createGuestCardForProperty. Returns the created row, or null when a follow-up
- * for this property already exists.
+ * Create the next per-property Tour Follow-Up rung for a scheduled tour, due =
+ * that tour + 2h (dueAt is passed pre-computed by the caller). The twin of
+ * createGuestCardForProperty. Returns the created row, or null when this property
+ * already has an open rung or has used all three.
+ *
+ * ── WHY THE STATUS FILTER IS LOAD-BEARING ───────────────────────────────────────
+ * This selected every row for (lead, property, 'tour_follow_up') regardless of
+ * status and refused to create when ANY existed. A COMPLETED follow-up therefore
+ * blocked the property permanently: Ka'Leah Davis toured Altitude at Brooks, the
+ * follow-up was completed, she came back for another unit, and no second follow-up
+ * could ever be created for that property again.
+ *
+ * The database never agreed with that. Its unique index is partial —
+ * `where status = 'open'` (20260815000000) — so the schema always permitted a
+ * completed rung to be succeeded. The check here was simply stricter than the
+ * constraint it was standing in for. Now it reads the ladder and the index enforces
+ * the same rule, rather than the two disagreeing.
  */
 export async function createTourFollowUpForProperty(
   client: SupabaseClient,
@@ -46,18 +66,22 @@ export async function createTourFollowUpForProperty(
   favorite: FavoriteRow,
   dueAt: string,
 ): Promise<CreatedTourFollowUpAction | null> {
+  // Every row for this (lead, property) — a handful at most — then filtered by the
+  // SAME pure matcher the components use. Filtering in SQL on action_key alone would
+  // miss a row written before action_key existed, which carries only a title.
   const { data: existing, error: checkError } = await client
     .from("lead_next_actions")
-    .select("id")
+    .select("id, action_key, title, status, completed")
     .eq("lead_id", leadId)
     .eq("property_id", favorite.id)
-    .eq("action_key", "tour_follow_up")
-    .limit(1)
   if (checkError) {
     console.error("[tour-follow-up] dedup check failed:", checkError)
     return null
   }
-  if (existing && existing.length > 0) return null
+  const key = nextTourFollowUpKey((existing ?? []) as TourFollowUpRow[])
+  // Null = this property already has an open rung, or all three are spent. Either
+  // way the correct answer is "create nothing", not "create a duplicate".
+  if (!key) return null
 
   const propertyName = (favorite.property_name || favorite.property_address || "").toString().trim() || null
   const { data: created, error: insertError } = await client
@@ -65,12 +89,12 @@ export async function createTourFollowUpForProperty(
     .insert([
       {
         lead_id: leadId,
-        title: "Tour Follow-Up",
+        title: tourFollowUpTitle(key),
         due_at: dueAt, // this property's tour + 2h
         priority: "medium",
         property_id: favorite.id,
         property_name: propertyName,
-        action_key: "tour_follow_up",
+        action_key: key,
         action_type: "workflow",
         origin: "workflow",
         sequence: null,

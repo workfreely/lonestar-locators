@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react"
 import type { LeadSummaryDTO, NextActionDTO, FavoriteDTO, RecommendationDTO, FollowUpOverrides, AutofillLocator } from "@bc/companion-shared";
 import { sanitizeFollowUpOverrides } from "@bc/companion-shared";
 import type { CurrentProperty } from "@/types";
-import { formatPersonName, buildIntroSmsBody, buildFollowUpSmsBody, buildContactFollowUpSmsBody, isFollowUpAction, isContactFollowUpAction, formatWorkflowActionLabel, companionMayConfirm, DEFAULT_TIME_VALUE } from "@bc/companion-shared";
+import { formatPersonName, buildIntroSmsBody, buildFollowUpSmsBody, buildContactFollowUpSmsBody, buildTourFollowUpSmsBody, isFollowUpAction, isContactFollowUpAction, isTourFollowUpSendAction, formatWorkflowActionLabel, companionMayConfirm, DEFAULT_TIME_VALUE } from "@bc/companion-shared";
 import { PanelApp } from "./PanelApp";
 import { runAutofillForScheduler, reinjectAutofillIntoTab, detectTourSelectionInTab, type AutofillOutcome } from "./autofill/runAutofill";
 import { useTourMode } from "./tour/useTourMode";
@@ -1063,18 +1063,25 @@ export function ProductionPanel() {
   const onSendFollowUp = () => {
     const lead = active?.lead;
     if (!lead || lead.id === undefined || lead.id === null) return;
-    // Match either sequence: the post-List-Sent FU1–Final ladder OR the pre-list
-    // Contact FU1–FU3 chase. Each uses the SAME send/confirm UX; only the template
-    // BUILDER differs, chosen by which sequence the open action belongs to.
+    // Match any send-and-confirm sequence: the post-List-Sent FU1–Final ladder, the
+    // pre-list Contact FU1–FU3 chase, or the 2nd/3rd Tour Follow-Up. All three use
+    // the SAME send/confirm UX; only the template BUILDER differs, chosen by which
+    // sequence the open action belongs to.
     const open = (active?.nextActions ?? []).find(
-      (a) => !a.completed && (isFollowUpAction(a.title) || isContactFollowUpAction(a.title)),
+      (a) =>
+        !a.completed &&
+        (isFollowUpAction(a.title) || isContactFollowUpAction(a.title) || isTourFollowUpSendAction(a.title)),
     );
     if (!open) return;
     const name = formatPersonName(lead.firstName) || "this client";
     // Pre-list Contact FU → the dedicated builder (explicit content-key mapping,
     // never falls through to the post-list Final template). Only Contact FU1
     // personalizes with {first_name}; FU2/FU3 are static.
-    const body = isContactFollowUpAction(open.title)
+    // 2nd/3rd Tour Follow-Up → the approved short tour copy. Checked BEFORE the
+    // post-list builder, which would otherwise fall through to the Final template.
+    const body = isTourFollowUpSendAction(open.title)
+      ? buildTourFollowUpSmsBody(open.title, name)
+      : isContactFollowUpAction(open.title)
       ? buildContactFollowUpSmsBody(open.title, name, followUpOverrides)
       : buildFollowUpSmsBody(open.title, name, followUpOverrides, {
           agentFirstName: (active?.agentName ?? "").trim().split(/\s+/)[0] ?? "",
@@ -1388,9 +1395,22 @@ export function ProductionPanel() {
     }
   };
 
-  // "Tour Follow-Up" → open the canonical outcome modal in the EXISTING CRM tab
-  // for the SURFACED property's open tour_follow_up. Same canonical workflow as the
-  // Workspace — the extension has NO Tour Follow-Up business logic of its own.
+  // "Tour Follow-Up" → text the client, then open the canonical outcome modal in the
+  // EXISTING CRM tab for the SURFACED property's open tour_follow_up. Same canonical
+  // workflow as the Workspace — the extension has NO Tour Follow-Up business logic of
+  // its own, and this adds none: the modal still owns the outcome, Top Pick, stage
+  // and next action, and is still the ONLY thing that completes the row.
+  //
+  // ── WHY THE TEXT AND THE MODAL ARE ONE BUTTON ─────────────────────────────────
+  // Asking "how did the tours go" is a message; recording the answer is a form. The
+  // locator was already doing both and the product only offered the second, so the
+  // first rung's approved template was being retyped by hand every time. Launching it
+  // here is the same "open the composer, then the confirmation is waiting" rhythm
+  // onSendFollowUp uses — it adds no prompt, no action and no completion path.
+  //
+  // ORDER IS DELIBERATE: the CRM tab is focused and the modal opened FIRST, then the
+  // SMS composer is launched on top. Reversing it would pull focus off the half-typed
+  // message to bring Chrome forward.
   const onTourFollowUp = () => {
     const lead = active?.lead;
     if (!lead || lead.id === undefined || lead.id === null) return;
@@ -1409,6 +1429,10 @@ export function ProductionPanel() {
         },
       });
     }
+    // The first rung's approved template, same builder the 2nd/3rd use. Editable in
+    // the client's own SMS app before anything is sent; nothing here sends a text.
+    const name = formatPersonName(lead.firstName) || "this client";
+    launchCommunication("text", lead.phone, buildTourFollowUpSmsBody("tour_follow_up", name));
   };
 
   // "Apply" → open the application-submitted confirmation in the CRM tab.

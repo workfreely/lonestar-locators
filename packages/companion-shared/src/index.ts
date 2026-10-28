@@ -245,6 +245,11 @@ export {
   CURRENT_WORKFLOW_VERSION,
 } from "./leads/actionKeys";
 export type { WorkflowActionKey, ActionType, ActionOrigin, ActionStatus } from "./leads/actionKeys";
+export {
+  TOUR_FOLLOW_UP_LADDER, tourFollowUpTitle, isTourFollowUpRow, tourFollowUpKeyOf,
+  isTourFollowUpSendAction, nextTourFollowUpKey, TOUR_FOLLOW_UP_SMS, buildTourFollowUpSmsBody,
+} from "./leads/tourFollowUp";
+export type { TourFollowUpKey, TourFollowUpRow } from "./leads/tourFollowUp";
 
 // Workflow-action display labels (identity stays fu1/fu2/fu3/final_follow_up)
 export {

@@ -25,7 +25,13 @@ export const WORKFLOW_ACTION_KEYS = [
   "build_list",
   "send_list",
   "setup_tour",
+  // Per-property tour ladder. tour_follow_up is the FIRST rung (unchanged
+  // meaning, no backfill); _2/_3 are its successors. Property-scoped, so these
+  // are excluded from the generic one-open-per-(lead, action_key) index — see
+  // supabase/migrations/20261111000000_tour_follow_up_sequence.sql.
   "tour_follow_up",
+  "tour_follow_up_2",
+  "tour_follow_up_3",
   "start_application",
   "check_application",
   "confirm_lease",

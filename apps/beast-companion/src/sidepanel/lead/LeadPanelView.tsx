@@ -1,6 +1,6 @@
 import { useState } from "react";
 import type { LeadSummaryDTO, NextActionDTO } from "@bc/companion-shared";
-import { formatWorkflowActionLabel, formatLastActionLabel, isFollowUpAction, isContactFollowUpAction, formatDateDisplay, formatDueDateTime, isPastDue, formatPersonName, formatPhone, formatUnitDisplay,
+import { formatWorkflowActionLabel, formatLastActionLabel, isFollowUpAction, isContactFollowUpAction, isTourFollowUpSendAction, formatDateDisplay, formatDueDateTime, isPastDue, formatPersonName, formatPhone, formatUnitDisplay,
   compactDesiredAreas,
 } from "@bc/companion-shared";
 import { SectionCard, Field, StageBadge, StatusPill, Button } from "./primitives";
@@ -386,10 +386,17 @@ export function LeadPanelBody({
   // ambiguous contact action (no auto call/text choice).
   const isContactLead = (openAction?.title ?? "").trim().toLowerCase() === "contact lead";
   const isSendList = (openAction?.title ?? "").trim().toLowerCase() === "send list";
-  // Both the post-List-Sent FU ladder and the pre-list Contact FU chase use the
-  // SAME "Send Follow-Up" button + confirmation UX (onSendFollowUp routes to the
-  // correct template builder by sequence). No new prompt or placement.
-  const isFollowUp = isFollowUpAction(openAction?.title) || isContactFollowUpAction(openAction?.title);
+  // Three sequences, ONE button and ONE confirmation sheet (onSendFollowUp routes
+  // to the correct template builder by sequence). No new prompt or placement. The 2nd/3rd Tour
+  // Follow-Ups are plain "send a text, confirm it went" steps, identical in shape
+  // to the other two, so they reuse this path rather than growing a control of
+  // their own. Rung 1 is NOT here: its prompt is the CRM outcome modal below
+  // (WORKFLOW_PROMPT_OWNER.tour_follow_up === "crm"), which records the outcome,
+  // Top Pick and stage that a bare "yes, sent" would silently skip.
+  const isFollowUp =
+    isFollowUpAction(openAction?.title) ||
+    isContactFollowUpAction(openAction?.title) ||
+    isTourFollowUpSendAction(openAction?.title);
   const isSetupTour = (openAction?.title ?? "").trim().toLowerCase() === "setup tour";
   const isGuestCard = (openAction?.title ?? "").trim().toLowerCase() === "email guest card";
   const isTourFollowUp = (openAction?.title ?? "").trim().toLowerCase() === "tour follow-up";
@@ -591,7 +598,7 @@ export function LeadPanelBody({
                 <Button
                   variant="solid"
                   onClick={() => onTourFollowUp()}
-                  title="Record how this property's tour went"
+                  title="Text this follow-up, then record how the tour went"
                 >
                   {formatWorkflowActionLabel(openAction.title)}
                 </Button>

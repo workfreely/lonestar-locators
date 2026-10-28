@@ -29,6 +29,8 @@ const FULL: Record<string, string> = {
   check_application: "Check Application",
   setup_tour: "Schedule Tour",
   tour_follow_up: "Tour Follow-Up",
+  tour_follow_up_2: "2nd Tour Follow-Up",
+  tour_follow_up_3: "3rd Tour Follow-Up",
   // The canonical application-start action. DISPLAY ONLY reads "Mark as Applied"
   // (the agent confirms the client submitted, they don't submit it); the key stays
   // start_application and completing it still advances the lead to 'applied'.
@@ -98,6 +100,12 @@ const TO_KEY: Record<string, string> = {
   "tour follow-up": "tour_follow_up",
   "tour follow up": "tour_follow_up",
   tour_follow_up: "tour_follow_up",
+  "2nd tour follow-up": "tour_follow_up_2",
+  "2nd tour follow up": "tour_follow_up_2",
+  tour_follow_up_2: "tour_follow_up_2",
+  "3rd tour follow-up": "tour_follow_up_3",
+  "3rd tour follow up": "tour_follow_up_3",
+  tour_follow_up_3: "tour_follow_up_3",
   apply: "start_application",
   "start application": "start_application",
   "mark as applied": "start_application",
@@ -182,6 +190,11 @@ const LAST_ACTION_BY_DISPLAY: Record<string, string> = {
   // A completed Tour Follow-Up reads as the tour having happened ("Toured ·
   // Property") — the tour occurrence, not a generic "completed" prefix.
   "Tour Follow-Up": "Toured",
+  // The 2nd/3rd rungs are deliberately NOT mapped. "Toured" states that the tour
+  // happened, which the FIRST completion establishes once; a later rung is another
+  // outreach about the same visit, not a second tour. They fall through to their own
+  // label ("2nd Tour Follow-Up"), exactly as FU1-3 do, under a section already titled
+  // LAST ACTION.
   // Completing "Mark as Applied" (client submitted) → "Applied · Property".
   "Mark as Applied": "Applied",
   "Check Application": "Checked Application",

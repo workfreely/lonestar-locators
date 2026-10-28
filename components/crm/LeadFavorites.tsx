@@ -24,7 +24,7 @@ import { propertyWebsiteHref } from "@/lib/propertyExplorer/types"
 import { displayAddress, formatRating, evaluateLocatorCommission, resolvePromoBadges } from "@bc/companion-shared"
 import { StarRating } from "./StarRating"
 import { attachCatalogRatings } from "@/lib/propertyExplorer/catalog"
-import { utcToLocalTourValue, favoriteTourStateLabel } from "@/lib/leads/tourFollowUp"
+import { utcToLocalTourValue, favoriteTourStateLabel, isTourFollowUpRow } from "@/lib/leads/tourFollowUp"
 import { formatDueDateTime } from "@/lib/actionDisplay"
 import { placeIdFromPropertyUrl } from "@/lib/propertyExplorer/types"
 
@@ -420,7 +420,9 @@ export default function LeadFavorites({
                   String(a.lead_id) === String(lead.id) &&
                   String(a.property_id ?? "") === String(fav.id) &&
                   !a.completed &&
-                  (String(a.action_key ?? "") === "tour_follow_up" || String(a.title ?? "").trim().toLowerCase() === "tour follow-up"),
+                  // ANY rung of the ladder — a property's open follow-up may be the
+                  // 2nd or 3rd, and the card offers whichever one is open.
+                  isTourFollowUpRow(a),
               )
               const applyAction = nextActions.find(
                 (a: any) =>

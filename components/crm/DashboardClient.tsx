@@ -67,6 +67,7 @@ import { outstandingFavoriteGuestCards } from "@/lib/leads/guestCardAggregate"
 import GuestCardBulkModal, { type BulkGuestCardItem } from "./GuestCardBulkModal"
 import GuestCardGuardModal, { type GuestCardGuardView } from "./GuestCardGuardModal"
 import { completeTourFollowUp } from "@/lib/leads/tourFollowUpWorkflow"
+import { isTourFollowUpRow, isTourFollowUpSendAction } from "@/lib/leads/tourFollowUp"
 import { completeApplicationOutcome } from "@/lib/leads/applicationOutcomeWorkflow"
 import { completeConfirmLease } from "@/lib/leads/confirmLeaseWorkflow"
 import { DEFAULT_PROJECTION_METHOD, type ProjectionMethod } from "@/lib/leads/commissionEstimate"
@@ -343,7 +344,9 @@ export default function DashboardClient({ leads, nextActions, favorites, recomme
         // The tour outcome modal owns Done Touring: it captures the outcome, sets
         // Top Pick and creates start_application. A bare stage move left the lead
         // with no Next Action at all, since done_touring has no workflow rule.
-        const action = openAction("tour_follow_up")
+        // ANY open rung — the voice command means "record the tour outcome", and the
+        // property's open follow-up may be the 2nd or 3rd.
+        const action = findOpenTourFollowUp(lead.id) ?? null
         const favId = action?.property_id ?? lead.top_pick_favorite_id ?? null
         const favorite = (localFavoritesRef.current ?? []).find((f: any) => String(f.id) === String(favId)) ?? null
         const tour = (localToursRef.current ?? []).find(
@@ -1246,7 +1249,7 @@ export default function DashboardClient({ leads, nextActions, favorites, recomme
       (a: any) =>
         String(a.lead_id) === String(leadId) &&
         !a.completed &&
-        (String(a.action_key ?? "") === "tour_follow_up" || String(a.title ?? "").trim().toLowerCase() === "tour follow-up") &&
+        isTourFollowUpRow(a) &&
         (propertyId == null || String(a.property_id ?? "") === String(propertyId))
     )
   }
@@ -3214,6 +3217,48 @@ export default function DashboardClient({ leads, nextActions, favorites, recomme
           return
         }
 
+        // ── TOUR LADDER branch (2nd / 3rd Tour Follow-Up) ─────────────────────
+        // Same send/confirm UX as the other two sequences, but a DIFFERENT
+        // completion: complete this exact rung and record the text, full stop.
+        //
+        // It must not reach completeFollowUp below, which belongs to the post-List-
+        // Sent ladder and would create an FU successor, advance follow_up_count and
+        // archive the lead as "ghosted" on a Final — none of which has anything to
+        // do with a tour. The next rung is created where the workflow establishes
+        // one (a new tour at that property), never because this one was completed.
+        //
+        // Rung 1 never arrives here: the Companion routes it to the CRM outcome
+        // modal instead (isTourFollowUpSendAction excludes it).
+        if (isTourFollowUpSendAction(String(followRow?.action_key ?? "") || completedTitle)) {
+          if (!followRow) return
+          const marked = localNextActionsRef.current.map((a: any) =>
+            String(a.id) === String(followRow.id)
+              ? { ...a, completed: true, completed_at: now, status: "completed" }
+              : a
+          )
+          if (!isDemoLeadId(lead.id)) {
+            void completeAction(supabase, followRow.id, now).then((ok) => {
+              if (!ok) {
+                console.error("[tour-follow-up] complete row failed for lead", lead.id, "action", followRow.id)
+                return
+              }
+              // The method is known — the Companion launched the SMS composer. Written
+              // only after the completion landed, so history never claims a text for a
+              // rung that stayed open.
+              recordTimelineEvent({ leadId: lead.id, type: "text_sent", method: "text", sequence: null, occurredAt: now })
+            })
+          }
+          setLocalNextActions(marked)
+          const nextMap = {
+            ...latestOutreachRef.current,
+            [String(lead.id)]: { type: "text_sent" as const, method: "text" as const, occurredAt: now },
+          }
+          latestOutreachRef.current = nextMap
+          setLatestOutreach(nextMap)
+          postCompanionActiveClient(lead, marked)
+          return
+        }
+
         // The synthetic client-only completed row that used to live here is GONE.
         // It fabricated `{ id: "local-fu-…", completed: true, status: "completed" }`
         // purely in React state when `followRow` wasn't found, so Last Action read
@@ -3373,6 +3418,8 @@ export default function DashboardClient({ leads, nextActions, favorites, recomme
               ? {
                   id: `demo-act-tourfu-${lead.id}-${Date.now()}`,
                   lead_id: lead.id,
+                  // Rung 1 by construction: a demo lead's tour is always its first for
+                  // that property (demo state is rebuilt, never accumulated).
                   title: "Tour Follow-Up",
                   action_key: "tour_follow_up",
                   property_id: Number(propertyId),
@@ -3978,7 +4025,7 @@ export default function DashboardClient({ leads, nextActions, favorites, recomme
             (a: any) =>
               String(a.lead_id) === String(lead.id) &&
               !a.completed &&
-              (String(a.action_key ?? "") === "tour_follow_up" || String(a.title ?? "").trim().toLowerCase() === "tour follow-up")
+              isTourFollowUpRow(a)
           )
         if (!tf) return
         const propId = (tf as any).property_id
