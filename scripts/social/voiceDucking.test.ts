@@ -12,8 +12,9 @@ import { tmpdir } from "node:os"
 import path from "node:path"
 import ffmpegPath from "ffmpeg-static"
 import {
-  renderReel, buildAudioFilter, buildFfmpegArgs, computeVoiceWindows, duckVolumeExpr, parseProbe, VOICE_MIX,
+  renderReel, buildAudioFilter, buildFfmpegArgs, computeVoiceWindows, voiceClipsFit, duckVolumeExpr, parseProbe, VOICE_MIX,
 } from "@/lib/social/renderVideo"
+import { duckGain } from "@/lib/social/voiceFit"
 
 let pass = 0, fail = 0
 const ok = (l: string, c: boolean) => { if (c) { pass++; console.log(`  ✓ ${l}`) } else { fail++; console.log(`  ✗ ${l}`) } }
@@ -95,6 +96,46 @@ ok("duck level 0.2 and ramp 0.25s are centralized", VOICE_MIX.duckLevel === 0.2 
   const w = computeVoiceWindows(5, 9, 9) // both clips longer than the video
   ok("a clip longer than the video is clamped INTO it, never past it",
     w.hook!.endSeconds === 5 && w.cta!.startSeconds === 0 && w.cta!.endSeconds === 5)
+}
+
+// A HOOK AND A CTA THAT DO NOT FIT. The clamping above keeps both inside the video; it does not
+// keep them off each other. The real 7.09s render that prompted this played a 4.0s hook and a
+// 5.3s CTA at the same time for 2.2 seconds.
+// THE BROWSER'S DUCK MUST BE THE SAME CURVE ffmpeg IS HANDED. The live audio preview writes
+// duckGain() to the player's volume; the render evaluates envelopeExpr() per sample. If the two
+// drift apart, the preview stops being a preview.
+console.log("\nthe duck curve, shared by the renderer and the live preview:")
+{
+  const w = { startSeconds: 2, endSeconds: 6 }
+  const at = (t: number) => Number(duckGain(t, [w]).toFixed(3))
+  ok("untouched before the clip starts", at(1.5) === 1)
+  ok("ramps down over rampSeconds from the start", at(2) === 1 && at(2.125) === 0.6 && at(2.25) === 0.2)
+  ok("fully ducked while the clip speaks", at(4) === 0.2 && at(5.9) === 0.2)
+  ok("holds through the clip's end, then releases over rampSeconds", at(6) === 0.2 && at(6.25) === 1)
+  ok("…and the release is AFTER the clip, not before it", at(5.99) === 0.2)
+  ok("back to untouched later", at(9) === 1)
+  ok("the floor is VOICE_MIX.duckLevel", at(4) === VOICE_MIX.duckLevel)
+  ok("no windows ⇒ no ducking at all", duckGain(3, [null, null]) === 1)
+  const two = [{ startSeconds: 0, endSeconds: 2 }, { startSeconds: 8, endSeconds: 10 }]
+  // Rounded, because 1 - 0.8 is 0.19999999999999996 in binary floating point — the curve is right,
+  // the comparison would be the thing that is wrong.
+  const r = (x: number) => Number(x.toFixed(3))
+  ok("two clips each duck their own span", r(duckGain(1, two)) === VOICE_MIX.duckLevel && r(duckGain(9, two)) === VOICE_MIX.duckLevel)
+  ok("…and the gap between them is untouched", duckGain(5, two) === 1)
+}
+
+console.log("\nhook + CTA must not overlap:")
+{
+  ok("4.0s + 5.3s in a 7.09s video → does NOT fit", !voiceClipsFit(7.09, 4.0, 5.3))
+  ok("4.0s + 5.3s in a 12s video → fits", voiceClipsFit(12, 4.0, 5.3))
+  ok("exactly filling the video is still a fit (no gap is required)", voiceClipsFit(10, 4, 6))
+  ok("one frame over is not", !voiceClipsFit(10, 4, 6.001))
+  ok("a hook on its own always fits", voiceClipsFit(3, 5, null))
+  ok("a CTA on its own always fits", voiceClipsFit(3, null, 5))
+  ok("no clips at all always fits", voiceClipsFit(3, null, null))
+  ok("an unknown video length decides nothing", voiceClipsFit(0, 5, 5))
+  // The worst pair the imported library can produce, against the shortest video it could fit in.
+  ok("the library's longest pair (5.35 + 6.55) needs 11.9s", !voiceClipsFit(11.89, 5.35, 6.55) && voiceClipsFit(11.9, 5.35, 6.55))
 }
 ok("no voice clips ⇒ no audio graph at all (branch A stays byte-identical)",
   buildAudioFilter({ useSourceAudio: true, hookInput: null, ctaInput: null, hook: null, cta: null, videoDurationSeconds: 10 }) === null)
@@ -205,13 +246,28 @@ async function main() {
     ok("no audio stream fabricated", !hasAudioStream(out))
   }
 
-  console.log("\nShort video: Hook and CTA OVERLAP:")
+  // A PAIR THAT CANNOT FIT IS REFUSED, NOT MIXED. This used to render: the clips were clamped
+  // into the video and then played over each other, which is two voices at once and no amount of
+  // ducking fixes it. The refusal is deliberately loud, like an unreadable clip.
+  console.log("\nShort video: Hook and CTA cannot both fit:")
   {
     const V3 = makeVideo("v3.mp4", 3, { audio: true })
-    const out = await render("OV.mp4", V3, { hook: HOOK, cta: CTA }) // 2s + 2s over a 3s video
+    let message = ""
+    try { await render("OV.mp4", V3, { hook: HOOK, cta: CTA }) } // 2s + 2s over a 3s video
+    catch (e) { message = (e as Error).message }
+    ok("the render is REFUSED rather than overlapping the two clips", /do not fit/.test(message))
+    ok("…and the message names both clips and the video", /2\.0s.*2\.0s.*3\.0s/.test(message))
+    ok("…and nothing was written", !existsSync(path.join(dir, "OV.mp4")))
+  }
+
+  // THE OTHER HALF OF THE SAME RULE: a pair that DOES fit still renders exactly as before.
+  console.log("\nLonger video: the same pair fits and still renders:")
+  {
+    const V8 = makeVideo("v8fit.mp4", 8, { audio: true })
+    const out = await render("FIT.mp4", V8, { hook: HOOK, cta: CTA })
     const p = pcm(out)
-    ok("render succeeds and does not extend the video", Math.abs(durationOf(out) - 3) < 0.35)
-    ok("bed stays ducked across the whole overlap", rms(p, 0.4, 2.6) / Math.max(1e-9, rms(p, 0, 0.05)) < 0.6)
+    ok("render succeeds and does not extend the video", Math.abs(durationOf(out) - 8) < 0.35)
+    ok("bed is ducked while the hook plays", rms(p, 0.4, 1.8) / Math.max(1e-9, rms(p, 2.6, 3.4)) < 0.6)
   }
 
   console.log("\nVoice clip LONGER than the source video:")

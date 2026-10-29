@@ -13,6 +13,8 @@ import { previewAspectClass } from "@/lib/social/postTypes"
 import { SiInstagram, SiTiktok, SiYoutube } from "react-icons/si"
 import type { IconType } from "react-icons"
 import { buildHashtags, normalizeHashtag, hashtagLimitFor, MAX_HASHTAGS } from "@/lib/social/hashtags"
+import { voiceClipsFit } from "@/lib/social/voiceFit"
+import { useVoicePreview } from "@/components/crm/social/useVoicePreview"
 import { PRICE_LABEL_MODES, priceLabelMode as narrowPriceLabelMode, type PriceLabelMode, buildCaption, specialDisplay, buildTemplateHeadline, buildTemplateDetail, OVERLAY_TEMPLATES, OVERLAY_TEMPLATE_ORDER, OVERLAY_TEMPLATE_LABEL, DEFAULT_OVERLAY_TEMPLATE, type OverlayTemplate, isOverlayPreviewStale, type OverlayPreviewBaseline, type SourceMeta } from "@/lib/social/composePost"
 import SpecialSelect from "@/components/crm/social/SpecialSelect"
 import { DESTINATIONS, isSocialDestination, destinationFromLegacyPlatform, providerForPost } from "@/lib/social/destinations"
@@ -20,7 +22,6 @@ import { computeOverlayLayout } from "@/lib/social/overlaySpec"
 import ReelCoverControl from "@/components/crm/social/ReelCoverControl"
 import SafeAreaOverlay from "@/components/crm/social/SafeAreaOverlay"
 import PreviewOverlay from "@/components/crm/social/PreviewOverlay"
-import SourceQualityBadge from "@/components/crm/social/SourceQualityBadge"
 import VideoLightbox from "@/components/crm/social/VideoLightbox"
 import PropertyResearch from "@/components/crm/social/PropertyResearch"
 import TikTokPostConfirm from "@/components/crm/social/TikTokPostConfirm"
@@ -74,6 +75,8 @@ type Post = {
   presenterIntroSeconds?: number | null
   presenterSide?: string | null
   presenterWidthPx?: number | null
+  /** The CTA window's Look. Null ⇒ the intro Look. */
+  presenterCtaId?: string | null
   needsReviewAt?: string | null
   needsReviewReason?: string | null
   platform: string
@@ -283,9 +286,66 @@ export default function PostEditor({ postId, from }: { postId: string; from?: st
   const [tagInput, setTagInput] = useState("")
   const [audioChoice, setAudioChoice] = useState("original")
   const [voiceHookId, setVoiceHookId] = useState<string | null>(null)
+  /** Raised by VoiceClipsControl when the SELECTED audio conflicts with verified property facts.
+   *  A factual conflict — wrong market, an unsupported price, the wrong property type — is not a
+   *  style note, so it stops the publish rather than warning beside it. */
+  // ONE FLAG PER DROPDOWN. Each voice control reports only its own clip's hard conflicts; the
+  // editor adds the one fact neither of them can know — whether the two together fit the video.
+  const [hookBlocks, setHookBlocks] = useState(false)
+  const [ctaBlocks, setCtaBlocks] = useState(false)
+  // The SOURCE video's length, learned from the preview player's own metadata. The server has no
+  // duration column to read, so the player that is already on screen is the only thing that knows.
+  // Drives the timestamp on the preview AND the Hook/CTA fit warning — one number, both uses.
+  const [sourceSeconds, setSourceSeconds] = useState<number | null>(null)
+  // How long the CHOSEN clips are. Reported by VoiceClipsControl, which has the library loaded;
+  // the editor never fetches it a second time.
+  const [voiceSeconds, setVoiceSeconds] = useState<{
+    hookSeconds: number | null; ctaSeconds: number | null; hookUrl: string | null; ctaUrl: string | null
+  }>({ hookSeconds: null, ctaSeconds: null, hookUrl: null, ctaUrl: null })
+  // THE PLAYER THE LIVE AUDIO PREVIEW FOLLOWS — whichever one is actually on screen.
+  //
+  // There are two, and that is what made the enlarged view silent: VideoLightbox mounts its own
+  // <video> rather than scaling this one up, so the preview was still following a player nobody
+  // was watching. `inlineVideo` remembers the small one; `player` points at the enlarged one while
+  // it is open and back at the small one when it closes.
+  const inlineVideo = useRef<HTMLVideoElement | null>(null)
+  const [player, setPlayer] = useState<HTMLVideoElement | null>(null)
+  const adoptInline = useCallback((el: HTMLVideoElement | null) => {
+    previewVideoRef.current = el
+    inlineVideo.current = el
+    setPlayer(el)
+  }, [])
+  // THE PAIR. The hook runs from the start and the CTA to the end, so clips longer than the video
+  // would play over each other. Same rule the renderer enforces from its probed duration — this
+  // is the half that says so before anyone renders.
+  const voiceOverlap = sourceSeconds !== null && voiceSeconds.hookSeconds !== null && voiceSeconds.ctaSeconds !== null
+    && !voiceClipsFit(sourceSeconds, voiceSeconds.hookSeconds, voiceSeconds.ctaSeconds)
+    ? { hook: voiceSeconds.hookSeconds, cta: voiceSeconds.ctaSeconds, video: sourceSeconds }
+    : null
+  const voiceBlocksPublish = hookBlocks || ctaBlocks || voiceOverlap !== null
+
+  // LIVE AUDIO PREVIEW. No extra control: it follows the Play button already on the player, places
+  // the clips with the renderer's own rules, and ducks the bed with the renderer's own curve. It
+  // writes nothing anywhere.
+  useVoicePreview({
+    video: player,
+    hookUrl: voiceSeconds.hookUrl, ctaUrl: voiceSeconds.ctaUrl,
+    hookSeconds: voiceSeconds.hookSeconds, ctaSeconds: voiceSeconds.ctaSeconds,
+    playBed: audioChoice !== "none",
+    overlapping: voiceOverlap !== null,
+  })
+  // Swapping the source video must not leave the previous clip's timestamp on screen for the
+  // moment before the new player reports its own metadata.
+  useEffect(() => { setSourceSeconds(null) }, [post?.previewUrl, post?.renderedPreviewUrl])
   // AI PRESENTER — one object rather than five useStates, so "off" is a single assignment that
   // cannot leave a stray setting behind.
-  const [presenter, setPresenter] = useState<PresenterValue>({ presenterId: null, introSeconds: null, side: null, widthPx: null, audioVoiceClipId: null })
+  const [presenter, setPresenter] = useState<PresenterValue>({ presenterId: null, introSeconds: null, side: null, widthPx: null, audioVoiceClipId: null, ctaPresenterId: null })
+  // WILL AN AVATAR ACTUALLY APPEAR IN THE FINISHED VIDEO? Reported by the presenter control, which
+  // is where the clip matching lives. The preview reads THIS rather than "a presenter is attached",
+  // because since the lip-sync rule tightened those are no longer the same fact: a presenter with
+  // no matching clip renders no avatar at all, and a preview that drew one — and shifted the
+  // headline to clear it — would be showing a frame the export does not produce.
+  const [avatarVisible, setAvatarVisible] = useState(false)
   const [voiceCtaId, setVoiceCtaId] = useState<string | null>(null)
   // EDIT & RE-RENDER. A finished post's creative controls are disabled but still VISIBLE, so the
   // operator can always see how the video was made. This opt-in unlocks them for a deliberate
@@ -490,7 +550,15 @@ export default function PostEditor({ postId, from }: { postId: string; from?: st
         side: p.presenterSide ?? null,
         widthPx: p.presenterWidthPx ?? null,
         audioVoiceClipId: null,
+        // Null ⇒ the intro Look stands in the CTA window too. Loaded like every other presenter
+        // field so a saved choice of a second Look survives a reload.
+        ctaPresenterId: p.presenterCtaId ?? null,
       })
+      // SEEDED so loading a post with a presenter does not draw the unshifted lockup for a frame
+      // and then jump. It is the same "assume visible until the lookup says otherwise" default the
+      // control itself uses while its match request is in flight; the control corrects it within
+      // the first response if no clip matches.
+      setAvatarVisible(!!p.presenterId)
       setScheduleVal(isoToLocalInput(p.scheduledAt))
       setSourceContentId(p.sourceContentId ?? null)
       setPropertyName(p.source?.propertyName ?? "")
@@ -602,6 +670,7 @@ export default function PostEditor({ postId, from }: { postId: string; from?: st
       presenterSide: presenter.presenterId ? presenter.side : null,
       presenterWidthPx: presenter.presenterId ? presenter.widthPx : null,
       presenterVoiceClipId: presenter.presenterId ? presenter.audioVoiceClipId : null,
+      presenterCtaId: presenter.presenterId ? presenter.ctaPresenterId : null,
     }),
     [postName, postType, caption, socialSpecial, headline, overlayMode, overlayTemplate, market, propertyType, special, priceRange, priceMode, amenities, hashtags, audioChoice, voiceHookId, voiceCtaId, presenter],
   )
@@ -1168,7 +1237,7 @@ export default function PostEditor({ postId, from }: { postId: string; from?: st
   // the same value that decides whether a presenter is sent to the renderer — so the preview moves
   // the lockup at exactly the moment the export would. Selecting or clearing a presenter re-lays the
   // preview immediately, with no save required.
-  const overlayLayout = overlayMode === "existing" ? null : computeOverlayLayout(overlayTemplate, headline, overlayDetail, previewSafeAreaId, !!presenter.presenterId)
+  const overlayLayout = overlayMode === "existing" ? null : computeOverlayLayout(overlayTemplate, headline, overlayDetail, previewSafeAreaId, avatarVisible)
 
   // Posting mode toggle (Post Once / Recurring) — reused as-is in two positions: above the Repeat
   // settings form, and inline in the compact Posting|Scheduled row. Same handler/state either way.
@@ -1238,7 +1307,12 @@ export default function PostEditor({ postId, from }: { postId: string; from?: st
               post.approvedAt ? (
                 <button type="button" className={btn} disabled={busy} onClick={() => void setApproved(false)}>Move to Working</button>
               ) : (
-                <button type="button" className={btn} disabled={busy} onClick={() => void setApproved(true)}>Mark ready</button>
+                // THE GATE IS HERE, not beside the Post buttons. "Mark ready" is the single door a
+                // post goes through to become publishable, so blocking it blocks every downstream
+                // destination at once — scheduling included, which is the path nobody is watching.
+                <button type="button" className={btn} disabled={busy || voiceBlocksPublish}
+                  title={voiceBlocksPublish ? "The selected hook or CTA conflicts with this video — a factual detail, or the two clips not fitting without overlapping. Change the audio or clear it before marking this ready." : undefined}
+                  onClick={() => void setApproved(true)}>Mark ready</button>
               )
             )}
             {!unlocked && (
@@ -1290,7 +1364,9 @@ export default function PostEditor({ postId, from }: { postId: string; from?: st
       <div className="grid grid-cols-1 md:grid-cols-[300px_1fr] gap-5">
         {/* Preview column — LEFT (right side is the Beast Companion workspace). */}
         <div>
-          <div className={`relative ${aspect} rounded-2xl overflow-hidden border border-[var(--crm-border)] bg-black`}>
+          <div className={`relative ${aspect} rounded-2xl overflow-hidden border border-[var(--crm-border)] bg-black`}
+            data-source-dimensions={sourceDims ? `${sourceDims.w}x${sourceDims.h}` : undefined}
+            data-source-seconds={sourceSeconds !== null ? sourceSeconds.toFixed(3) : undefined}>
             {rendered ? (
               // FAITHFUL FINAL PREVIEW — the real rendered derivative (overlay burned in + audio).
               // Only shown when nothing overlay-affecting has changed since load (see
@@ -1306,7 +1382,9 @@ export default function PostEditor({ postId, from }: { postId: string; from?: st
               // renderVersion, not the URL: the URL is re-signed on every load() and would remount
               // (and reset playback) on each poll, where the version only changes when the artifact
               // actually does.
-              <video key={post.renderVersion ?? 0} ref={previewVideoRef} src={post.renderedPreviewUrl!} controls controlsList="nofullscreen" disablePictureInPicture playsInline preload="metadata" className="w-full h-full object-cover" />
+              <video key={post.renderVersion ?? 0} ref={adoptInline} src={post.renderedPreviewUrl!} controls controlsList="nofullscreen" disablePictureInPicture playsInline preload="metadata"
+                onLoadedMetadata={(e) => { const v = e.currentTarget; if (Number.isFinite(v.duration) && v.duration > 0) setSourceSeconds(v.duration) }}
+                className="w-full h-full object-cover" />
             ) : post.previewUrl ? (
               <>
                 {/* muted / controls / preload are DELIBERATELY unchanged: muted by default with
@@ -1315,6 +1393,7 @@ export default function PostEditor({ postId, from }: { postId: string; from?: st
                     onLoadedData is what retires the thumbnail — the player has real pixels by then. */}
                 <video
                   key={post.previewUrl}
+                  ref={adoptInline}
                   src={post.previewUrl}
                   controls
                   controlsList="nofullscreen"
@@ -1325,6 +1404,7 @@ export default function PostEditor({ postId, from }: { postId: string; from?: st
                   onLoadedMetadata={(e) => {
                     const v = e.currentTarget
                     if (v.videoWidth > 0 && v.videoHeight > 0) setSourceDims({ w: v.videoWidth, h: v.videoHeight })
+                    if (Number.isFinite(v.duration) && v.duration > 0) setSourceSeconds(v.duration)
                   }}
                   onLoadedData={() => setVideoReady(true)}
                   className="w-full h-full object-cover"
@@ -1349,13 +1429,14 @@ export default function PostEditor({ postId, from }: { postId: string; from?: st
                     edits immediately; null (renders nothing) in 'Already has text' mode. Also the
                     fallback once overlayEdited is true, even for an already-rendered post. */}
                 <PreviewOverlay layout={overlayLayout} />
-                {presenter.presenterId && (
+                {avatarVisible && (
                   <PresenterPreviewBox side={presenter.side} widthPx={presenter.widthPx} />
                 )}
-                {/* Informational only — never blocks rendering. See SourceQualityBadge. */}
-                <div className="absolute bottom-2 left-2 z-10">
-                  <SourceQualityBadge dims={sourceDims} />
-                </div>
+                {/* THE RESOLUTION READOUT IS GONE FROM THE PICTURE, not from the editor. It never
+                    blocked a render and it is not something a locator acts on, so it was chrome
+                    over the footage. sourceDims is still captured from the player and still
+                    published on the preview container below as data-source-dimensions, where a
+                    diagnostic can read it without a viewer ever seeing it. */}
               </>
             ) : post.previewUrlFailed || post.renderedPreviewUrlFailed ? (
               // THE VIDEO IS THERE — only its signed URL could not be minted. This used to render
@@ -1396,8 +1477,30 @@ export default function PostEditor({ postId, from }: { postId: string; from?: st
                 </svg>
               </button>
             )}
+            {/* THE VIDEO'S LENGTH, where every video player puts it. EDITOR ONLY — this is a DOM
+                element over the preview, nowhere near renderVideo's draw plan, so it cannot reach
+                a rendered file, TikTok or Instagram. pointer-events-none so it sits above the
+                native controls without taking a click from them. */}
+            {sourceSeconds !== null && (
+              <div className="pointer-events-none absolute bottom-2 right-2 z-10 rounded-md bg-black/60 px-1.5 py-0.5 text-[11px] font-medium leading-none text-white tabular-nums backdrop-blur-sm">
+                {sourceSeconds.toFixed(1)}s
+              </div>
+            )}
             <SafeAreaOverlay platform={safeArea === "off" ? "instagram" : safeArea} show={safeArea !== "off"} />
           </div>
+
+          {/* ONE LINE OF TIMING, and only when there is audio to time. Hook-only, CTA-only or both;
+              absent entirely when neither is selected. The VIDEO's length is deliberately not
+              repeated here — it is already in the corner of the picture directly above, and the
+              same number twice reads as two different numbers. */}
+          {(voiceSeconds.hookSeconds !== null || voiceSeconds.ctaSeconds !== null) && (
+            <p className="mt-1.5 text-[10.5px] tabular-nums text-[var(--crm-text-muted)]">
+              {[
+                voiceSeconds.hookSeconds !== null ? `Hook ${voiceSeconds.hookSeconds.toFixed(1)}s` : null,
+                voiceSeconds.ctaSeconds !== null ? `CTA ${voiceSeconds.ctaSeconds.toFixed(1)}s` : null,
+              ].filter(Boolean).join(" · ")}
+            </p>
+          )}
 
           {/* Safe-area toggle — shows what each app's UI will cover. Presentational: the headline
               fitter reads the same numbers from lib/social/platformSafeArea. */}
@@ -1925,11 +2028,19 @@ export default function PostEditor({ postId, from }: { postId: string; from?: st
               </div>
               <span className="text-[10.5px] text-[var(--crm-text-muted)]">{hashtags.length > hashtagLimit ? `Over the ${hashtagLimit}-tag limit for the selected platforms — remove ${hashtags.length - hashtagLimit} before publishing.` : hashtags.length === hashtagLimit ? `${hashtagLimit}-tag limit for the selected platforms reached — remove one to add another.` : "Added to the caption when published (kept separate here)."}</span>
 
-              {/* Music | Voice Clips — 50/50 on one row, equal height/width. Music keeps the
-                  existing audio behavior; Voice Clips selects reusable Hook (start) + CTA (end)
-                  overlays from the library. Both triggers use the same `control` styling. */}
-              <div className="mt-3 grid grid-cols-2 gap-3">
-                <label className="block">
+              {/* MUSIC | HOOK | CTA — three plain fields on one row.
+                  Music is the narrow one because it only ever reads "Original Audio" or "No Music";
+                  Hook and CTA split what is left. The numbers are measured, not guessed: this
+                  column is 395px wide on a 1200px screen and 433px on a wide one, so 120 + 8 +
+                  124 + 8 + 124 = 384 keeps all three on one line in both, and the two voice
+                  fields then grow to fill whatever is actually there. A 12px gap or a roomier
+                  basis pushes CTA onto a second row at 1200px, which is an ordinary laptop.
+                  flex-wrap rather than a fixed grid, so on a genuinely narrow column the fields
+                  drop to the next line at their own basis instead of being squeezed unreadable.
+                  Both voice fields are the SAME component in `slot` mode — one section each, and
+                  every recommendation, preview, upload and delete-confirm unchanged. */}
+              <div className="mt-3 flex flex-wrap items-start gap-x-2 gap-y-3">
+                <label className="block basis-[120px] grow-0 shrink-0">
                   <span className={fieldLabel}>Music</span>
                   <select
                     aria-label="Music"
@@ -1944,29 +2055,69 @@ export default function PostEditor({ postId, from }: { postId: string; from?: st
                     ))}
                   </select>
                 </label>
-                <div className="block">
-                  <span className={fieldLabel}>Voice Clips</span>
+                <div className="block basis-[124px] grow min-w-0">
+                  <span className={fieldLabel}>Hook <span className="normal-case">· start</span></span>
                   <div className={`mt-1 ${locked ? "opacity-45 pointer-events-none" : ""}`} title={locked ? LOCK_HINT : undefined} aria-disabled={locked || undefined}>
                     <VoiceClipsControl
+                      slot="hook"
                       triggerClassName={control}
+                      postId={postId}
+                      onBlocksPublishChange={setHookBlocks}
+                      onSelectionDurationsChange={setVoiceSeconds}
                       hookId={voiceHookId}
                       ctaId={voiceCtaId}
                       onChange={({ hookId, ctaId }) => { setVoiceHookId(hookId); setVoiceCtaId(ctaId) }}
                     />
                   </div>
                 </div>
-                {/* AI PRESENTER — collapsed to one switch until enabled. Sits beside Voice Clips
-                    because they share a narration, and uses the same lock treatment as every other
-                    render-affecting control on a published post. */}
-                <div className={`mt-3 ${locked ? "opacity-45 pointer-events-none" : ""}`}>
-                  <AiPresenterControl
-                    value={presenter}
-                    onChange={setPresenter}
-                    disabled={locked}
-                    disabledHint={locked ? LOCK_HINT : undefined}
-                    controlClassName={control}
-                  />
+                <div className="block basis-[124px] grow min-w-0">
+                  <span className={fieldLabel}>CTA <span className="normal-case">· end</span></span>
+                  <div className={`mt-1 ${locked ? "opacity-45 pointer-events-none" : ""}`} title={locked ? LOCK_HINT : undefined} aria-disabled={locked || undefined}>
+                    <VoiceClipsControl
+                      slot="cta"
+                      triggerClassName={control}
+                      postId={postId}
+                      onBlocksPublishChange={setCtaBlocks}
+                      onSelectionDurationsChange={setVoiceSeconds}
+                      hookId={voiceHookId}
+                      ctaId={voiceCtaId}
+                      onChange={({ hookId, ctaId }) => { setVoiceHookId(hookId); setVoiceCtaId(ctaId) }}
+                    />
+                  </div>
                 </div>
+              </div>
+
+              {/* ONE WARNING FOR THE PAIR, under the row rather than inside either dropdown — it is
+                  not a fact about the hook or about the CTA, it is a fact about the two together,
+                  and saying it twice would read as two problems. */}
+              {voiceOverlap && (
+                <p className="mt-2 rounded-md border border-red-500/40 bg-red-500/10 px-2 py-1.5 text-[11px] leading-snug text-red-600 dark:text-red-400">
+                  <span className="font-semibold">Hook and CTA don&rsquo;t fit — publishing is blocked.</span>{" "}
+                  {voiceOverlap.hook.toFixed(1)}s + {voiceOverlap.cta.toFixed(1)}s is longer than this {voiceOverlap.video.toFixed(1)}s
+                  video, so they would play over each other. Choose a shorter clip or longer footage — nothing is trimmed to make them fit.
+                </p>
+              )}
+
+              {/* AI PRESENTER — below the audio row, collapsed to one switch until enabled, with the
+                  same lock treatment as every other render-affecting control on a published post. */}
+              <div className={`mt-3 ${locked ? "opacity-45 pointer-events-none" : ""}`}>
+                <AiPresenterControl
+                  value={presenter}
+                  onChange={setPresenter}
+                  disabled={locked}
+                  disabledHint={locked ? LOCK_HINT : undefined}
+                  controlClassName={control}
+                  // THE SELECTED CTA, not the Narration pick: the CTA presenter window is synced to
+                  // the recording that actually plays at the end of the video.
+                  voiceCtaId={voiceCtaId}
+                  // THE SELECTED HOOK. When one is set it is what plays at the start, so it is what
+                  // the intro avatar must be lip-synced to — the Narration dropdown only fills in
+                  // when no Hook is chosen.
+                  voiceHookId={voiceHookId}
+                  propertyType={propertyType}
+                  // A stable setState, so the report cannot re-fire the effect each render.
+                  onAvatarVisible={setAvatarVisible}
+                />
               </div>
 
               {/* Posting — Post Once (manual date/time) or Repeat (recurring), exposed INLINE (no need
@@ -2147,6 +2298,13 @@ export default function PostEditor({ postId, from }: { postId: string; from?: st
           src={lightbox}
           onClose={() => setLightbox(null)}
           overlay={!rendered ? <PreviewOverlay layout={overlayLayout} /> : undefined}
+          // THE ENLARGED PLAYER TAKES OVER while it is open, and hands back on close. Pausing the
+          // small one first is what stops the two playing at once: the lightbox autoplays, and a
+          // still-running inline player would put a second copy of the bed under the same clips.
+          onVideo={(el) => {
+            if (el) { inlineVideo.current?.pause(); setPlayer(el) }
+            else setPlayer(inlineVideo.current)
+          }}
         />
       )}
     </div>

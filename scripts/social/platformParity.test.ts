@@ -145,11 +145,17 @@ ok("…and every one of them passes an explicit geometry argument", callWindows.
   /previewSafeAreaId|post\.platform|newest\.platform|DEFAULT_PLATFORM|input\.platform|safeAreaId/.test(w)))
 
 // PRESENTER MODE reads a fifth argument. The two call sites that can have a presenter must forward
-// it from the SAME fact that attaches one; the others must not invent a value.
-ok("renderVideo forwards the presenter flag from the clip it composites",
-  /computeOverlayLayout\([\s\S]{0,300}?!!input\.presenterPath/.test(render))
-ok("PostEditor forwards it from the attached presenter",
-  /computeOverlayLayout\([^)]*!!presenter\.presenterId\)/.test(editor))
+// it from the SAME fact that puts a figure on screen; the others must not invent a value.
+//
+// THAT FACT IS NO LONGER "a presenter is attached". The intro and CTA windows exist independently,
+// so the renderer asks whether EITHER avatar clip is present — a post whose only avatar is in its
+// CTA still needs the shifted lockup. And an attached presenter with no lip-synced clip now
+// renders no avatar at all, so the editor asks whether one will ACTUALLY appear.
+ok("renderVideo forwards the presenter flag from the clips it composites",
+  /const hasPresenter = !!\(input\.presenterPath \|\| input\.presenterCtaPath\)/.test(render) &&
+  /computeOverlayLayout\([\s\S]{0,300}?hasPresenter/.test(render))
+ok("PostEditor forwards it from the avatar that will actually render",
+  /computeOverlayLayout\([^)]*avatarVisible\)/.test(editor))
 ok("BulkReview and the Autopilot rollup do NOT pass one (no presenter in those surfaces)",
   !/computeOverlayLayout\([^)]*presenter/i.test(bulk) && !/computeOverlayLayout\([^)]*presenter/i.test(client))
 

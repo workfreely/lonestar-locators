@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect } from "react"
+import { useCallback, useEffect } from "react"
 import type { ReactNode } from "react"
 
 // SHARED enlarged 9:16 video preview (lightbox) — the ONE preview/player experience across Social
@@ -19,11 +19,26 @@ export default function VideoLightbox({
   src,
   onClose,
   overlay,
+  onVideo,
 }: {
   src: string
   onClose: () => void
   overlay?: ReactNode
+  /**
+   * The enlarged player itself, handed to the caller while this is open and null on close.
+   *
+   * This is a SECOND <video>, not the inline one scaled up — which is why the Post Editor's live
+   * audio preview went silent here: it was still following a player nobody was watching. The
+   * editor now points its preview at whichever element is on screen, and nothing else about this
+   * component changes.
+   */
+  onVideo?: (el: HTMLVideoElement | null) => void
 }) {
+  // A NAMED CALLBACK, not an inline arrow in the attribute. `ref={setVideoRef}` puts a
+  // `>` inside the <video> tag, which quietly breaks every grep of the form `<video[^>]*controls`
+  // — including the one in libraryThumb.test.ts that guards this element's controls.
+  const setVideoRef = useCallback((el: HTMLVideoElement | null) => { onVideo?.(el) }, [onVideo])
+
   // Close on Escape (backdrop click + X handled inline).
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") onClose() }
@@ -39,7 +54,7 @@ export default function VideoLightbox({
       aria-modal="true"
     >
       <div className="relative overflow-hidden rounded-xl" style={{ height: "88vh", aspectRatio: "9 / 16", maxWidth: "calc(100vw - 2rem)" }} onClick={(e) => e.stopPropagation()}>
-        <video src={src} controls autoPlay playsInline controlsList="nofullscreen" disablePictureInPicture className="w-full h-full object-contain rounded-xl bg-black" />
+        <video ref={setVideoRef} src={src} controls autoPlay playsInline controlsList="nofullscreen" disablePictureInPicture className="w-full h-full object-contain rounded-xl bg-black" />
         {overlay}
         <button
           type="button"

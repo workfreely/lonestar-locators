@@ -5,6 +5,7 @@ import os from "node:os"
 import path from "node:path"
 import ffmpegPath from "ffmpeg-static"
 import { requirePlatformAdmin } from "@/lib/auth/requirePlatformAdmin"
+import { PRESENTER_LOOKS, type PresenterLook } from "@/lib/social/presenterLook"
 import { assertDisposablePath } from "@/lib/social/storagePaths"
 import {
   PRESENTER_UPLOAD, checkPresenterFormat, checkPresenterSize, checkTransparency,
@@ -38,7 +39,7 @@ export async function GET() {
 
   const { data, error } = await supabase
     .from("social_presenters")
-    .select("id, label, is_sample, enabled, default_intro_seconds, clip_storage_path, voice_kind")
+    .select("id, label, is_sample, enabled, default_intro_seconds, clip_storage_path, voice_kind, look_kind")
     .eq("enabled", true)
     // Samples last: an agent's own presenter is the one they almost always want.
     .order("is_sample", { ascending: true })
@@ -62,6 +63,11 @@ function shape(p: unknown) {
     // rather than letting an operator select something that cannot render.
     hasClip: !!r.clip_storage_path,
     voiceKind: (r.voice_kind as string) ?? "upload",
+    // WHICH LOOK this presenter wears. Null means it has not been labelled — which is the state of
+    // every row predating this, and which reads as "no recommendation can be acted on" rather than
+    // as a default Look. Guessing from the label text would make "Jay Morris (HeyGen digital twin)"
+    // mean something it does not say.
+    lookKind: (r.look_kind as string | null) ?? null,
   }
 }
 
@@ -98,7 +104,7 @@ export async function POST(req: NextRequest) {
   if (!guard.ok) return guard.response
   const { supabase, userId } = guard
 
-  let body: { storagePath?: unknown; label?: unknown; filename?: unknown }
+  let body: { storagePath?: unknown; label?: unknown; filename?: unknown; lookKind?: unknown }
   try { body = await req.json() } catch { return NextResponse.json({ error: "bad_json" }, { status: 400 }) }
 
   const storagePath = typeof body.storagePath === "string" ? body.storagePath.trim() : ""
@@ -117,6 +123,15 @@ export async function POST(req: NextRequest) {
   const label = (typeof body.label === "string" && body.label.trim())
     ? body.label.trim().slice(0, 120)
     : labelFromFilename(filename)
+
+  // Which Look this avatar wears, when the operator says. Anything unrecognised stores NULL rather
+  // than a default: an unlabelled Look correctly reads as "not set up yet", and a wrong label is
+  // worse than no label — it would put the cutoff shirt in front of a penthouse with the
+  // recommendation agreeing.
+  const lookKind: PresenterLook | null =
+    typeof body.lookKind === "string" && (PRESENTER_LOOKS as readonly string[]).includes(body.lookKind)
+      ? (body.lookKind as PresenterLook)
+      : null
 
   // Remove the just-uploaded object. Best effort by design: a failure to clean up must not turn
   // into a second error that hides the first one the operator actually needs to read.
@@ -171,8 +186,8 @@ export async function POST(req: NextRequest) {
     // cannot promote their avatar into everyone's shared library.
     const { data: inserted, error: insErr } = await supabase
       .from("social_presenters")
-      .insert({ owner_user_id: userId, is_sample: false, label, clip_storage_path: storagePath, voice_kind: "upload" })
-      .select("id, label, is_sample, enabled, default_intro_seconds, clip_storage_path, voice_kind")
+      .insert({ owner_user_id: userId, is_sample: false, label, clip_storage_path: storagePath, voice_kind: "upload", look_kind: lookKind })
+      .select("id, label, is_sample, enabled, default_intro_seconds, clip_storage_path, voice_kind, look_kind")
       .single()
     if (insErr || !inserted) {
       // REQUIREMENT: no orphaned object. The clip is removed so a retry starts clean rather than

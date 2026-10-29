@@ -37,7 +37,7 @@ export async function renderPostToStorage(args: {
   const { supabase, id, userId } = args
   const { data: post, error: readErr } = await supabase
     .from("social_posts")
-    .select("id, platform, destination, source_content_id, source_storage_path, overlay_headline, overlay_subheadline, overlay_mode, overlay_template, audio_choice, voice_hook_id, voice_cta_id, render_version, presenter_id, presenter_intro_seconds, presenter_clip_storage_path, presenter_audio_storage_path, presenter_side, presenter_width_px, source:source_content_id(storage_path)")
+    .select("id, platform, destination, source_content_id, source_storage_path, overlay_headline, overlay_subheadline, overlay_mode, overlay_template, audio_choice, voice_hook_id, voice_cta_id, render_version, presenter_id, presenter_intro_seconds, presenter_clip_storage_path, presenter_cta_clip_storage_path, presenter_audio_storage_path, presenter_side, presenter_width_px, source:source_content_id(storage_path)")
     .eq("id", id)
     .maybeSingle()
   if (readErr) return { ok: false as const, code: "read_failed", message: readErr.message }
@@ -78,8 +78,20 @@ export async function renderPostToStorage(args: {
     // would ship a different video than they asked for.
     const voiceLocal = async (clipId: string | null, role: "Hook" | "CTA"): Promise<string | null> => {
       if (!clipId) return null
-      const { data: clip } = await supabase.from("social_voice_clips").select("storage_path").eq("id", clipId).maybeSingle()
-      const clipPath = (clip as { storage_path?: string } | null)?.storage_path
+      const { data: clip } = await supabase.from("social_voice_clips")
+        .select("storage_path, normalized_storage_path").eq("id", clipId).maybeSingle()
+      const row = clip as { storage_path?: string; normalized_storage_path?: string } | null
+      // ── THE NORMALISED DERIVATIVE WHEN THERE IS ONE ──────────────────────────────────────
+      // The originals span 8.3 dB (−16.7 to −25.1 LUFS) while the property footage spans 3.3
+      // (−15.5 to −18.8), so a quiet recording arrives BELOW the bed it is meant to speak over
+      // and a 14 dB duck cannot rescue it. Measured on real footage with a hook and a CTA: the
+      // originals put the voice 2.2 dB UNDER the music passage; the −16 LUFS derivatives put it
+      // 2.5 dB over, and within 0.4 dB of each other across quiet, average and loud clips.
+      //
+      // The ORIGINAL is never touched — it stays at storage_path and is still what the library
+      // uploaded. A clip imported before normalisation, or one whose derivative failed, falls
+      // back to it rather than failing the render.
+      const clipPath = row?.normalized_storage_path || row?.storage_path
       if (!clipPath) throw new Error(`voice clips: the selected ${role} clip no longer exists`)
       const { data: clipSigned, error: clipErr } = await supabase.storage.from("social-media").createSignedUrl(clipPath, 600)
       if (clipErr || !clipSigned?.signedUrl) throw new Error(`voice clips: could not read the selected ${role} clip`)
@@ -100,17 +112,28 @@ export async function renderPostToStorage(args: {
     // clips. The presenter clip is a DERIVATIVE under presenters/ — no source.* key is read here,
     // and nothing is uploaded.
     let presenterLocal: string | null = null
+    let presenterCtaLocal: string | null = null
     let presenterAudioLocal: string | null = null
+    /** Both avatar clips arrive the same way, so the download is written once. */
+    const avatarLocal = async (clipPath: string | null, role: "presenter" | "presenter-cta"): Promise<string | null> => {
+      if (!clipPath) return null
+      const { data: sg, error: sgErr } = await supabase.storage.from("social-media").createSignedUrl(clipPath, 600)
+      if (sgErr || !sg?.signedUrl) throw new Error("AI Presenter: could not read the avatar clip")
+      const r = await fetch(sg.signedUrl)
+      if (!r.ok) throw new Error(`AI Presenter: the avatar clip failed to download (${r.status})`)
+      const local = path.join(work, `${role}.${extOf(clipPath)}`)
+      await fs.writeFile(local, Buffer.from(await r.arrayBuffer()))
+      return local
+    }
     if (p.presenter_id) {
-      const clipPath = (p.presenter_clip_storage_path as string | null) ?? null
-      if (clipPath) {
-        const { data: sg, error: sgErr } = await supabase.storage.from("social-media").createSignedUrl(clipPath, 600)
-        if (sgErr || !sg?.signedUrl) throw new Error("AI Presenter: could not read the avatar clip")
-        const r = await fetch(sg.signedUrl)
-        if (!r.ok) throw new Error(`AI Presenter: the avatar clip failed to download (${r.status})`)
-        presenterLocal = path.join(work, `presenter.${extOf(clipPath)}`)
-        await fs.writeFile(presenterLocal, Buffer.from(await r.arrayBuffer()))
-      }
+      presenterLocal = await avatarLocal((p.presenter_clip_storage_path as string | null) ?? null, "presenter")
+      // ── THE CTA AVATAR IS WRITTEN ONLY ON A VERIFIED MATCH ────────────────────────────────
+      // presenter_cta_clip_storage_path is set by the editor's save path ONLY when a clip
+      // lip-synced to the selected CTA exists (see the posts route). So there is no fallback to
+      // decide here: a null means no avatar during the CTA, which is the audio-only behaviour this
+      // feature started from. The alternative — showing the intro clip again — would put the
+      // hook's mouth on the CTA's words for five seconds at the end of every video.
+      presenterCtaLocal = await avatarLocal((p.presenter_cta_clip_storage_path as string | null) ?? null, "presenter-cta")
       const audioPath = (p.presenter_audio_storage_path as string | null) ?? null
       if (audioPath) {
         const { data: ag, error: agErr } = await supabase.storage.from("social-media").createSignedUrl(audioPath, 600)
@@ -151,6 +174,7 @@ export async function renderPostToStorage(args: {
       hookPath: effectiveHook,
       ctaPath: ctaLocal,
       presenterPath: presenterLocal,
+      presenterCtaPath: presenterCtaLocal,
       presenterIntroSeconds: typeof p.presenter_intro_seconds === "number" ? p.presenter_intro_seconds : null,
       presenterSide: (p.presenter_side as string | null) ?? null,
       presenterWidthPx: typeof p.presenter_width_px === "number" ? p.presenter_width_px : null,

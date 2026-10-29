@@ -44,6 +44,9 @@ export async function GET() {
         originalFilename: r.original_filename,
         contentType: r.content_type,
         sizeBytes: r.size_bytes,
+        // THE STORED LENGTH. Null on everything uploaded before this was captured — the grid
+        // shows no badge for those until the backfill runs, which is the honest state.
+        durationSeconds: r.duration_s === null || r.duration_s === undefined ? null : Number(r.duration_s),
         propertyName: r.property_name,
         propertyType: r.property_type,
         areaNeighborhood: r.area_neighborhood,
@@ -124,6 +127,13 @@ export async function POST(req: NextRequest) {
       original_filename: originalFilename,
       content_type: str(body.contentType, 200),
       size_bytes: typeof body.sizeBytes === "number" ? body.sizeBytes : null,
+      // THE VIDEO'S LENGTH, measured by the browser from the file it is about to upload. Free at
+      // that moment and nowhere else: nothing server-side decodes these, and asking the grid for
+      // it later means fetching every clip's metadata. A browser that cannot read it sends null,
+      // which is exactly what every row held before.
+      duration_s: typeof body.durationSeconds === "number" && Number.isFinite(body.durationSeconds) && body.durationSeconds > 0
+        ? body.durationSeconds
+        : null,
       upload_batch_id: uploadBatchId,
       batch_seq: batchSeq,
       display_name: displayName,

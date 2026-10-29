@@ -107,7 +107,7 @@ console.log("\n4. transparent WebM needs the libvpx decoder (measured, not assum
 
   const args = buildFfmpegArgs({
     sourcePath: "/w/src.mp4", outputPath: "/w/out.mp4", filter: "[0:v]null[v]", audioChoice: "source",
-    presenterInput: { path: "/w/p.webm", decoder: "libvpx-vp9" },
+    presenterInputs: [{ path: "/w/p.webm", decoder: "libvpx-vp9" }],
   })
   const i = args.indexOf("/w/p.webm")
   ok("the decoder flag is emitted IMMEDIATELY BEFORE its own -i", args[i - 1] === "-i" && args[i - 2] === "libvpx-vp9" && args[i - 3] === "-c:v")
@@ -116,7 +116,7 @@ console.log("\n4. transparent WebM needs the libvpx decoder (measured, not assum
     // `-c:v libx264` is ALWAYS present for the OUTPUT encoder, so "contains no -c:v" can never
     // pass. What matters is that no DECODER flag precedes the presenter's own -i.
     const noFlag = buildFfmpegArgs({ sourcePath: "/w/src.mp4", outputPath: "/w/o.mp4", filter: "[0:v]null[v]",
-      audioChoice: "source", presenterInput: { path: "/w/p.mov", decoder: null } })
+      audioChoice: "source", presenterInputs: [{ path: "/w/p.mov", decoder: null }] })
     const j = noFlag.indexOf("/w/p.mov")
     ok("no decoder flag precedes a clip that does not need one", noFlag[j - 1] === "-i" && noFlag[j - 2] !== "libvpx-vp9" && noFlag[j - 3] !== "-c:v")
     ok("...the output encoder is still libx264, untouched", noFlag[noFlag.indexOf("-c:v") + 1] === "libx264")
@@ -129,13 +129,40 @@ console.log("\n5. adding a presenter cannot renumber the voice-clip inputs:")
   const withBoth = buildFfmpegArgs({
     sourcePath: "/w/src.mp4", outputPath: "/w/out.mp4", filter: "[0:v]null[v]", audioChoice: "source",
     extraInputs: ["/w/hook.mp3", "/w/cta.mp3"],
-    presenterInput: { path: "/w/p.webm", decoder: "libvpx-vp9" },
+    presenterInputs: [{ path: "/w/p.webm", decoder: "libvpx-vp9" }],
   })
   const inputsInOrder = withBoth.map((a, i) => (a === "-i" ? withBoth[i + 1] : null)).filter(Boolean)
   ok("order is source, hook, cta, presenter", JSON.stringify(inputsInOrder) === JSON.stringify(["/w/src.mp4", "/w/hook.mp3", "/w/cta.mp3", "/w/p.webm"]))
   ok("...so hook stays input 1 and cta stays input 2, exactly as buildAudioFilter indexed them",
     inputsInOrder[1] === "/w/hook.mp3" && inputsInOrder[2] === "/w/cta.mp3")
   ok("the presenter is therefore input 3 here", inputsInOrder[3] === "/w/p.webm")
+
+  // THE CTA AVATAR IS APPENDED LAST, for the same reason the intro avatar was: a second presenter
+  // clip must not be able to renumber the voice inputs the audio graph has already indexed.
+  const withCta = buildFfmpegArgs({
+    sourcePath: "/w/src.mp4", outputPath: "/w/out.mp4", filter: "[0:v]null[v]", audioChoice: "source",
+    extraInputs: ["/w/hook.mp3", "/w/cta.mp3"],
+    presenterInputs: [
+      { path: "/w/p.webm", decoder: "libvpx-vp9" },
+      { path: "/w/p-cta.webm", decoder: "libvpx-vp9" },
+    ],
+  })
+  const ctaOrder = withCta.map((a, i) => (a === "-i" ? withCta[i + 1] : null)).filter(Boolean)
+  ok("order is source, hook, cta, intro avatar, CTA avatar",
+    JSON.stringify(ctaOrder) === JSON.stringify(["/w/src.mp4", "/w/hook.mp3", "/w/cta.mp3", "/w/p.webm", "/w/p-cta.webm"]))
+  ok("...so the voice inputs are STILL 1 and 2 with two avatars attached",
+    ctaOrder[1] === "/w/hook.mp3" && ctaOrder[2] === "/w/cta.mp3")
+  ok("...and each avatar carries its own decoder flag immediately before its own -i", (() => {
+    const j = withCta.indexOf("/w/p-cta.webm")
+    return withCta[j - 1] === "-i" && withCta[j - 2] === "libvpx-vp9" && withCta[j - 3] === "-c:v"
+  })())
+  // NO AVATAR AUDIO REACHES THE OUTPUT. The mapping names streams explicitly, so neither avatar's
+  // own HeyGen voice can be picked up alongside the mix.
+  ok("the only mapped audio is the mix, never an avatar stream", (() => {
+    const maps = withCta.map((a, i) => (a === "-map" ? withCta[i + 1] : null)).filter(Boolean)
+    return maps.every((m) => m === "[v]" || m === "[aout]" || m === "0:a?")
+      && !maps.some((m) => /^[34]:a/.test(String(m)))
+  })())
 
   // The plan must agree with that arithmetic.
   ok("buildPresenterPlan computes the same index from the voice count",
@@ -310,14 +337,19 @@ console.log("\n11. the editor is opt-in and the server re-checks ownership:")
 
   ok("the editor's presenter state starts entirely null (OFF)", /presenterId: null, introSeconds: null, side: null, widthPx: null, audioVoiceClipId: null/.test(editor))
   ok("the control collapses to one switch until enabled", /role="switch"/.test(ctrl) && /\{!on \? \(/.test(ctrl))
-  ok("turning it OFF clears the whole configuration", /onChange\(\{ presenterId: null, introSeconds: null, side: null, widthPx: null, audioVoiceClipId: null \}\)/.test(ctrl))
+  // EVERY field, including the CTA window's Look: a presenter switched off and back on must start
+  // from the product defaults, never resurrect a second Look the operator can no longer see.
+  ok("turning it OFF clears the whole configuration", /onChange\(\{ presenterId: null, introSeconds: null, side: null, widthPx: null, audioVoiceClipId: null, ctaPresenterId: null \}\)/.test(ctrl))
   ok("a presenter with no clip cannot be auto-selected", /filter\(\(o\) => o\.hasClip\)/.test(ctrl))
   ok("the control defines NO geometry of its own — it imports the spec",
     /from "@\/lib\/social\/presenterSpec"/.test(ctrl) && !/360|110|1548/.test(ctrl.replace(/\/\*[\s\S]*?\*\//g, "")))
   ok("choosing the default width stores NULL, so the spec stays the definition of 'default'",
     /px === PRESENTER\.widthPx \? null : px/.test(ctrl))
 
-  ok("the preview box is rendered only when a presenter is set", /presenter\.presenterId && \(\s*<PresenterPreviewBox/.test(editor))
+  // WAS "only when a presenter is set". Since the lip-sync rule tightened, an attached presenter
+  // with no matching clip renders NO avatar — so drawing the box from that fact would preview a
+  // frame the export does not produce. The condition is now what the render will actually do.
+  ok("the preview box is rendered only when an avatar will actually appear", /avatarVisible && \(\s*<PresenterPreviewBox/.test(editor))
   ok("...and reads the shared fraction helper, not its own numbers",
     /presenterPreviewFractions/.test(box) && !/left: "110|width: "360/.test(box))
 

@@ -205,7 +205,8 @@ async function main() {
     ok("no address column is added to social_content",
       !/address/.test(read("supabase/manual/20261004_social_property_observations.sql")))
     ok("a trailing ', USA' is trimmed", /replace\(\/,\\s\*USA\\s\*\$\/i, ""\)/.test(route2))
-    ok("no row renders without an address", /\{!!placeId && address && \(/.test(editor))
+    ok("no row renders without an address, and only inside the matched branch",
+      /\{address && \(/.test(editor) && /\{placeId \? \([\s\S]{0,2500}?\{address && \(/.test(editor))
     ok("clearing the match clears the address",
       /onClearMatch=\{\(\) => \{ setPlaceId\(""\); setAddress\(null\) \}\}/.test(editor))
     ok("it is read-only text, not an input",

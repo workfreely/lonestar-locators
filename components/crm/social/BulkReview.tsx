@@ -14,6 +14,7 @@ import PreviewOverlay from "@/components/crm/social/PreviewOverlay"
 import PropertySearchField, { type PropertyMatch } from "@/components/crm/social/PropertySearchField"
 import AreaSelect from "@/components/crm/social/AreaSelect"
 import { propertyNamePrefill } from "@/lib/social/intakeFields"
+import { readMediaDuration } from "@/lib/social/readMediaDuration"
 
 // Bulk Review / Intake — opens automatically for 2+ files. One compact row per source video,
 // auto-prepared from the SAME filename inference + property-match pipeline as single upload.
@@ -256,6 +257,9 @@ export default function BulkReview({ files, onClose, onUploaded }: { files: File
               originalFilename: r.file.name,
               contentType: r.file.type || null,
               sizeBytes: r.file.size,
+              // The second upload path, measured the same way: the file is still in the page, so
+              // its length is free here and costs a request per clip anywhere later.
+              durationSeconds: (r.file.type || "").startsWith("image/") ? null : await readMediaDuration(r.file),
               kind: (r.file.type || "").startsWith("image/") ? "image" : "clip",
               uploadBatchId: batchId,
               batchSeq: list.indexOf(r) + 1,

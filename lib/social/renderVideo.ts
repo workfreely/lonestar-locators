@@ -34,7 +34,14 @@ export type RenderInput = {
    *  ProRes 4444 / QTRLE stand-in). Omitted or null ⇒ the graph is exactly what it was, which is
    *  how every existing post keeps rendering identically. */
   presenterPath?: string | null
-  /** Spoken intro length in seconds; clamped to the supported 3–5s range. */
+  /** AI PRESENTER, CTA WINDOW — local path to the avatar clip lip-synced to the SELECTED CTA.
+   *  Omitted or null ⇒ one presenter window exactly as before, which is what every post rendered
+   *  before this feature gets. It is a separate path rather than a flag because the CTA window may
+   *  show a different Look from the intro, and because its clip is synced to different words. */
+  presenterCtaPath?: string | null
+  /** Spoken intro length in seconds; clamped to 3–5s. Consulted ONLY when no recording drives the
+   *  intro window — a selected Hook sets the window to its own length instead (see
+   *  buildPresenterPlan). */
   presenterIntroSeconds?: number | null
   /** Per-post placement overrides. Null/omitted ⇒ the approved default (lower-left, 360px). */
   presenterSide?: string | null
@@ -117,19 +124,25 @@ export function buildFfmpegArgs(input: {
   /** Probed source. Drives frame rate and whether the audio can be stream-copied. Omit to keep the
    *  historical fixed-30fps / always-re-encode behaviour. */
   source?: SourceInfo | null
-  /** AI Presenter clip, appended as the LAST input so every voice-clip index above stays valid.
-   *  `decoder` is emitted before its -i: FFmpeg's native vp9/vp8 decoders silently drop the alpha
-   *  channel, so a transparent WebM composites as an opaque box without it. */
-  presenterInput?: { path: string; decoder: string | null } | null
+  /** AI Presenter clips, appended as the LAST inputs so every voice-clip index above stays valid.
+   *  In plan order: the intro clip first, then the CTA clip when one is in play. `decoder` is
+   *  emitted before its own -i: FFmpeg's native vp9/vp8 decoders silently drop the alpha channel,
+   *  so a transparent WebM composites as an opaque box without it.
+   *
+   *  NONE OF THESE STREAMS' AUDIO IS EVER MAPPED. The output takes `[aout]`, `0:a?` or nothing at
+   *  all (see audioArgs), so an avatar clip that carries its own HeyGen voice cannot reach the
+   *  mix — and adding a second avatar input cannot change that, because the mapping names streams
+   *  explicitly rather than excluding them. */
+  presenterInputs?: readonly { path: string; decoder: string | null }[] | null
 }): string[] {
   // The graph is a labelled -filter_complex ending in [v]; map that plus the source audio through.
   const args = ["-y", "-i", input.sourcePath]
   for (const extra of input.extraInputs ?? []) args.push("-i", extra)
   // LAST, and after the voice clips, so adding a presenter cannot renumber an existing audio input.
   // The decoder flag is per-input and must precede the -i it applies to.
-  if (input.presenterInput) {
-    if (input.presenterInput.decoder) args.push("-c:v", input.presenterInput.decoder)
-    args.push("-i", input.presenterInput.path)
+  for (const pres of input.presenterInputs ?? []) {
+    if (pres.decoder) args.push("-c:v", pres.decoder)
+    args.push("-i", pres.path)
   }
   // The VIDEO graph is untouched. When an audio graph exists it is appended as further chains in the
   // same -filter_complex, so there is still exactly ONE graph and one render invocation.
@@ -237,7 +250,75 @@ export function buildDrawPlan(layout: OverlayLayout): DrawPlanItem[] {
 /** The one place the mix is tuned. `duckLevel` is the gain the music bed falls to while a voice clip
  *  plays; `rampSeconds` is how long the fall/return takes. The mix format exists only so inputs of
  *  differing layout/rate combine deterministically — it is NOT loudness normalization. */
-export const VOICE_MIX = { duckLevel: 0.2, rampSeconds: 0.25, sampleRate: 48000, channelLayout: "stereo" } as const
+import { parseLoudnorm } from "./voiceNormalize"
+import { voiceClipsFit, VOICE_MIX, computeVoiceWindows, type VoiceWindow } from "./voiceFit"
+
+export { voiceClipsFit, VOICE_MIX, computeVoiceWindows, type VoiceWindow }
+
+/**
+ * THE FINAL MIX LEVEL — one master pass over the finished audio, after everything is mixed.
+ *
+ * Measured on real listing footage with a real hook and CTA: the mix lands at −16.4 LUFS on its
+ * own, and TikTok and Instagram both normalise toward roughly −14 on ingest. Arriving two dB
+ * under means handing the platform two dB of its own gain to apply however it likes. Arriving at
+ * −14 means it changes almost nothing.
+ *
+ * ── TWO NUMBERS, BECAUSE THE ENCODER MOVES THE PEAK ─────────────────────────────────────────
+ * loudnorm hits its TP target in PCM; the AAC encode that follows adds intersample peak on top,
+ * so what you ask for and what the file measures are different numbers. Asking −1 landed at
+ * −0.55. Asking −1.5 was treated as the ceiling for a while and was not: across eight renders on
+ * four beds it produced −1.49 to −0.85, over the stated limit every time. No render ever clipped
+ * — astats reported a flat factor of 0 throughout — but a file that measures −0.85 is close
+ * enough to full scale that a platform's own re-encode can clip between samples, which is the
+ * whole reason for a ceiling.
+ *
+ * So the ask moved to −2.0 and the ceiling became its own number. Measured on three beds,
+ * including the loudest footage in the library:
+ *
+ *       bed                       encoded TP    over the ask
+ *       Gables Villa Rosa −17.1     −1.95         +0.05
+ *       8119              −15.5     −1.89         +0.11
+ *       One Uptown        −18.8     −1.72         +0.28
+ *
+ * It costs about 0.4 dB of delivered loudness, which TikTok and Instagram normalise away on
+ * ingest anyway. This is the same two-number model VOICE_NORMALIZE already uses for clips.
+ *
+ * ── IT IS NOT A SECOND NORMALISATION OF THE VOICE ───────────────────────────────────────────
+ * The voice is normalised once, as a clip. This acts on the MIX. Measured either way: the hook's
+ * loudness range is 3.00 before this stage and 2.90 after, so it costs 0.1 dB of the delivery's
+ * dynamics. Nothing is squashed; astats reports a flat factor of 0 in every render.
+ *
+ * `enabled: false` restores the previous behaviour exactly — the stage is skipped, not neutered.
+ */
+export const MASTER_LOUDNESS = {
+  enabled: true,
+  targetLufs: -14,
+  /** What loudnorm is ASKED for — deliberately below where the encoded file must land. */
+  truePeakDb: -2.0,
+  /** What a DELIVERED file must measure. The gap between the two is the encoder's overshoot. */
+  maxEncodedTruePeakDb: -1.5,
+  loudnessRange: 11,
+} as const
+
+/** PASS ONE of the master stage: measure the finished mix. */
+export function masterMeasureFilter(): string {
+  return `loudnorm=I=${MASTER_LOUDNESS.targetLufs}:TP=${MASTER_LOUDNESS.truePeakDb}:LRA=${MASTER_LOUDNESS.loudnessRange}:print_format=json`
+}
+
+/** PASS TWO: apply it, with pass one's numbers. linear=true keeps it one gain factor over the
+ *  whole video rather than a level that moves — the same reason the clip stage uses it. */
+export function masterApplyFilter(m: { inputI: number; inputTp: number; inputLra: number; inputThresh: number }): string {
+  return [
+    "loudnorm=linear=true",
+    `I=${MASTER_LOUDNESS.targetLufs}`,
+    `TP=${MASTER_LOUDNESS.truePeakDb}`,
+    `LRA=${MASTER_LOUDNESS.loudnessRange}`,
+    `measured_I=${m.inputI}`,
+    `measured_TP=${m.inputTp}`,
+    `measured_LRA=${m.inputLra}`,
+    `measured_thresh=${m.inputThresh}`,
+  ].join(":")
+}
 
 /** Duration (seconds) + audio-stream presence, parsed from `ffmpeg -i <file>` stderr. We have no
  *  ffprobe dependency (and adding one would mean a new binary to trace into the lambda), and ffmpeg
@@ -380,19 +461,7 @@ export function outputFps(info: Pick<SourceInfo, "fps">): number | null {
   return null
 }
 
-export type VoiceWindow = { startSeconds: number; endSeconds: number }
 
-/** Where each selected clip sits on the timeline. Hook is anchored at 0; CTA is anchored to the END
- *  (`videoDuration - ctaDuration`, floored at 0). Both windows are clamped INTO the video, so a clip
- *  longer than the source simply covers the whole video instead of extending it. Overlap on a very
- *  short video is allowed and left alone — the envelope below takes the max of both windows, so the
- *  bed is ducked wherever EITHER clip is active. No clip is ever moved to avoid an overlap. */
-export function computeVoiceWindows(videoDurationSeconds: number, hookDurationSeconds: number | null, ctaDurationSeconds: number | null): { hook: VoiceWindow | null; cta: VoiceWindow | null } {
-  const D = Math.max(0, videoDurationSeconds)
-  const hook = hookDurationSeconds === null ? null : { startSeconds: 0, endSeconds: Math.min(hookDurationSeconds, D) }
-  const cta = ctaDurationSeconds === null ? null : { startSeconds: Math.max(0, D - ctaDurationSeconds), endSeconds: D }
-  return { hook, cta }
-}
 
 // One duck window as an FFmpeg expression returning 0 (bed at full) → 1 (bed fully ducked):
 //   env(t) = min(clip((t-a)/R, 0, 1), clip((b+R-t)/R, 0, 1))
@@ -469,15 +538,21 @@ export function buildAudioFilter(plan: AudioMixPlan): string | null {
 export async function renderReel(ffmpegPath: string, input: RenderInput): Promise<void> {
   // The platform decides the text-safe box, so one source post can produce a separate Instagram
   // render and TikTok render from identical copy.
-  // `!!input.presenterPath` is the SAME condition that decides whether a presenter is composited
-  // below — one fact, read once — so the text can never move for a presenter that is not there, nor
-  // stay centred under one that is.
+  // `hasPresenter` is the SAME condition that decides whether a presenter is composited below —
+  // one fact, read once — so the text can never move for a presenter that is not there, nor stay
+  // centred under one that is.
+  //
+  // IT READS BOTH CLIPS. The headline is burned in for the whole video, so it has to clear the
+  // figure whenever the figure appears at all — and since the intro window and the CTA window can
+  // now exist independently, a post whose only avatar is in the CTA still needs the shifted
+  // lockup.
+  const hasPresenter = !!(input.presenterPath || input.presenterCtaPath)
   const layout = computeOverlayLayout(
     input.template ?? "market_type",
     (input.headline ?? "").trim(),
     (input.subheadline ?? "").trim(),
     input.platform ?? "instagram",
-    !!input.presenterPath,
+    hasPresenter,
   )
   const items: DrawItem[] = []
   for (const it of buildDrawPlan(layout)) {
@@ -514,32 +589,35 @@ export async function renderReel(ffmpegPath: string, input: RenderInput): Promis
   //
   // Degrades to the original clip on any failure: a presenter sitting slightly high is cosmetic,
   // a failed render is a broken post.
-  let presenterLocal = input.presenterPath ?? null
-  if (presenterLocal) {
-    const pInfo = parseSourceInfo(await probeStderr(ffmpegPath, presenterLocal))
+  //
+  // BOTH avatar clips go through it. The CTA clip comes from the same generator with the same
+  // padding, so exempting it would leave the figure footed correctly for the first four seconds of
+  // a video and floating for the last five.
+  const trimForOverlay = async (clipPath: string): Promise<string> => {
+    const pInfo = parseSourceInfo(await probeStderr(ffmpegPath, clipPath))
     const trim = await trimPresenterClip({
-      ffmpegPath, clipPath: presenterLocal,
-      decoder: decoderForPresenterClip(presenterLocal),
+      ffmpegPath, clipPath,
+      decoder: decoderForPresenterClip(clipPath),
       workDir: input.workDir, width: pInfo.width, height: pInfo.height,
     })
-    presenterLocal = trim.path
+    return trim.path
   }
-
-  const presenterPlan = presenterLocal
-    ? buildPresenterPlan({ inputIndex: 1 + voiceCount, introSeconds: input.presenterIntroSeconds ?? null, side: input.presenterSide ?? null, widthPx: input.presenterWidthPx ?? null, bottomInsetPxOverride: input.presenterBottomInsetPx ?? null,
-        // THE SAME substitution the layout used, so the figure's footing and the text's anchor can
-        // never come from two different platforms.
-        platform: presenterCompositionPlatform(input.template ?? "market_type", input.platform ?? "instagram") })
-    : null
-  // Same template string the layout above was computed from, so the burned-in treatment and the
-  // geometry can never come from two different templates.
-  const filter = buildVideoFilter(input.fontPath, items, buildSourceChain(sourceInfo), presenterPlan, overlayTextFor(input.template ?? "market_type"))
+  let presenterLocal = input.presenterPath ?? null
+  if (presenterLocal) presenterLocal = await trimForOverlay(presenterLocal)
+  // INDEPENDENT OF THE INTRO CLIP. A post can legitimately have a verified avatar for its CTA and
+  // none for its intro — that is exactly what happens while a library is being built up, and
+  // dropping the CTA avatar because the intro's was missing would withhold the half that is right.
+  let presenterCtaLocal = input.presenterCtaPath ?? null
+  if (presenterCtaLocal) presenterCtaLocal = await trimForOverlay(presenterCtaLocal)
 
   // ── Voice clips: probe real durations, then build the audio graph ───────────────────────────
   const hookPath = input.hookPath ?? null
   const ctaPath = input.ctaPath ?? null
   const extraInputs: string[] = []
   let audioFilter: string | null = null
+  // Where the hook and the CTA actually speak. Null when no voice clip is selected, which is when
+  // the presenter falls back to the operator's Intro slider.
+  let voiceWindows: { hook: VoiceWindow | null; cta: VoiceWindow | null } | null = null
   if (hookPath || ctaPath) {
     const source = await probeMedia(ffmpegPath, input.sourcePath)
     if (source.durationSeconds === null || source.durationSeconds <= 0) {
@@ -561,7 +639,18 @@ export async function renderReel(ffmpegPath: string, input: RenderInput): Promis
       ctaDuration = p.durationSeconds
       extraInputs.push(ctaPath)
     }
+    // REFUSE RATHER THAN OVERLAP. Loud, like the unreadable-clip failures above: a video with the
+    // hook and the CTA speaking over each other is worse than a render that did not happen.
+    if (!voiceClipsFit(source.durationSeconds, hookDuration, ctaDuration)) {
+      throw new Error(
+        `voice clips: the Hook (${hookDuration!.toFixed(1)}s) and CTA (${ctaDuration!.toFixed(1)}s) do not fit in this ` +
+        `${source.durationSeconds.toFixed(1)}s video — they would overlap. Choose a shorter clip or longer footage.`,
+      )
+    }
     const windows = computeVoiceWindows(source.durationSeconds, hookDuration, ctaDuration)
+    // THE PRESENTER READS THESE SAME WINDOWS. Assigned here rather than recomputed below, so the
+    // avatar cannot be on screen for a stretch the voice is not speaking.
+    voiceWindows = windows
     audioFilter = buildAudioFilter({
       // "No Music" drops the BED, not the voice — so the bed is used only when the source actually has
       // audio AND the post kept it.
@@ -574,12 +663,36 @@ export async function renderReel(ffmpegPath: string, input: RenderInput): Promis
     })
   }
 
+  // ── THE PRESENTER PLAN ──────────────────────────────────────────────────────────────────────
+  // Built HERE, after the voice windows exist, because requirement 3 is that the avatar's windows
+  // are the recordings' own durations rather than a slider's. The input indices follow the input
+  // ORDER in buildFfmpegArgs: source, then the voice clips, then the intro avatar, then the CTA
+  // avatar — so the CTA clip is last and adding it cannot renumber anything above it.
+  // The avatar inputs are appended in plan order, so the CTA clip's index depends on whether an
+  // intro clip precedes it. Derived from the same two values the input list is built from.
+  const introInputIndex = presenterLocal ? 1 + voiceCount : null
+  const ctaInputIndex = presenterCtaLocal ? (presenterLocal ? 2 : 1) + voiceCount : null
+  const presenterPlan = (presenterLocal || presenterCtaLocal)
+    ? buildPresenterPlan({ inputIndex: introInputIndex, introSeconds: input.presenterIntroSeconds ?? null, side: input.presenterSide ?? null, widthPx: input.presenterWidthPx ?? null, bottomInsetPxOverride: input.presenterBottomInsetPx ?? null,
+        voiceHookSeconds: voiceWindows?.hook ? voiceWindows.hook.endSeconds - voiceWindows.hook.startSeconds : null,
+        ctaWindow: voiceWindows?.cta ?? null,
+        ctaInputIndex,
+        // THE SAME substitution the layout used, so the figure's footing and the text's anchor can
+        // never come from two different platforms.
+        platform: presenterCompositionPlatform(input.template ?? "market_type", input.platform ?? "instagram") })
+    : null
+  // Same template string the layout above was computed from, so the burned-in treatment and the
+  // geometry can never come from two different templates.
+  const filter = buildVideoFilter(input.fontPath, items, buildSourceChain(sourceInfo), presenterPlan, overlayTextFor(input.template ?? "market_type"))
+
   const args = buildFfmpegArgs({
     sourcePath: input.sourcePath, outputPath: input.outputPath, filter,
     audioChoice: input.audioChoice, extraInputs, audioFilter, source: sourceInfo,
-    presenterInput: presenterLocal
-      ? { path: presenterLocal, decoder: decoderForPresenterClip(presenterLocal) }
-      : null,
+    // In plan order, which is the order the indices above assume.
+    presenterInputs: [
+      ...(presenterLocal ? [{ path: presenterLocal, decoder: decoderForPresenterClip(presenterLocal) }] : []),
+      ...(presenterCtaLocal ? [{ path: presenterCtaLocal, decoder: decoderForPresenterClip(presenterCtaLocal) }] : []),
+    ],
   })
 
   await new Promise<void>((resolve, reject) => {
@@ -588,6 +701,47 @@ export async function renderReel(ffmpegPath: string, input: RenderInput): Promis
       else resolve()
     })
   })
+
+  // ── THE MASTER PASS ───────────────────────────────────────────────────────────────────────
+  // Last, over the finished file, so it sees exactly what a viewer will hear — bed, hook, CTA,
+  // ducking and all. Doing it here rather than inside the big filter graph is what makes it a
+  // real two-pass: the mix has to exist before it can be measured.
+  //
+  // The VIDEO IS COPIED, not re-encoded, so this costs an audio pass and nothing else, and it
+  // cannot change a single pixel of a render that was already correct.
+  await applyMasterLoudness(ffmpegPath, input.outputPath, input.workDir)
+}
+
+/**
+ * Bring the finished render to MASTER_LOUDNESS, in place.
+ *
+ * FAILING HERE MUST NOT COST THE RENDER. A video that is 2 dB quiet is worth far more than no
+ * video at all, so every failure path leaves the original output exactly where it was. The
+ * caller is never told, because there is nothing for it to do differently.
+ */
+export async function applyMasterLoudness(ffmpegPath: string, outputPath: string, workDir: string): Promise<boolean> {
+  if (!MASTER_LOUDNESS.enabled) return false
+  try {
+    const stderr = await new Promise<string>((resolve) => {
+      execFile(ffmpegPath, ["-nostdin", "-hide_banner", "-nostats", "-i", outputPath, "-af", masterMeasureFilter(), "-f", "null", "-"],
+        { maxBuffer: 1024 * 1024 * 16 }, (_e, _o, se) => resolve(String(se)))
+    })
+    const m = parseLoudnorm(stderr)
+    // No measurement ⇒ nothing to apply. A silent video measures -inf and lands here, which is
+    // right: there is no such thing as normalising silence.
+    if (!m) return false
+    const tmp = path.join(workDir, "master.mp4")
+    await new Promise<void>((resolve, reject) => {
+      execFile(ffmpegPath, ["-nostdin", "-hide_banner", "-loglevel", "error", "-y", "-i", outputPath,
+        "-af", masterApplyFilter(m), "-map", "0:v", "-map", "0:a", "-c:v", "copy",
+        "-c:a", "aac", "-b:a", "192k", "-ar", String(VOICE_MIX.sampleRate), "-movflags", "+faststart", tmp],
+        { maxBuffer: 1024 * 1024 * 16 }, (err, _o, se) => err ? reject(new Error(String(se).slice(0, 400))) : resolve())
+    })
+    await fs.rename(tmp, outputPath)
+    return true
+  } catch {
+    return false // the un-mastered render stands
+  }
 }
 
 /** Run `ffmpeg -i <file>` purely to read its stderr banner (duration + stream list). ffmpeg exits

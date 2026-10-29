@@ -94,11 +94,18 @@ console.log("\n6. the renderer trims before it computes placement:")
   ok("renderReel calls trimPresenterClip", /trimPresenterClip\(/.test(rvCode))
   ok("...before building the presenter plan",
     rvCode.indexOf("trimPresenterClip(") < rvCode.indexOf("buildPresenterPlan("))
-  ok("...and the ffmpeg input uses the TRIMMED path", /presenterInput: presenterLocal/.test(rvCode))
+  ok("...and the ffmpeg input uses the TRIMMED path", /path: presenterLocal/.test(rvCode))
   ok("...with the decoder recomputed for it (ProRes needs none, WebM does)",
     /decoder: decoderForPresenterClip\(presenterLocal\)/.test(rvCode))
   ok("no presenter ⇒ no probe, no trim, no behaviour change at all",
-    /if \(presenterLocal\) \{/.test(rvCode))
+    /if \(presenterLocal\) presenterLocal = await trimForOverlay\(/.test(rvCode))
+  // The CTA avatar comes from the same generator with the same transparent padding, so it goes
+  // through the same trim. Exempting it would foot the figure correctly for the intro and leave it
+  // floating for the CTA.
+  ok("the CTA avatar is trimmed by the same helper",
+    /if \(presenterCtaLocal\) presenterCtaLocal = await trimForOverlay\(/.test(rvCode))
+  ok("...and the ffmpeg input uses ITS trimmed path too",
+    /path: presenterCtaLocal/.test(rvCode) && /decoder: decoderForPresenterClip\(presenterCtaLocal\)/.test(rvCode))
 }
 
 // ── 7. THE APPROVED GEOMETRY IS UNCHANGED ───────────────────────────────────

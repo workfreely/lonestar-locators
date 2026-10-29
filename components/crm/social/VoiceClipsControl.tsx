@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react"
 import { supabase } from "@/lib/supabase/client"
+import { readMediaDuration } from "@/lib/social/readMediaDuration"
 
 // Voice Clips control for the Social Beast post editor. Sits 50/50 beside Music. The
 // trigger matches the Music <select> height/width; opening it reveals the reusable
@@ -15,21 +16,73 @@ type Props = {
   hookId: string | null
   ctaId: string | null
   onChange: (next: { hookId: string | null; ctaId: string | null }) => void
+  /** Absent ⇒ no recommendations are fetched and the control behaves exactly as before. */
+  postId?: string | null
+  /** Raised when the current selection has a HARD factual conflict, so the editor can stop a publish. */
+  onBlocksPublishChange?: (blocked: boolean) => void
+  /**
+   * The source video's length, read from the preview player's metadata. The server does not know
+   * it — social_content.duration_s is null on every row — so the browser, which has already
+   * loaded the video, is the cheapest place to learn it. Null/absent ⇒ no fit check here; the
+   * renderer still refuses an overlapping pair.
+   */
+  /**
+   * WHICH HALF OF THE LIBRARY THIS DROPDOWN IS.
+   *
+   * "hook" and "cta" render one section and one trigger, so Music | Hook | CTA can sit on a row
+   * as three plain fields. "both" is the original single menu with both sections, kept so the
+   * component still answers its old contract.
+   *
+   * Everything else — recommendations, previews, upload, delete, the per-clip warnings — is the
+   * same code in either mode; the slot only decides what is shown.
+   */
+  slot?: "hook" | "cta" | "both"
+  /**
+   * The clips CURRENTLY selected — their lengths, and the signed URLs they play from.
+   *
+   * This control already fetches the library, so it is the only place that knows either. The
+   * editor needs the lengths for its timing line and the URLs for the live audio preview, and
+   * fetching the list a second time to learn them would be a second source of truth for the same
+   * fact. Null means "nothing selected for that slot", not "unknown".
+   */
+  onSelectionDurationsChange?: (d: {
+    hookSeconds: number | null; ctaSeconds: number | null
+    hookUrl: string | null; ctaUrl: string | null
+  }) => void
 }
 
-async function readDuration(file: File): Promise<number | null> {
-  return new Promise((resolve) => {
-    try {
-      const el = document.createElement("audio")
-      el.preload = "metadata"
-      el.onloadedmetadata = () => { const d = el.duration; URL.revokeObjectURL(el.src); resolve(isFinite(d) ? Math.round(d * 10) / 10 : null) }
-      el.onerror = () => resolve(null)
-      el.src = URL.createObjectURL(file)
-    } catch { resolve(null) }
-  })
+/** What the suggestions endpoint returns, narrowed to what this control renders. */
+type Suggested = { id: string | null; displayName: string; why?: string[]; reasons?: string[]; eligibility?: string; transcript?: string | null; transcriptStatus?: string }
+type Warning = { level: "hard" | "soft"; reasons: string[] } | null
+type Suggestions = {
+  property: { name: string | null; market: string | null; propertyType: string | null; propertyTypeSource: string | null; startingRent: number | null }
+  // Optional for the same reason as `warnings` below — unvalidated JSON, read during render.
+  recommended?: { hooks: Suggested[]; ctas: Suggested[] }
+  conditional: Suggested[]
+  rejected: Suggested[]
+  // OPTIONAL BECAUSE THE RESPONSE IS NOT VALIDATED. The fetch below hands whatever JSON came
+  // back to setSug, so a response without this field (an older deploy, a partial payload) is
+  // possible. Declared optional so tsc demands the ?. at every read instead of trusting a cast.
+  warnings?: { hook: Warning; cta: Warning }
+  blocksPublish: boolean
 }
 
-export default function VoiceClipsControl({ triggerClassName, hookId, ctaId, onChange }: Props) {
+export default function VoiceClipsControl({ triggerClassName, hookId, ctaId, onChange, postId, onBlocksPublishChange, onSelectionDurationsChange, slot = "both" }: Props) {
+  const showHooks = slot === "hook" || slot === "both"
+  const showCtas = slot === "cta" || slot === "both"
+  // RECOMMENDATIONS ARE ADVISORY. They are fetched, displayed and never applied: nothing here
+  // calls onChange on its own, so opening this control cannot alter a saved draft.
+  const [sug, setSug] = useState<Suggestions | null>(null)
+  useEffect(() => {
+    if (!postId) return
+    let alive = true
+    fetch(`/api/admin/social-autopilot/posts/${postId}/voice-suggestions`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((j) => { if (alive && j) setSug(j) })
+      .catch(() => {})
+    return () => { alive = false }
+    // hookId/ctaId are dependencies because the WARNING is about what is currently selected.
+  }, [postId, hookId, ctaId])
   const [open, setOpen] = useState(false)
   const [clips, setClips] = useState<Clip[]>([])
   const [busy, setBusy] = useState(false)
@@ -53,7 +106,10 @@ export default function VoiceClipsControl({ triggerClassName, hookId, ctaId, onC
     } catch { /* ignore */ }
   }, [])
 
+  // Loaded on open as before, and ONCE up front when a fit check is possible — the overlap
+  // warning has to be true of a closed control too, and it needs the selected clips' durations.
   useEffect(() => { if (open) load() }, [open, load])
+  useEffect(() => { if (!open && (hookId || ctaId) && clips.length === 0) load() }, [open, hookId, ctaId, clips.length, load])
   useEffect(() => {
     if (!open) return
     // The menu is a DOM descendant of wrapRef again, so one containment check covers both the
@@ -73,10 +129,34 @@ export default function VoiceClipsControl({ triggerClassName, hookId, ctaId, onC
 
   const hooks = clips.filter((c) => c.clipType === "hook")
   const ctas = clips.filter((c) => c.clipType === "cta")
+
+  // WHETHER THE TWO CLIPS FIT IS NOT THIS DROPDOWN'S BUSINESS. It is a fact about the PAIR, and
+  // in slot mode neither dropdown knows both halves — the editor does, and it owns that warning.
+  // What a dropdown owns is its own clip's hard conflicts: wrong market, a price the video does
+  // not show, the wrong property type.
+  const slotBlocks = slot === "both"
+    ? (sug?.blocksPublish ?? false)
+    : (slot === "hook" ? sug?.warnings?.hook : sug?.warnings?.cta)?.level === "hard"
+  useEffect(() => { onBlocksPublishChange?.(slotBlocks) }, [slotBlocks, onBlocksPublishChange])
+
+  // Whatever is selected, handed up so the editor can print the timings, do the fit sum, and play
+  // the clips against the video without fetching the library a second time.
+  const sel = (id: string | null) => clips.find((c) => c.id === id)
+  const hookSeconds = sel(hookId)?.durationSeconds ?? null
+  const ctaSeconds = sel(ctaId)?.durationSeconds ?? null
+  const hookUrl = sel(hookId)?.previewUrl ?? null
+  const ctaUrl = sel(ctaId)?.previewUrl ?? null
+  useEffect(() => { onSelectionDurationsChange?.({ hookSeconds, ctaSeconds, hookUrl, ctaUrl }) },
+    [hookSeconds, ctaSeconds, hookUrl, ctaUrl, onSelectionDurationsChange])
   const nameById = (id: string | null) => clips.find((c) => c.id === id)?.name
-  // Closed-field value, parallel to Music's "No Music" / "Original Audio" — a plain state label, never
-  // clip filenames (those stay in the menu + the hover title).
-  const summary = hookId && ctaId ? "Hook + CTA" : hookId ? "Hook selected" : ctaId ? "CTA selected" : "No Voice Clips"
+  // Closed-field value, parallel to Music's "No Music" / "Original Audio". In slot mode the field
+  // is one choice, so it NAMES the chosen clip — a dropdown that says only "Hook selected" would
+  // be worse than the combined control it replaces. "None" is a real value here, not a
+  // placeholder, exactly as "No Music" is.
+  const slotSelectedId = slot === "cta" ? ctaId : hookId
+  const summary = slot === "both"
+    ? (hookId && ctaId ? "Hook + CTA" : hookId ? "Hook selected" : ctaId ? "CTA selected" : "No Voice Clips")
+    : (nameById(slotSelectedId) ?? "None")
 
   async function upload(clipType: "hook" | "cta", file: File) {
     setErr(null); setBusy(true)
@@ -88,7 +168,7 @@ export default function VoiceClipsControl({ triggerClassName, hookId, ctaId, onC
       const path = `${uid}/voice/${crypto.randomUUID()}.${ext}`
       const up = await supabase.storage.from("social-media").upload(path, file, { contentType: file.type || "audio/mpeg", upsert: false })
       if (up.error) throw new Error(up.error.message)
-      const durationSeconds = await readDuration(file)
+      const durationSeconds = await readMediaDuration(file)
       const name = file.name.replace(/\.[^.]+$/, "").slice(0, 120) || (clipType === "hook" ? "Hook" : "CTA")
       const res = await fetch("/api/admin/social-autopilot/voice-clips", {
         method: "POST", headers: { "Content-Type": "application/json" },
@@ -102,7 +182,16 @@ export default function VoiceClipsControl({ triggerClassName, hookId, ctaId, onC
     } catch (e) { setErr((e as Error).message.slice(0, 120)) } finally { setBusy(false) }
   }
 
-  async function remove(id: string) {
+  /**
+   * DELETE IS PERMANENT AND WAS ONE CLICK AWAY.
+   *
+   * This removes the row AND the uploaded original from storage, with no undo. In a 52-row menu
+   * the × sits a few pixels from the row you meant to select, and a misplaced click silently
+   * destroyed a recording — it had to be re-imported from the copy on disk. One confirm, naming
+   * the clip, is the whole fix; nothing else about the control changes.
+   */
+  async function remove(id: string, name: string) {
+    if (!window.confirm(`Delete “${name}” from the library?\n\nThis removes the uploaded recording as well, and cannot be undone.`)) return
     setBusy(true)
     try {
       await fetch(`/api/admin/social-autopilot/voice-clips?id=${id}`, { method: "DELETE" })
@@ -114,7 +203,14 @@ export default function VoiceClipsControl({ triggerClassName, hookId, ctaId, onC
 
   const preview = (url?: string | null) => { if (url) { const a = new Audio(url); a.play().catch(() => {}) } }
 
-  const section = (label: string, type: "hook" | "cta", list: Clip[], selectedId: string | null, place: string) => (
+  const section = (label: string, type: "hook" | "cta", list: Clip[], selectedId: string | null, place: string) => {
+    const recs = (type === "hook" ? sug?.recommended?.hooks : sug?.recommended?.ctas) ?? []
+    // A conditional clip belongs to THIS section when it is one of this section's clips. The
+    // membership test is the whole rule: an unmatched id (a clip the library no longer has) belongs
+    // to neither section rather than to both.
+    const cond = (sug?.conditional ?? []).filter((c) => !!c.id && list.some((l) => l.id === c.id))
+    const warning = (type === "hook" ? sug?.warnings?.hook : sug?.warnings?.cta) ?? null
+    return (
     <div className="mb-2">
       <div className="flex items-center justify-between px-1">
         <span className="text-[10.5px] uppercase tracking-wide text-[var(--crm-text-muted)]">{label} <span className="normal-case">· {place}</span></span>
@@ -124,6 +220,60 @@ export default function VoiceClipsControl({ triggerClassName, hookId, ctaId, onC
             onChange={(e) => { const f = e.target.files?.[0]; if (f) upload(type, f); e.currentTarget.value = "" }} />
         </label>
       </div>
+      {/* THE WARNING COMES FIRST, because it is about what is already chosen. A hard conflict is
+          factual — wrong market, a price the verified rent does not support, the wrong property
+          type — and blocks publishing. A soft one is a claim that needs confirming, not
+          correcting, so it informs without stopping anything. */}
+      {warning && (
+        <p className={`mx-1 mb-1 rounded-md border px-1.5 py-1 text-[10.5px] leading-snug ${
+          warning.level === "hard"
+            ? "border-red-500/40 bg-red-500/10 text-red-600 dark:text-red-400"
+            : "border-amber-500/40 bg-amber-500/10 text-amber-600 dark:text-amber-400"}`}>
+          <span className="font-semibold">{warning.level === "hard" ? "Conflicts with verified property details — publishing is blocked." : "Needs your confirmation."}</span>{" "}
+          {warning.reasons.join("; ")}
+        </p>
+      )}
+
+      {/* RECOMMENDED. The same rows as below, in a labelled group, each carrying the reason it was
+          recommended. Clicking one is an ordinary manual selection — there is no second code path. */}
+      {recs.length > 0 && (
+        <div className="mb-1">
+          <div className="px-1 text-[10px] uppercase tracking-wide text-emerald-600">Recommended</div>
+          {recs.map((r) => {
+            const c = r.id ? list.find((x) => x.id === r.id) : null
+            return (
+              <div key={r.id ?? r.displayName} className={`flex items-start gap-1 px-2 py-1 rounded-md ${selectedId === r.id ? "bg-[var(--crm-panel)]" : "hover:bg-[var(--crm-panel)]"}`}>
+                <button type="button" className="flex-1 text-left" disabled={!r.id}
+                  onClick={() => r.id && onChange({ hookId: type === "hook" ? r.id : hookId, ctaId: type === "cta" ? r.id : ctaId })}>
+                  <span className="block text-[12.5px] text-[var(--crm-text-primary)] truncate">{selectedId === r.id ? "✓ " : ""}{r.displayName}</span>
+                  {(r.why ?? []).map((w, i) => <span key={i} className="block text-[10px] text-[var(--crm-text-muted)]">· {w}</span>)}
+                </button>
+                {c?.previewUrl && <button type="button" aria-label="Preview" className="mt-[2px] text-[var(--crm-text-muted)] hover:text-[var(--crm-text-primary)]" onClick={() => preview(c.previewUrl)}>▶</button>}
+              </div>
+            )
+          })}
+        </div>
+      )}
+
+      {/* CONDITIONAL. Compatible, but making a claim nothing in the database can settle — a client
+          experience, a current special. Shown so the library does not look smaller than it is, and
+          labelled so choosing one is a decision rather than an accident. */}
+      {cond.length > 0 && (
+        <div className="mb-1">
+          <div className="px-1 text-[10px] uppercase tracking-wide text-amber-600">Needs confirmation</div>
+          {cond.map((r) => (
+            <div key={r.id ?? r.displayName} className={`flex items-start gap-1 px-2 py-1 rounded-md ${selectedId === r.id ? "bg-[var(--crm-panel)]" : "hover:bg-[var(--crm-panel)]"}`}>
+              <button type="button" className="flex-1 text-left" disabled={!r.id}
+                onClick={() => r.id && onChange({ hookId: type === "hook" ? r.id : hookId, ctaId: type === "cta" ? r.id : ctaId })}>
+                <span className="block text-[12.5px] text-[var(--crm-text-primary)] truncate">{selectedId === r.id ? "✓ " : ""}{r.displayName}</span>
+                {(r.why ?? []).map((w, i) => <span key={i} className="block text-[10px] text-amber-600">· {w}</span>)}
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {recs.length > 0 && <div className="px-1 text-[10px] uppercase tracking-wide text-[var(--crm-text-muted)]">All {type === "hook" ? "hooks" : "CTAs"}</div>}
       <button type="button" onClick={() => onChange({ hookId: type === "hook" ? null : hookId, ctaId: type === "cta" ? null : ctaId })}
         className={`w-full text-left text-[12.5px] px-2 py-1 rounded-md ${!selectedId ? "bg-[var(--crm-panel)] font-semibold" : "hover:bg-[var(--crm-panel)]"} text-[var(--crm-text-primary)]`}>
         None
@@ -132,15 +282,16 @@ export default function VoiceClipsControl({ triggerClassName, hookId, ctaId, onC
         <div key={c.id} className={`flex items-center gap-1 px-2 py-1 rounded-md ${selectedId === c.id ? "bg-[var(--crm-panel)]" : "hover:bg-[var(--crm-panel)]"}`}>
           <button type="button" className="flex-1 text-left text-[12.5px] text-[var(--crm-text-primary)] truncate"
             onClick={() => onChange({ hookId: type === "hook" ? c.id : hookId, ctaId: type === "cta" ? c.id : ctaId })}>
-            {selectedId === c.id ? "✓ " : ""}{c.name}{c.durationSeconds ? ` · ${c.durationSeconds}s` : ""}
+            {selectedId === c.id ? "✓ " : ""}{c.name}{c.durationSeconds ? ` · ${c.durationSeconds.toFixed(1)}s` : ""}
           </button>
           {c.previewUrl && <button type="button" aria-label="Preview" className="text-[var(--crm-text-muted)] hover:text-[var(--crm-text-primary)]" onClick={() => preview(c.previewUrl)}>▶</button>}
-          <button type="button" aria-label="Delete" className="text-[var(--crm-text-muted)] hover:text-red-500" onClick={() => remove(c.id)}>×</button>
+          <button type="button" aria-label="Delete" className="text-[var(--crm-text-muted)] hover:text-red-500" onClick={() => remove(c.id, c.name)}>×</button>
         </div>
       ))}
       {/* No empty-state sentence: an empty section is just "None" + "+ Upload", which is self-evident. */}
     </div>
-  )
+    )
+  }
 
   return (
     <div className="relative" ref={wrapRef}>
@@ -150,7 +301,9 @@ export default function VoiceClipsControl({ triggerClassName, hookId, ctaId, onC
           like Music's selected option ("No Voice Clips" is a real value, not a placeholder). */}
       <button type="button" aria-haspopup="listbox" aria-expanded={open} onClick={() => setOpen((v) => !v)}
         className={`${triggerClassName} cursor-pointer flex items-center justify-between gap-1 text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--crm-accent)]`}
-        title={[hookId && `Hook: ${nameById(hookId)}`, ctaId && `CTA: ${nameById(ctaId)}`].filter(Boolean).join(" · ") || undefined}>
+        title={slot === "both"
+          ? ([hookId && `Hook: ${nameById(hookId)}`, ctaId && `CTA: ${nameById(ctaId)}`].filter(Boolean).join(" · ") || undefined)
+          : (nameById(slotSelectedId) ?? undefined)}>
         <span className="text-[var(--crm-text-primary)] truncate">{summary}</span>
         <svg viewBox="0 0 20 20" aria-hidden className="h-3.5 w-3.5 shrink-0 text-[var(--crm-text-muted)]" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
           <path d="M6 8l4 4 4-4" />
@@ -159,12 +312,12 @@ export default function VoiceClipsControl({ triggerClassName, hookId, ctaId, onC
       {open && (
         <div
           role="listbox"
-          aria-label="Voice Clips"
-          className="absolute z-30 mt-1 w-full left-0 max-h-[320px] overflow-y-auto rounded-lg border border-[var(--crm-border)] bg-[var(--crm-card)] shadow-lg p-2"
+          aria-label={slot === "hook" ? "Hook" : slot === "cta" ? "CTA" : "Voice Clips"}
+          className="absolute z-30 mt-1 w-full left-0 min-w-[220px] max-h-[320px] overflow-y-auto rounded-lg border border-[var(--crm-border)] bg-[var(--crm-card)] shadow-lg p-2"
         >
-          {section("Hooks", "hook", hooks, hookId, "start of video")}
-          <div className="border-t border-[var(--crm-border)] my-1" />
-          {section("CTAs", "cta", ctas, ctaId, "end of video")}
+          {showHooks && section("Hooks", "hook", hooks, hookId, "start of video")}
+          {slot === "both" && <div className="border-t border-[var(--crm-border)] my-1" />}
+          {showCtas && section("CTAs", "cta", ctas, ctaId, "end of video")}
           {err && <p className="px-1 pt-1 text-[11.5px] text-red-500">{err}</p>}
           {busy && <p className="px-1 pt-1 text-[11.5px] text-[var(--crm-text-muted)]">Working…</p>}
         </div>

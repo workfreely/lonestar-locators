@@ -185,10 +185,20 @@ console.log("\n6. the posts route recomputes the clip instead of keeping a stale
   // The defect: this used to be written ONLY under `if ("presenterId" in body)`.
   ok("a VOICE-ONLY change also recomputes the clip",
     /"presenterId" in body \|\| "presenterVoiceClipId" in body/.test(posts))
+  // THE SECOND HALF OF THE SAME DEFECT: the clip was matched against the NARRATION while the
+  // renderer plays `hookLocal ?? presenterAudioLocal`, so Hook = A with Narration = B rendered A's
+  // words against B's mouth. Changing the Hook alone must therefore re-resolve too.
+  ok("...and so does a change of the HOOK, which is what actually plays",
+    /"presenterId" in body \|\| "presenterVoiceClipId" in body \|\| "voiceHookId" in body/.test(posts))
+  ok("...through the one rule that reconciles Hook and Narration",
+    /effectiveIntroVoiceClipId\(/.test(posts))
   ok("...using the effective presenter (patch or stored)", /presenter_id" in patch[\s\S]{0,200}stored/.test(posts))
   ok("...and the effective audio (patch or stored)", /presenter_audio_storage_path" in patch[\s\S]{0,200}stored/.test(posts))
-  ok("whatever the matcher returns is written, including the fallback",
-    /patch\.presenter_clip_storage_path = resolution\.clipStoragePath/.test(posts))
+  // WAS "including the fallback". The fallback was an avatar lip-synced to a DIFFERENT recording,
+  // shown with a warning — a wrong render that ships. clipForRender keeps the presenter's own clip
+  // only when no recording drives the intro at all; every miss now stores null, i.e. audio only.
+  ok("the matcher's answer is filtered so an unverified mouth is never stored",
+    /patch\.presenter_clip_storage_path = clipForRender\(resolution\)/.test(posts))
   // The stored row must carry the columns the comparison and the resolution need, or
   // valueChanged(undefined, x) reports a change on every edit and silently resets the render.
   const storedSelect = /\.select\("id, platform, destination[^"]*"\)/.exec(posts)?.[0] ?? ""
@@ -223,8 +233,10 @@ console.log("\n7. the renderer, templates, captions and voice mixing are untouch
     (sql.match(/drop (trigger|policy)/g) ?? []).every(() => true) && !/drop policy[^\n]*social_(posts|presenters|voice_clips)/.test(sql))
 
   const ui = read("components/crm/social/AiPresenterControl.tsx")
-  ok("the control re-asks on a change of presenter OR hook",
-    /\[on, value\.presenterId, value\.audioVoiceClipId\]/.test(ui))
+  ok("the control re-asks on a change of presenter OR the recording that will be heard",
+    /\[on, value\.presenterId, introVoiceClipId\]/.test(ui))
+  ok("...and that recording is the Hook when one is selected",
+    /effectiveIntroVoiceClipId\(voiceHookId, value\.audioVoiceClipId\)/.test(ui))
   ok("the previous answer is cleared before re-asking", /setClipState\(null\)[\s\S]{0,200}setMatching\(true\)/.test(ui))
   ok("a late response for an old selection is discarded", /live = false/.test(ui))
   ok("the association sends ids only, never a storage key", !/clipStoragePath:/.test(ui))

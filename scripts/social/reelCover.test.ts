@@ -172,9 +172,11 @@ async function main() {
     // Attribute-ORDER-independent. The original regex required `<video ref={previewVideoRef}
     // src={post.renderedPreviewUrl!}` verbatim and broke the day a `key={post.renderVersion}` was
     // added between the tag and the ref — reporting a binding defect where the binding was fine.
+    // The ref is a callback now — adoptInline fills previewVideoRef AND tells the live audio
+    // preview which player is on screen. The element it binds is still the rendered derivative.
     ok("…from the element bound to the RENDERED derivative",
-      /<video[^>]*\bref=\{previewVideoRef\}[^>]*>/.test(editor) &&
-      /<video[^>]*\bref=\{previewVideoRef\}[^>]*\bsrc=\{post\.renderedPreviewUrl!\}/.test(editor))
+      /<video[^>]*\bref=\{adoptInline\}[^>]*\bsrc=\{post\.renderedPreviewUrl!\}/.test(editor) &&
+      /previewVideoRef\.current = el/.test(editor))
     // Gating uses the editor's own `rendered` flag, which already means
     // renderStatus==='ready' && renderedPreviewUrl && !overlayEdited — so a stale render cannot
     // be scrubbed for a cover.

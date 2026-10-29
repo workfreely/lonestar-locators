@@ -5,7 +5,10 @@ import { PRESENTER, clampIntroSeconds, clampWidthPx, normalizeSide, type Present
 import {
   PRESENTER_UPLOAD, checkPresenterFormat, checkPresenterSize, labelFromFilename, presenterStorageKey,
 } from "@/lib/social/presenterUpload"
-import { CLIP_STATE_MESSAGE, isLipSyncSafe, type ClipMatchState } from "@/lib/social/presenterClipCache"
+import {
+  CLIP_STATE_MESSAGE, isLipSyncSafe, willShowAvatar, effectiveIntroVoiceClipId, type ClipMatchState,
+} from "@/lib/social/presenterClipCache"
+import { recommendLook, presenterForLook, LOOK_LABEL, type PresenterLook } from "@/lib/social/presenterLook"
 import { supabase } from "@/lib/supabase/client"
 
 /**
@@ -27,6 +30,9 @@ export type PresenterOption = {
   defaultIntroSeconds: number
   hasClip: boolean
   voiceKind: string
+  /** 'everyday' | 'luxury' | null. Null ⇒ this presenter has not been labelled with a Look, so no
+   *  recommendation can point at it. */
+  lookKind: string | null
 }
 
 export type PresenterValue = {
@@ -35,6 +41,9 @@ export type PresenterValue = {
   side: string | null
   widthPx: number | null
   audioVoiceClipId: string | null
+  /** THE CTA WINDOW'S LOOK. Null ⇒ the intro presenter stands in the CTA window too, which is the
+   *  common case. Set it to use a different Look for the end of the video. */
+  ctaPresenterId: string | null
 }
 
 export default function AiPresenterControl({
@@ -43,17 +52,34 @@ export default function AiPresenterControl({
   disabled,
   disabledHint,
   controlClassName,
+  voiceCtaId,
+  voiceHookId,
+  propertyType,
+  onAvatarVisible,
 }: {
   value: PresenterValue
   onChange: (next: PresenterValue) => void
   disabled?: boolean
   disabledHint?: string
   controlClassName: string
+  /** The post's SELECTED CTA. The CTA presenter window is synced to this recording, so the match
+   *  lookup and the Look recommendation both key off it — not off the Narration dropdown, which
+   *  drives the intro window. */
+  voiceCtaId?: string | null
+  /** The post's SELECTED HOOK. When one is set it is WHAT PLAYS at the start of the video, so it —
+   *  not the Narration dropdown — is what the intro avatar has to be lip-synced to. */
+  voiceHookId?: string | null
+  /** The property type THIS video features, for the Look recommendation. */
+  propertyType?: string | null
+  /** Reports whether an avatar will actually appear in the finished video. The editor's preview
+   *  and its overlay layout read this rather than "a presenter is attached", so the lockup moves
+   *  exactly when the render would move it. */
+  onAvatarVisible?: (visible: boolean) => void
 }) {
   const [options, setOptions] = useState<PresenterOption[] | null>(null)
   // Narration choices come from the SAME endpoint the Voice Clips control uses, so the two lists
   // can never disagree about what exists. Fetched here rather than threaded through the editor.
-  const [voiceClips, setVoiceClips] = useState<{ id: string; name: string; clipType: string }[]>([])
+  const [voiceClips, setVoiceClips] = useState<{ id: string; name: string; clipType: string; category?: string | null; ctaKeyword?: string | null }[]>([])
   const [loadErr, setLoadErr] = useState<string | null>(null)
   // Upload state is kept separate from loadErr: a failed upload must not read as "the presenter
   // list is broken", and the list the operator already has stays usable while one upload fails.
@@ -64,6 +90,8 @@ export default function AiPresenterControl({
   // another. null while unknown, so the UI says nothing rather than guessing.
   const [clipState, setClipState] = useState<ClipMatchState | null>(null)
   const [matching, setMatching] = useState(false)
+  const [ctaClipState, setCtaClipState] = useState<ClipMatchState | null>(null)
+  const [ctaMatching, setCtaMatching] = useState(false)
   const [associating, setAssociating] = useState(false)
   const [associateErr, setAssociateErr] = useState<string | null>(null)
   const on = !!value.presenterId
@@ -96,7 +124,7 @@ export default function AiPresenterControl({
       try {
         const res = await fetch("/api/admin/social-autopilot/voice-clips")
         if (!res.ok) return
-        const j = (await res.json()) as { clips?: { id: string; name: string; clipType: string }[] }
+        const j = (await res.json()) as { clips?: { id: string; name: string; clipType: string; category?: string | null; ctaKeyword?: string | null }[] }
         setVoiceClips(j.clips ?? [])
       } catch { /* narration stays optional — the presenter's own voice is the fallback */ }
     })()
@@ -106,6 +134,11 @@ export default function AiPresenterControl({
   // Keyed on BOTH ids, so changing either one re-asks the server. The previous answer is cleared
   // first: showing a stale "Reusing…" against a newly chosen hook would assert exactly the thing
   // this feature exists to prevent.
+  // WHAT WILL BE HEARD AT THE START, through the shared rule — the Hook when one is selected,
+  // otherwise the Narration. Matching the avatar against the Narration while the Hook plays is the
+  // mismatch this replaces, and it was invisible precisely because the two were never read
+  // together.
+  const introVoiceClipId = effectiveIntroVoiceClipId(voiceHookId, value.audioVoiceClipId)
   useEffect(() => {
     if (!on || !value.presenterId) { setClipState(null); return }
     let live = true
@@ -114,7 +147,7 @@ export default function AiPresenterControl({
     void (async () => {
       try {
         const q = new URLSearchParams({ presenterId: value.presenterId! })
-        if (value.audioVoiceClipId) q.set("voiceClipId", value.audioVoiceClipId)
+        if (introVoiceClipId) q.set("voiceClipId", introVoiceClipId)
         const res = await fetch(`/api/admin/social-autopilot/presenters/clips?${q.toString()}`)
         if (!live) return
         if (!res.ok) { setClipState(null); return }
@@ -129,7 +162,49 @@ export default function AiPresenterControl({
     // Cleanup flips `live`, so a slow response for the PREVIOUS selection cannot land after a
     // newer one — the classic way a stale match becomes visible.
     return () => { live = false }
-  }, [on, value.presenterId, value.audioVoiceClipId])
+  }, [on, value.presenterId, introVoiceClipId])
+
+  // ── THE CTA WINDOW'S MATCH ────────────────────────────────────────────────────────────────
+  // The SAME endpoint and the same clearing discipline, asked about a different pair: the CTA
+  // Look (or the intro Look when none is chosen) against the post's SELECTED CTA recording.
+  //
+  // It is a separate lookup rather than a second field on the first because the two windows fail
+  // independently — a matched intro and an unmatched CTA is the normal state while a library is
+  // being built up, and collapsing them into one answer would hide whichever half is missing.
+  const ctaLookPresenterId = value.ctaPresenterId ?? value.presenterId
+  useEffect(() => {
+    if (!on || !ctaLookPresenterId || !voiceCtaId) { setCtaClipState(null); return }
+    let live = true
+    setCtaClipState(null)
+    setCtaMatching(true)
+    void (async () => {
+      try {
+        const q = new URLSearchParams({ presenterId: ctaLookPresenterId, voiceClipId: voiceCtaId })
+        const res = await fetch(`/api/admin/social-autopilot/presenters/clips?${q.toString()}`)
+        if (!live) return
+        if (!res.ok) { setCtaClipState(null); return }
+        const j = (await res.json()) as { state?: ClipMatchState }
+        if (live) setCtaClipState(j.state ?? null)
+      } catch {
+        if (live) setCtaClipState(null)
+      } finally {
+        if (live) setCtaMatching(false)
+      }
+    })()
+    return () => { live = false }
+  }, [on, ctaLookPresenterId, voiceCtaId])
+
+  // ── WILL AN AVATAR ACTUALLY APPEAR? ───────────────────────────────────────────────────────
+  // The same rule the save path applies: a window shows an avatar when its recording has a
+  // verified clip, or when no recording drives it at all. Reported upward so the preview and the
+  // burned-in layout move with the render rather than with "a presenter is attached".
+  //
+  // WHILE A LOOKUP IS IN FLIGHT the answer is the pre-existing one — an attached presenter is
+  // assumed visible — so the common case (a match exists) settles without the lockup jumping.
+  const introWillShow = matching || clipState === null ? !!value.presenterId : willShowAvatar(clipState)
+  const ctaWillShow = !!voiceCtaId && !ctaMatching && willShowAvatar(ctaClipState)
+  const avatarVisible = !!value.presenterId && (introWillShow || ctaWillShow)
+  useEffect(() => { onAvatarVisible?.(avatarVisible) }, [avatarVisible, onAvatarVisible])
 
   const patch = (p: Partial<PresenterValue>) => onChange({ ...value, ...p })
 
@@ -137,7 +212,7 @@ export default function AiPresenterControl({
     if (on) {
       // Turning OFF clears the whole configuration rather than leaving orphaned settings behind
       // that would silently reapply if it were switched on again later.
-      onChange({ presenterId: null, introSeconds: null, side: null, widthPx: null, audioVoiceClipId: null })
+      onChange({ presenterId: null, introSeconds: null, side: null, widthPx: null, audioVoiceClipId: null, ctaPresenterId: null })
       return
     }
     const loaded = options ?? (await load())
@@ -145,9 +220,13 @@ export default function AiPresenterControl({
     // Pick the agent's own presenter if they have one, else the sample — never a clipless row,
     // which could not render.
     const list = loaded.filter((o) => o.hasClip)
-    const first = list.find((o) => !o.isSample) ?? list[0]
+    // THE RECOMMENDATION GETS FIRST REFUSAL, and only when a presenter actually wears that Look.
+    // Everything after it is the pre-existing choice, unchanged: the agent's own presenter, else
+    // the sample, never a clipless row.
+    const suggested = presenterForLook(list, ctaLook.look)
+    const first = suggested ?? list.find((o) => !o.isSample) ?? list[0]
     if (!first) { setLoadErr("No presenter is available yet."); return }
-    patch({ presenterId: first.id, introSeconds: clampIntroSeconds(first.defaultIntroSeconds), side: null, widthPx: null })
+    patch({ presenterId: first.id, introSeconds: clampIntroSeconds(first.defaultIntroSeconds), side: null, widthPx: null, ctaPresenterId: null })
   }
 
   /**
@@ -213,7 +292,9 @@ export default function AiPresenterControl({
    * cache exists to prevent — invisibly. The server re-resolves both ids and the storage key.
    */
   const associate = async () => {
-    if (!value.presenterId || !value.audioVoiceClipId) return
+    // THE RECORDING THAT WILL BE HEARD, not the Narration dropdown. Associating a clip with the
+    // narration while the Hook plays would record the very mismatch this control now prevents.
+    if (!value.presenterId || !introVoiceClipId) return
     setAssociateErr(null)
     setAssociating(true)
     try {
@@ -222,14 +303,14 @@ export default function AiPresenterControl({
         headers: { "Content-Type": "application/json" },
         // IDS ONLY. The server reads the presenter's own clip path; the browser never names a
         // storage key, so it cannot point a match at a different object.
-        body: JSON.stringify({ presenterId: value.presenterId, voiceClipId: value.audioVoiceClipId }),
+        body: JSON.stringify({ presenterId: value.presenterId, voiceClipId: introVoiceClipId }),
       })
       const j = (await res.json().catch(() => ({}))) as { clip?: unknown; error?: string; detail?: string }
       if (!res.ok || !j.clip) throw new Error(j.detail ?? j.error ?? "Could not save the match.")
       // Re-ask the server rather than assuming: the displayed state and the state a render would
       // use then come from the same computation.
       setClipState(null)
-      const q = new URLSearchParams({ presenterId: value.presenterId, voiceClipId: value.audioVoiceClipId })
+      const q = new URLSearchParams({ presenterId: value.presenterId, voiceClipId: introVoiceClipId })
       const after = await fetch(`/api/admin/social-autopilot/presenters/clips?${q.toString()}`)
       if (after.ok) setClipState(((await after.json()) as { state?: ClipMatchState }).state ?? null)
     } catch (e) {
@@ -238,6 +319,29 @@ export default function AiPresenterControl({
       setAssociating(false)
     }
   }
+
+  // ── THE RECOMMENDED LOOK ──────────────────────────────────────────────────────────────────
+  // Derived, never stored. The CTA recording's own classification plus the property type this
+  // video features, through the same pure function the tests cover. A recommendation computed here
+  // and a recommendation computed anywhere else would be two rules; there is one.
+  const selectedCta = voiceCtaId ? voiceClips.find((c) => c.id === voiceCtaId) : undefined
+  const ctaLook = recommendLook({
+    category: selectedCta?.category ?? null,
+    ctaKeyword: selectedCta?.ctaKeyword ?? null,
+    propertyType: propertyType ?? null,
+  })
+  // WHICH recording the intro avatar is matched against, named out loud. With both a Hook and a
+  // Narration set, "no clip is matched to this hook" and "…to this narration" are different
+  // statements, and the operator cannot tell which rule applied without being told.
+  const introSourceLabel = voiceHookId ? "this Hook" : value.audioVoiceClipId ? "this narration" : "this recording"
+  const looksAvailable = (options ?? []).some((o) => o.lookKind)
+  const recommendedPresenter = presenterForLook(options ?? [], ctaLook.look)
+  /** One presenter's label, with its Look spelled out — the Look IS the presenter row, and a
+   *  dropdown that hid that would make "choose a Look" an invisible instruction. */
+  const optionLabel = (o: PresenterOption) =>
+    `${o.label}${o.isSample ? " (sample)" : ""}` +
+    `${o.lookKind && LOOK_LABEL[o.lookKind as PresenterLook] ? ` — ${LOOK_LABEL[o.lookKind as PresenterLook]}` : ""}` +
+    `${o.hasClip ? "" : " — no clip"}`
 
   const side: PresenterSide = normalizeSide(value.side)
   const widthPx = clampWidthPx(value.widthPx)
@@ -310,14 +414,12 @@ export default function AiPresenterControl({
               >
                 {options === null && <option value={value.presenterId ?? ""}>Loading…</option>}
                 {(options ?? []).map((o) => (
-                  <option key={o.id} value={o.id} disabled={!o.hasClip}>
-                    {o.label}{o.isSample ? " (sample)" : ""}{o.hasClip ? "" : " — no clip"}
-                  </option>
+                  <option key={o.id} value={o.id} disabled={!o.hasClip}>{optionLabel(o)}</option>
                 ))}
               </select>
             </label>
             <label className="block min-w-0">
-              <span className={subLabel}>Narration</span>
+              <span className={subLabel}>{voiceHookId ? "Narration (Hook wins)" : "Narration"}</span>
               <select
                 className={controlClassName}
                 value={value.audioVoiceClipId ?? ""}
@@ -371,6 +473,42 @@ export default function AiPresenterControl({
             />
           </label>
 
+          {/* ── THE CTA WINDOW ───────────────────────────────────────────────────────────────
+              Only offered when a CTA recording is actually selected: without one there is no
+              second window to dress, and an always-visible dropdown would imply otherwise.
+
+              "Same as intro" is the DEFAULT and stores null, so a post that wants one Look for the
+              whole video stores nothing extra and the intro Look remains the single definition of
+              who is on screen. */}
+          {voiceCtaId && (
+            <label className="block min-w-0">
+              <span className={subLabel}>CTA Look</span>
+              <select
+                className={controlClassName}
+                value={value.ctaPresenterId ?? ""}
+                onChange={(e) => patch({ ctaPresenterId: e.target.value || null })}
+              >
+                <option value="">Same as intro</option>
+                {(options ?? []).filter((o) => o.hasClip && o.id !== value.presenterId).map((o) => (
+                  <option key={o.id} value={o.id}>{optionLabel(o)}</option>
+                ))}
+              </select>
+            </label>
+          )}
+
+          {/* THE RECOMMENDATION, said out loud and never applied on its own. Shown only when the
+              Looks have been labelled — an unlabelled library cannot act on it, and advice nobody
+              can follow is just noise in a panel. */}
+          {voiceCtaId && looksAvailable && (
+            <p className="text-[10.5px] text-[var(--crm-text-muted)]">
+              Suggested: <span className="font-semibold text-[var(--crm-text-secondary)]">{LOOK_LABEL[ctaLook.look]}</span>
+              {" — "}{ctaLook.why}.
+              {recommendedPresenter && recommendedPresenter.id !== ctaLookPresenterId
+                ? ` You've chosen a different Look; that's kept.`
+                : ""}
+            </p>
+          )}
+
           {/* ── LIP-SYNC MATCH STATE ──────────────────────────────────────────────────────────
               Said out loud, because the failure it describes is invisible in the editor: the
               avatar renders and plays, its mouth just does not match the words. `matched` is the
@@ -383,30 +521,58 @@ export default function AiPresenterControl({
                 isLipSyncSafe(clipState) ? "text-emerald-500"
                   : clipState === "no_voice_selected" ? "text-[var(--crm-text-muted)]"
                   : clipState === "pending" ? "text-sky-500"
-                  : "text-amber-500"
+                  : "text-[var(--crm-text-muted)]"
               }`}
             >
-              {CLIP_STATE_MESSAGE[clipState]}
+              {/* A MISS IS NO LONGER A WARNING, BECAUSE IT IS NO LONGER A RISK. The avatar used to
+                  be shown anyway with a caution that its mouth would not match; now it is simply
+                  withheld, so the honest sentence is what will happen rather than what to watch
+                  out for. The two safe states keep their original copy. */}
+              {isLipSyncSafe(clipState) || clipState === "no_voice_selected"
+                ? CLIP_STATE_MESSAGE[clipState]
+                : clipState === "pending"
+                  ? `An avatar clip for ${introSourceLabel} is still being generated — until it is ready the intro plays as audio only.`
+                  : `No avatar clip is matched to ${introSourceLabel}, so the intro plays as audio only.`}
             </p>
           ) : null}
+
+          {/* THE CTA WINDOW'S OWN STATE. Reported separately from the intro's because the two fail
+              independently, and because the consequence here is different: no match means NO
+              avatar during the CTA — audio only — rather than an avatar with the wrong mouth. That
+              is a safe outcome, so it is worded as a fact rather than as a warning. */}
+          {voiceCtaId && (ctaMatching ? (
+            <p className="text-[10.5px] text-[var(--crm-text-muted)]">Checking for an avatar clip for the CTA…</p>
+          ) : ctaClipState ? (
+            <p className={`text-[10.5px] ${isLipSyncSafe(ctaClipState) ? "text-emerald-500" : "text-[var(--crm-text-muted)]"}`}>
+              {isLipSyncSafe(ctaClipState)
+                ? "The avatar reappears for the CTA, lip-synced to it."
+                : ctaClipState === "pending"
+                  ? "An avatar clip for this CTA is still being generated — until it is ready the CTA plays as audio only."
+                  : "No avatar clip is matched to this CTA, so the CTA plays as audio only."}
+            </p>
+          ) : null)}
 
           {/* Associating a clip is only offered when there is something to associate it WITH and
               nothing already matched — an operator should not be invited to re-state a fact the
               cache already holds. */}
-          {!matching && (clipState === "unmatched" || clipState === "unavailable") && value.audioVoiceClipId && (
+          {!matching && (clipState === "unmatched" || clipState === "unavailable") && introVoiceClipId && (
             <button
               type="button"
               disabled={associating}
               onClick={() => void associate()}
               className="self-start rounded-md border border-[var(--crm-border)] px-2 py-1 text-[11px] font-semibold text-[var(--crm-text-secondary)] hover:text-[var(--crm-text-primary)] disabled:opacity-45"
-              title="Record that this presenter's clip was lip-synced to the selected voice hook, so it is reused automatically next time"
+              title="Record that this presenter's clip was lip-synced to the recording that plays at the start of this video, so it is reused automatically next time"
             >
-              {associating ? "Saving…" : "This clip matches this voice hook"}
+              {associating ? "Saving…" : `This clip matches ${introSourceLabel}`}
             </button>
           )}
           {associateErr && <p className="text-[11px] text-red-400">{associateErr}</p>}
 
-          <p className="text-[10.5px] text-[var(--crm-text-muted)]">Fades out after the intro.</p>
+          <p className="text-[10.5px] text-[var(--crm-text-muted)]">
+            {voiceCtaId && isLipSyncSafe(ctaClipState ?? "unmatched")
+              ? "Fades out after the intro and fades back in for the CTA."
+              : "Fades out after the intro."}
+          </p>
         </div>
       )}
     </div>

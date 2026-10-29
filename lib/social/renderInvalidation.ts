@@ -62,6 +62,12 @@ export const RENDER_AFFECTING_COLUMNS = [
   "presenter_intro_seconds",
   "presenter_clip_storage_path",
   "presenter_audio_storage_path",
+  // THE CTA WINDOW. Which Look stands there, and which clip it stands as. Both change the pixels
+  // of the last few seconds of the video, so a render made before one changed is stale — and a
+  // stale render here is the whole failure this feature could introduce: the wrong mouth, at the
+  // end of the video, saying the words the viewer is being asked to act on.
+  "presenter_cta_id",
+  "presenter_cta_clip_storage_path",
   "presenter_side",
   "presenter_width_px",
   // THE SURFACE. Resolves to a safe area, and the safe area decides the geometry — see the note

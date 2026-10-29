@@ -211,7 +211,7 @@ console.log("\nInstagram is TikTok's composition shifted up, and nothing else:")
     !strip("// platform: presenterCompositionPlatform(x)").includes("presenterCompositionPlatform"))
   const rv = strip(readFileSync("lib/social/renderVideo.ts", "utf8"))
   ok("the renderer builds the presenter plan through the substitution",
-    /buildPresenterPlan\(\{[\s\S]{0,400}?platform:\s*presenterCompositionPlatform\(/.test(rv))
+    /buildPresenterPlan\(\{[\s\S]{0,900}?platform:\s*presenterCompositionPlatform\(/.test(rv))
   ok("…and there is exactly one call to it there", (rv.match(/presenterCompositionPlatform\(/g) ?? []).length === 1)
   ok("both lines are drawn for the full duration (no time gating)", buildDrawPlan(igL).length === 2)
   ok(`…at the Instagram anchor (y${Math.round(buildDrawPlan(igL)[0].topPx)})`, Math.round(buildDrawPlan(igL)[0].topPx) === IG_ANCHOR)
@@ -259,9 +259,17 @@ console.log("\nshadows, fitting and the single composition pipeline:")
   const code = (x: string) => x.replace(/\/\*[\s\S]*?\*\//g, "").replace(/\/\/[^\n]*/g, "")
   const rv = code(readFileSync("lib/social/renderVideo.ts", "utf8"))
   const ed = code(readFileSync("components/crm/social/PostEditor.tsx", "utf8"))
-  ok("the renderer derives the flag from input.presenterPath", /computeOverlayLayout\([\s\S]{0,300}?!!input\.presenterPath/.test(rv))
-  ok("…the same value it composites the presenter from", /presenterLocal\s*\?/.test(rv) || /input\.presenterPath/.test(rv))
-  ok("the editor preview derives it from the attached presenter", /computeOverlayLayout\([^)]*!!presenter\.presenterId\)/.test(ed))
+  // ONE FACT, READ ONCE — but the fact grew. The headline is burned in for the whole video, so it
+  // must clear the figure whenever the figure appears AT ALL, and the intro and CTA windows can
+  // now exist independently: a post whose only avatar is in its CTA still needs the shifted lockup.
+  ok("the renderer derives the flag from BOTH avatar clips",
+    /const hasPresenter = !!\(input\.presenterPath \|\| input\.presenterCtaPath\)/.test(rv) &&
+    /computeOverlayLayout\([\s\S]{0,300}?hasPresenter/.test(rv))
+  ok("…the same value it composites a presenter from", /presenterLocal \|\| presenterCtaLocal/.test(rv))
+  // The editor reads whether an avatar will ACTUALLY appear, not whether one is attached — since
+  // an unmatched presenter now renders nothing, those are no longer the same fact.
+  ok("the editor preview derives it from the avatar that will actually render",
+    /computeOverlayLayout\([^)]*avatarVisible\)/.test(ed))
   ok("no second overlay/composition path was introduced",
     (rv.match(/buildPresenterFilter\(/g) ?? []).length === 1)
   ok("renderPost still supplies the clip to the renderer",

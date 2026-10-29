@@ -8,6 +8,7 @@ import { SOCIAL_MARKETS, normalizeSocialMarket } from "@/lib/social/markets"
 import { formatSocialDisplayName } from "@/lib/social/displayName"
 import { sourceNeedsWork, workingBadge, renderedBadge, BADGE_TONE, type LaneFacts, type DraftFacts, type CardBadge } from "@/lib/social/postLane"
 import PreviewOverlay from "@/components/crm/social/PreviewOverlay"
+import { readMediaDuration } from "@/lib/social/readMediaDuration"
 import VideoLightbox from "@/components/crm/social/VideoLightbox"
 import { computeOverlayLayout, type OverlayLayout } from "@/lib/social/overlaySpec"
 import { OVERLAY_TEMPLATES, OVERLAY_TEMPLATE_LABEL, DEFAULT_OVERLAY_TEMPLATE } from "@/lib/social/composePost"
@@ -61,6 +62,8 @@ type Item = {
   notes: string | null
   placeId: string | null
   createdAt: string
+  /** social_content.duration_s — null for anything uploaded before it was captured. */
+  durationSeconds: number | null
   previewUrl: string | null
   // INTERNAL library preview JPEG. Not an Instagram/TikTok cover — those live on the POST
   // (cover_storage_path) and are chosen by the operator; this one is generated for the grid.
@@ -88,6 +91,8 @@ type Card = {
   // The small JPEG the grid actually paints. When present the tile mounts NO video at all — the
   // reason the library no longer decodes 140 clips to draw itself. Null falls back to the video.
   thumbUrl: string | null
+  /** The STORED length, so the badge can show on a thumbnail that has no player yet. */
+  durationSeconds: number | null
   // The saved draft's overlay, rebuilt from persisted values — null when this
   // source has no draft, or when the draft is in "existing" mode (the video
   // already carries its own text, so drawing ours would double it).
@@ -321,6 +326,15 @@ function Thumb({ card }: { card: Card }) {
   // overflow-hidden on its own (the card's hover style is box-shadow/border only — no transform,
   // which would have made `fixed` behave like `absolute` and clip it inside the tile).
   const [expanded, setExpanded] = useState(false)
+  // THE TILE'S LENGTH — the STORED one when there is one, otherwise whatever the player reports.
+  //
+  // The stored value is what lets a thumbnail show its length without a player: it is captured
+  // from the file at upload and read straight off the content row. A row from before that (or one
+  // the backfill could not measure) has none, and then the tile falls back to the number the
+  // player hands over when someone plays it. The ~25KB-thumbnail fast path is untouched either
+  // way — nothing here mounts a <video> to find a duration out.
+  const [measured, setMeasured] = useState<number | null>(null)
+  const seconds = card.durationSeconds ?? measured
 
   if (card.demo || !card.previewUrl) {
     return (
@@ -392,6 +406,7 @@ function Thumb({ card }: { card: Card }) {
           onPause={() => setPaused(true)}
           onLoadedMetadata={(e) => {
             const v = e.currentTarget
+            if (Number.isFinite(v.duration) && v.duration > 0) setMeasured(v.duration)
             if (playing) return // playing: let it run from the start rather than seeking away
             try {
               v.currentTime = Math.min(0.6, (isFinite(v.duration) ? v.duration : 2) / 2)
@@ -406,6 +421,18 @@ function Thumb({ card }: { card: Card }) {
           the lightbox. It stays visible during playback (matching the editor),
           and is pointer-events-none so the controls underneath remain clickable. */}
       <PreviewOverlay layout={card.draftOverlay} />
+      {/* THE TILE'S LENGTH — the same badge the Post Editor shows over its preview, but on the
+          LEFT: this tile's Enlarge control already occupies bottom-right (the editor's sits top-
+          right, which is why the badge can live in the corner there and not here). They collided
+          on first try — a 210px tile has no room for two things in one corner.
+          EDITOR CHROME ONLY: a DOM element over the thumbnail, nowhere near renderVideo's draw
+          plan, so it cannot reach a rendered file, TikTok or Instagram. pointer-events-none so
+          the click-to-play surface underneath keeps every click. */}
+      {seconds !== null && (
+        <div className="pointer-events-none absolute bottom-1.5 left-1.5 z-10 rounded-md bg-black/60 px-1.5 py-0.5 text-[10.5px] font-medium leading-none text-white tabular-nums backdrop-blur-sm">
+          {seconds.toFixed(1)}s
+        </div>
+      )}
       {/* CLICK TO PLAY / CLICK TO PAUSE — one full-surface target, which is what replaces the
           native control bar. Before the first play it also MOUNTS the player (with a thumbnail
           there is no video element yet, so ref.current is null on that first press; autoPlay on
@@ -705,6 +732,7 @@ export default function SocialAutopilotClient() {
         originalFilename: it.originalFilename,
         previewUrl: it.previewUrl,
         thumbUrl: it.thumbUrl ?? null,
+        durationSeconds: it.durationSeconds ?? null,
         draftOverlay: draftOverlayFor(postsBySource[it.id]),
         hue: null,
         demo: false,
@@ -723,6 +751,7 @@ export default function SocialAutopilotClient() {
         originalFilename: d.originalFilename,
         previewUrl: null,
         thumbUrl: null, // demo tiles are a colour block; they never touch storage
+        durationSeconds: null,
 
         draftOverlay: null,
         hue: d.hue,
@@ -786,6 +815,9 @@ export default function SocialAutopilotClient() {
         // a different object from the source the thumbnail was cut from, and showing the source's
         // frame here would misrepresent what was published. These tiles keep the video element.
         thumbUrl: null,
+        // A Rendered card shows the RENDERED derivative, whose length is the source's — but the
+        // card is built from the post, not the content row, so it falls back to the player.
+        durationSeconds: src?.durationSeconds ?? null,
         // The overlay is already in the pixels; drawing the CSS preview on top would double it.
         draftOverlay: null,
         hue: null,
@@ -988,6 +1020,10 @@ export default function SocialAutopilotClient() {
           originalFilename: uf.file.name,
           contentType: uf.file.type || null,
           sizeBytes: uf.file.size,
+          // MEASURED HERE OR NOWHERE. The file is in the page; the browser reads its own metadata
+          // off an object URL and nothing is fetched. After this moment it costs a request per
+          // clip, which is exactly what the thumbnail grid exists to avoid.
+          durationSeconds: (uf.file.type || "").startsWith("image/") ? null : await readMediaDuration(uf.file),
           kind: (uf.file.type || "").startsWith("image/") ? "image" : "clip",
           uploadBatchId: batchId,
           batchSeq: uf.seq,

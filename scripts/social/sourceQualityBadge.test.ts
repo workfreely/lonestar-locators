@@ -33,7 +33,13 @@ console.log("1. the badge no longer fetches anything of its own:")
 ok("it mounts NO video element at all", !/<video/.test(badge))
 ok("it takes no URL — it cannot fetch even by accident", !/videoUrl|src=/.test(badge))
 ok("it takes the dimensions as a prop", /\{ dims, className = "" \}: \{ dims: \{ w: number; h: number \} \| null/.test(badge))
-ok("the editor passes them from its own state", /<SourceQualityBadge dims=\{sourceDims\} \/>/.test(editor))
+// THE BADGE IS NO LONGER SHOWN. It never blocked a render and is not something a locator acts
+// on, so it came off the footage — but the MEASUREMENT stays, published on the preview container
+// where a diagnostic can read it and a viewer cannot see it. The component is kept for that.
+ok("the editor no longer renders it", !/<SourceQualityBadge/.test(editor))
+ok("…and no longer imports it", !/import SourceQualityBadge/.test(editor))
+ok("…but still measures the dimensions", /setSourceDims\(\{ w: v\.videoWidth, h: v\.videoHeight \}\)/.test(editor))
+ok("…and still exposes them for diagnostics", /data-source-dimensions=/.test(editor))
 ok("...which the VISIBLE player fills from its own loadedmetadata",
   /onLoadedMetadata=\{\(e\) => \{[\s\S]{0,220}setSourceDims\(\{ w: v\.videoWidth, h: v\.videoHeight \}\)/.test(editor))
 ok("the editor's pre-render branch now mounts exactly ONE video element", (() => {
@@ -63,9 +69,12 @@ console.log("\n3. playback behaviour is preserved exactly:")
   ok("playsInline is unchanged", /playsInline/.test(branch))
 }
 ok("NOTHING in the editor autoplays", !/autoPlay/.test(editor))
+// The ref is a callback now — one player reports itself for the live audio preview AND fills
+// previewVideoRef for the cover control. Everything else about this element is unchanged.
 ok("the RENDERED player is untouched — still keyed on renderVersion, still unmuted",
-  /<video key=\{post\.renderVersion \?\? 0\} ref=\{previewVideoRef\} src=\{post\.renderedPreviewUrl!\} controls/.test(editor)
+  /<video key=\{post\.renderVersion \?\? 0\} ref=\{adoptInline\} src=\{post\.renderedPreviewUrl!\} controls/.test(editor)
   && !/renderedPreviewUrl!\} controls[^/]*muted/.test(editor))
+ok("…and the cover control still gets its ref", /previewVideoRef\.current = el/.test(editor))
 ok("no change to overlays, captions, rendering or publishing from this file's preview block",
   /<PreviewOverlay layout=\{overlayLayout\} \/>/.test(editor))
 

@@ -169,3 +169,63 @@ export const CLIP_STATE_MESSAGE: Record<ClipMatchState, string> = {
 export function isLipSyncSafe(state: ClipMatchState): boolean {
   return state === "matched"
 }
+
+/**
+ * WHICH RECORDING THE INTRO AVATAR MUST BE LIP-SYNCED TO.
+ *
+ * There are two places a post can name the audio that plays at the START of a video, and until
+ * now they disagreed about which one the avatar's mouth was matched against:
+ *
+ *   voice_hook_id            the Hook the operator selected. If it is set, it is WHAT PLAYS —
+ *                            renderPost's `hookLocal ?? presenterAudioLocal` has always preferred
+ *                            it, because an explicit selection must never be silently replaced.
+ *   presenter_audio_storage  the Narration dropdown. It fills the hook slot when no Hook is
+ *                            selected, and is ignored entirely when one is.
+ *
+ * The clip lookup used to key on the NARRATION alone. So Hook = A with Narration = B rendered
+ * recording A against a mouth synced to recording B — cleanly, publishably, and wrongly. The two
+ * facts were never reconciled because nothing forced them to be read in one place.
+ *
+ * This is that one place. It returns the recording that will actually be HEARD, and every caller
+ * — the save path that resolves the clip, the editor that reports the match, and the renderer
+ * that mixes the audio — derives its answer from it rather than from whichever column it happened
+ * to be holding.
+ *
+ * Null means no recording drives the intro at all, which is NOT a mismatch: there is nothing for a
+ * mouth to disagree with. That case keeps its original behaviour (see clipForRender).
+ */
+export function effectiveIntroVoiceClipId(
+  voiceHookId: string | null | undefined,
+  narrationVoiceClipId: string | null | undefined,
+): string | null {
+  const hook = (voiceHookId ?? "").trim()
+  if (hook) return hook
+  const narration = (narrationVoiceClipId ?? "").trim()
+  return narration || null
+}
+
+/**
+ * THE CLIP A POST MAY ACTUALLY CARRY — the rule that turns a resolution into a stored path.
+ *
+ * ── NEVER AN UNVERIFIED MOUTH ───────────────────────────────────────────────────────────────
+ * resolvePresenterClip reports the presenter's OWN clip on a miss so the editor can say what
+ * would happen. This decides what is allowed to happen, and the answer for every miss is NOTHING:
+ * no avatar for that window, audio only. An avatar visibly speaking words the viewer is not
+ * hearing is not a degraded render, it is a wrong one — and unlike a failed render it ships.
+ *
+ * ── THE ONE EXCEPTION, AND WHY IT IS NOT ONE ────────────────────────────────────────────────
+ * `no_voice_selected` means no recording drives this window at all. There is no speech to
+ * mismatch, so the presenter's own clip is served exactly as it always has been. Every presenter
+ * post that exists today is in this state, which is also why this change alters none of them.
+ */
+export function clipForRender(resolution: ClipResolution): string | null {
+  if (resolution.state === "no_voice_selected") return resolution.clipStoragePath
+  return resolution.lipSyncVerified ? resolution.clipStoragePath : null
+}
+
+/** Will an avatar actually appear for a window in this state? The editor's layout and preview read
+ *  this, so what the operator sees is decided by the same rule the render obeys. */
+export function willShowAvatar(state: ClipMatchState | null): boolean {
+  if (state === null) return false
+  return state === "no_voice_selected" || isLipSyncSafe(state)
+}

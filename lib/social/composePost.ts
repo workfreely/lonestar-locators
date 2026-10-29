@@ -132,7 +132,14 @@ export function resolveSocialSpecial(src: SourceMeta): string {
 /** The LOWEST valid price found in the Price Range metadata, or null. Handles "$1,495–$2,100" → 1495,
  *  "$1,895" → 1895, "$1,200+" → 1200. Shared by every overlay/caption helper that needs the price
  *  number so the parsing rule lives in exactly one place. */
-function lowestPrice(range: string | null | undefined): number | null {
+/**
+ * The lowest number in a free-text price field, as a number.
+ *
+ * EXPORTED so the voice library can check a spoken price against THE SAME figure the overlay
+ * prints. Two parsers would eventually disagree, and the one disagreement that matters is a
+ * video whose caption says one price while its voiceover says another.
+ */
+export function lowestPrice(range: string | null | undefined): number | null {
   const tokens = (range ?? "").match(/\d[\d,]*/g)
   if (!tokens) return null
   const values = tokens.map((n) => parseInt(n.replace(/,/g, ""), 10)).filter((n) => Number.isFinite(n) && n > 0)

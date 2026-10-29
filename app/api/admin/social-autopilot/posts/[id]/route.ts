@@ -6,7 +6,13 @@ import { isValidPostType } from "@/lib/social/postTypes"
 import { normalizeHashtag, hashtagLimitForPlatform } from "@/lib/social/hashtags"
 import { isOverlayTemplate } from "@/lib/social/composePost"
 import { renderAffectingChanges, valueChanged } from "@/lib/social/renderInvalidation"
-import { resolvePresenterClip, type PresenterClipStatus } from "@/lib/social/presenterClipCache"
+import {
+  publishAffectingChanges, normaliseInteractions, hasCompleteTikTokSettings, readSavedSettings,
+  TIKTOK_PRIVACY_LEVELS, TIKTOK_DISCLOSURES,
+} from "@/lib/social/tiktokPublishSettings"
+import {
+  resolvePresenterClip, clipForRender, effectiveIntroVoiceClipId, type PresenterClipStatus,
+} from "@/lib/social/presenterClipCache"
 import { isSocialDestination } from "@/lib/social/destinations"
 import { ensureStoryCompanion } from "@/lib/social/storyCompanion"
 import { hasRender, isRenderedReady, type LaneFacts } from "@/lib/social/postLane"
@@ -19,11 +25,28 @@ import { resolveSourcePath } from "@/lib/social/sourcePath"
 // overlay text, audio choice or source video invalidates any existing render (render_status →
 // 'none') — but ONLY when the value actually CHANGES, not merely because the editor posted the
 // key. See lib/social/renderInvalidation.
+/**
+ * ARE THE TIKTOK PUBLISHING-SETTINGS COLUMNS IN THE DATABASE YET?
+ *
+ * supabase/prepared/20261104000000_tiktok_publish_settings.sql is deliberately NOT applied while
+ * the Content Posting API audit is under review, so tiktok_privacy_level, tiktok_allowed_
+ * interactions and tiktok_disclosure do not exist. PostgREST fails the WHOLE query with 42703 when
+ * a SELECT names a column it cannot find, so naming them here stopped the editor loading ANY post.
+ *
+ * Flip this to true in the same change that moves that file into supabase/migrations/. Nothing
+ * else needs editing: the four places that touch those columns all read this one constant.
+ */
+const TIKTOK_SETTINGS_COLUMNS = false
+
 const SELECT =
   "id, platform, destination, post_type, post_name, caption, social_special, on_video_text, on_video_config, " +
   "overlay_headline, overlay_subheadline, overlay_mode, overlay_template, cover_thumb_offset_ms, cover_storage_path, cover_render_version, hashtags, audio_choice, audio_track_id, voice_hook_id, voice_cta_id, rendered_storage_path, render_status, render_error, render_version, " +
   "status, scheduled_at, published_at, external_post_id, external_post_url, created_at, updated_at, source_content_id, source_storage_path, approved_at, draft_saved_at, needs_review_at, needs_review_reason, " +
+  // The three tiktok_* publishing-settings columns are deliberately NOT named here — see
+  // TIKTOK_SETTINGS_COLUMNS above. The GET response never surfaced them, so omitting them costs
+  // this handler nothing. Add them back in the same change that flips that constant to true.
   "presenter_id, presenter_intro_seconds, presenter_side, presenter_width_px, presenter_clip_storage_path, presenter_audio_storage_path, " +
+  "presenter_cta_id, presenter_cta_clip_storage_path, " +
   // area_neighborhood and district are INTERNAL editing metadata — the broader area and the
   // specific district, the two finest of Social Beast's four geographic layers. Both are read here
   // for EDITING only: both stay deliberately absent from SourceMeta (lib/social/composePost.ts),
@@ -150,6 +173,11 @@ export async function GET(_req: NextRequest, ctx: { params: Promise<{ id: string
     presenterId: r.presenter_id,
     presenterIntroSeconds: r.presenter_intro_seconds === null || r.presenter_intro_seconds === undefined ? null : Number(r.presenter_intro_seconds),
     presenterSide: r.presenter_side,
+    // The CTA window's Look. Null ⇒ the intro Look stands in the CTA too, which is the common case
+    // and the one that needs no second choice from the operator.
+    presenterCtaId: r.presenter_cta_id ?? null,
+    /** Read-only, for the editor's "an avatar will / will not appear during the CTA" line. */
+    presenterCtaClipMatched: !!r.presenter_cta_clip_storage_path,
     presenterWidthPx: r.presenter_width_px === null || r.presenter_width_px === undefined ? null : Number(r.presenter_width_px),
     renderStatus: (r.render_status as string) || "none",
     renderError: r.render_error,
@@ -158,6 +186,9 @@ export async function GET(_req: NextRequest, ctx: { params: Promise<{ id: string
     // this, and the library puts the post in the Rendered tab on this — one predicate, both places.
     hasRender: hasRender(r as LaneFacts),
     approvedAt: (r.approved_at as string | null) ?? null,
+    // The creator's saved TikTok decision, so the dialog opens on what they chose rather than on
+    // blank controls. Null throughout means no decision has been made — never a default.
+    tiktokSettings: readSavedSettings(r as Record<string, unknown>),
     draftSavedAt: (r.draft_saved_at as string | null) ?? null,
     isRenderedReady: isRenderedReady(r as LaneFacts),
     status: r.status,
@@ -238,7 +269,7 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
   // RENDER_AFFECTING_COLUMNS, so neither participates in render invalidation.
   const { data: storedRow } = await supabase
     .from("social_posts")
-    .select("id, platform, destination, published_at, external_post_id, render_version, source_storage_path, overlay_headline, overlay_subheadline, overlay_mode, overlay_template, audio_choice, audio_track_id, voice_hook_id, voice_cta_id, presenter_id, presenter_audio_storage_path, presenter_clip_storage_path, presenter_intro_seconds, presenter_side, presenter_width_px, render_status, rendered_storage_path")
+    .select("id, platform, destination, published_at, external_post_id, render_version, source_storage_path, overlay_headline, overlay_subheadline, overlay_mode, overlay_template, audio_choice, audio_track_id, voice_hook_id, voice_cta_id, presenter_id, presenter_audio_storage_path, presenter_clip_storage_path, presenter_cta_id, presenter_cta_clip_storage_path, presenter_intro_seconds, presenter_side, presenter_width_px, render_status, rendered_storage_path")
     .eq("id", id)
     .maybeSingle()
   const stored = (storedRow ?? null) as Record<string, unknown> | null
@@ -312,6 +343,8 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
       patch.presenter_side = null
       patch.presenter_width_px = null
       patch.presenter_audio_storage_path = null
+      patch.presenter_cta_id = null
+      patch.presenter_cta_clip_storage_path = null
     } else if (typeof body.presenterId === "string" && VOICE_UUID.test(body.presenterId)) {
       const { data: pres } = await supabase
         .from("social_presenters")
@@ -343,6 +376,23 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
       ? Math.round(Math.min(520, Math.max(240, v)))
       : null
   }
+  // THE CTA WINDOW'S LOOK. Null ⇒ the intro presenter stands in the CTA window too. A uuid is
+  // re-resolved through the caller's RLS client for exactly the reason the intro presenter is:
+  // a PATCH can name any uuid, and another agent's presenter must not resolve.
+  if ("presenterCtaId" in body) {
+    if (body.presenterCtaId === null || typeof body.presenterCtaId !== "string") {
+      patch.presenter_cta_id = null
+    } else if (VOICE_UUID.test(body.presenterCtaId)) {
+      const { data: pres } = await supabase
+        .from("social_presenters").select("id, enabled").eq("id", body.presenterCtaId).maybeSingle()
+      if (!pres) return NextResponse.json({ error: "presenter_not_found" }, { status: 404 })
+      if ((pres as { enabled?: boolean }).enabled === false) {
+        return NextResponse.json({ error: "presenter_disabled" }, { status: 409 })
+      }
+      patch.presenter_cta_id = body.presenterCtaId
+    }
+  }
+
   // Narration: a Voice Clip id resolves to its storage path, which is then the ONE audio used for
   // both the HeyGen lip-sync and the final mix. Resolved server-side so a client cannot point the
   // renderer at an arbitrary storage key.
@@ -356,6 +406,41 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
     }
   }
 
+  /**
+   * Resolve one (presenter, recording) pair against the clip cache.
+   *
+   * Shared by the intro window and the CTA window so the two cannot drift apart in how they match
+   * — which matters more here than the saved duplication: two windows matching by slightly
+   * different rules is a mismatch nobody would see until a published video had the wrong mouth in
+   * half of it. The CALLER decides what to do with the answer; this only answers.
+   */
+  const resolveClipFor = async (presenterId: string, audioStoragePath: string | null) => {
+    const { data: presRow } = await supabase
+      .from("social_presenters")
+      .select("clip_storage_path")
+      .eq("id", presenterId)
+      .maybeSingle()
+    const { data: clipRows } = await supabase
+      .from("social_presenter_clips")
+      .select("id, presenter_id, voice_clip_id, audio_storage_path, clip_storage_path, status")
+      .eq("presenter_id", presenterId)
+    return resolvePresenterClip({
+      presenterClipStoragePath: (presRow as { clip_storage_path?: string | null } | null)?.clip_storage_path ?? null,
+      selectedAudioStoragePath: audioStoragePath,
+      rows: (clipRows ?? []).map((r) => {
+        const x = r as Record<string, unknown>
+        return {
+          id: x.id as string,
+          presenterId: (x.presenter_id as string | null) ?? null,
+          voiceClipId: (x.voice_clip_id as string | null) ?? null,
+          audioStoragePath: (x.audio_storage_path as string) ?? "",
+          clipStoragePath: (x.clip_storage_path as string | null) ?? null,
+          status: x.status as PresenterClipStatus,
+        }
+      }),
+    })
+  }
+
   // ── LIP-SYNC CLIP REUSE ───────────────────────────────────────────────────────────────────
   // THE BUG THIS BLOCK EXISTS TO PREVENT: presenter_clip_storage_path was only ever written when
   // the PRESENTER changed. Change the voice hook alone and the post kept the clip from the
@@ -367,43 +452,92 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
   // value otherwise. resolvePresenterClip has no "keep what was there" branch, and this writes
   // whatever it returns, including the fallback.
   //
-  // ADDITIVE: it only runs when presenterId or presenterVoiceClipId is in the body, and with an
-  // empty cache it resolves to the presenter's own clip — byte-identical to the behaviour above.
-  if (("presenterId" in body || "presenterVoiceClipId" in body) && patch.presenter_id !== null) {
+  // ── AND voiceHookId IS ONE OF THE INPUTS ──────────────────────────────────────────────────
+  // THE SECOND HALF OF THE SAME BUG. The clip was matched against the NARRATION dropdown, while
+  // renderPost plays `hookLocal ?? presenterAudioLocal` — so a post with Hook = A and Narration = B
+  // rendered A's words against B's mouth. effectiveIntroVoiceClipId is the one place that
+  // reconciles the two, and the Hook wins there for the same reason it wins in the renderer: an
+  // explicit selection is what the viewer hears.
+  //
+  // So the recompute now watches THREE inputs — the presenter, the narration, and the Hook — and
+  // changing any of them re-derives the clip from scratch.
+  if (("presenterId" in body || "presenterVoiceClipId" in body || "voiceHookId" in body) && patch.presenter_id !== null) {
     const effectivePresenterId = ("presenter_id" in patch
       ? (patch.presenter_id as string | null)
       : ((stored as { presenter_id?: string | null } | null)?.presenter_id ?? null))
     if (effectivePresenterId) {
-      const effectiveAudio = ("presenter_audio_storage_path" in patch
+      const effectiveNarrationPath = ("presenter_audio_storage_path" in patch
         ? (patch.presenter_audio_storage_path as string | null)
         : ((stored as { presenter_audio_storage_path?: string | null } | null)?.presenter_audio_storage_path ?? null))
+      const effectiveHookId = ("voice_hook_id" in patch
+        ? (patch.voice_hook_id as string | null)
+        : ((stored as { voice_hook_id?: string | null } | null)?.voice_hook_id ?? null))
 
-      const { data: presRow } = await supabase
-        .from("social_presenters")
-        .select("clip_storage_path")
-        .eq("id", effectivePresenterId)
-        .maybeSingle()
-      const { data: clipRows } = await supabase
-        .from("social_presenter_clips")
-        .select("id, presenter_id, voice_clip_id, audio_storage_path, clip_storage_path, status")
-        .eq("presenter_id", effectivePresenterId)
+      // WHICH RECORDING WILL BE HEARD at the start — one shared rule, not a second opinion. It
+      // answers in IDS; the narration is already held as a path, so only a winning Hook needs
+      // resolving, server-side from its id exactly as the narration's was.
+      const introVoiceId = effectiveIntroVoiceClipId(effectiveHookId, null)
+      let introAudioPath = effectiveNarrationPath
+      if (introVoiceId) {
+        const { data: hookClip } = await supabase
+          .from("social_voice_clips").select("storage_path").eq("id", introVoiceId).maybeSingle()
+        introAudioPath = (hookClip as { storage_path?: string | null } | null)?.storage_path ?? null
+      }
 
-      const resolution = resolvePresenterClip({
-        presenterClipStoragePath: (presRow as { clip_storage_path?: string | null } | null)?.clip_storage_path ?? null,
-        selectedAudioStoragePath: effectiveAudio,
-        rows: (clipRows ?? []).map((r) => {
-          const x = r as Record<string, unknown>
-          return {
-            id: x.id as string,
-            presenterId: (x.presenter_id as string | null) ?? null,
-            voiceClipId: (x.voice_clip_id as string | null) ?? null,
-            audioStoragePath: (x.audio_storage_path as string) ?? "",
-            clipStoragePath: (x.clip_storage_path as string | null) ?? null,
-            status: x.status as PresenterClipStatus,
-          }
-        }),
-      })
-      patch.presenter_clip_storage_path = resolution.clipStoragePath
+      const resolution = await resolveClipFor(effectivePresenterId, introAudioPath)
+      // NEVER AN UNVERIFIED MOUTH. clipForRender keeps the presenter's own clip only when no
+      // recording drives the intro at all; every miss stores null, i.e. no avatar during the
+      // intro — audio only, the same answer the CTA window gives.
+      patch.presenter_clip_storage_path = clipForRender(resolution)
+    }
+  }
+
+  // ── THE CTA WINDOW'S CLIP ──────────────────────────────────────────────────────────────────
+  // THE SAME RECOMPUTE RULE, extended to the thing that moves it. The intro clip is recomputed
+  // when the presenter or the narration changes; the CTA clip has a THIRD input — voice_cta_id —
+  // because the CTA window is synced to the selected CTA recording rather than to the narration
+  // dropdown. Leaving voiceCtaId out would reproduce the original bug exactly one window later:
+  // change the CTA alone and the post keeps the avatar lip-synced to the previous one.
+  //
+  // ── AND IT IS WRITTEN ONLY ON A VERIFIED MATCH ────────────────────────────────────────────
+  // `lipSyncVerified` is the gate, so there is no fallback path for this column. The intro window
+  // falls back to the presenter's own clip with a loud warning, because that is what it has always
+  // done and a post mid-edit should not lose its avatar. The CTA window has no such history, and
+  // the honest default for "no clip was ever synced to this CTA" is NO AVATAR during the CTA —
+  // audio only, exactly as today. Showing the intro clip again would put the hook's mouth on the
+  // CTA's words, at the end of the video, over the line asking the viewer to act.
+  if (("presenterId" in body || "presenterCtaId" in body || "voiceCtaId" in body) && patch.presenter_id !== null) {
+    const effectivePresenterId = ("presenter_id" in patch
+      ? (patch.presenter_id as string | null)
+      : ((stored as { presenter_id?: string | null } | null)?.presenter_id ?? null))
+    if (!effectivePresenterId) {
+      patch.presenter_cta_clip_storage_path = null
+    } else {
+      // The CTA Look, falling back to the intro Look — the same "patch value if this request set
+      // it, stored value otherwise" rule used above, so a request that changes only the CTA
+      // recording still resolves against the Look the post already carries.
+      const effectiveCtaPresenterId = ("presenter_cta_id" in patch
+        ? (patch.presenter_cta_id as string | null)
+        : ((stored as { presenter_cta_id?: string | null } | null)?.presenter_cta_id ?? null))
+        ?? effectivePresenterId
+
+      const effectiveCtaVoiceId = ("voice_cta_id" in patch
+        ? (patch.voice_cta_id as string | null)
+        : ((stored as { voice_cta_id?: string | null } | null)?.voice_cta_id ?? null))
+
+      // THE MATCH KEY IS THE AUDIO'S STORAGE PATH, resolved server-side from the id — the same
+      // key presenterClipCache documents as the only honest one, and never a path from the client.
+      let ctaAudioPath: string | null = null
+      if (effectiveCtaVoiceId) {
+        const { data: clip } = await supabase
+          .from("social_voice_clips").select("storage_path").eq("id", effectiveCtaVoiceId).maybeSingle()
+        ctaAudioPath = (clip as { storage_path?: string | null } | null)?.storage_path ?? null
+      }
+      // THE SAME FILTER AS THE INTRO WINDOW. With a CTA recording present the state can never be
+      // `no_voice_selected`, so clipForRender reduces here to "verified, or nothing" — which is
+      // the point: one rule, applied twice, rather than two expressions that happen to agree.
+      const ctaResolution = ctaAudioPath ? await resolveClipFor(effectiveCtaPresenterId, ctaAudioPath) : null
+      patch.presenter_cta_clip_storage_path = ctaResolution ? clipForRender(ctaResolution) : null
     }
   }
   // ── REEL COVER ────────────────────────────────────────────────────────────────────────────
@@ -470,6 +604,50 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
     patch.source_storage_path = next
   }
 
+  // ── THE CREATOR'S TIKTOK PUBLISHING CHOICES ───────────────────────────────────────────────
+  // Saved as a SET or not at all. TikTok requires the creator to choose privacy, interactions and
+  // disclosure themselves, so a partial save is not a half-made decision to be completed with
+  // assumptions — it is an incomplete one. The dialog always sends all three together.
+  //
+  // Nothing here supplies a value the caller did not send. An absent key leaves the column alone;
+  // an explicit null clears all three, which is how a post returns to "no decision made".
+  if ("tiktokSettings" in body) {
+    // THERE IS NOWHERE TO PUT THIS DECISION YET, so refusing is the only honest answer. Dropping
+    // the three keys and saving the rest would report a save that did not happen, and supplying a
+    // default would replace a creator's own choice with ours — the one thing this block exists to
+    // prevent. The dialog sends all three together, so one refusal covers the whole decision.
+    if (!TIKTOK_SETTINGS_COLUMNS) {
+      return NextResponse.json({
+        error: "tiktok_settings_unavailable",
+        detail: "TikTok publishing settings cannot be saved yet: the columns that hold them stay out of the database until the Content Posting API audit completes.",
+      }, { status: 503 })
+    }
+    const ts = body.tiktokSettings as
+      | { privacyLevel?: unknown; allowedInteractions?: unknown; disclosure?: unknown }
+      | null
+    if (ts === null) {
+      patch.tiktok_privacy_level = null
+      patch.tiktok_allowed_interactions = null
+      patch.tiktok_disclosure = null
+    } else {
+      const privacy = typeof ts?.privacyLevel === "string" ? ts.privacyLevel : null
+      const disclosure = typeof ts?.disclosure === "string" ? ts.disclosure : null
+      const interactions = normaliseInteractions(ts?.allowedInteractions)
+      if (!privacy || !(TIKTOK_PRIVACY_LEVELS as readonly string[]).includes(privacy)) {
+        return NextResponse.json({ error: "bad_tiktok_privacy_level" }, { status: 400 })
+      }
+      if (!disclosure || !(TIKTOK_DISCLOSURES as readonly string[]).includes(disclosure)) {
+        return NextResponse.json({ error: "bad_tiktok_disclosure" }, { status: 400 })
+      }
+      if (interactions === null) {
+        return NextResponse.json({ error: "bad_tiktok_interactions" }, { status: 400 })
+      }
+      patch.tiktok_privacy_level = privacy
+      patch.tiktok_allowed_interactions = interactions
+      patch.tiktok_disclosure = disclosure
+    }
+  }
+
   // ── RENDER INVALIDATION — CHANGE-BASED, NOT KEY-PRESENCE-BASED ────────────────────────────
   // The editor posts every composer field on every save, so "the key is present" was true for a
   // schedule-only or caption-only edit and silently threw away a valid MP4. Compare what is about
@@ -482,6 +660,21 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
     // it survive an edit would leave a post looking signed-off that nobody has actually reviewed —
     // the precise failure the approval flag exists to prevent. (The database enforces the same
     // thing on re-render; this covers the edit that precedes it.)
+    patch.approved_at = null
+  }
+
+  // ── PUBLISH INVALIDATION — RE-APPROVE, BUT DO NOT RE-RENDER ───────────────────────────────
+  // Changing privacy from Private to Public changes no pixels, so invalidating the render would
+  // discard a good MP4 and force a re-approval of a video nothing happened to. But approval was of
+  // "this video, posted THIS WAY", so changing how it will be posted must still un-approve it.
+  //
+  // render_status is deliberately untouched here. That asymmetry with the block above is the whole
+  // reason the two sets of columns are separate.
+  //
+  // Placed BEFORE the approval block for the same reason render invalidation is: approving and
+  // changing the settings in one request must not approve settings this very request changed.
+  const publishChanged = publishAffectingChanges(stored, patch)
+  if (publishChanged.length > 0) {
     patch.approved_at = null
   }
 
@@ -535,6 +728,39 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
         error: "not_approved",
         detail: "This post has not been approved. Approve it before scheduling.",
       }, { status: 409 })
+    }
+    // ── TIKTOK SETTINGS GATE ────────────────────────────────────────────────────────────────
+    // Same shape and the same reason as the approval gate above: scheduling is the real entrance
+    // to publishing, and an unattended TikTok post can only be compliant if it replays choices a
+    // creator actually made. Read FRESH and merged with this request's own patch, so saving the
+    // settings and scheduling in one call works, while scheduling a post whose settings were
+    // cleared since the request began does not.
+    const destNow = (patch.destination ?? stored?.destination) as string | null
+    if (destNow === "tiktok_video") {
+      // Without the columns there is no stored decision to replay, which is exactly what this gate
+      // refuses — so it answers with the same 409 it always did, reached without running a query
+      // that would fail on a column PostgREST cannot find.
+      if (!TIKTOK_SETTINGS_COLUMNS) {
+        return NextResponse.json({
+          error: "tiktok_settings_required",
+          detail: "TikTok scheduling is unavailable until the Content Posting API audit completes and publishing settings can be stored.",
+        }, { status: 409 })
+      }
+      const { data: setRow } = await supabase
+        .from("social_posts")
+        .select("tiktok_privacy_level, tiktok_allowed_interactions, tiktok_disclosure")
+        .eq("id", id)
+        .maybeSingle()
+      const merged = { ...((setRow ?? {}) as Record<string, unknown>) }
+      for (const col of ["tiktok_privacy_level", "tiktok_allowed_interactions", "tiktok_disclosure"]) {
+        if (col in patch) merged[col] = patch[col]
+      }
+      if (!hasCompleteTikTokSettings(merged)) {
+        return NextResponse.json({
+          error: "tiktok_settings_required",
+          detail: "This TikTok post has no saved publishing settings. Open Post to TikTok, choose privacy, interactions and disclosure, and use Save for Scheduling.",
+        }, { status: 409 })
+      }
     }
     patch.scheduled_at = when.toISOString()
     patch.status = "scheduled"

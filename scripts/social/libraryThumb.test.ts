@@ -199,8 +199,8 @@ console.log("\n7. the tile's enlarged preview replaces native fullscreen without
   ok("the tile makes no network request", !/fetch\(/.test(thumbCode))
   ok("the tile touches no storage", !/\.storage\b/.test(thumbCode))
   ok("the tile calls no render or publish endpoint", !/\/api\//.test(thumbCode))
-  ok("its only state is local playback, paused and expansion",
-    (thumbCode.match(/useState/g) ?? []).length === 3)
+  ok("its only state is local playback, paused, expansion and its own duration",
+    (thumbCode.match(/useState/g) ?? []).length === 4)
 
   // The shared lightbox's own guarantees, since the tile now depends on them.
   const lb = read("components/crm/social/VideoLightbox.tsx")

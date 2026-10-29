@@ -128,6 +128,11 @@ export default function TikTokPostConfirm({ postId, open, onClose }: { postId: s
   const tooLong = data ? data.durationOk === false : false
   const postBlocked = disclosureIncomplete || !privacy || tooLong
 
+  const [savingSettings, setSavingSettings] = useState(false)
+  const [saved, setSaved] = useState(false)
+  const [saveError, setSaveError] = useState<string | null>(null)
+  /** Set after a save, because the server clears approved_at when these settings change. */
+  const [needsReapproval, setNeedsReapproval] = useState(false)
   const [posting, setPosting] = useState(false)
   const [result, setResult] = useState<{ publishId: string; status: string; failReason: string | null } | null>(null)
   const [statusBusy, setStatusBusy] = useState(false)
@@ -192,6 +197,52 @@ export default function TikTokPostConfirm({ postId, open, onClose }: { postId: s
       setError("Couldn't render this post.")
     } finally {
       setRendering(false)
+    }
+  }
+
+  /**
+   * SAVE FOR SCHEDULING — the same controls, recorded instead of posted.
+   *
+   * A scheduled TikTok post publishes with nobody present, and the guidelines require the creator
+   * to have chosen privacy, interactions and disclosure themselves. Rather than build a second
+   * settings screen that could drift from this one, the dialog that already collects those
+   * choices compliantly saves them. One set of controls, one set of rules.
+   *
+   * The same validation gates the save that gates the post: no privacy chosen, or disclosure on
+   * with neither box ticked, and there is nothing to save.
+   */
+  const doSaveForScheduling = async () => {
+    if (postBlocked || savingSettings) return
+    setSavingSettings(true)
+    setSaveError(null)
+    setSaved(false)
+    try {
+      const allowedInteractions = [
+        ...(allowComment ? ["comment"] : []),
+        ...(allowDuet ? ["duet"] : []),
+        ...(allowStitch ? ["stitch"] : []),
+      ]
+      const disclosure = !disclosureOn
+        ? "none"
+        : yourBrand && brandedContent ? "both"
+        : brandedContent ? "branded_content"
+        : yourBrand ? "your_brand"
+        : "none"
+      const res = await fetch(`/api/admin/social-autopilot/posts/${postId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ tiktokSettings: { privacyLevel: privacy, allowedInteractions, disclosure } }),
+      })
+      if (!res.ok) throw new Error("save failed")
+      setSaved(true)
+      // Saving CHANGED settings clears approved_at server-side, so the post needs re-approval
+      // before it can be scheduled. Saying so here is the point: a silent un-approval is how a
+      // post sits unscheduled and nobody knows why.
+      setNeedsReapproval(true)
+    } catch {
+      setSaveError("Couldn't save these settings. Please try again.")
+    } finally {
+      setSavingSettings(false)
     }
   }
 
@@ -410,8 +461,32 @@ export default function TikTokPostConfirm({ postId, open, onClose }: { postId: s
                 </div>
               )}
 
+              {saveError && <div className="text-[11px] text-red-600 dark:text-red-400">{saveError}</div>}
+              {/* RE-APPROVAL NOTICE. Saving changed settings clears approved_at on the server,
+                  which silently un-schedules the post. Saying so here is the difference between
+                  a safeguard and a mystery. */}
+              {saved && (
+                <div className="rounded-lg border border-amber-500/40 bg-amber-500/10 px-2.5 py-2 text-[11.5px] text-amber-700 dark:text-amber-300">
+                  <span className="font-semibold">Publishing settings saved.</span>{" "}
+                  {needsReapproval
+                    ? "Because these settings changed, this post needs to be approved again before it can be scheduled. Its video is unaffected — no re-render is needed."
+                    : "This post can now be scheduled."}
+                </div>
+              )}
+
               <div className="flex items-center justify-end gap-2 pt-1">
                 <button type="button" className={btn} onClick={onClose}>Cancel</button>
+                {/* The same choices, recorded rather than posted. Blocked by the same validation
+                    as Post, so an incomplete decision cannot be saved either. */}
+                <button
+                  type="button"
+                  className={btn}
+                  disabled={savingSettings || postBlocked}
+                  onClick={() => void doSaveForScheduling()}
+                  title="Save these choices so a scheduled post can use them"
+                >
+                  {savingSettings ? "Saving…" : "Save for Scheduling"}
+                </button>
                 <button type="button" className={btnPrimary} disabled={posting || postBlocked} onClick={() => void doPost()}>{posting ? "Posting…" : "Post to TikTok"}</button>
               </div>
             </div>

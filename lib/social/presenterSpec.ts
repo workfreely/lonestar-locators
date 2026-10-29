@@ -163,10 +163,34 @@ export function decoderForPresenterClip(filePath: string): string | null {
   return null
 }
 
-export type PresenterPlan = {
-  /** ffmpeg input index this clip was appended at. */
+/** Which recording a presenter window is standing in for. */
+export type PresenterWindowKind = "hook" | "cta"
+
+/**
+ * ONE stretch of the finished video during which the avatar is on screen.
+ *
+ * It carries its own input index because the two windows may show DIFFERENT clips — a Look for the
+ * conversational intro and a different Look for the luxury CTA — and because the hook window's
+ * clip is lip-synced to the hook while the CTA window's is lip-synced to the CTA. A single shared
+ * index is exactly the shortcut that would put one mouth on both recordings.
+ */
+export type PresenterWindow = {
+  kind: PresenterWindowKind
+  /** ffmpeg input index of the avatar clip shown in THIS window. */
   inputIndex: number
+  startSeconds: number
+  endSeconds: number
+}
+
+export type PresenterPlan = {
+  /** ffmpeg input index of the FIRST (hook) clip. Retained because the renderer and its tests
+   *  read it as "the presenter's input"; per-window indices live on `windows`. */
+  inputIndex: number
+  /** Length of the hook window. The slider's value when no recording drives it, the recording's
+   *  own duration when one does. */
   introSeconds: number
+  /** Every stretch the avatar is visible, in time order. Always at least the hook window. */
+  windows: PresenterWindow[]
   side: PresenterSide
   xPx: number
   widthPx: number
@@ -174,8 +198,33 @@ export type PresenterPlan = {
   fadeSeconds: number
 }
 
+/**
+ * HOW LONG THE AVATAR STANDS THERE DURING THE INTRO.
+ *
+ * Two different questions wear one name here, and keeping them apart is the whole of requirement 3:
+ *
+ *   a recording drives the window   -> the window IS the recording. A 4.42s hook gets 4.42s of
+ *                                      avatar, because anything shorter cuts the figure off
+ *                                      mid-sentence and anything longer leaves it miming silence.
+ *   nothing drives the window       -> the operator's Intro slider, clamped to 3-5s exactly as
+ *                                      before. This is the only path any existing post takes, so
+ *                                      every post rendered before this change still renders the
+ *                                      same frames.
+ *
+ * The 3-5s clamp therefore survives untouched for the case it was written for, and simply stops
+ * being consulted for the case it was wrong about.
+ */
+function hookWindowSeconds(input: { introSeconds?: number | null; voiceHookSeconds?: number | null }): number {
+  const v = input.voiceHookSeconds
+  if (typeof v === "number" && Number.isFinite(v) && v > 0) return v
+  return clampIntroSeconds(input.introSeconds)
+}
+
 export function buildPresenterPlan(input: {
-  inputIndex: number
+  /** ffmpeg input index of the INTRO avatar clip. Null ⇒ no intro window — which happens when the
+   *  intro recording has no lip-synced clip but the CTA does. Suppressing a verified CTA avatar
+   *  because the intro's was missing would punish the half that is correct. */
+  inputIndex: number | null
   introSeconds?: number | null
   /** Operator overrides. Both omitted ⇒ the approved default: lower-LEFT at the default width. */
   side?: string | null
@@ -186,13 +235,48 @@ export function buildPresenterPlan(input: {
    *  editor or database sets this — a second overlay path is how a correct fix once got silently
    *  defeated for a whole release, so candidates go through this one path too. */
   bottomInsetPxOverride?: number | null
+  /**
+   * ── THE VOICE WINDOWS, WHEN THE PRESENTER IS SYNCED TO RECORDINGS ───────────────────────
+   * Both come from computeVoiceWindows in voiceFit.ts — the SAME function that places the hook
+   * and CTA audio on the timeline. That is deliberate and is what makes "the avatar is on screen
+   * exactly while the voice is speaking" true by construction rather than by two calculations
+   * agreeing. Nothing here re-derives a start or an end.
+   */
+  voiceHookSeconds?: number | null
+  ctaWindow?: { startSeconds: number; endSeconds: number } | null
+  /** Input index of the clip lip-synced to the CTA. Null ⇒ no CTA window, whatever ctaWindow says:
+   *  a window with no matched clip would show the hook's mouth saying the CTA's words. */
+  ctaInputIndex?: number | null
 }): PresenterPlan {
   const platform = input.platform ?? "instagram"
   const side = normalizeSide(input.side)
   const widthPx = clampWidthPx(input.widthPx)
+  const introSeconds = hookWindowSeconds(input)
+
+  const windows: PresenterWindow[] = []
+  if (typeof input.inputIndex === "number") {
+    windows.push({ kind: "hook", inputIndex: input.inputIndex, startSeconds: 0, endSeconds: introSeconds })
+  }
+  // THE CTA WINDOW IS ADDITIVE AND CONDITIONAL. It needs a window, a clip of its own, a positive
+  // length, and a start at or after the hook window's end. The last condition cannot fail by way
+  // of the renderer — voiceClipsFit already refuses a pair that overlaps — but this module is also
+  // called by the editor preview and by tests, and two overlays compositing the same figure at two
+  // offsets is not a failure anyone would see in a filter string.
+  const cta = input.ctaWindow
+  if (cta && typeof input.ctaInputIndex === "number"
+      && Number.isFinite(cta.startSeconds) && Number.isFinite(cta.endSeconds)
+      && cta.endSeconds > cta.startSeconds
+      // Clear of the intro window when there is one; from t=0 when there is not.
+      && cta.startSeconds >= (windows.length ? introSeconds : 0)) {
+    windows.push({ kind: "cta", inputIndex: input.ctaInputIndex, startSeconds: cta.startSeconds, endSeconds: cta.endSeconds })
+  }
+
   return {
-    inputIndex: input.inputIndex,
-    introSeconds: clampIntroSeconds(input.introSeconds),
+    // The first clip's index, which is the intro's when there is one. Kept because the renderer
+    // and its tests read it as "the presenter's input".
+    inputIndex: windows[0]?.inputIndex ?? input.inputIndex ?? input.ctaInputIndex ?? 0,
+    introSeconds,
+    windows,
     side,
     xPx: presenterXPx(side, widthPx, platform),
     widthPx,
@@ -202,22 +286,73 @@ export function buildPresenterPlan(input: {
 }
 
 /**
- * The presenter's two filter nodes, composited onto `[bg]` and emitting `outLabel`.
+ * The presenter's filter nodes, composited onto `[bg]` and emitting `outLabel`.
  *
  *   scale      width-driven, `-2` keeps the clip's own aspect and an even height (x264 needs it)
  *   format     yuva420p — makes the alpha channel explicit before anything consumes it
  *   fade       alpha=1 is the whole point: without it the clip fades to BLACK, i.e. a dark
  *              rectangle grows where the avatar was. With it, the avatar dissolves.
- *   overlay    bottom-anchored; `enable` stops compositing once the fade has completed, and
- *              eof_action=pass keeps the walkthrough running after the short avatar clip ends —
- *              without it ffmpeg would end the whole video when the avatar does.
+ *   overlay    bottom-anchored; `enable` gates the window, and eof_action=pass keeps the
+ *              walkthrough running after the short avatar clip ends — without it ffmpeg would end
+ *              the whole video when the avatar does.
+ *
+ * ── ONE WINDOW EMITS THE ORIGINAL STRING, CHARACTER FOR CHARACTER ───────────────────────────
+ * The single-window branch below is the pre-CTA code, unedited. Every post that does not pair a
+ * presenter with a CTA therefore produces the identical filter graph, and so the identical frames,
+ * that it produced before this feature existed — which is the only way to claim the hook behaviour
+ * was preserved rather than re-implemented and spot-checked.
  */
 export function buildPresenterFilter(plan: PresenterPlan, outLabel: string): string {
-  const fadeStart = Math.max(0, plan.introSeconds - plan.fadeSeconds)
-  const pres = `[${plan.inputIndex}:v]scale=${plan.widthPx}:-2,format=yuva420p,` +
-    `fade=t=out:st=${fadeStart.toFixed(3)}:d=${plan.fadeSeconds.toFixed(3)}:alpha=1,` +
-    `setpts=PTS-STARTPTS[pres]`
-  const comp = `[bg][pres]overlay=x=${plan.xPx}:y=H-h-${plan.bottomInsetPx}:` +
-    `enable='lt(t,${plan.introSeconds.toFixed(3)})':eof_action=pass:shortest=0[${outLabel}]`
-  return `${pres};${comp}`
+  const [first, ...rest] = plan.windows
+  if (!first) return ""
+  if (!rest.length && first.kind === "hook") {
+    const fadeStart = Math.max(0, first.endSeconds - plan.fadeSeconds)
+    const pres = `[${first.inputIndex}:v]scale=${plan.widthPx}:-2,format=yuva420p,` +
+      `fade=t=out:st=${fadeStart.toFixed(3)}:d=${plan.fadeSeconds.toFixed(3)}:alpha=1,` +
+      `setpts=PTS-STARTPTS[pres]`
+    const comp = `[bg][pres]overlay=x=${plan.xPx}:y=H-h-${plan.bottomInsetPx}:` +
+      `enable='lt(t,${first.endSeconds.toFixed(3)})':eof_action=pass:shortest=0[${outLabel}]`
+    return `${pres};${comp}`
+  }
+
+  // ── TWO WINDOWS ───────────────────────────────────────────────────────────────────────────
+  // One decode per distinct clip. When both windows show the same Look the stream is SPLIT rather
+  // than decoded twice: VP9-with-alpha is the most expensive thing in this graph, and decoding a
+  // second copy of the same file to composite it at a different time is pure waste.
+  const parts: string[] = []
+  // Only meaningful with two or more windows; `split=1` for a lone window would be noise.
+  const sameClip = plan.windows.length > 1 && plan.windows.every((w) => w.inputIndex === plan.windows[0].inputIndex)
+  const head = (i: number) =>
+    sameClip ? `[psrc${i}]` : `[${plan.windows[i].inputIndex}:v]scale=${plan.widthPx}:-2,format=yuva420p,`
+  if (sameClip) {
+    parts.push(`[${plan.windows[0].inputIndex}:v]scale=${plan.widthPx}:-2,format=yuva420p,` +
+      `split=${plan.windows.length}${plan.windows.map((_, i) => `[psrc${i}]`).join("")}`)
+  }
+
+  plan.windows.forEach((w, i) => {
+    const lengthSeconds = w.endSeconds - w.startSeconds
+    const fadeStart = Math.max(0, lengthSeconds - plan.fadeSeconds)
+    // ORDER MATTERS. `fade` is measured on the clip's OWN timeline — st=0 is the clip's first
+    // frame — so the dissolve is computed against the window's length and the window's position is
+    // applied afterwards. Shifting first and fading second would put the fade at the wrong second
+    // for every window that does not start at zero, which is every CTA window.
+    const shift = w.startSeconds > 0 ? `+${w.startSeconds.toFixed(3)}/TB` : ""
+    parts.push(`${head(i)}fade=t=out:st=${fadeStart.toFixed(3)}:d=${plan.fadeSeconds.toFixed(3)}:alpha=1,` +
+      `setpts=PTS-STARTPTS${shift}[pres_${w.kind}]`)
+  })
+
+  // Chained overlays, in time order, each gating its own window. `between` is inclusive at both
+  // ends; the hook window keeps `lt` so a hook-only graph and the hook half of a two-window graph
+  // gate identically.
+  let inLabel = "bg"
+  plan.windows.forEach((w, i) => {
+    const out = i === plan.windows.length - 1 ? outLabel : `pres_stage${i}`
+    const enable = w.startSeconds > 0
+      ? `between(t,${w.startSeconds.toFixed(3)},${w.endSeconds.toFixed(3)})`
+      : `lt(t,${w.endSeconds.toFixed(3)})`
+    parts.push(`[${inLabel}][pres_${w.kind}]overlay=x=${plan.xPx}:y=H-h-${plan.bottomInsetPx}:` +
+      `enable='${enable}':eof_action=pass:shortest=0[${out}]`)
+    inLabel = out
+  })
+  return parts.join(";")
 }

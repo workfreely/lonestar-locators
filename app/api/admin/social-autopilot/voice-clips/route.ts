@@ -16,18 +16,35 @@ export async function GET() {
   const { supabase } = guard
   const { data, error } = await supabase
     .from("social_voice_clips")
-    .select("id, clip_type, name, storage_path, duration_seconds, created_at")
+    .select("id, clip_type, name, storage_path, normalized_storage_path, duration_seconds, duration_original, category, cta_keyword, created_at")
     .order("created_at", { ascending: false })
   if (error) return NextResponse.json({ error: "list_failed" }, { status: 500 })
   const clips = await Promise.all(
     (data ?? []).map(async (r: Record<string, unknown>) => {
       let previewUrl: string | null = null
-      const path = typeof r.storage_path === "string" ? r.storage_path : null
+      // THE SAME FILE THE RENDER WILL USE. The live audio preview plays this URL against the
+      // video, so it has to be the normalised derivative wherever the renderer takes one —
+      // otherwise the preview would show a balance the finished file does not have. Falls back
+      // to the original for anything imported before normalisation, exactly as renderPost does.
+      const path = typeof r.normalized_storage_path === "string" && r.normalized_storage_path
+        ? r.normalized_storage_path
+        : typeof r.storage_path === "string" ? r.storage_path : null
       if (path) {
         const { data: signed } = await supabase.storage.from("social-media").createSignedUrl(path, SIGNED_URL_TTL)
         previewUrl = signed?.signedUrl ?? null
       }
-      return { id: r.id, clipType: r.clip_type, name: r.name, durationSeconds: r.duration_seconds, previewUrl, createdAt: r.created_at }
+      // THE MEASURED LENGTH WHEN THERE IS ONE. duration_seconds is whole seconds, rounded at
+      // upload — fine as a label, wrong as arithmetic: a 4.07s hook and a 5.27s CTA round to 5
+      // and 6, and 5 + 6 does not fit in a 10.3s video while 4.07 + 5.27 comfortably does. The
+      // editor's overlap check does that sum, so it needs the real number.
+      const measured = Number(r.duration_original)
+      const durationSeconds = Number.isFinite(measured) && measured > 0 ? measured : r.duration_seconds
+      // category and cta_keyword ride along for the presenter's Look RECOMMENDATION. Both are
+      // already classified on every imported recording, so this adds two columns to a query that
+      // was running anyway rather than a second request or a second classification.
+      return { id: r.id, clipType: r.clip_type, name: r.name, durationSeconds, previewUrl,
+        category: (r.category as string | null) ?? null, ctaKeyword: (r.cta_keyword as string | null) ?? null,
+        createdAt: r.created_at }
     }),
   )
   return NextResponse.json({ clips })

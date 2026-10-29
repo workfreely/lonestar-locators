@@ -75,7 +75,12 @@ console.log("\nCreate Variation is preserved and still reachable:")
 console.log("\nThe render path itself is UNCHANGED by this pass:")
 {
   const render = stripComments(read("lib/social/renderVideo.ts"))
-  ok("duck level 0.2 and ramp 0.25s untouched", /duckLevel: 0\.2, rampSeconds: 0\.25/.test(render))
+  // VOICE_MIX moved to lib/social/voiceFit.ts so the browser's live audio preview can read the
+  // same numbers; renderVideo re-exports it, so every caller is unchanged. The VALUES are what
+  // this guards, wherever they live.
+  ok("duck level 0.2 and ramp 0.25s untouched",
+    /duckLevel: 0\.2, rampSeconds: 0\.25/.test(readFileSync("lib/social/voiceFit.ts", "utf8")))
+  ok("…and the renderer still exports them under the same name", /export \{ voiceClipsFit, VOICE_MIX/.test(render))
   ok("amix still normalize=0", /normalize=0/.test(render))
   ok("mix still pinned to the video duration", /apad,atrim=end=/.test(render))
   // The render body now lives in lib/social/renderPost.ts — ONE implementation shared by the
