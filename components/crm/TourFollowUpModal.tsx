@@ -177,7 +177,12 @@ export default function TourFollowUpModal({
 
   return (
     <div className="fixed inset-0 z-[10000] flex items-center justify-center bg-black/40 px-4 backdrop-blur-sm">
-      <div className="flex max-h-[88vh] w-full max-w-[400px] flex-col overflow-hidden rounded-2xl bg-[var(--crm-panel)] shadow-2xl">
+      {/* 540px is measured, not chosen. The heading gets whatever the padding
+          (42.5px), the gap (12.75px) and the close button (30px) leave it: 454.75px.
+          "2nd Tour Follow-Up · Tin Top Flats at the Creamery" renders 435px wide at
+          18px bold, so it sits on one line with ~20px to spare. A longer name
+          truncates with an ellipsis — the heading never wraps. */}
+      <div className="flex max-h-[88vh] w-full max-w-[540px] flex-col overflow-hidden rounded-2xl bg-[var(--crm-panel)] shadow-2xl">
         {/* Header */}
         <div className="flex items-start justify-between gap-3 border-b border-[var(--crm-border)] px-5 py-4">
           <div className="min-w-0">
@@ -200,21 +205,18 @@ export default function TourFollowUpModal({
         </div>
 
         <div className="space-y-4 overflow-y-auto px-5 py-4">
-          {/* STATUS — the six canonical outcomes in their exact declared order,
-              filled row-major so reading order is unchanged by the two columns:
+          {/* STATUS — Waiting for Reply first, spanning both columns: after a
+              confirmed send it is the usual answer, and it is the one option that
+              records no decision, so it reads before the six that do. The six
+              canonical outcomes follow in their exact declared order, filled
+              row-major so the two columns do not reorder them:
+                Waiting for Reply  ← spans both
                 Ready to Apply   Still Deciding
-                Wants Another…   Didn't Like It
-                Didn't Tour      Other
-              Waiting for Reply is NOT one of them and spans both columns below. */}
+                Touring Again    Didn't Like It
+                Didn't Tour      Other */}
           <div className="space-y-2.5">
             <p className="text-[12.5px] font-semibold uppercase tracking-[0.1em] text-[var(--crm-text-secondary)]">{tourFollowUpQuestion(rung)}</p>
             <div className="grid grid-cols-2 gap-2">
-              {TOUR_OUTCOMES.map((o) => (
-                <button key={o} type="button" aria-pressed={pending === o} className={outcomeBtn(pending === o)} onClick={() => pick(o)}>
-                  <Dot on={pending === o} />
-                  <span className="min-w-0 leading-tight sm:whitespace-nowrap">{labelFor(o)}</span>
-                </button>
-              ))}
               <button
                 type="button"
                 aria-pressed={pending === WAITING_FOR_REPLY}
@@ -224,6 +226,12 @@ export default function TourFollowUpModal({
                 <Dot on={pending === WAITING_FOR_REPLY} />
                 <span className="min-w-0 leading-tight sm:whitespace-nowrap">Waiting for Reply</span>
               </button>
+              {TOUR_OUTCOMES.map((o) => (
+                <button key={o} type="button" aria-pressed={pending === o} className={outcomeBtn(pending === o)} onClick={() => pick(o)}>
+                  <Dot on={pending === o} />
+                  <span className="min-w-0 leading-tight sm:whitespace-nowrap">{labelFor(o)}</span>
+                </button>
+              ))}
             </div>
           </div>
 

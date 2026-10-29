@@ -123,7 +123,7 @@ export function nextTourFollowUpKey(rows: readonly TourFollowUpRow[]): TourFollo
  */
 export const TOUR_FOLLOW_UP_SMS: Record<TourFollowUpKey, (name: string) => string> = {
   tour_follow_up: (name) => `Hey ${name}! How did the tours go? Hopefully everything went well!`,
-  tour_follow_up_2: (name) => `Hey ${name}! How did the other tours go? Did any stand out?`,
+  tour_follow_up_2: (name) => `Hey ${name}! How did the other tours go? Did any of them seem like a good fit?`,
   tour_follow_up_3: (name) => `Hey ${name}! Do you think any of them might be the one?`,
 };
 

@@ -41,7 +41,7 @@ eq(TOUR_FOLLOW_UP_SMS.tour_follow_up("Ka'Leah"),
   "Hey Ka'Leah! How did the tours go? Hopefully everything went well!",
   "rung 1 renders the exact approved template with the first name")
 eq(TOUR_FOLLOW_UP_SMS.tour_follow_up_2("Ka'Leah"),
-  "Hey Ka'Leah! How did the other tours go? Did any stand out?",
+  "Hey Ka'Leah! How did the other tours go? Did any of them seem like a good fit?",
   "rung 2 renders the exact approved template")
 eq(TOUR_FOLLOW_UP_SMS.tour_follow_up_3("Ka'Leah"),
   "Hey Ka'Leah! Do you think any of them might be the one?",
@@ -162,7 +162,7 @@ ok(!("isTourFollowUpSendAction" in shared), "the send/confirm claim on rungs 2-3
 ok(!/isTourFollowUpSendAction/.test(readFileSync("packages/companion-shared/src/leads/tourFollowUp.ts", "utf8")),
   "…removed at the source, not just unexported")
 eq(buildTourFollowUpSmsBody("2nd Tour Follow-Up", "Ka'Leah"),
-  "Hey Ka'Leah! How did the other tours go? Did any stand out?",
+  "Hey Ka'Leah! How did the other tours go? Did any of them seem like a good fit?",
   "the builder renders rung 2 from its title")
 eq(buildTourFollowUpSmsBody("Setup Tour", "Ka'Leah"), "",
   "the builder returns empty for a non-rung, like the contact builder")

@@ -235,7 +235,7 @@ console.log("\n5. PER-PROPERTY:")
 // ── 6. The templates, and the Companion's composer ─────────────────────────
 console.log("\n6. TEMPLATES — the three approved messages, preserved:")
 eq("1st", TOUR_FOLLOW_UP_SMS.tour_follow_up("Ka'Leah"), "Hey Ka'Leah! How did the tours go? Hopefully everything went well!")
-eq("2nd", TOUR_FOLLOW_UP_SMS.tour_follow_up_2("Ka'Leah"), "Hey Ka'Leah! How did the other tours go? Did any stand out?")
+eq("2nd", TOUR_FOLLOW_UP_SMS.tour_follow_up_2("Ka'Leah"), "Hey Ka'Leah! How did the other tours go? Did any of them seem like a good fit?")
 eq("3rd", TOUR_FOLLOW_UP_SMS.tour_follow_up_3("Ka'Leah"), "Hey Ka'Leah! Do you think any of them might be the one?")
 eq("resolved from the stored title too", buildTourFollowUpSmsBody("3rd Tour Follow-Up", "Ka'Leah"), TOUR_FOLLOW_UP_SMS.tour_follow_up_3("Ka'Leah"))
 eq("and empty for a non-rung, the same contract as the contact builder", buildTourFollowUpSmsBody("Setup Tour", "Ka'Leah"), "")
@@ -533,7 +533,13 @@ console.log("\n9. WAITING FOR REPLY:")
   // control. Nothing about the statuses, the keys or the workflow is conditional.
   ok("no outcome label is truncated any more", !/truncate">\{labelFor|truncate">Waiting/.test(modal))
   ok("…and above sm each sits on one line", (modal.match(/leading-tight sm:whitespace-nowrap/g) ?? []).length === 2)
-  ok("the modal was widened just enough, not made wide", /max-w-\[400px\]/.test(modal))
+  // 540px is the measured fit for the longest real header, not a round number.
+  ok("the modal is the measured width", /max-w-\[540px\]/.test(modal))
+  ok("…and the heading still truncates rather than wrapping", /truncate text-\[18px\] font-bold/.test(modal))
+  // Waiting for Reply now reads FIRST, and must still not come from the six.
+  ok("Waiting for Reply is rendered before the outcome list",
+    modal.indexOf("pick(WAITING_FOR_REPLY)") < modal.indexOf("TOUR_OUTCOMES.map((o) =>"))
+  ok("…and both indexes are real, not -1", modal.indexOf("pick(WAITING_FOR_REPLY)") > 0 && modal.indexOf("TOUR_OUTCOMES.map((o) =>") > 0)
   ok("quick-date labels can never wrap", /flex-1 basis-auto whitespace-nowrap/.test(modal))
   eq("below sm exactly the three day shortcuts are hidden", (modal.match(/hidden sm:block/g) ?? []).length, 3)
   ok("…and Pick a Date… is the one date control that is never hidden",
