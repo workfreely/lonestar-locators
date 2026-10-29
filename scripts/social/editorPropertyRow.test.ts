@@ -98,5 +98,39 @@ const areaOnChange = editor.match(/<AreaSelect[\s\S]{0,400}?\/>/)?.[0] ?? ""
 ok("changing it does NOT trigger caption/overlay regeneration", !/syncGenerated/.test(areaOnChange))
 ok("it is still labelled internal in the editor, as on the upload screens", /Neighborhood[\s\S]{0,160}?· internal/.test(editor))
 
+console.log("\nPROPERTY vs TITLE — the match survives a title edit:")
+// A unit number typed into the property field used to call onChange, which cleared place_id; the
+// video silently unmatched and Building Type (gated on place_id) greyed out with "Match a property
+// first". The two are now separate controls, and the ONLY paths that move place_id are selecting a
+// suggestion and the explicit Change.
+const matchedCell = editor.match(/<span className=\{fieldLabel\}>Matched Property<\/span>[\s\S]{0,4000}?<\/label>/)?.[0] ?? ""
+ok("the matched property is shown read-only, not as a typable field",
+  /readOnly/.test(matchedCell) && /\{placeId \? \(/.test(matchedCell))
+ok("…with a Change button that is the explicit unmatch",
+  /Change\s*<\/button>/.test(matchedCell) && /onClick=\{\(\) => \{ setPlaceId\(""\); setAddress\(null\) \}\}/.test(matchedCell))
+ok("…and the address, so it is clear which building research is written to",
+  /\{address\}/.test(matchedCell))
+ok("free-text entry survives for an unmatched property", /<PropertySearchField/.test(matchedCell))
+ok("…and typing still only clears a match that is already absent",
+  /matched=\{false\}/.test(matchedCell))
+
+const titleCell = editor.match(/<span className=\{fieldLabel\}>Video Title<\/span>[\s\S]{0,1200}?<\/label>/)?.[0] ?? ""
+ok("Video Title is its own field", titleCell.length > 0 && /value=\{displayName\}/.test(titleCell))
+ok("…it never touches place_id", !/setPlaceId/.test(titleCell))
+ok("…it does not regenerate copy either", !/syncGenerated/.test(titleCell))
+ok("…and it warns that editing freezes auto-naming",
+  /stops it\s+updating automatically/.test(titleCell))
+ok("it reads the display_name the GET already returns", /setDisplayName\(p\.source\?\.displayName \?\? ""\)/.test(editor))
+// The content PATCH sets name_customized = true for ANY displayName it receives, so sending it
+// unconditionally would freeze every video's auto-naming on the first unrelated save.
+ok("displayName is sent ONLY when the operator changed it",
+  /displayName !== loadedDisplayName\.current \? \{ displayName \} : \{\}/.test(editor))
+ok("…and the server still marks a received title customized", /patch\.name_customized = true/.test(patchRoute))
+ok("…while an untouched title keeps regenerating from property + market",
+  /cur\.name_customized !== true && \("propertyName" in body \|\| "market" in body\)/.test(patchRoute))
+ok("Building Type is still gated on the match, and nothing else", /disabled=\{!placeId \|\|/.test(editor))
+ok("no new column was invented — display_name and name_customized already existed",
+  /display_name/.test(patchRoute) && /name_customized/.test(patchRoute))
+
 console.log(`\nEditor property row: ${pass} passed, ${fail} failed`)
 process.exit(fail === 0 ? 0 : 1)

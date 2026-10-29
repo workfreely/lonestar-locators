@@ -340,6 +340,16 @@ export default function PostEditor({ postId, from }: { postId: string; from?: st
   const [safeArea, setSafeArea] = useState<"off" | "instagram" | "tiktok">("off")
   const [sourceContentId, setSourceContentId] = useState<string | null>(null)
   const [propertyName, setPropertyName] = useState("")
+  // VIDEO TITLE — social_content.display_name. The PROPERTY is place_id + property_name; this is
+  // what this one video is called, and it is where a unit number, a penthouse label or a
+  // "(Penthouses Showcase)" qualifier belongs. Keeping them apart is the whole point: a qualifier
+  // typed into the property field used to clear the match, which disabled Building Type.
+  //
+  // loadedDisplayName is the value the server sent. patchSource sends displayName ONLY when it
+  // differs, because the content PATCH sets name_customized = true for ANY displayName it
+  // receives — sending it on every save would silently freeze every video's auto-naming.
+  const [displayName, setDisplayName] = useState("")
+  const loadedDisplayName = useRef("")
   const [propertyType, setPropertyType] = useState("")
   const [market, setMarket] = useState("")
   const [areaNeighborhood, setAreaNeighborhood] = useState("")
@@ -484,6 +494,8 @@ export default function PostEditor({ postId, from }: { postId: string; from?: st
       setScheduleVal(isoToLocalInput(p.scheduledAt))
       setSourceContentId(p.sourceContentId ?? null)
       setPropertyName(p.source?.propertyName ?? "")
+      setDisplayName(p.source?.displayName ?? "")
+      loadedDisplayName.current = p.source?.displayName ?? ""
       setPropertyType(p.source?.propertyType ?? "")
       setMarket(p.source?.market ?? "")
       setAreaNeighborhood(p.source?.areaNeighborhood ?? "")
@@ -601,10 +613,16 @@ export default function PostEditor({ postId, from }: { postId: string; from?: st
     const res = await fetch(`/api/admin/social-autopilot/content/${encodeURIComponent(sourceContentId)}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ propertyName, propertyType, market, areaNeighborhood, district, placeId, special, budgetRange: priceRange, priceLabelMode: priceMode, amenities }),
+      body: JSON.stringify({
+        propertyName, propertyType, market, areaNeighborhood, district, placeId, special,
+        budgetRange: priceRange, priceLabelMode: priceMode, amenities,
+        // Only when the operator actually changed it — see loadedDisplayName.
+        ...(displayName !== loadedDisplayName.current ? { displayName } : {}),
+      }),
     })
+    if (res.ok) loadedDisplayName.current = displayName
     return res.ok
-  }, [sourceContentId, propertyName, propertyType, market, areaNeighborhood, district, placeId, special, priceRange, priceMode, amenities])
+  }, [sourceContentId, propertyName, displayName, propertyType, market, areaNeighborhood, district, placeId, special, priceRange, priceMode, amenities])
 
   const patch = useCallback(
     async (extra: Record<string, unknown>, successMsg: string | null) => {
@@ -1547,23 +1565,66 @@ export default function PostEditor({ postId, from }: { postId: string; from?: st
               Property / Building Name still takes the widest track and is still the cell that
               absorbs the squeeze — it holds a text INPUT, which scrolls, rather than a select,
               which simply truncates. */}
+          {/* VIDEO TITLE — its own full-width row ABOVE the four-track grid, so the measured
+              track widths below are untouched. This is social_content.display_name: what THIS
+              video is called in the Content Library, and the one place a unit number or a
+              qualifier belongs. It is independent of the matched property, so editing it can
+              never move place_id. */}
+          <label className="block">
+            <span className={fieldLabel}>Video Title</span>
+            <input
+              value={displayName}
+              onChange={(e) => setDisplayName(e.target.value)}
+              placeholder="e.g. The Drakestone Apartments Unit #1905"
+              className={`${control} mt-1`}
+            />
+            <span className="mt-1 block text-[10.5px] leading-snug text-[var(--crm-text-muted)]">
+              Unit numbers and labels go here, not in the property name. Editing this title stops it
+              updating automatically when the property or market changes.
+            </span>
+          </label>
           <div className="grid grid-cols-1 sm:grid-cols-[1.4fr_1.2fr_1.25fr_0.75fr] gap-3">
             <label className="block">
-              <span className={fieldLabel}>Property / Building Name</span>
-              <PropertySearchField
-                value={propertyName}
-                matched={!!placeId}
-                inputClassName={`${control} mt-1`}
-                placeholder="Search existing property or type…"
-                onChange={(v) => { setPropertyName(v); setPlaceId(""); setAddress(null) }}
-                onMatch={(m) => { setPropertyName(m.name); setPlaceId(m.placeId); setMarket((mk) => mk || detectMarket(m.address ?? "") || "") }}
-                onClearMatch={() => { setPlaceId(""); setAddress(null) }}
-              />
-              {/* Full street address of the matched property. Read-only and muted —
-                  nothing here is editable, and no row renders when the catalog has
-                  no address for this place. */}
-              {!!placeId && address && (
-                <div className="mt-1 text-[11px] leading-snug text-[var(--crm-text-muted)]">{address}</div>
+              <span className={fieldLabel}>Matched Property</span>
+              {/* MATCHED — the canonical property, read-only. Typing here used to clear place_id,
+                  so appending "Unit #1905" silently unmatched the video and disabled Building
+                  Type. The match now moves only by an explicit Change → reselect, and the unit
+                  number goes in Video Title beside it. The street address is shown so it is
+                  obvious WHICH building the shared research will be written to. */}
+              {placeId ? (
+                <div className="mt-1 space-y-1">
+                  <div className="flex items-center gap-2">
+                    <input
+                      value={propertyName}
+                      readOnly
+                      aria-label="Matched property"
+                      title="Matched property — press Change to pick a different one"
+                      className={`${control} cursor-default`}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => { setPlaceId(""); setAddress(null) }}
+                      className="flex-none rounded-lg border border-[var(--crm-border)] px-2.5 py-1.5 text-[12px] font-semibold text-[var(--crm-text-secondary)] transition-colors hover:bg-[var(--crm-card)]"
+                    >
+                      Change
+                    </button>
+                  </div>
+                  {address && (
+                    <div className="text-[11px] leading-snug text-[var(--crm-text-muted)]">{address}</div>
+                  )}
+                </div>
+              ) : (
+                /* UNMATCHED — unchanged. Free text still works, so a building Google does not
+                   know can still be named by hand, and selecting a suggestion matches it. */
+                <PropertySearchField
+                  value={propertyName}
+                  matched={false}
+                  inputClassName={`${control} mt-1`}
+                  placeholder="Search existing property or type…"
+                  onChange={(v) => { setPropertyName(v); setPlaceId(""); setAddress(null) }}
+                  onMatch={(m) => { setPropertyName(m.name); setPlaceId(m.placeId); setMarket((mk) => mk || detectMarket(m.address ?? "") || "") }}
+                  onClearMatch={() => { setPlaceId(""); setAddress(null) }}
+                />
               )}
               {/* Property Research TRIGGER — one line, under the "Matched property"
                   indicator PropertySearchField renders. The expanded PANEL is
