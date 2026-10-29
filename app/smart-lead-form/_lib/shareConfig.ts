@@ -32,7 +32,11 @@ export type SharePlatform = {
 // canonical "tiktok", which is what lib/leads/attribution.normalizeSource already expects.
 export const SHARE_PLATFORMS: SharePlatform[] = [
   { id: "instagram", label: "Instagram", utmSource: "instagram", slug: "ig" },
-  { id: "facebook", label: "Facebook", utmSource: "facebook", slug: "fb" },
+  // `free-search` is the PRIMARY slug — the one the Copy button hands out, for every locator. The
+  // older `fb` stays routable as an alias below, because links were already distributed under it.
+  // One button, two working URLs, one attribution value: utmSource never changed, so every
+  // Facebook report, funnel and historical lead is untouched.
+  { id: "facebook", label: "Facebook", utmSource: "facebook", slug: "free-search" },
   // ADMIN-ONLY. Routable like any other slug, but the public page 404s unless the username
   // resolves to ADMIN_WORKSPACE_ID, and the Share panel only renders it for that workspace.
   // Registered here so the clean URL and the attribution value cannot drift apart.
@@ -56,6 +60,11 @@ const EXTRA_SOURCE_SLUGS: { slug: string; utmSource: string }[] = [
   // button for the same destination would invite handing out the older URL again. It resolves and
   // attributes exactly like the primary slug, so links already shared keep working forever.
   { slug: "fb-second-chance", utmSource: "facebook_second_chance" },
+  // LEGACY ALIAS for the main Facebook form, replaced as the primary by `free-search`. Deliberately
+  // NOT a SHARE_PLATFORMS entry: a second Facebook button would invite handing out the older URL
+  // again. It resolves and attributes exactly like the primary slug, so every link already live in
+  // a Facebook post, group, bio or printed sheet keeps working forever.
+  { slug: "fb", utmSource: "facebook" },
 ]
 
 /**

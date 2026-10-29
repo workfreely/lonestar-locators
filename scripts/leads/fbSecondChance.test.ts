@@ -28,7 +28,9 @@ ok("the PRIMARY slug is second-chance-apts", scEntry?.slug === "second-chance-ap
 ok("the Copy button hands out the primary URL",
   buildCleanShareUrl("jay-morris", scEntry!.slug) === "https://locatorbeast.com/jay-morris/second-chance-apts")
 ok("it sits directly below Facebook in the panel order", (() => {
-  const i = SHARE_PLATFORMS.findIndex((p) => p.slug === "fb")
+  // Located by id, not slug: the Facebook row's public slug is now free-search, and this
+  // assertion is about panel ORDER, not spelling.
+  const i = SHARE_PLATFORMS.findIndex((p) => p.id === "facebook")
   return SHARE_PLATFORMS[i + 1]?.id === "facebook_second_chance"
 })())
 ok('its panel label is "Facebook — Second Chance"', scEntry?.label === "Facebook — Second Chance")
