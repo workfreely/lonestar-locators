@@ -32,15 +32,17 @@ import {
   tourFollowUpQuestion,
   tourFollowUpKeyOf,
   isTourFollowUpRow,
+  TOUR_OUTCOMES,
+  isTourOutcome,
   formatWorkflowActionLabel,
   buildTourFollowUpSmsBody,
   TOUR_FOLLOW_UP_SMS,
   type TourFollowUpKey,
 } from "@bc/companion-shared"
-import { planForOutcome } from "@/lib/leads/tourFollowUp"
+import { planForOutcome, AWAITING_REPLY_PLAN, WAITING_FOR_REPLY, isAwaitingReply } from "@/lib/leads/tourFollowUp"
 import { rankLeadActions } from "@/lib/nextActions"
 import { actionRelevanceRank } from "@/lib/leads/actionRelevance"
-import type { TourOutcome } from "@bc/companion-shared"
+import { TOUR_OUTCOME_LABELS, type TourOutcome } from "@bc/companion-shared"
 
 let pass = 0,
   fail = 0
@@ -185,7 +187,7 @@ eq("no two rungs ask the same thing", new Set(TOUR_FOLLOW_UP_LADDER.map(tourFoll
   ok("…still exactly those four, no fifth was added",
     (modal.match(/autoDueInDays\(/g) ?? []).length === 3 && (modal.match(/Pick a Date…/g) ?? []).length === 1)
   ok("the date step is skipped when there is no rung to schedule",
-    /NEEDS_FOLLOW_UP\.includes\(o\) && canScheduleNext/.test(modal))
+    /NEEDS_FOLLOW_UP\.includes\(pending\) && canScheduleNext/.test(modal))
   ok("the modal still has no messaging of its own", !/sms:|tel:|launchCommunication/.test(modal))
 }
 {
@@ -401,7 +403,7 @@ console.log("\n6c. ORDER — send first, modal only once the send is confirmed:"
   ok("completing an outcome records no SMS as sent",
     !/text_sent/.test(dash.slice(dash.indexOf("async function handleTourFollowUpOutcome"), dash.indexOf("// ── Apply (start_application"))))
   const wf = readFileSync("lib/leads/tourFollowUpWorkflow.ts", "utf8")
-  ok("…and the workflow itself never writes one", !/text_sent/.test(wf))
+  ok("…and the workflow itself never writes one", !/type:\s*["']text_sent["']/.test(wf))
 }
 
 // ── 7. Failed writes are explicit, and nothing is reopened behind the locator ─
@@ -446,6 +448,113 @@ console.log("\n8. THE ROW IS FIRST-CLASS:")
   const na = readFileSync("lib/nextActions.ts", "utf8")
   ok("the guest-card precedence rule now covers ANY rung", /isLadderRow\(\{ action_key:/.test(na))
   ok("…and the rung-1-only local copy is gone", !/=== "tour_follow_up"\s*\|\|/.test(na))
+}
+
+// ── 9. WAITING FOR REPLY — a status, never a client decision ────────────────
+// It means the numbered attempt was SENT and the client has not answered. That is
+// a fact about our outreach. It must never become a tour outcome, never reach
+// lead_tours, and never appear in history as though the tour had been reported on.
+console.log("\n9. WAITING FOR REPLY:")
+{
+  // 1. It is NOT a seventh TourOutcome — the six and their order are untouched,
+  //    and the DB CHECK that mirrors them needs no migration.
+  eq("the six outcomes are unchanged, in order", [...TOUR_OUTCOMES],
+    ["ready_to_apply", "still_deciding", "wants_another_tour", "didnt_like", "didnt_tour", "other"])
+  ok("waiting_for_reply is NOT a TourOutcome", !(TOUR_OUTCOMES as readonly string[]).includes(WAITING_FOR_REPLY))
+  ok("…and isTourOutcome rejects it", !isTourOutcome(WAITING_FOR_REPLY))
+  ok("…but it IS a modal status", isAwaitingReply(WAITING_FOR_REPLY))
+  ok("…and no real outcome is mistaken for it", TOUR_OUTCOMES.every((o) => !isAwaitingReply(o)))
+  ok("every one of the six still has its own plan", TOUR_OUTCOMES.every((o) => planForOutcome(o) != null))
+
+  // 2. Its plan advances the ladder and touches nothing else.
+  eq("it keeps Top Pick", AWAITING_REPLY_PLAN.topPick, "keep")
+  ok("…does not advance the stage", !AWAITING_REPLY_PLAN.advanceToDoneTouring)
+  ok("…creates no Apply action", !AWAITING_REPLY_PLAN.createStartApplication)
+  ok("…does not reopen Schedule Tour", !AWAITING_REPLY_PLAN.reopenSetupTour)
+  ok("…and schedules the next numbered attempt", AWAITING_REPLY_PLAN.createFollowUpTask)
+
+  // 3. The workflow: no tour write at ANY rung, and NO tour_outcome event.
+  const wf = readFileSync("lib/leads/tourFollowUpWorkflow.ts", "utf8")
+  ok("the flag is carried as an option, not inferred", /awaitingReply\?: boolean/.test(wf))
+  ok("…and the outcome may legitimately be null", /outcome: TourOutcome \| null/.test(wf))
+  ok("a null outcome is treated as awaiting too", /const awaiting = awaitingReply === true \|\| outcome == null/.test(wf))
+  ok("it uses the shared plan, not a parallel branch", /const plan = awaiting \? AWAITING_REPLY_PLAN : planForOutcome/.test(wf))
+  ok("rung 1 loses its permission to write the tour while awaiting",
+    /const recordsTourOutcome = rung === "tour_follow_up" && !awaiting/.test(wf))
+  ok("…so lead_tours is still written ONLY behind that gate", /if \(!demo && recordsTourOutcome\) \{/.test(wf))
+  ok("NO tour_outcome event is appended while awaiting", /if \(!awaiting\) \{\s*\n\s*recordTimelineEvent\(\{\s*\n\s*leadId: lead\.id,\s*\n\s*type: "tour_outcome"/.test(wf))
+  eq("…and there is still exactly one tour_outcome write in the file",
+    (wf.match(/type: "tour_outcome"/g) ?? []).length, 1)
+  ok("the optimistic patch can carry no outcome", /tourOutcome: TourOutcome \| null/.test(wf))
+
+  // 4. The CRM sends no outcome when awaiting, and pre-selects ONLY on a confirmed send.
+  const dash = readFileSync("components/crm/DashboardClient.tsx", "utf8")
+  ok("the handler takes a status, not an outcome", /handleTourFollowUpOutcome\(status: TourFollowUpStatus/.test(dash))
+  ok("…resolves the flag from it", /const awaitingReply = isAwaitingReply\(status\)/.test(dash))
+  ok("…and sends NO outcome while awaiting",
+    /const outcome: TourOutcome \| null = awaitingReply \? null : \(status as TourOutcome\)/.test(dash))
+  ok("the flag reaches the workflow", /\n\s*awaitingReply,\n/.test(dash))
+  ok("pre-selection comes from the open's provenance", /defaultWaitingForReply=\{tourFollowUp\?\.fromConfirmedSend === true\}/.test(dash))
+  ok("…set true ONLY at the confirmed-send call site",
+    /openTourFollowUpForAction\(lead, payload\.actionId \?\? sentRow\?\.id \?\? null, true\)/.test(dash))
+  ok("…and the open-tour-follow-up verb does NOT pre-select",
+    /openTourFollowUpForAction\(lead, payload\.actionId\)\n/.test(dash))
+  eq("exactly one call site pre-selects", (dash.match(/openTourFollowUpForAction\(lead, [^)]*, true\)/g) ?? []).length, 1)
+
+  // 5. The modal: selecting never submits, and the 3rd rung creates nothing.
+  const modal = readFileSync("components/crm/TourFollowUpModal.tsx", "utf8")
+  ok("pre-selection is a selection, not a submission", /setPending\(defaultWaitingForReply \? WAITING_FOR_REPLY : null\)/.test(modal))
+  ok("nothing submits without an explicit Confirm", /onClick=\{confirm\}/.test(modal))
+  ok("…and Confirm is disabled until a status is chosen", /const canConfirm = pending != null/.test(modal))
+  ok("…and until a date is chosen, when one is asked for", /\(!wantsDate \|\| dueAt != null\)/.test(modal))
+  ok("selecting an outcome no longer submits on click", !/onClick=\{\(\) => chooseOutcome/.test(modal))
+  ok("Waiting for Reply asks for a date like Still Deciding / Other",
+    /NEEDS_FOLLOW_UP: TourFollowUpStatus\[\] = \["still_deciding", "other", WAITING_FOR_REPLY\]/.test(modal))
+  ok("on the LAST rung it creates nothing and completes nothing",
+    /const ladderEndsWaiting = pending === WAITING_FOR_REPLY && !canScheduleNext/.test(modal) &&
+    /if \(ladderEndsWaiting\) \{\s*\n\s*onClose\(\)\s*\n\s*return\s*\n\s*\}/.test(modal))
+  ok("…and says so, rather than leaving a dead button", /stays open while you wait/.test(modal))
+  ok("no fourth rung and no Pause Search were invented",
+    !/tour_follow_up_4|pause_search|pauseSearch/.test(modal) && !/tour_follow_up_4|pause_search/.test(wf))
+  // A date discarded when switching to a status that takes none can never be sent.
+  ok("a stale date cannot ride along with a dateless status",
+    /if \(!NEEDS_FOLLOW_UP\.includes\(status\)\) \{\s*\n\s*setDueAt\(null\)/.test(modal))
+  ok("…and the submit sends a date only when one was asked for", /followUpDueAt: wantsDate \? dueAt : null/.test(modal))
+
+  // 6. Layout: two columns in the EXISTING order, Waiting for Reply spanning below.
+  ok("the six render from TOUR_OUTCOMES, so their order cannot drift", /TOUR_OUTCOMES\.map\(\(o\) =>/.test(modal))
+  ok("…in two columns", /grid grid-cols-2 gap-2/.test(modal))
+  ok("Waiting for Reply spans both columns", /col-span-2 \$\{outcomeBtn\(pending === WAITING_FOR_REPLY\)\}/.test(modal))
+  ok("…and is not rendered from the outcome list", !/TOUR_OUTCOMES[\s\S]{0,120}WAITING_FOR_REPLY/.test(modal))
+  ok("the four scheduling choices sit in ONE row", /flex flex-wrap gap-2 sm:flex-nowrap/.test(modal))
+
+  // 6b. Responsive presentation. Desktop: six labels on one line, four dates on one
+  // row. Mobile: the three day shortcuts are hidden and the picker is the only
+  // control. Nothing about the statuses, the keys or the workflow is conditional.
+  ok("no outcome label is truncated any more", !/truncate">\{labelFor|truncate">Waiting/.test(modal))
+  ok("…and above sm each sits on one line", (modal.match(/leading-tight sm:whitespace-nowrap/g) ?? []).length === 2)
+  ok("the modal was widened just enough, not made wide", /max-w-\[400px\]/.test(modal))
+  ok("quick-date labels can never wrap", /flex-1 basis-auto whitespace-nowrap/.test(modal))
+  eq("below sm exactly the three day shortcuts are hidden", (modal.match(/hidden sm:block/g) ?? []).length, 3)
+  ok("…and Pick a Date… is the one date control that is never hidden",
+    /className=\{quickBtn\(dueLabel === "Pick a Date"\)\}/.test(modal))
+  ok("…so every hidden shortcut is a quick date, not a status or a Confirm",
+    modal.split("\n").filter((l) => l.includes("hidden sm:block")).every((l) => l.includes("autoDueInDays(")))
+  // The shorter label is presentation. The key, the plan and every other surface's
+  // label have to be byte-identical, or this is a workflow change in disguise.
+  ok("Touring Again is a display override local to this modal",
+    /MODAL_OUTCOME_LABELS: Partial<Record<TourOutcome, string>> = \{ wants_another_tour: "Touring Again" \}/.test(modal))
+  ok("…falling back to the canonical label for the other five",
+    /MODAL_OUTCOME_LABELS\[o\] \?\? TOUR_OUTCOME_LABELS\[o\]/.test(modal))
+  eq("…and the shared label is untouched", TOUR_OUTCOME_LABELS.wants_another_tour, "Wants Another Tour")
+  ok("…and the key never changes", /TOUR_OUTCOMES\.map\(\(o\) =>/.test(modal) && !/"Touring Again"[\s\S]{0,40}pick\(/.test(modal))
+  ok("…and no workflow file learned the display label",
+    !/Touring Again/.test(wf) && !/Touring Again/.test(readFileSync("lib/leads/tourFollowUp.ts", "utf8")))
+  ok("…and the modal is one screen — no step machine", !/step === "outcome"/.test(modal) && !/setStep\(/.test(modal))
+  ok("…so Back is gone", !/← Back/.test(modal))
+  ok("the note field is still Other-only", /\{pending === "other" && \(/.test(modal))
+  ok("the contextual question per rung is preserved", /\{tourFollowUpQuestion\(rung\)\}/.test(modal))
+  ok("the body scrolls rather than clipping on short screens", /overflow-y-auto/.test(modal))
 }
 
 console.log(`\n${pass} passed, ${fail} failed`)

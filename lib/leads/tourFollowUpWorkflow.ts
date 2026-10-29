@@ -15,7 +15,7 @@ import { CURRENT_WORKFLOW_VERSION, type TourOutcome } from "@bc/companion-shared
 import { supabase } from "@/lib/supabase/client"
 import { isDemoLeadId } from "@/lib/demo/demoWorkspace"
 import { recordTimelineEvent } from "@/lib/leads/timeline"
-import { planForOutcome, nextTourFollowUpKey, tourFollowUpTitle, tourFollowUpKeyOf, rungAfter, isTourFollowUpRow, TOUR_FOLLOW_UP_LADDER, type TourFollowUpRow } from "@/lib/leads/tourFollowUp"
+import { AWAITING_REPLY_PLAN, planForOutcome, nextTourFollowUpKey, tourFollowUpTitle, tourFollowUpKeyOf, rungAfter, isTourFollowUpRow, TOUR_FOLLOW_UP_LADDER, type TourFollowUpRow } from "@/lib/leads/tourFollowUp"
 export { planForOutcome, type TourOutcomePlan } from "@/lib/leads/tourFollowUp"
 
 type FavoriteRow = { id: number | string; property_name?: string | null; property_address?: string | null }
@@ -178,7 +178,9 @@ export async function writeTourFollowUpRung(
 export type TourFollowUpPatch = {
   tourId: number | string
   tourStatus: "completed" | "no_show"
-  tourOutcome: TourOutcome
+  /** Null when the status was Waiting for Reply — no client decision was made, so
+   *  there is nothing to patch onto the tour and the caller must not invent one. */
+  tourOutcome: TourOutcome | null
   completedActionId: number | string | null // the rung completed
   /** False on rungs 2-3: lead_tours was NOT written, so the caller must not patch
    *  it locally either — otherwise the UI shows a change the database refused to
@@ -201,7 +203,13 @@ export async function completeTourFollowUp(opts: {
   tour: { id: number | string; property_id: number | null; scheduled_at: string }
   // The linked Favorite (property_name snapshot for the created action + timeline).
   favorite: FavoriteRow
-  outcome: TourOutcome
+  /** The client's decision, or NULL when awaitingReply is true — Waiting for Reply
+   *  is not a decision and must never reach lead_tours.outcome. */
+  outcome: TourOutcome | null
+  /** Waiting for Reply: the attempt was sent, the client has not answered. Forces
+   *  recordsTourOutcome false at EVERY rung (rung 1 included), skips the
+   *  tour_outcome timeline event entirely, and only advances the ladder. */
+  awaitingReply?: boolean
   // The open rung to complete (this property's). action_key/title identify WHICH
   // rung, which decides whether the physical tour outcome may be written at all.
   followUpActionRow: { id: number | string; action_key?: string | null; title?: string | null } | null
@@ -222,9 +230,13 @@ export async function completeTourFollowUp(opts: {
   // this, and nothing is quietly reopened or invented behind their back.
   onError?: (message: string) => void
 }): Promise<void> {
-  const { lead, tour, favorite, outcome, followUpActionRow, setupTourRow, followUpDueAt, note, now, onOptimistic, onActionCreated, onError } = opts
+  const { lead, tour, favorite, outcome, awaitingReply, followUpActionRow, setupTourRow, followUpDueAt, note, now, onOptimistic, onActionCreated, onError } = opts
   const demo = isDemoLeadId(lead.id)
-  const plan = planForOutcome(outcome)
+  // Waiting for Reply has no outcome, so it cannot go through planForOutcome. Its
+  // plan is the same shape — complete this attempt, schedule the next — and is
+  // defined beside the six rather than branching the switch.
+  const awaiting = awaitingReply === true || outcome == null
+  const plan = awaiting ? AWAITING_REPLY_PLAN : planForOutcome(outcome as TourOutcome)
   // WHICH rung is being completed. Defaults to rung 1 for a row that predates
   // action_key and carries no recognisable title — the historical shape.
   const rung = tourFollowUpKeyOf({
@@ -234,7 +246,9 @@ export async function completeTourFollowUp(opts: {
   // Only the FIRST attempt describes the visit. Rungs 2 and 3 are later
   // conversations about a tour already reported on, so they must not rewrite its
   // status or outcome — that record is the locator's original answer.
-  const recordsTourOutcome = rung === "tour_follow_up"
+  // Waiting for Reply never describes the visit, at ANY rung — the client has not
+  // answered, so rung 1's permission to write the tour does not apply.
+  const recordsTourOutcome = rung === "tour_follow_up" && !awaiting
   const propertyName = (favorite.property_name || favorite.property_address || "").toString().trim() || null
 
   // Top Pick resolution (durable, one-per-lead — leads.top_pick_favorite_id).
@@ -285,20 +299,26 @@ export async function completeTourFollowUp(opts: {
   // Append-only, and it now records WHICH attempt produced the answer.
   // `records_tour_outcome: false` marks an event that did NOT touch lead_tours, so
   // history can tell a later conversation apart from the original tour report.
-  recordTimelineEvent({
-    leadId: lead.id,
-    type: "tour_outcome",
-    occurredAt: now,
-    metadata: {
-      tour_id: tour.id,
-      property_id: propId,
-      property_name: propertyName,
-      outcome,
-      action_key: rung,
-      records_tour_outcome: recordsTourOutcome,
-      ...(note ? { note } : {}),
-    },
-  })
+  // NOT written when awaiting a reply. A tour_outcome event with a null outcome
+  // would sit in history as though the tour had been reported on. The confirmed
+  // send is already recorded by the Companion's text_sent event; there is no second
+  // fact to append here.
+  if (!awaiting) {
+    recordTimelineEvent({
+      leadId: lead.id,
+      type: "tour_outcome",
+      occurredAt: now,
+      metadata: {
+        tour_id: tour.id,
+        property_id: propId,
+        property_name: propertyName,
+        outcome,
+        action_key: rung,
+        records_tour_outcome: recordsTourOutcome,
+        ...(note ? { note } : {}),
+      },
+    })
+  }
 
   // 5) Reopen Schedule Tour (return to the tour-scheduling action). [real only]
   if (plan.reopenSetupTour && !demo && setupTourRow?.id != null) {

@@ -117,6 +117,44 @@ export function favoriteTourStateLabel(opts: {
   return `Toured · ${TOUR_OUTCOME_LABELS[opts.outcome]}`
 }
 
+/**
+ * WAITING FOR REPLY — a modal-level status, deliberately NOT a seventh TourOutcome.
+ *
+ * It means the numbered attempt was SENT and the client has not answered. That is a
+ * fact about our outreach, not a decision the client made, so it must never reach
+ * lead_tours.outcome — whose CHECK permits exactly the six real outcomes, and whose
+ * value is the locator's original answer about the visit.
+ *
+ * The confirmed send is already recorded, by the `text_sent` timeline event the
+ * Companion's "Yes, Sent" writes. Nothing further is appended here: a `tour_outcome`
+ * event carrying a null outcome would read, forever, as though the tour had been
+ * reported on when it had not.
+ *
+ * So this is the ONE status that leaves the tour untouched and only moves the
+ * ladder: complete this attempt, schedule the next numbered one at the date the
+ * locator picked.
+ */
+export const WAITING_FOR_REPLY = "waiting_for_reply" as const
+
+/** What the modal returns: a real outcome, or the awaiting-reply status. */
+export type TourFollowUpStatus = TourOutcome | typeof WAITING_FOR_REPLY
+
+export function isAwaitingReply(status: TourFollowUpStatus): status is typeof WAITING_FOR_REPLY {
+  return status === WAITING_FOR_REPLY
+}
+
+/** The plan for Waiting for Reply. Same shape as the six — no parallel system.
+ *  tourStatus is inert: recordsTourOutcome is forced false, so lead_tours is never
+ *  written and this value is never read. */
+export const AWAITING_REPLY_PLAN: TourOutcomePlan = {
+  tourStatus: "completed",
+  topPick: "keep",
+  advanceToDoneTouring: false,
+  createStartApplication: false,
+  reopenSetupTour: false,
+  createFollowUpTask: true,
+}
+
 export function planForOutcome(outcome: TourOutcome): TourOutcomePlan {
   switch (outcome) {
     case "ready_to_apply":

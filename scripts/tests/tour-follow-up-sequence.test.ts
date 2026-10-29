@@ -224,7 +224,7 @@ ok(!/verb: "open-tour-follow-up"/.test(tfHandler),
   "…and no longer opens the outcome modal on the click")
 ok(!/verb: "/.test(tfHandler),
   "the click posts no verb at all — it is the Contact Follow-Up path verbatim")
-ok(/openTourFollowUpForAction\(lead, payload\.actionId \?\? sentRow\?\.id \?\? null\)/.test(
+ok(/openTourFollowUpForAction\(lead, payload\.actionId \?\? sentRow\?\.id \?\? null, true\)/.test(
     readFileSync("components/crm/DashboardClient.tsx", "utf8")),
   "…the modal hand-off now lives at the CRM's confirmed-send point")
 ok(!/setPendingContact/.test(tfHandler),

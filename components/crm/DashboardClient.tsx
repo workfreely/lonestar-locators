@@ -67,7 +67,7 @@ import { outstandingFavoriteGuestCards } from "@/lib/leads/guestCardAggregate"
 import GuestCardBulkModal, { type BulkGuestCardItem } from "./GuestCardBulkModal"
 import GuestCardGuardModal, { type GuestCardGuardView } from "./GuestCardGuardModal"
 import { completeTourFollowUp } from "@/lib/leads/tourFollowUpWorkflow"
-import { isTourFollowUpRow, tourFollowUpKeyOf, rungAfter, type TourFollowUpKey } from "@/lib/leads/tourFollowUp"
+import { isTourFollowUpRow, tourFollowUpKeyOf, rungAfter, isAwaitingReply, type TourFollowUpKey, type TourFollowUpStatus } from "@/lib/leads/tourFollowUp"
 
 // Which rung a row IS, and whether a further attempt can be scheduled once it
 // completes. One resolver for every path that opens the outcome modal (the
@@ -492,7 +492,10 @@ export default function DashboardClient({ leads, nextActions, favorites, recomme
   // Tour Follow-Up outcome modal ("How did the tour go?"). Scoped to ONE
   // tour/property; completing it records the outcome + drives the next canonical
   // action. Opened from the Workspace Favorite or the Companion verb.
-  const [tourFollowUp, setTourFollowUp] = useState<null | { lead: any; tour: any; favorite: any; actionId: number | string | null; rung: TourFollowUpKey; canScheduleNext: boolean }>(null)
+  // fromConfirmedSend: this open came from the Companion's "Yes, Sent", so the
+  // modal pre-selects Waiting for Reply. Every other open (Workspace card, Beast
+  // Voice, the open-tour-follow-up verb) leaves it unselected.
+  const [tourFollowUp, setTourFollowUp] = useState<null | { lead: any; tour: any; favorite: any; actionId: number | string | null; rung: TourFollowUpKey; canScheduleNext: boolean; fromConfirmedSend?: boolean }>(null)
   // "Apply" (start_application) confirmation — advancing to 'applied' only on the
   // agent's explicit confirmation that the client submitted the application.
   const [confirmApply, setConfirmApply] = useState<null | { lead: any; action: any }>(null)
@@ -1498,7 +1501,7 @@ export default function DashboardClient({ leads, nextActions, favorites, recomme
   // ── Tour Follow-Up (property/tour-scoped) ───────────────────────────────────
   // Open the "How did the tour go?" modal for ONE tour/property. `favorite`
   // supplies property_name; `actionId` is that property's open tour_follow_up row.
-  function openTourFollowUp(lead: any, tour: any, favorite: any, actionId: number | string | null) {
+  function openTourFollowUp(lead: any, tour: any, favorite: any, actionId: number | string | null, fromConfirmedSend = false) {
     if (!lead || !tour) return
     // Resolve the rung from the row itself (by id — the caller already matched it),
     // so the modal asks that rung's question and offers a date only when a further
@@ -1507,7 +1510,7 @@ export default function DashboardClient({ leads, nextActions, favorites, recomme
     const row = actionId != null
       ? localNextActionsRef.current.find((a: any) => String(a.id) === String(actionId)) ?? null
       : null
-    setTourFollowUp({ lead, tour, favorite, actionId, ...tourRungState(row) })
+    setTourFollowUp({ lead, tour, favorite, actionId, fromConfirmedSend, ...tourRungState(row) })
   }
   function handleTourFollowUp(lead: any, args: { tour: any; favorite: any; actionId: number | string | null }) {
     openTourFollowUp(lead, args.tour, args.favorite, args.actionId)
@@ -1515,10 +1518,14 @@ export default function DashboardClient({ leads, nextActions, favorites, recomme
   // The modal's outcome submit → the ONE canonical completion. Applies every local
   // change in a single next-actions update (complete THIS follow-up, add the next
   // canonical action, reopen setup_tour), plus tour status/outcome + lead patch.
-  async function handleTourFollowUpOutcome(outcome: TourOutcome, extras: { followUpDueAt?: string | null; note?: string | null }) {
+  async function handleTourFollowUpOutcome(status: TourFollowUpStatus, extras: { followUpDueAt?: string | null; note?: string | null }) {
     const tf = tourFollowUp
     setTourFollowUp(null)
     if (!tf) return
+    // Waiting for Reply is NOT one of the six outcomes: no client decision was
+    // made, so no outcome is sent and lead_tours is left alone at every rung.
+    const awaitingReply = isAwaitingReply(status)
+    const outcome: TourOutcome | null = awaitingReply ? null : (status as TourOutcome)
     const now = new Date().toISOString()
     const setupRow = findCompletedSetupTour(tf.lead.id)
     const propertyId = tf.tour.property_id ?? tf.favorite?.id ?? null
@@ -1529,6 +1536,7 @@ export default function DashboardClient({ leads, nextActions, favorites, recomme
       tour: { id: tf.tour.id, property_id: propertyId, scheduled_at: tf.tour.scheduled_at },
       favorite: { id: propertyId, property_name: tf.favorite?.property_name ?? tf.tour.property_name ?? null },
       outcome,
+      awaitingReply,
       followUpActionRow: tf.actionId != null
         ? { id: tf.actionId, action_key: tf.rung, title: null }
         : null,
@@ -2766,7 +2774,7 @@ export default function DashboardClient({ leads, nextActions, favorites, recomme
     // complete-follow-up, below) and the explicit `open-tour-follow-up` verb, which
     // Beast Voice still posts. Falls back to the lead's open rung when no id came
     // through, exactly as the verb handler always did.
-    function openTourFollowUpForAction(lead: any, actionId: unknown): void {
+    function openTourFollowUpForAction(lead: any, actionId: unknown, fromConfirmedSend = false): void {
       const tf =
         localNextActionsRef.current.find((a: any) => actionId != null && String(a.id) === String(actionId)) ??
         localNextActionsRef.current.find(
@@ -2782,7 +2790,7 @@ export default function DashboardClient({ leads, nextActions, favorites, recomme
         (t: any) => String(t.lead_id) === String(lead.id) && String(t.property_id ?? "") === String(propId) && t.status !== "canceled"
       )
       if (!tour) return
-      openTourFollowUp(lead, tour, fav, (tf as any).id)
+      openTourFollowUp(lead, tour, fav, (tf as any).id, fromConfirmedSend)
     }
 
     function onVerb(e: MessageEvent) {
@@ -3328,7 +3336,7 @@ export default function DashboardClient({ leads, nextActions, favorites, recomme
           // text_sent, no modal, and the rung stays open for another attempt. The
           // rung is still open here, so the hand-off resolves the same row whose
           // text just went out.
-          openTourFollowUpForAction(lead, payload.actionId ?? sentRow?.id ?? null)
+          openTourFollowUpForAction(lead, payload.actionId ?? sentRow?.id ?? null, true)
           return
         }
         // The synthetic client-only completed row that used to live here is GONE.
@@ -5143,6 +5151,7 @@ export default function DashboardClient({ leads, nextActions, favorites, recomme
         workHours={workHours}
         rung={tourFollowUp?.rung ?? "tour_follow_up"}
         canScheduleNext={tourFollowUp?.canScheduleNext ?? true}
+        defaultWaitingForReply={tourFollowUp?.fromConfirmedSend === true}
         onSubmit={handleTourFollowUpOutcome}
       />
 
