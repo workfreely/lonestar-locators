@@ -1119,6 +1119,13 @@ export function ProductionPanel() {
         },
       });
     }
+    // A tour rung's confirmed send hands off to the CRM's outcome modal, which the
+    // CRM opens itself on this verb — so bring that tab forward, because the agent
+    // has just come back from the messaging app and the modal has to be where they
+    // can see it. This is the focus step that used to run in onTourFollowUp, moved
+    // to the confirmed-send point with it. Contact and post-list rungs complete
+    // outright and open no modal, so nothing changes for them.
+    if (isTourFollowUpRow({ title: c.title ?? null })) focusExistingCrmTab();
   };
 
   // Schedule Tour → open the confirmation sheet directly. MVP: there is no tour-
@@ -1414,32 +1421,15 @@ export function ProductionPanel() {
   // here is the same "open the composer, then the confirmation is waiting" rhythm
   // onSendFollowUp uses — it adds no prompt, no action and no completion path.
   //
-  // ORDER IS DELIBERATE: the CRM tab is focused and the modal opened FIRST, then the
-  // SMS composer is launched on top. Reversing it would pull focus off the half-typed
-  // message to bring Chrome forward.
+  // ORDER: THE SEND COMES FIRST, AND THE MODAL ONLY ON A CONFIRMED SEND.
+  // This handler used to post "open-tour-follow-up" here, before onSendFollowUp —
+  // so the outcome modal was already open in the CRM tab while the agent was still
+  // looking at the "Did you send …?" sheet, and Cancel left a modal waiting for a
+  // text that never went out. The hand-off was not removed, it MOVED: the CRM now
+  // opens its own modal at the point the send is confirmed (see the TOUR LADDER
+  // branch in DashboardClient). So this is the Contact Follow-Up path verbatim,
+  // adding nothing at all.
   const onTourFollowUp = () => {
-    const lead = active?.lead;
-    if (!lead || lead.id === undefined || lead.id === null) return;
-    focusExistingCrmTab();
-    // The SAME predicate onSendFollowUp matches on, so the modal and the composer
-    // can never land on different rungs. Identifying the row, not re-sending it.
-    const tf = (active?.nextActions ?? []).find((a) => !a.completed && isTourFollowUpRow({ title: a.title ?? null }));
-    const store = (globalThis as unknown as { chrome?: any }).chrome?.storage?.local;
-    if (store) {
-      store.set({
-        "lb-workflow-verb": {
-          nonce: `${Date.now()}-${Math.random()}`,
-          leadId: lead.id,
-          verb: "open-tour-follow-up",
-          actionId: tf?.id ?? null,
-        },
-      });
-    }
-    // Then the EXACT Contact Follow-Up mechanism: it finds the open rung, opens the
-    // composer with that rung's approved template, and leaves the existing "Did you
-    // send …?" sheet waiting. Nothing tour-specific is reimplemented here — the
-    // only thing this handler adds is opening the CRM outcome modal first, so focus
-    // is not pulled off a half-typed message.
     onSendFollowUp();
   };
 

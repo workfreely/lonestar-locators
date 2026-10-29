@@ -2760,6 +2760,31 @@ export default function DashboardClient({ leads, nextActions, favorites, recomme
   // + source-tag checked, and this only performs what the authenticated user can
   // already do from this page; it never grants new capability to page scripts.
   useEffect(() => {
+    // The Tour Follow-Up outcome modal hand-off, resolved from the rung the Companion
+    // captured. TWO entry points reach it and they must resolve identically, so it
+    // lives here once rather than being copied: the CONFIRMED send ("Yes, Sent" →
+    // complete-follow-up, below) and the explicit `open-tour-follow-up` verb, which
+    // Beast Voice still posts. Falls back to the lead's open rung when no id came
+    // through, exactly as the verb handler always did.
+    function openTourFollowUpForAction(lead: any, actionId: unknown): void {
+      const tf =
+        localNextActionsRef.current.find((a: any) => actionId != null && String(a.id) === String(actionId)) ??
+        localNextActionsRef.current.find(
+          (a: any) => String(a.lead_id) === String(lead.id) && !a.completed && isTourFollowUpRow(a)
+        )
+      if (!tf) return
+      const propId = (tf as any).property_id
+      const fav =
+        localFavoritesRef.current.find((f: any) => String(f.id) === String(propId)) ??
+        { id: propId, property_name: (tf as any).property_name }
+      // The tour this follow-up is about (this property's active/completed tour).
+      const tour = localToursRef.current.find(
+        (t: any) => String(t.lead_id) === String(lead.id) && String(t.property_id ?? "") === String(propId) && t.status !== "canceled"
+      )
+      if (!tour) return
+      openTourFollowUp(lead, tour, fav, (tf as any).id)
+    }
+
     function onVerb(e: MessageEvent) {
       if (e.source !== window || e.origin !== window.location.origin) return
       const d: any = e.data
@@ -3297,6 +3322,13 @@ export default function DashboardClient({ leads, nextActions, favorites, recomme
           latestOutreachRef.current = nextMap
           setLatestOutreach(nextMap)
           postCompanionActiveClient(lead, localNextActionsRef.current)
+          // ONLY NOW the outcome modal. The send is recorded above, so the modal
+          // opens on a CONFIRMED send and never before one: Cancel in the Companion
+          // sheet posts no verb at all, so nothing in this branch runs — no
+          // text_sent, no modal, and the rung stays open for another attempt. The
+          // rung is still open here, so the hand-off resolves the same row whose
+          // text just went out.
+          openTourFollowUpForAction(lead, payload.actionId ?? sentRow?.id ?? null)
           return
         }
         // The synthetic client-only completed row that used to live here is GONE.
@@ -4059,25 +4091,7 @@ export default function DashboardClient({ leads, nextActions, favorites, recomme
       // Beast Companion "Tour Follow-Up" → open the outcome modal in the CRM tab
       // for the SURFACED property's open tour_follow_up (same canonical workflow).
       if (payload.verb === "open-tour-follow-up") {
-        const tf =
-          localNextActionsRef.current.find((a: any) => payload.actionId != null && String(a.id) === String(payload.actionId)) ??
-          localNextActionsRef.current.find(
-            (a: any) =>
-              String(a.lead_id) === String(lead.id) &&
-              !a.completed &&
-              isTourFollowUpRow(a)
-          )
-        if (!tf) return
-        const propId = (tf as any).property_id
-        const fav =
-          localFavoritesRef.current.find((f: any) => String(f.id) === String(propId)) ??
-          { id: propId, property_name: (tf as any).property_name }
-        // The tour this follow-up is about (this property's active/completed tour).
-        const tour = localToursRef.current.find(
-          (t: any) => String(t.lead_id) === String(lead.id) && String(t.property_id ?? "") === String(propId) && t.status !== "canceled"
-        )
-        if (!tour) return
-        openTourFollowUp(lead, tour, fav, (tf as any).id)
+        openTourFollowUpForAction(lead, payload.actionId)
         return
       }
 

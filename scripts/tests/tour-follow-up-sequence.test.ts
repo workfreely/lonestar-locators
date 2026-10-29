@@ -215,10 +215,18 @@ ok(/onSendFollowUp\(\);/.test(tfHandler),
   "the rung button delegates to the shared send mechanism")
 ok(!/launchCommunication|setFollowUpConfirm|buildTourFollowUpSmsBody/.test(tfHandler),
   "…and reimplements no part of it")
-ok(/verb: "open-tour-follow-up"/.test(tfHandler),
-  "…it only adds the hand-off to the canonical CRM outcome modal")
-ok(tfHandler.indexOf('verb: "open-tour-follow-up"') < tfHandler.indexOf("onSendFollowUp()"),
-  "the modal is opened BEFORE the composer, so focus is not pulled off a half-typed text")
+// The hand-off to the canonical CRM outcome modal MOVED out of this handler. It
+// used to fire on the click, which opened the modal before the agent had answered
+// the "Did you send …?" sheet — a modal for a text that had not gone out. The CRM
+// now opens it at the confirmed-send point instead (see the TOUR LADDER branch in
+// DashboardClient, and section 6c of tourFollowUpNumbering.test.ts for the order).
+ok(!/verb: "open-tour-follow-up"/.test(tfHandler),
+  "…and no longer opens the outcome modal on the click")
+ok(!/verb: "/.test(tfHandler),
+  "the click posts no verb at all — it is the Contact Follow-Up path verbatim")
+ok(/openTourFollowUpForAction\(lead, payload\.actionId \?\? sentRow\?\.id \?\? null\)/.test(
+    readFileSync("components/crm/DashboardClient.tsx", "utf8")),
+  "…the modal hand-off now lives at the CRM's confirmed-send point")
 ok(!/setPendingContact/.test(tfHandler),
   "no other prompt is opened alongside it")
 ok(!/completeAction/.test(tfHandler),

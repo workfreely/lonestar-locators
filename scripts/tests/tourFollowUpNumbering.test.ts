@@ -32,6 +32,7 @@ import {
   tourFollowUpQuestion,
   tourFollowUpKeyOf,
   isTourFollowUpRow,
+  formatWorkflowActionLabel,
   buildTourFollowUpSmsBody,
   TOUR_FOLLOW_UP_SMS,
   type TourFollowUpKey,
@@ -269,14 +270,10 @@ console.log("\n6b. SEND — the Contact Follow-Up mechanism, reused:")
   ok("the Contact FU builder is untouched", /buildContactFollowUpSmsBody\(open\.title, name, followUpOverrides\)/.test(send))
   ok("…and so is the post-list builder", /buildFollowUpSmsBody\(open\.title, name, followUpOverrides/.test(send))
 
-  // The rung button adds the CRM hand-off and NOTHING else.
+  // The rung button adds NOTHING — it is the Contact Follow-Up path verbatim.
   const handler = prod.slice(prod.indexOf("const onTourFollowUp = () =>"), prod.indexOf("const onStartApplication"))
   ok("the rung button delegates to that one mechanism", /onSendFollowUp\(\);/.test(handler))
   ok("…and reimplements none of it", !/launchCommunication|setFollowUpConfirm|buildTourFollowUpSmsBody/.test(handler))
-  ok("…it only adds opening the CRM outcome modal", /verb: "open-tour-follow-up"/.test(handler))
-  ok("…before the composer, so focus is not pulled off a half-typed text",
-    handler.indexOf('verb: "open-tour-follow-up"') < handler.indexOf("onSendFollowUp()"))
-  ok("…targeting the SAME row the composer will use", /isTourFollowUpRow\(\{ title: a\.title \?\? null \}\)/.test(handler))
 
   // No new confirmation infrastructure of any kind.
   const confirm = prod.slice(prod.indexOf("const confirmFollowUp = () =>"), prod.indexOf("const openNativePicker"))
@@ -286,6 +283,74 @@ console.log("\n6b. SEND — the Contact Follow-Up mechanism, reused:")
   ok("no tour-specific send handler was added", !/onSendTourFollowUp|onTourSend|tourSmsConfirm/.test(prod))
   ok("no tour-specific confirmation verb was added", !/record-follow-up-sent|record-tour-sent/.test(prod))
 }
+// ── 6c. ORDER OF OPERATIONS — the modal opens only on a CONFIRMED send ──────
+// The reported defect: clicking a rung opened the CRM outcome modal immediately,
+// before the agent had answered the Companion's "Did you send …?" sheet. So the
+// modal appeared for a text that had not gone out, and Cancel left it sitting
+// there. The hand-off was not duplicated or rebuilt — it MOVED from the click to
+// the confirmed-send point, and the CRM, which owns the modal, now opens it there.
+//
+//   click  →  composer opens with the rung's template  →  sheet waits
+//   Yes, Sent  →  text_sent recorded  →  THEN the outcome modal
+//   Cancel     →  no verb posted at all → no send, no modal, rung still open
+console.log("\n6c. ORDER — send first, modal only once the send is confirmed:")
+{
+  const prod = readFileSync("apps/beast-companion/src/sidepanel/ProductionPanel.tsx", "utf8")
+  const handler = prod.slice(prod.indexOf("const onTourFollowUp = () =>"), prod.indexOf("const onStartApplication"))
+
+  // 1. The click no longer opens the modal, for any rung.
+  ok("the click posts NO modal hand-off", !/verb: "open-tour-follow-up"/.test(handler))
+  ok("…and posts no verb of any kind", !/verb: "/.test(handler))
+  ok("…and no longer steals focus before the composer", !/focusExistingCrmTab\(\)/.test(handler))
+  ok("the whole handler is now just the shared send", /=> \{\s*\n\s*onSendFollowUp\(\);\s*\n\s*\};/.test(handler))
+
+  // 2. The confirmed send is the only place the modal is opened from.
+  const confirm = prod.slice(prod.indexOf("const confirmFollowUp = () =>"), prod.indexOf("const openNativePicker"))
+  ok("Yes, Sent still posts exactly the one existing verb",
+    (confirm.match(/verb: "[a-z-]+"/g) ?? []).join() === 'verb: "complete-follow-up"')
+  ok("…and brings the CRM tab forward for a rung, where the modal will open",
+    /if \(isTourFollowUpRow\(\{ title: c\.title \?\? null \}\)\) focusExistingCrmTab\(\);/.test(confirm))
+  ok("…and does that ONLY for a rung, so Contact/post-list are untouched",
+    (confirm.match(/focusExistingCrmTab\(\)/g) ?? []).length === 1)
+
+  // 3. Cancel is inert: it closes the sheet and is not wired to the confirm handler,
+  //    so it posts no verb — and the CRM, which is the only thing that opens the
+  //    modal now, never hears about it.
+  const sheetStart = prod.indexOf('aria-label="Confirm follow-up sent"')
+  const sheet = prod.slice(sheetStart, sheetStart + 2600)
+  ok("the sheet still offers Yes, Sent", /\{isContactFollowUpAction\(followUpConfirm\.title\) \? "Yes, Done" : "Yes, Sent"\}/.test(sheet))
+  ok("…and Cancel", /Cancel\s*\n?\s*<\/button>/.test(sheet))
+  ok("only the affirmative choice is wired to the confirm handler",
+    (sheet.match(/onClick=\{confirmFollowUp\}/g) ?? []).length === 1)
+  ok("…and Cancel only closes the sheet", /onClick=\{\(\) => setFollowUpConfirm\(null\)\} style=\{SHEET_CANCEL_BTN\}/.test(sheet))
+  ok("…so Cancel reaches no verb, no send and no modal", !/confirmFollowUp[\s\S]{0,200}SHEET_CANCEL_BTN/.test(sheet.slice(sheet.indexOf("SHEET_CANCEL_BTN"))))
+  // The prompt names the rung the agent actually clicked.
+  ok("the prompt asks about the numbered rung by name",
+    /Did you send the \$\{formatWorkflowActionLabel\(followUpConfirm\.title\)\}\?/.test(sheet))
+  eq("…which for rung 2 reads as the approved wording", `Did you send the ${formatWorkflowActionLabel("2nd Tour Follow-Up")}?`, "Did you send the 2nd Tour Follow-Up?")
+  eq("…and for rung 3", `Did you send the ${formatWorkflowActionLabel("3rd Tour Follow-Up")}?`, "Did you send the 3rd Tour Follow-Up?")
+  eq("…and for rung 1", `Did you send the ${formatWorkflowActionLabel("Tour Follow-Up")}?`, "Did you send the Tour Follow-Up?")
+
+  // 4. The CRM opens the modal AFTER recording the send, in the same branch.
+  const dash = readFileSync("components/crm/DashboardClient.tsx", "utf8")
+  const branch = dash.slice(dash.indexOf("// ── TOUR LADDER branch (any rung)"), dash.indexOf("// The synthetic client-only completed row"))
+  ok("the confirmed-send branch opens the outcome modal", /openTourFollowUpForAction\(lead, payload\.actionId/.test(branch))
+  ok("…strictly AFTER the send has been recorded",
+    branch.indexOf("type: \"text_sent\"") < branch.indexOf("openTourFollowUpForAction("))
+  ok("…and after Last Action, so the Companion reflects the send too",
+    branch.indexOf("setLatestOutreach(nextMap)") < branch.indexOf("openTourFollowUpForAction("))
+  ok("…and the rung is still NOT completed by the send", !/completed: true/.test(branch))
+
+  // 5. One hand-off, shared — not a second copy beside the verb handler.
+  eq("the hand-off is defined exactly once", (dash.match(/function openTourFollowUpForAction\(/g) ?? []).length, 1)
+  eq("…and reached from exactly the two entry points",
+    (dash.match(/openTourFollowUpForAction\(lead, /g) ?? []).length, 2)
+  ok("the open-tour-follow-up verb still works, through that same hand-off",
+    /payload\.verb === "open-tour-follow-up"\) \{\s*\n\s*openTourFollowUpForAction\(lead, payload\.actionId\)/.test(dash))
+  ok("…and the verb is still allowed through the gate", /payload\.verb !== "open-tour-follow-up"/.test(dash))
+  ok("no second modal opener was introduced", (dash.match(/openTourFollowUp\(lead, tour, fav/g) ?? []).length === 1)
+}
+
 {
   // The prompt-ownership registries are byte-identical to before this work: no new
   // prompt id was invented for the send, because the generic Companion send-confirm
