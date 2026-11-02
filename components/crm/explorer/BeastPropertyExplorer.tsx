@@ -402,6 +402,27 @@ export default function BeastPropertyExplorer({ serviceAreaSlugs, activeClient, 
     }
   }, [marketBounds, center, status])
 
+  // The preview card counts as part of the hover region, not as somewhere else.
+  //
+  // WHY: the card is pointer-events-auto and fixed to the map's bottom-left corner, so a pin
+  // that lands under it loses the pointer to the card the instant the card opens — mouseleave
+  // fires, the deferred clear runs, the card unmounts, the pointer re-targets to the pin,
+  // mouseenter fires, and the card opens again. Measured with ONE pin and a completely
+  // stationary pointer: 13 open/close cycles in 1200ms, about 10Hz. Entering the card cancels
+  // the pending clear; leaving it arms the same clear, so the preview still closes once the
+  // pointer is off BOTH the pin and the card. A pinned card is unaffected: `selected` outranks
+  // `hovered`, so clearing the hover cannot close a card the agent clicked.
+  const holdHoverCard = useCallback(() => {
+    if (hoverClearRef.current) { clearTimeout(hoverClearRef.current); hoverClearRef.current = null }
+  }, [])
+  const releaseHoverCard = useCallback(() => {
+    if (hoverClearRef.current) clearTimeout(hoverClearRef.current)
+    hoverClearRef.current = setTimeout(() => {
+      hoverClearRef.current = null
+      setHovered(null)
+    }, HOVER_CLEAR_MS)
+  }, [])
+
   const clearMarkers = useCallback(() => {
     // Drop any pending hover-clear with the markers it referred to, so a timer armed
     // by a pin that no longer exists cannot fire against the next search's results.
@@ -1151,12 +1172,30 @@ export default function BeastPropertyExplorer({ serviceAreaSlugs, activeClient, 
         zIndex: isSuggested ? 2 : 1,
         content: el,
       })
-      // Hover uses NATIVE DOM events on the marker's own element — reliable, unlike
-      // the legacy Marker's mouseover. Same in-memory property object, no request.
+      // Hover uses NATIVE DOM events, bound to `marker` — the AdvancedMarkerElement IS
+      // the DOM node (marker.element === marker), and it is the node that actually
+      // receives the pointer.
+      //
+      // WHY NOT `el` (pin.element): the <gmp-pin> Google builds is `pointer-events: none`,
+      // so the only events reaching a listener on it bubble up from the painted teardrop
+      // SVG. Its own wrapper <gmp-advanced-marker> is `pointer-events: auto` across the
+      // full 26x38 box and sits ABOVE the neighbouring pin, so with pins close together it
+      // swallowed the pointer over its neighbour's teardrop and NEITHER pin was hovered.
+      // Measured on two pins 14px apart: a band 1px wide at the pin heads widening to 13px
+      // at the tips where no pin was hovered at all — so `mouseleave` A and `mouseenter` B
+      // were never the adjacent pair the deferred clear below was sized for. Crossing that
+      // band took longer than HOVER_CLEAR_MS at any pointer speed under ~150px/s, which is
+      // exactly the slow, aimed move you make at two pins that close: the card tore down
+      // and rebuilt, i.e. flickered. Binding here makes each marker's hover area its own
+      // box, the boxes are adjacent, and every A-to-B move is the direct handoff the clear
+      // already handles. Measured after: clean at every speed from 10 to 300px/s.
+      //
+      // Hover area becomes the pin's box rather than its painted outline. Nothing visual
+      // changes — no styling, no size, no zIndex, no click behaviour.
       //
       // ENTER IS IMMEDIATE and cancels any pending clear, so moving straight from one
       // pin to another switches the card with no blank frame in between.
-      el.addEventListener("mouseenter", () => {
+      marker.addEventListener("mouseenter", () => {
         if (hoverClearRef.current) { clearTimeout(hoverClearRef.current); hoverClearRef.current = null }
         setHovered(p)
       })
@@ -1164,7 +1203,7 @@ export default function BeastPropertyExplorer({ serviceAreaSlugs, activeClient, 
       // it; guarded so a late leave from THIS pin cannot wipe a hover that has since
       // moved to another one. Compared by placeId rather than object identity because
       // `visible` is rebuilt on each search and would otherwise hold a stale reference.
-      el.addEventListener("mouseleave", () => {
+      marker.addEventListener("mouseleave", () => {
         if (hoverClearRef.current) clearTimeout(hoverClearRef.current)
         hoverClearRef.current = setTimeout(() => {
           hoverClearRef.current = null
@@ -1510,7 +1549,11 @@ export default function BeastPropertyExplorer({ serviceAreaSlugs, activeClient, 
       {/* Lightweight property card. Built entirely from data already returned plus
           existing CRM client context — showing it costs no Google request. */}
       {card && (
-        <div className="pointer-events-auto absolute bottom-12 left-4 w-[330px] rounded-xl bg-white p-4 shadow-xl ring-1 ring-black/10">
+        <div
+          className="pointer-events-auto absolute bottom-12 left-4 w-[330px] rounded-xl bg-white p-4 shadow-xl ring-1 ring-black/10"
+          onMouseEnter={holdHoverCard}
+          onMouseLeave={releaseHoverCard}
+        >
           {/* Shared card-family header (mirrors the Companion Current Property card):
               a 48px property thumbnail to the LEFT of the stacked name → address →
               rating. Compact, NOT a hero photo; a missing/broken image falls back to
