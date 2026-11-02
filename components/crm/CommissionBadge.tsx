@@ -18,11 +18,14 @@ import type { CommissionStatus } from "@bc/companion-shared"
  * It used to be a soft mint green, the same family as the move-in special beside it, so the two
  * read as one kind of thing. They are not: a special is a renter incentive and a commission is
  * agent compensation, and only one of them is ever shown to a client. Dark forest with bright
- * green text separates them at a glance, and the dollar sign gives the badge its own mark —
- * the special keeps its tag, the gift card its gift.
+ * green text separates them at a glance — the special keeps its tag, the gift card its gift.
  *
- * Only the colours and the icon changed. Size, typography, padding, radius and placement are
- * the values each surface already used, which is why `size` exists rather than one shared pill.
+ * THE DECORATIVE DOLLAR MARK WAS REMOVED (2026-11-02, by request): the chip is narrow and the
+ * icon was spending width without adding information. It was `aria-hidden`, so assistive tech
+ * never announced it and nothing accessible is lost; the aria-label and title below still carry
+ * the word "Commission" for every reader. Only the colours changed here. Size, typography,
+ * padding, radius and placement are the values each surface already used, which is why `size`
+ * exists rather than one shared pill.
  */
 
 const SIZES = {
@@ -31,26 +34,6 @@ const SIZES = {
   /** The map card, which runs a half-point larger and uses a tighter radius. */
   card: "rounded-md px-2.5 py-[3px] text-[11.5px]",
 } as const
-
-/** Understated, and sized in em so it tracks the badge's own font size. */
-function DollarMark() {
-  return (
-    <svg
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth={2.25}
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden="true"
-      className="flex-none opacity-90"
-      style={{ width: "0.95em", height: "0.95em" }}
-    >
-      <path d="M12 2v20" />
-      <path d="M17 6.5c0-1.9-2.2-3-5-3s-5 1.1-5 3 2.2 2.9 5 3.4 5 1.4 5 3.6-2.2 3.5-5 3.5-5-1.3-5-3.2" />
-    </svg>
-  )
-}
 
 export default function CommissionBadge({
   status,
@@ -68,16 +51,16 @@ export default function CommissionBadge({
   if (status.state === "paying") {
     return (
       // THE WORD IS GONE, THE MEANING IS NOT. "Commission:" was dropped to buy back width on a
-      // chip that sits beside two others, leaving the dollar mark to carry the category. That
-      // works visually and not at all for a screen reader, which skips the decorative icon and
-      // would announce a bare "Send 125% · Escort 125%" — a number with no subject. The
-      // accessible name puts the word back for exactly the readers who lost it.
+      // chip that sits beside two others, and the decorative dollar mark that stood in for it has
+      // now gone too — so the chip shows the VALUE alone ("Send 125% · Escort 125%"). The
+      // accessible name and the hover title are what carry the category now, for every reader
+      // rather than only the sighted ones. Keep them: without them this is a number with no
+      // subject. inline-flex / gap-1 are left as they are — one child, so nothing shifts.
       <span
         aria-label={`Commission: ${status.text}`}
         title={`Commission: ${status.text}`}
         className={`inline-flex items-center gap-1 whitespace-nowrap border font-medium leading-none ${s} border-[#1e5235] bg-[#0f2a1d] text-[#4ade80] ${className}`}
       >
-        <DollarMark />
         <span className="font-semibold">{status.text}</span>
       </span>
     )

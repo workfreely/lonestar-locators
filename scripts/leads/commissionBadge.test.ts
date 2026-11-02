@@ -25,13 +25,16 @@ const SURFACES = {
   "Map card": read("components/crm/explorer/BeastPropertyExplorer.tsx"),
 }
 
-console.log("the paying pill is dark forest green with a dollar mark:")
+console.log("the paying pill is dark forest green, and carries the VALUE alone:")
 ok("dark background", /bg-\[#0f2a1d\]/.test(BADGE))
 ok("brighter green text", /text-\[#4ade80\]/.test(BADGE))
 ok("subtle green border", /border-\[#1e5235\]/.test(BADGE))
-ok("a dollar sign, not a tag", /DollarMark/.test(BADGE) && !/tag/i.test(BADGE.slice(BADGE.indexOf("function DollarMark"), BADGE.indexOf("export default"))))
-ok("…sized in em so it tracks the badge's own type", /width: "0\.95em", height: "0\.95em"/.test(BADGE))
-ok("…and it never shrinks", /flex-none/.test(BADGE))
+// The decorative dollar mark was removed on 2026-11-02. It was aria-hidden, so it was never
+// announced; these assertions are inverted rather than deleted so it cannot drift back in.
+ok("the decorative dollar mark is GONE", !/DollarMark/.test(BADGE))
+ok("…no svg is left in the component at all", !/<svg/.test(BADGE))
+ok("…and neither is its em sizing", !/0\.95em/.test(BADGE))
+ok("…nor an aria-hidden decoration", !/aria-hidden/.test(BADGE))
 ok("the old mint green is gone from the component", !/dff5e6|8ecaa6|136c3a/.test(BADGE))
 
 console.log("\nthe word 'Commission:' is gone from the paying chip, but not its meaning:")
@@ -39,13 +42,15 @@ console.log("\nthe word 'Commission:' is gone from the paying chip, but not its 
   const paying = BADGE.slice(BADGE.indexOf('status.state === "paying"'), BADGE.indexOf('status.state === "not_paying"'))
   ok("no visible 'Commission:' label remains", !/>Commission:</.test(paying))
   ok("…the value is still rendered", /\{status\.text\}/.test(paying))
-  ok("…and the dollar mark still carries the category visually", /<DollarMark \/>/.test(paying))
+  ok("…and nothing decorative sits beside it", !/<svg|DollarMark/.test(paying))
   // A decorative icon is skipped by assistive tech, so without this the chip announces a bare
   // "Send 125% · Escort 125%" — a number with no subject.
   ok("the chip has an accessible name that still says Commission",
     /aria-label=\{`Commission: \$\{status\.text\}`\}/.test(paying))
   ok("…and a hover title too", /title=\{`Commission: \$\{status\.text\}`\}/.test(paying))
-  ok("the icon is still marked decorative", /aria-hidden="true"/.test(BADGE))
+  ok("the value keeps its own weight", /className="font-semibold">\{status\.text\}/.test(paying))
+  ok("layout classes are untouched — one child, so nothing shifts",
+    /inline-flex items-center gap-1 whitespace-nowrap border font-medium leading-none/.test(paying))
 }
 
 console.log("\nthe other two states are untouched:")
@@ -54,8 +59,7 @@ ok("…and still reads 'Not Paying Locators'", /Not Paying Locators/.test(BADGE)
 ok("unverified keeps its neutral grey", /border-\[#cbd4e0\] bg-\[#eef1f5\] text-\[#5a6b86\]/.test(BADGE))
 ok("…and still reads 'Commission Not Verified' — the word stays where it is useful",
   /Commission Not Verified/.test(BADGE))
-ok("neither carries the dollar mark — it marks PAY, not the absence of it",
-  (BADGE.match(/<DollarMark \/>/g) ?? []).length === 1)
+ok("no state carries an icon any more", (BADGE.match(/<svg|DollarMark/g) ?? []).length === 0)
 
 console.log("\nsize, typography and radius are the values each surface already used:")
 ok("row size unchanged (11px, rounded-lg)", /row: "rounded-lg px-2\.5 py-\[3px\] text-\[11px\]"/.test(BADGE))

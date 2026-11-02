@@ -38,25 +38,27 @@ for (const [role, re] of [
 ok("the label text is the bright green too", /\.bc-cp-commission-label \{[^}]*#4ade80/.test(CSS))
 ok("the old mint palette is gone from the base rule", !/8ecaa6|dff5e6|136c3a/i.test(BASE))
 
-console.log("\nthe dollar mark renders, and only on the paying chip:")
-// Structural, not distance-based: isolate the PAYING branch and look inside it. A regex that
-// assumed the opening tag closed immediately broke the moment an aria-label was added to it.
+console.log("\nno icon on any chip — the value stands alone:")
+// Structural, not distance-based: isolate the PAYING branch and look inside it.
 const PAYING_BRANCH = VIEW.slice(
   VIEW.indexOf('commissionStatus.state === "paying"'),
   VIEW.indexOf('commissionStatus.state === "not_paying"'),
 )
-ok("an inline svg sits inside the paying span", /<svg/.test(PAYING_BRANCH))
-ok("…and the paying span is the one carrying it",
-  PAYING_BRANCH.indexOf('className="bc-cp-commission"') < PAYING_BRANCH.indexOf("<svg"))
-ok("…with the same two paths as the web app",
-  VIEW.includes('d="M12 2v20"') && VIEW.includes('d="M17 6.5c0-1.9-2.2-3-5-3s-5 1.1-5 3 2.2 2.9 5 3.4 5 1.4 5 3.6-2.2 3.5-5 3.5-5-1.3-5-3.2"'))
-ok("…and the same stroke weight", /strokeWidth=\{2\.25\}/.test(VIEW) && /strokeWidth=\{2\.25\}/.test(WEB))
-ok("exactly one svg in the whole commission block",
-  (VIEW.slice(VIEW.indexOf('commissionStatus.state === "paying"'), VIEW.indexOf("bc-cp-reasons")).match(/<svg/g) ?? []).length === 1)
+// The decorative dollar mark was removed on 2026-11-02 from BOTH surfaces at once. It was
+// aria-hidden, so nothing accessible was lost; these are inverted rather than deleted so the
+// two surfaces cannot drift apart again.
+ok("no svg inside the paying span", !/<svg/.test(PAYING_BRANCH))
+ok("…and none anywhere in the commission block",
+  (VIEW.slice(VIEW.indexOf('commissionStatus.state === "paying"'), VIEW.indexOf("bc-cp-reasons")).match(/<svg/g) ?? []).length === 0)
+ok("…matching the web app, which has none either", !/<svg|DollarMark/.test(WEB))
+ok("the paying chip still carries the VALUE", /bc-cp-commission-label">\{commissionStatus\.text\}/.test(PAYING_BRANCH))
+ok("…and still names the category for every reader",
+  /aria-label=\{`Commission: \$\{commissionStatus\.text\}`\}/.test(PAYING_BRANCH) &&
+  /title=\{`Commission: \$\{commissionStatus\.text\}`\}/.test(PAYING_BRANCH))
 ok("the no-pay chip is text-only", /bc-cp-commission bc-cp-commission--nopay">Not Paying Locators</.test(VIEW))
 ok("the unverified chip is text-only", /bc-cp-commission bc-cp-commission--unverified">Commission Not Verified</.test(VIEW))
-ok("the icon is sized in em and never shrinks", /\.bc-cp-commission svg \{[^}]*0\.95em[^}]*flex: none/s.test(CSS))
-ok("the chip became inline-flex so the mark sits on the baseline", /display: inline-flex/.test(BASE))
+ok("the icon's old sizing rule is retained but matches nothing", /\.bc-cp-commission svg \{[^}]*0\.95em[^}]*flex: none/s.test(CSS))
+ok("the chip is still inline-flex — left as it was, one child, nothing shifts", /display: inline-flex/.test(BASE))
 
 console.log("\nthe other two states keep their exact appearance:")
 ok("no-pay is still the same red", /\.bc-cp-commission--nopay \{[^}]*#fdeaea[^}]*#eaa9a5[^}]*#b42318/s.test(CSS))

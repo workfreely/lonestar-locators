@@ -986,8 +986,10 @@
    compensation. These values are the web app's CommissionBadge.tsx verbatim, so the chip looks
    identical whether a property is viewed on the map or here.
 
-   inline-flex (was inline-block) so the dollar mark sits on the text baseline; the no-pay and
-   unverified variants below carry no icon and are unaffected by the change. */
+   inline-flex (was inline-block) for the icon that used to sit on the text baseline. The
+   decorative dollar mark was removed on 2026-11-02; inline-flex and the gap are left exactly as
+   they were, because with a single child neither changes the rendering, and reverting them would
+   be a layout change nobody asked for. The no-pay and unverified variants never carried an icon. */
 .bc-cp-commission {
   display: inline-flex;
   align-items: center;
@@ -1001,16 +1003,19 @@
   font-weight: 500;
   line-height: 1.3;
 }
-/* Sized in em so it tracks the chip's own font size, and never shrinks. */
+/* RETAINED, CURRENTLY UNUSED. Sized the removed dollar mark in em so it tracked the chip's own
+   font size. Kept because it matches nothing today and costs nothing, and an icon returning to
+   this chip should return at this size rather than a new guess. */
 .bc-cp-commission svg {
   width: 0.95em;
   height: 0.95em;
   flex: none;
   opacity: 0.9;
 }
-/* Carries the commission VALUE now that the word "Commission:" has been dropped from the chip —
-   the dollar mark carries the category visually, and the chip's aria-label carries it for screen
-   readers. Kept as a class rather than inlined so the weight stays in one place. */
+/* Carries the commission VALUE. The word "Commission:" was dropped from the chip earlier and the
+   dollar mark that stood in for it was removed on 2026-11-02, so the chip's aria-label and title
+   are the only things naming the category now — for every reader, not just screen readers. Kept
+   as a class rather than inlined so the weight stays in one place. */
 .bc-cp-commission-label {
   color: #4ade80;
   font-weight: 600;
