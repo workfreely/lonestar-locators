@@ -402,8 +402,17 @@ export function buildActiveClientPayload(
     creditScreening: {
       creditScore: str(lead.credit_score),
       creditHistory: str(lead.credit_history),
+      // AGE AND BALANCE TRAVEL TOGETHER. These two rows previously carried the age alone, so
+      // Beast Companion could not show the balance owed however the panel rendered it — the
+      // server never sent it. That is the same omission the CRM's Credit Screening card had
+      // until 2026-10-15 (bcdd69a), which fixed the panel and the notification summary but
+      // not this DTO. The gating is unchanged and deliberately mirrors the CRM's exactly: a
+      // broken-lease balance only when the history mentions a broken lease, an eviction
+      // balance only on an Eviction — so neither row can leak the other's figure.
       brokenLeaseAge: historyLower.includes("broken") ? str(lead.broken_lease_age) : null,
+      brokenLeaseAmount: historyLower.includes("broken") ? str(lead.broken_lease_amount) : null,
       evictionAge: lead.credit_history === "Eviction" ? str(lead.eviction_age) : null,
+      evictionBalance: lead.credit_history === "Eviction" ? str(lead.eviction_balance) : null,
       criminalBackground: str(lead.criminal_background),
       felonyAge: str(lead.felony_age),
       misdemeanorAge: str(lead.misdemeanor_age),

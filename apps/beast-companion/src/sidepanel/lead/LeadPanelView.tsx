@@ -76,6 +76,25 @@ function hasValue(v: unknown): boolean {
   return true;
 }
 
+/**
+ * One screening-history row: the age and the BALANCE OWED, which is the figure that decides
+ * whether a property will consider the renter at all. This panel used to render the age by
+ * itself (`${cs.brokenLeaseAge} ago`) — the identical expression the CRM's Credit Screening
+ * card dropped on 2026-10-15 — so the balance was invisible here even once the server sent it.
+ *
+ * Reproduces the CRM's helper exactly, so the two surfaces read the same: "3 years ago ·
+ * balance $500-$1,000", either half alone, and "Yes" when the history is recorded but neither
+ * detail is known. `hasValue` is what keeps an explicit "$0" on screen — a renter who owes
+ * nothing is not the same as one who was never asked.
+ */
+function historyDetail(age: unknown, balance: unknown): string {
+  return (
+    [hasValue(age) ? `${age} ago` : null, hasValue(balance) ? `balance ${balance}` : null]
+      .filter(Boolean)
+      .join(" · ") || "Yes"
+  );
+}
+
 /** Compact USD for the read-only Invoice Details rows (mirrors the CRM section). */
 function invMoney(n: number): string {
   return n.toLocaleString("en-US", { style: "currency", currency: "USD", minimumFractionDigits: 0, maximumFractionDigits: 2 });
@@ -758,7 +777,10 @@ export function LeadPanelBody({
         key={`search-criteria-${lead.id}`}
         title="Search Criteria"
         shaded
-        defaultOpen={false}
+        // EXPANDED BY DEFAULT: what the renter actually asked for is the first thing needed
+        // when a lead opens, so it is worth a click to HIDE, not a click to see. Still freely
+        // collapsible, and the per-lead `key` remounts the section, so every lead opens expanded.
+        defaultOpen
         rows={[
           { label: sc.interest ? "Interest" : "City", value: sc.interest || sc.city },
           { label: "Budget", value: sc.budgetText },
@@ -781,12 +803,27 @@ export function LeadPanelBody({
       <FieldSection
         key={`credit-screening-${lead.id}`}
         title="Credit Screening"
-        defaultOpen={false}
+        // EXPANDED BY DEFAULT: the figures here decide which properties a renter can be
+        // shown at all, so they are worth a click to HIDE, not a click to see. Still freely
+        // collapsible, and the per-lead `key` remounts the section, so every lead opens expanded.
+        defaultOpen
         rows={[
           { label: "Credit Score", value: cs.creditScore },
           { label: "Credit History", value: cs.creditHistory },
-          { label: "Broken Lease", value: hasValue(cs.brokenLeaseAge) ? `${cs.brokenLeaseAge} ago` : null },
-          { label: "Eviction", value: hasValue(cs.evictionAge) ? `${cs.evictionAge} ago` : null },
+          // GATED ON THE HISTORY ITSELF, exactly as the CRM card is (LeadPanel.tsx). Without
+          // this, historyDetail's "Yes" fallback is never null and BOTH rows would render for
+          // every lead — showing an eviction row to a renter who has no eviction. The gate is
+          // also what keeps one row's balance out of the other's.
+          {
+            label: "Broken Lease",
+            value: String(cs.creditHistory ?? "").toLowerCase().includes("broken")
+              ? historyDetail(cs.brokenLeaseAge, cs.brokenLeaseAmount)
+              : null,
+          },
+          {
+            label: "Eviction",
+            value: cs.creditHistory === "Eviction" ? historyDetail(cs.evictionAge, cs.evictionBalance) : null,
+          },
           { label: "Criminal Background", value: cs.criminalBackground },
         ]}
       />
@@ -802,7 +839,7 @@ export function LeadPanelBody({
           accordion is a dependable place to look. Leads created before this
           shipped have no entries: their original form values were never
           preserved, and inventing them would be worse than an empty state. */}
-      <SectionCard key={`client-history-${lead.id}`} title="Client History" defaultOpen={false}>
+      <SectionCard key={`client-history-${lead.id}`} title="Client History" defaultOpen>
         {(lead.clientHistory ?? []).length === 0 ? (
           <p className="lp-history-empty">No recorded criteria changes yet.</p>
         ) : (

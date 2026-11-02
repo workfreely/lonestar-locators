@@ -75,7 +75,19 @@ export const creditScreeningSchema = z.object({
   creditScore: z.string().nullish(),
   creditHistory: z.string().nullish(),
   brokenLeaseAge: z.string().nullish(),
+  /** BALANCE OWED on the broken lease — the number that decides whether a property will
+   *  consider this renter at all, so an age without it is the less useful half. Carried
+   *  beside the age and gated the same way (see leadToDto): present only when the lead's
+   *  credit history actually mentions a broken lease. The CRM's Credit Screening card has
+   *  shown this since 2026-10-15 (bcdd69a); the same omission simply survived here, so the
+   *  panel could only ever render the age. A STRING, not a number: the forms collect a
+   *  range ("$500-$1,000", "$5,000+") and an exact "$0" must stay visible, because a renter
+   *  who owes nothing is not the same as one who was never asked. */
+  brokenLeaseAmount: z.string().nullish(),
   evictionAge: z.string().nullish(),
+  /** Balance owed on the eviction. Same reasoning, same shape, gated on an Eviction
+   *  history — the identical omission the CRM fix corrected on both rows at once. */
+  evictionBalance: z.string().nullish(),
   criminalBackground: z.string().nullish(),
   felonyAge: z.string().nullish(),
   misdemeanorAge: z.string().nullish(),
