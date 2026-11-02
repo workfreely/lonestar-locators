@@ -58,16 +58,27 @@ function daysInMonth(year: number, month1: number): number {
 }
 
 /**
+ * TWO EXPORTS, ONE DATE RULE. The month table, the leap rule and the no-Date-constructed
+ * approach below are shared, so every surface spells a date the same way. They differ only in
+ * whether the trailing ` - NN` sequence is shown:
+ *
+ *   formatSocialDisplayDate  the date rewrite ALONE — the sequence survives.
+ *                            For surfaces that show the full stored title, e.g. the Queue:
+ *                            "The Drakestone Apartments Unit 1905 - Dallas - Nov 1, 2026 - 01"
+ *   formatSocialDisplayName  the same rewrite, then the sequence dropped. This is the Content
+ *                            Library preview card's format and is unchanged:
+ *                            "The Drakestone Apartments Unit 1905 - Dallas - Nov 1, 2026"
+ *
  * Render a stored display name for humans: every `YYYY-MM-DD` becomes
- * `Mon D, YYYY`. Everything else — property, market, sequence, separators,
+ * `Mon D, YYYY`. Everything else — property, market, unit, sequence, separators,
  * custom text — is returned exactly as stored.
  *
  * An impossible date (2026-02-31) is left in its ISO form rather than rendered
  * as "Feb 31, 2026": showing the raw value is the more honest failure.
  */
-export function formatSocialDisplayName(name: string | null | undefined): string {
+export function formatSocialDisplayDate(name: string | null | undefined): string {
   if (!name) return ""
-  const withDates = name.replace(/\b(\d{4})-(\d{2})-(\d{2})\b/g, (whole, y: string, m: string, d: string) => {
+  return name.replace(/\b(\d{4})-(\d{2})-(\d{2})\b/g, (whole, y: string, m: string, d: string) => {
     const year = Number(y)
     const month = Number(m)
     const day = Number(d)
@@ -75,7 +86,10 @@ export function formatSocialDisplayName(name: string | null | undefined): string
     if (day < 1 || day > daysInMonth(year, month)) return whole
     return `${MONTHS_SHORT[month - 1]} ${day}, ${year}`
   })
-  return stripTrailingSeq(withDates)
+}
+
+export function formatSocialDisplayName(name: string | null | undefined): string {
+  return stripTrailingSeq(formatSocialDisplayDate(name))
 }
 
 /**

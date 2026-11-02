@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation"
 import { supabase } from "@/lib/supabase/client"
 import { DEMO_LIBRARY } from "./demoFixtures"
 import { SOCIAL_MARKETS, normalizeSocialMarket } from "@/lib/social/markets"
-import { formatSocialDisplayName } from "@/lib/social/displayName"
+import { formatSocialDisplayName, formatSocialDisplayDate } from "@/lib/social/displayName"
 import { sourceNeedsWork, workingBadge, renderedBadge, BADGE_TONE, type LaneFacts, type DraftFacts, type CardBadge } from "@/lib/social/postLane"
 import PreviewOverlay from "@/components/crm/social/PreviewOverlay"
 import { readMediaDuration } from "@/lib/social/readMediaDuration"
@@ -1569,7 +1569,11 @@ export default function SocialAutopilotClient() {
             <div className="flex flex-col gap-1.5 max-h-[50vh] overflow-y-auto">
               {postsBySource[editMenuFor]!.map((p) => (
                 <button key={p.id} type="button" className="text-left px-3 py-2 rounded-lg border border-[var(--crm-border)] hover:bg-[var(--crm-card)] transition-colors" onClick={() => { const id = p.id; setEditMenuFor(null); openPost(id) }}>
-                  <span className="text-[13px] font-semibold text-[var(--crm-text-primary)]">{p.name}</span>
+                  {/* formatSocialDisplayDate, not formatSocialDisplayName: this chooser shows the
+                      whole stored title, sequence included. The name falls back to the stored
+                      display_name / post_name when a post has no property, which is the only way an
+                      ISO date reaches this line — display only, the stored value is untouched. */}
+                  <span className="text-[13px] font-semibold text-[var(--crm-text-primary)]">{formatSocialDisplayDate(p.name)}</span>
                   <span className="text-[11.5px] text-[var(--crm-text-muted)]"> · {p.status}{p.scheduledAt ? ` · ${new Date(p.scheduledAt).toLocaleDateString("en-US", { month: "short", day: "numeric" })}` : ""}</span>
                 </button>
               ))}

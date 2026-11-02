@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation"
 import { platformMeta } from "@/lib/social/platformMeta"
 import { PLATFORM_ICON_SIZE_COMPACT, platformIconColor } from "@/lib/ui/platformIcon"
 import { POST_STATUS_LABEL, type PostStatus } from "@/lib/social/postStatus"
+import { formatSocialDisplayDate } from "@/lib/social/displayName"
 
 // Social Autopilot → Queue (REAL post model). Shows this admin's posts that have not yet
 // published, with compact status filters. Clicking a row opens the post editor. No sample
@@ -162,7 +163,11 @@ export default function QueueClient() {
               </div>
               <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-1.5 min-w-0">
-                  <div className="text-[13px] font-bold text-[var(--crm-text-primary)] truncate">{p.postName || p.source?.displayName || "Untitled post"}</div>
+                  {/* DISPLAY ONLY — the stored post_name / display_name keeps its ISO date; this spells it
+                      the way the Content Library preview card does. The trailing ` - NN` is kept here
+                      because the Queue shows the whole stored title, so formatSocialDisplayDate is the
+                      right half of the pair (formatSocialDisplayName would drop the sequence). */}
+                  <div className="text-[13px] font-bold text-[var(--crm-text-primary)] truncate">{formatSocialDisplayDate(p.postName || p.source?.displayName || "") || "Untitled post"}</div>
                   {p.recurring && <span className="flex-none text-[9.5px] font-semibold uppercase tracking-wide px-1.5 py-0.5 rounded-full bg-[var(--crm-card)] text-[var(--crm-text-secondary)] border border-[var(--crm-border)]">Recurring</span>}
                 </div>
                 <div className="text-[11.5px] text-[var(--crm-text-secondary)] truncate flex items-center gap-1">
