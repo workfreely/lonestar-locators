@@ -4533,8 +4533,18 @@ export default function DashboardClient({ leads, nextActions, favorites, recomme
             the dark photo. Left untouched (and unrendered) behind the
             sidebar itself, so its frosted-glass look over the dark photo
             is fully preserved. */}
+        {/* top-0/bottom-0, NOT top-2/bottom-2. The veil used to share the 8px inset the Lead
+            Detail Overlay above it uses, but the board wrapper beside it is a flex item with no
+            vertical inset — so an 8px band of the Lead Board was left uncovered at the top and
+            the bottom, and `document.elementFromPoint` returned `.kb-board` there at every x
+            across the workspace. That band is both the CRM showing through and a live scroll
+            target behind an open workspace. The veil is a BACKGROUND, not the workspace, so
+            stretching it to the container's full height changes no workspace geometry: the
+            overlay at z-40 keeps its own top-2 bottom-2 and the panel inside it is untouched.
+            The inline `top` from detailVeilStyle still wins when the board toolbar is measured,
+            which is what keeps the toolbar visible above the veil. */}
         {selectedLead && (
-          <div style={detailVeilStyle} className={`absolute top-2 bottom-2 ${veilInsetCls} z-30 bg-gradient-to-b from-zinc-100 to-zinc-200 dark:from-[var(--crm-workspace)] dark:to-[var(--crm-workspace)]`} />
+          <div style={detailVeilStyle} className={`absolute top-0 bottom-0 ${veilInsetCls} z-30 bg-gradient-to-b from-zinc-100 to-zinc-200 dark:from-[var(--crm-workspace)] dark:to-[var(--crm-workspace)]`} />
         )}
 
         {/* LEFT SIDEBAR — Agenda (Follow-ups). Recessed column-like panel so
@@ -4875,7 +4885,12 @@ export default function DashboardClient({ leads, nextActions, favorites, recomme
               )}
 
               {/* INSIGHTS PANEL (Phase 1 center working canvas) */}
-              <div className="beast-ai-clearance flex-1 bg-gradient-to-b from-zinc-100 to-zinc-200 dark:from-[var(--crm-workspace)] dark:to-[var(--crm-workspace)] py-6 overflow-y-auto">
+              {/* overscroll-contain: the workspace scrolls, and reaching either end stops there
+                  instead of chaining the remaining delta outward to whatever is scrollable
+                  behind it. Paired with the veil above — the veil removes the exposed board as a
+                  wheel TARGET, this removes it as a chain DESTINATION. Nothing else changes:
+                  overflow-y-auto, the padding and the flex sizing are as they were. */}
+              <div className="beast-ai-clearance flex-1 bg-gradient-to-b from-zinc-100 to-zinc-200 dark:from-[var(--crm-workspace)] dark:to-[var(--crm-workspace)] py-6 overflow-y-auto overscroll-contain">
                 {/* Desktop 50/50 workspace. LEFT column = Recommended Properties,
                     Favorite Properties, Client Tools (+ Invoice Details on Closed).
                     RIGHT column = AI Insights (rendered by LeadInsights, includes
