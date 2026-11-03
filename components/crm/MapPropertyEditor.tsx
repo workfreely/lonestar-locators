@@ -141,8 +141,6 @@ export default function MapPropertyEditor({
   // another. Every value is the string the control shows, and "" is the unknown state throughout.
   const [approval, setApproval] = useState<Record<string, string>>({})
   const [source, setSource] = useState("")
-  /** Commission fields the owner has explicitly cleared back to unknown this session. */
-  const [cleared, setCleared] = useState<Record<string, boolean>>({})
 
   const panelRef = useRef<HTMLDivElement | null>(null)
 
@@ -177,7 +175,6 @@ export default function MapPropertyEditor({
       setApproval(a)
     }
     setSource("")
-    setCleared({})
     setSaveError(null)
     setSavedAt(null)
   }, [])
@@ -213,8 +210,18 @@ export default function MapPropertyEditor({
       ["bonusFlat", bonus, loaded.bonusFlat],
     ]
     for (const [key, value, stored] of commission) {
-      if (cleared[key]) { out[key] = null; continue }
-      if (value.trim() !== commissionToInput(stored)) out[key] = value.trim()
+      const now = value.trim()
+      if (now === commissionToInput(stored)) continue
+      // EMPTIED ON PURPOSE TRAVELS AS NULL.
+      //
+      // The route reads a blank string as "leave it alone" — that is what makes a blank rent
+      // safe — so with the Clear button gone, deleting the number by hand would have looked
+      // like it worked and quietly changed nothing. An emptied field now sends exactly the
+      // payload the button used to send, down the same ownerClear path the writer already has.
+      //
+      // An explicit 0 is untouched by this: "0" is not "", so it travels as a value and is
+      // written as a confirmed zero. Blank and 0 stay different all the way to the column.
+      out[key] = now === "" ? null : now
     }
     // `loaded.currentSpecial` as the third argument: when the dropdown and details still
     // describe what is stored, this returns the stored text verbatim, so an older
@@ -285,7 +292,7 @@ export default function MapPropertyEditor({
     return out
   }, [loaded, send, escort, bonus, specialChoice, specialDetails, giftStatus, giftAmount,
       creditStatus, creditScore, creditObserved, creditNotes,
-      wdIncluded, wdConnections, attrs, landmark, crossStreets, cleared, approval])
+      wdIncluded, wdConnections, attrs, landmark, crossStreets, approval])
 
   const dirty = Object.keys(changes).length > 0
   // "Yes" means a confirmed offer, and a confirmed offer has a value. Caught here so the locator
@@ -423,8 +430,26 @@ export default function MapPropertyEditor({
    * whole point of it. So the arbitrary variant raises these declarations to the same specificity,
    * scoped to this one control, and `color-scheme` makes the picker glyph follow the panel's
    * theme instead of always painting for a light one.
+   *
+   * ── AND WHY IT CARRIES `lb-date-native` ───────────────────────────────────────────────────
+   * The giant white calendar glyph was a SECOND global rule, not a missing style of ours:
+   *
+   *   input[type="date"]::-webkit-calendar-picker-indicator {
+   *     opacity: 1; width: 100%; height: 100%; position: absolute; inset: 0; z-index: 1;
+   *   }
+   *
+   * That is the marketing site stretching the picker across the whole field, which is why the
+   * icon covered the date instead of sitting beside it. globals.css already carries the cure —
+   * `lb-date-native`, written for precisely this and documented there as "a NORMAL, VISIBLE,
+   * clickable native calendar icon… pair with color-scheme on the input". Its selector is
+   * element + attribute + class, so it outranks the base rule where a utility class would not.
+   *
+   * So this control adopts the convention that already exists rather than inventing a parallel
+   * set of overrides that would lose the same specificity fight twice. The global stylesheet is
+   * untouched, and no other date input changes.
    */
-  const dateField = `${field} [&[type=date]]:px-3 [&[type=date]]:py-2 [&[type=date]]:text-[13px]` +
+  const dateField = `${field} lb-date-native` +
+    ` [&[type=date]]:px-3 [&[type=date]]:py-2 [&[type=date]]:text-[13px]` +
     ` [&[type=date]]:rounded-lg [&[type=date]]:border-[var(--crm-border)]` +
     ` [color-scheme:light] dark:[color-scheme:dark]`
 
@@ -581,32 +606,25 @@ export default function MapPropertyEditor({
               {/* THREE ACROSS. Send, Escort and Bonus are one answer about one property, and
                   stacking the bonus under the other two pushed everything below it down a row for
                   no reason. The controls themselves are unchanged: same state, same placeholder,
-                  same blank-versus-zero rule, and Clear still appears on exactly the two fields
-                  that had it. `clearable` carries that difference rather than a second block. */}
+                  same blank-versus-zero rule, same columns. */}
               <div className="grid grid-cols-3 gap-2">
                 {([
-                  ["Send %", send, setSend, "sendCommission", loaded.sendCommission, true],
-                  ["Escort %", escort, setEscort, "escortCommission", loaded.escortCommission, true],
-                  ["Bonus ($)", bonus, setBonus, "bonusFlat", loaded.bonusFlat, false],
-                ] as const).map(([lbl, value, set, key, stored, clearable]) => (
+                  ["Send %", send, setSend, "sendCommission"],
+                  ["Escort %", escort, setEscort, "escortCommission"],
+                  ["Bonus ($)", bonus, setBonus, "bonusFlat"],
+                ] as const).map(([lbl, value, set, key]) => (
                   <div key={key}>
                     <label className={label}>{lbl}</label>
+                    {/* NO CLEAR BUTTON. Selecting the value and deleting it does the same job,
+                        and the change set above turns an emptied field into the explicit null the
+                        button used to send. `stored` and `clearable` are gone with it. */}
                     <input
                       inputMode="decimal"
                       className={field}
-                      value={cleared[key] ? "" : value}
+                      value={value}
                       placeholder="Unknown"
-                      onChange={(e) => { set(e.target.value); setCleared((c) => ({ ...c, [key]: false })) }}
+                      onChange={(e) => set(e.target.value)}
                     />
-                    {clearable && stored !== null && !cleared[key] && (
-                      <button
-                        type="button"
-                        onClick={() => { set(""); setCleared((c) => ({ ...c, [key]: true })) }}
-                        className="mt-1 text-[10px] text-[var(--crm-text-muted)] hover:text-[var(--crm-text-primary)] hover:underline"
-                      >
-                        Clear
-                      </button>
-                    )}
                   </div>
                 ))}
               </div>
@@ -641,9 +659,6 @@ export default function MapPropertyEditor({
                   placeholder="Waived app + admin fees, 12-month lease"
                   onChange={(e) => setSpecialDetails(e.target.value)}
                 />
-                <p className="mt-1 text-[10px] text-[var(--crm-text-muted)]">
-                  Kept alongside the dropdown — choosing an option never discards what is written here.
-                </p>
               </div>
               <div>
                 <div className="mb-1 flex items-baseline justify-between gap-2">
@@ -653,9 +668,6 @@ export default function MapPropertyEditor({
                   </span>
                 </div>
                 {triControl(giftStatus, setGiftStatus, "Gift card")}
-                <p className="mt-1 text-[10px] text-[var(--crm-text-muted)]">
-                  Unknown means not researched. No is a confirmed finding, and clears any stored amount.
-                </p>
               </div>
               {giftStatus === "yes" && (
                 <div>
@@ -695,9 +707,6 @@ export default function MapPropertyEditor({
                   {triControl(attrs[key] ?? "unknown", (v) => setAttrs((a) => ({ ...a, [key]: v })), lbl)}
                 </div>
               ))}
-              <p className="text-[10px] text-[var(--crm-text-muted)]">
-                Unknown leaves a recorded answer alone — it does not erase one.
-              </p>
             </section>
 
             {/* ── LOCATION NOTES ─────────────────────────────────────────────────────── */}
@@ -829,7 +838,7 @@ export default function MapPropertyEditor({
                       <>
                         {aInput("evictionMinAgeYears", "Minimum age (years)", "5", "numeric",
                           "A whole number of years, 0–20.")}
-                        {aSelect("evictionBalanceRequirement", "Associated balance", BALANCE_REQUIREMENT_OPTIONS)}
+                        {aSelect("evictionBalanceRequirement", "Outstanding balance", BALANCE_REQUIREMENT_OPTIONS)}
                         {aSelect("evictionPositiveHistoryRequired", "Rental history afterward", POSITIVE_HISTORY_OPTIONS)}
                       </>
                     )}

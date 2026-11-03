@@ -286,6 +286,35 @@ async function main() {
       (await get(FIXTURE, ADMIN_COOKIE)).body.approvalAvailable === true)
   }
 
+  console.log("\nclearing a commission by hand, now that the button is gone")
+  {
+    // THE EXACT SEQUENCE THE AGENT PERFORMS: select the value, delete it, save. The panel turns
+    // that into an explicit null (there is no button any more), and this proves the null reaches
+    // the column — the thing that would have silently stopped working had the panel kept sending
+    // a blank string.
+    await put({ placeId: FIXTURE, sendCommission: "100", escortCommission: "50" }, ADMIN_COOKIE)
+    ok("a commission saves to begin with", one<{ s: string; e: string }>(
+      `select send_commission as s, escort_commission as e from public.property_catalog where place_id='${FIXTURE}'`).s === "100%")
+
+    const cleared = await put({ placeId: FIXTURE, sendCommission: null, escortCommission: null }, ADMIN_COOKIE)
+    ok("emptying both and saving succeeds", cleared.status === 200, `${cleared.status} ${JSON.stringify(cleared.body)}`)
+    const after = one<{ s: string | null; e: string | null }>(
+      `select send_commission as s, escort_commission as e from public.property_catalog where place_id='${FIXTURE}'`)
+    ok("…and BOTH reach NULL in the column", after.s === null && after.e === null, JSON.stringify(after))
+
+    const back = await put({ placeId: FIXTURE, sendCommission: "110" }, ADMIN_COOKIE)
+    ok("…and a value can be entered again afterwards", back.status === 200 && one<{ s: string }>(
+      `select send_commission as s from public.property_catalog where place_id='${FIXTURE}'`).s === "110%")
+
+    // 0 IS NOT BLANK, all the way to the column.
+    await put({ placeId: FIXTURE, bonusFlat: "0" }, ADMIN_COOKIE)
+    ok("an explicit 0 is stored as a confirmed zero, not a clear", one<{ b: string | null }>(
+      `select bonus_flat as b from public.property_catalog where place_id='${FIXTURE}'`).b === "0")
+    await put({ placeId: FIXTURE, bonusFlat: null }, ADMIN_COOKIE)
+    ok("…and emptying it afterwards reaches NULL, which is a different state", one<{ b: string | null }>(
+      `select bonus_flat as b from public.property_catalog where place_id='${FIXTURE}'`).b === null)
+  }
+
   console.log("\nthe audit trail behind the HTTP calls")
   {
     const n = one<{ n: number }>(`select count(*)::int as n from public.property_enrichment_events

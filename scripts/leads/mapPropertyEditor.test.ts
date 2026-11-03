@@ -270,7 +270,13 @@ console.log("\nit sends ONLY what changed:")
 ok("the payload is built from a computed change set", /const payload[\s\S]{0,120}?\.\.\.changes/.test(PANEL))
 ok("…and the same change set decides whether there is anything to lose",
   /const dirty = Object\.keys\(changes\)\.length > 0/.test(PANEL))
-ok("a field equal to its stored value is omitted", /!== commissionToInput\(stored\)\) out\[key\]/.test(PANEL))
+// The comparison moved from an inline `!==` to an early `continue` when the Clear buttons were
+// removed. The PROPERTY is what matters and is what this asserts: a commission field is compared
+// against commissionToInput(stored), and an equal one never reaches the payload.
+ok("a field equal to its stored value is omitted",
+  /if \(now === commissionToInput\(stored\)\) continue/.test(PANEL))
+ok("…and an emptied one is sent as an explicit null, since blank means 'leave alone' to the route",
+  /out\[key\] = now === "" \? null : now/.test(PANEL))
 ok("Save is disabled when nothing changed",
   /disabled=\{!dirty \|\| saving \|\| !loaded \|\| [A-Za-z|& ]+\}/.test(PANEL))
 // AND EVERY VALIDITY FLAG REACHES THAT GATE. The form grew a second group of fields the route

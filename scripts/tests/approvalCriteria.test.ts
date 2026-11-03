@@ -347,28 +347,27 @@ console.log("\nAgent Bonus — the paragraphs went, the field did not")
 ok("the explanatory sentences are gone", !/Paid to the locator\. Separate from any resident gift card/.test(rawPanel))
 ok("…both of them", !/Blank means nobody has checked\. Enter 0 to record a confirmed no-pay property/.test(rawPanel))
 ok("the field itself is intact, now as the third cell of the commission row",
-  /\["Bonus \(\$\)", bonus, setBonus, "bonusFlat", loaded\.bonusFlat, false\]/.test(panel))
+  /\["Bonus \(\$\)", bonus, setBonus, "bonusFlat"\]/.test(panel))
 // THE UNIT MARKER IS THE POINT. Send and Escort are percentages and say so; the bonus is a dollar
 // amount and must say so too, or 100 typed into it reads as a rate to the person typing it.
 ok("…and it says it takes dollars, where its neighbours say percent",
   /\["Send %",/.test(panel) && /\["Escort %",/.test(panel) && /\["Bonus \(\$\)",/.test(panel))
+ok("…and the stored value is no longer threaded through for a Clear button",
+  !/loaded\.bonusFlat, false/.test(panel))
 // THE WORD "AGENT" IS GONE, AND MUST STAY GONE. The column, the state and the payload key are all
 // still bonus_flat — only what the agent reads changed.
 ok("…labelled exactly “Bonus”, with no “Agent”", !/Agent Bonus/.test(panel))
 ok("…while the field it writes is still bonus_flat", /bonusFlat: "bonus_flat"/.test(route))
-ok("its state binding is intact", /value=\{cleared\[key\] \? "" : value\}/.test(panel))
+ok("its state binding is intact", /value=\{value\}/.test(panel))
 ok("its database mapping is intact", /bonusFlat: "bonus_flat"/.test(route))
 ok("blank-vs-zero behaviour is intact — blank is never written",
   /if \(t === ""\) continue/.test(route) && /const n = Number\(t\)/.test(route))
 ok("an explicit 0 is still written as a confirmed zero",
   /add\(column, column === "bonus_flat" \? String\(Math\.round\(n\)\) : `\$\{Math\.round\(n\)\}%`\)/.test(route))
-ok("typing in it still clears the cleared-flag for its own key",
-  /setCleared\(\(c\) => \(\{ \.\.\.c, \[key\]: false \}\)\)/.test(panel))
-// THE BONUS NEVER HAD A CLEAR LINK, and folding it into the same row must not give it one.
-ok("Clear is still offered on send and escort only",
-  /\["Send %", send, setSend, "sendCommission", loaded\.sendCommission, true\]/.test(panel) &&
-  /\["Escort %", escort, setEscort, "escortCommission", loaded\.escortCommission, true\]/.test(panel) &&
-  /\{clearable && stored !== null && !cleared\[key\] && \(/.test(panel))
+ok("typing in it just sets its own state", /onChange=\{\(e\) => set\(e\.target\.value\)\}/.test(panel))
+// NO FIELD HAS A CLEAR BUTTON NOW — and none needs one, because an emptied field travels as null.
+ok("no commission field offers a Clear button",
+  !/clearable/.test(panel) && !/Clear to unknown/.test(panel))
 ok("commission is still firewalled from enrichment", !ENRICHMENT_WRITABLE_FIELDS.has("bonus_flat"))
 
 // ── 12. Nothing else moved ───────────────────────────────────────────────────────────────────
@@ -460,6 +459,79 @@ console.log("\nUpdated is a date, and is not Verified")
   ok("…and the only date the agent can set by hand is still the confirmation one",
     /screeningRequirementsCheckedAt/.test(panel))
 }
+
+// ── 16. The Clear buttons are gone, and clearing by hand still reaches NULL ──────────────────
+//
+// THE TRAP THIS GUARDS. The route reads a blank commission string as "leave it alone" — that is
+// what makes a blank rent safe. So removing the buttons without changing the change set would
+// have made deleting a number look like it worked while quietly changing nothing. The panel now
+// turns an emptied field into the explicit null the button used to send.
+console.log("\ncommission: no buttons, and an emptied field still clears")
+ok("no Clear button is rendered any more", !/Clear to unknown/.test(panel) && !/>\s*Clear\s*</.test(panel))
+ok("…and the cleared-flag state is gone with it", !/setCleared/.test(panel) && !/cleared\[key\]/.test(panel))
+ok("an emptied field is sent as an explicit null",
+  /out\[key\] = now === "" \? null : now/.test(panel))
+ok("…only when it actually changed", /if \(now === commissionToInput\(stored\)\) continue/.test(panel))
+ok("the route still treats that null as the deliberate clear",
+  /if \(raw === null\)[\s\S]{0,260}ownerClear: true/.test(route))
+ok("…and still refuses to clear on a blank string, which is why the panel must send null",
+  /if \(t === ""\) continue/.test(route))
+ok("commission columns are still owner-clearable in policy",
+  ["send_commission", "escort_commission", "bonus_flat"].every((f) => OWNER_CLEARABLE_FIELDS.has(f)))
+// 0 IS NOT BLANK. The whole model depends on it, and the new branch must not blur them.
+{
+  const mkChanges = (now: string, stored: string | null) =>
+    now === (stored ?? "") ? "unchanged" : now === "" ? "null" : now
+  ok("an explicit 0 over a stored 100% travels as a value, not a clear", mkChanges("0", "100%") === "0")
+  ok("an emptied field over a stored 100% travels as a clear", mkChanges("", "100%") === "null")
+  ok("an empty field that was already empty is not sent at all", mkChanges("", null) === "unchanged")
+  ok("a 0 that was already 0 is not sent at all", mkChanges("0", "0") === "unchanged")
+}
+ok("the three fields are still one row of three", /grid grid-cols-3 gap-2/.test(panel))
+ok("…and still map to the same columns",
+  /"sendCommission"/.test(panel) && /"escortCommission"/.test(panel) && /"bonusFlat"/.test(panel))
+ok("commission verification is untouched", /commissionVerified\?\.send_commission/.test(panel))
+
+// ── 17. The removed helper texts, and the renamed label ──────────────────────────────────────
+console.log("\nless text, clearer label")
+for (const t of [
+  "Kept alongside the dropdown",
+  "Unknown leaves a recorded answer alone",
+  "Unknown means not researched",
+]) ok(`removed: “${t}…”`, !rawPanel.includes(t))
+ok("the special's dropdown and its details box are still both there",
+  /specialChoice/.test(panel) && /specialDetails/.test(panel))
+ok("the tristate attributes are still there", /triControl\(attrs\[key\]/.test(panel))
+ok("the gift card tristate is still there", /triControl\(giftStatus/.test(panel))
+ok("the eviction balance label now reads Outstanding balance",
+  /aSelect\("evictionBalanceRequirement", "Outstanding balance"/.test(panel))
+ok("…and broken lease still reads the same thing, so the two match",
+  /aSelect\("brokenLeaseBalanceRequirement", "Outstanding balance"/.test(panel))
+ok("the field behind it is unchanged", APPROVAL_FIELDS.evictionBalanceRequirement.column === "eviction_balance_requirement")
+
+// ── 18. The date indicator, styled rather than left to the UA ────────────────────────────────
+console.log("\nthe calendar glyph uses the convention that already existed")
+{
+  const globals = read("app/globals.css")
+  // THE CAUSE, AND IT WAS A SECOND GLOBAL RULE. The marketing base rule stretches the picker
+  // across the whole field; that is the giant white glyph that covered the date.
+  ok("the base rule that causes the giant glyph is real, and still there",
+    /input\[type="date"\]::-webkit-calendar-picker-indicator\s*\{[^}]*width:\s*100%/.test(globals),
+    "the marketing base rule changed shape — re-check what lb-date-native is overriding")
+  ok("…and globals.css already carries the cure, written for exactly this",
+    /input\[type="date"\]\.lb-date-native::-webkit-calendar-picker-indicator/.test(globals))
+  ok("the date input adopts that convention rather than a parallel override",
+    /const dateField = `\$\{field\} lb-date-native`/.test(panel))
+  ok("…and defines no competing indicator rules of its own",
+    !/-webkit-calendar-picker-indicator/.test(panel))
+  ok("it still follows the theme, which that convention asks for",
+    /\[color-scheme:light\] dark:\[color-scheme:dark\]/.test(panel))
+  ok("the size overrides for the input itself are still there",
+    /\[&\[type=date\]\]:py-2/.test(panel) && /\[&\[type=date\]\]:text-\[13px\]/.test(panel))
+  ok("only the date input gets that treatment", /className=\{mode === "date" \? dateField : field\}/.test(panel))
+}
+ok("the global form stylesheet is still untouched",
+  /input\[type="date"\][\s\S]{0,400}?font-size:\s*1rem/.test(read("app/globals.css")))
 
 console.log(`\n${fail === 0 ? "ALL PASS" : "FAILURES"} — ${pass} passed, ${fail} failed\n`)
 process.exit(fail === 0 ? 0 : 1)
