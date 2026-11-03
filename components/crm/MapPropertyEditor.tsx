@@ -11,6 +11,11 @@ import {
 } from "@/lib/propertyIntel/washerDryerCatalog"
 import { MOVE_IN_SPECIAL_OPTIONS, specialToSelection, selectionToSpecial } from "@/lib/propertyIntel/moveInSpecials"
 import { ageLabel } from "@/lib/propertyIntel/relativeAge"
+import {
+  APPROVAL_FIELDS, BROKEN_LEASE_STATUS_OPTIONS, EVICTION_STATUS_OPTIONS, RENTAL_DEBT_STATUS_OPTIONS,
+  BALANCE_REQUIREMENT_OPTIONS, POSITIVE_HISTORY_OPTIONS, approvalValueToInput, parseApprovalValue,
+  groupHasStoredDetail,
+} from "@/lib/propertyIntel/approvalCriteria"
 
 /**
  * MAP PROPERTY EDITOR — the right-side panel behind "Edit Property" on a map card.
@@ -47,12 +52,26 @@ type Loaded = {
   washerDryerIncluded: string | null
   washerDryerConnections: string | null
   giftCardStatus: string | null
+  /** CREDIT SCREENING. Null status = nobody asked; it is NOT "they don't check". */
+  creditMinimumStatus: string | null
+  creditMinimumScore: number | null
+  creditObservedApprovalScore: number | null
+  creditScreeningNotes: string | null
+  creditScreeningCheckedAt: string | null
   giftCardAmount: number | null
   giftCardCheckedAt: string | null
   currentSpecialCheckedAt: string | null
   /** Per-field: did provenance record a VERIFICATION, or just a write? Decides whether the age
    *  line below reads "Verified" or "Updated". */
   fieldVerified: Record<string, boolean>
+  /** Per-field: when provenance last recorded a write. The ONLY source for the approval fields'
+   *  age lines — nothing stamps a column just because a save happened. */
+  fieldCheckedAt: Record<string, string>
+  /** False until the prepared screening migration is applied on this database. The panel says so
+   *  rather than showing sixteen empty controls, which would read as "no requirements entered". */
+  approvalAvailable: boolean
+  /** The approval columns as stored, keyed by COLUMN name. Empty when unavailable. */
+  approval: Record<string, unknown>
   googleRating: number | null
   imageUrl: string | null
   imageUrlBackup: string | null
@@ -105,11 +124,22 @@ export default function MapPropertyEditor({
   const [specialDetails, setSpecialDetails] = useState("")
   const [giftStatus, setGiftStatus] = useState<Tri>("unknown")
   const [giftAmount, setGiftAmount] = useState("")
+  // CREDIT SCREENING. "" is the unknown state and is what the dropdown shows when nobody has
+  // asked; selecting it on a property that HAS a stored minimum is the deliberate clear.
+  const [creditStatus, setCreditStatus] = useState("")
+  const [creditScore, setCreditScore] = useState("")
+  const [creditObserved, setCreditObserved] = useState("")
+  const [creditNotes, setCreditNotes] = useState("")
   const [wdIncluded, setWdIncluded] = useState("")
   const [wdConnections, setWdConnections] = useState("")
   const [attrs, setAttrs] = useState<Record<string, Tri>>({})
   const [landmark, setLandmark] = useState("")
   const [crossStreets, setCrossStreets] = useState("")
+  // APPROVAL CRITERIA, as one record keyed by the payload key. One state for sixteen fields is
+  // not a shortcut: it is what lets the change set, the validation and the hydrate below iterate
+  // the SAME list the route validates against, so a field cannot be added to one and missed by
+  // another. Every value is the string the control shows, and "" is the unknown state throughout.
+  const [approval, setApproval] = useState<Record<string, string>>({})
   const [source, setSource] = useState("")
   /** Commission fields the owner has explicitly cleared back to unknown this session. */
   const [cleared, setCleared] = useState<Record<string, boolean>>({})
@@ -125,6 +155,10 @@ export default function MapPropertyEditor({
     setSpecialDetails(sel.details)
     setGiftStatus(d.giftCardStatus === "yes" || d.giftCardStatus === "no" ? d.giftCardStatus : "unknown")
     setGiftAmount(amountToInput(d.giftCardAmount))
+    setCreditStatus(d.creditMinimumStatus === "reported_minimum" || d.creditMinimumStatus === "no_check_reported" ? d.creditMinimumStatus : "")
+    setCreditScore(d.creditMinimumScore === null ? "" : String(d.creditMinimumScore))
+    setCreditObserved(d.creditObservedApprovalScore === null ? "" : String(d.creditObservedApprovalScore))
+    setCreditNotes(d.creditScreeningNotes ?? "")
     setWdIncluded(d.washerDryerIncluded ?? "")
     setWdConnections(d.washerDryerConnections ?? "")
     const a: Record<string, Tri> = {}
@@ -135,6 +169,13 @@ export default function MapPropertyEditor({
     setAttrs(a)
     setLandmark(d.nearbyLandmark ?? "")
     setCrossStreets(d.crossStreets ?? "")
+    {
+      const a: Record<string, string> = {}
+      for (const [key, spec] of Object.entries(APPROVAL_FIELDS)) {
+        a[key] = approvalValueToInput(d.approval?.[spec.column])
+      }
+      setApproval(a)
+    }
     setSource("")
     setCleared({})
     setSaveError(null)
@@ -196,6 +237,27 @@ export default function MapPropertyEditor({
       }
     }
 
+    // ── CREDIT SCREENING ──────────────────────────────────────────────────
+    // Each piece travels only when it changed, and "" always means the unknown/absent state the
+    // route models as null. The score rides along with a 'reported_minimum' status even when the
+    // number itself did not change, because the route validates the pair and would reject a
+    // bare status — the same rule the gift card follows above.
+    const storedCreditStatus = loaded.creditMinimumStatus === "reported_minimum" || loaded.creditMinimumStatus === "no_check_reported"
+      ? loaded.creditMinimumStatus : ""
+    if (creditStatus !== storedCreditStatus) out.creditMinimumStatus = creditStatus === "" ? null : creditStatus
+    if (creditStatus === "reported_minimum") {
+      const storedScore = loaded.creditMinimumScore === null ? "" : String(loaded.creditMinimumScore)
+      if (creditScore.trim() !== storedScore || "creditMinimumStatus" in out) {
+        out.creditMinimumScore = creditScore.trim()
+        if (!("creditMinimumStatus" in out)) out.creditMinimumStatus = "reported_minimum"
+      }
+    }
+    {
+      const storedObserved = loaded.creditObservedApprovalScore === null ? "" : String(loaded.creditObservedApprovalScore)
+      if (creditObserved.trim() !== storedObserved) out.creditObservedApprovalScore = creditObserved.trim() === "" ? null : creditObserved.trim()
+    }
+    if (creditNotes.trim() !== (loaded.creditScreeningNotes ?? "")) out.creditScreeningNotes = creditNotes.trim()
+
     if (wdIncluded !== (loaded.washerDryerIncluded ?? "")) out.washerDryerIncluded = wdIncluded
     if (wdConnections !== (loaded.washerDryerConnections ?? "")) out.washerDryerConnections = wdConnections
     for (const { key, field } of ATTRIBUTES) {
@@ -204,9 +266,26 @@ export default function MapPropertyEditor({
     }
     if (landmark.trim() !== (loaded.nearbyLandmark ?? "")) out.nearbyLandmark = landmark.trim()
     if (crossStreets.trim() !== (loaded.crossStreets ?? "")) out.crossStreets = crossStreets.trim()
+
+    // ── APPROVAL CRITERIA ───────────────────────────────────────────────────────────────
+    // Compared against what was STORED, so a field the agent never touched is absent from the
+    // payload and cannot be rewritten — which is also why a field hidden by a conditional keeps
+    // its value: its state still holds what was loaded, so it compares equal and is not sent.
+    //
+    // A field the agent EMPTIED is sent as "", which the route reads as the deliberate clear back
+    // to unknown. Those two cases are distinguishable here and nowhere else, which is why the
+    // comparison lives in the same place the payload is built.
+    if (loaded.approvalAvailable) {
+      for (const [key, spec] of Object.entries(APPROVAL_FIELDS)) {
+        const stored = approvalValueToInput(loaded.approval?.[spec.column])
+        const now = (approval[key] ?? "").trim()
+        if (now !== stored) out[key] = now
+      }
+    }
     return out
   }, [loaded, send, escort, bonus, specialChoice, specialDetails, giftStatus, giftAmount,
-      wdIncluded, wdConnections, attrs, landmark, crossStreets, cleared])
+      creditStatus, creditScore, creditObserved, creditNotes,
+      wdIncluded, wdConnections, attrs, landmark, crossStreets, cleared, approval])
 
   const dirty = Object.keys(changes).length > 0
   // "Yes" means a confirmed offer, and a confirmed offer has a value. Caught here so the locator
@@ -214,6 +293,38 @@ export default function MapPropertyEditor({
   const giftAmountNumber = Number(giftAmount.trim().replace(/[$,\s]/g, ""))
   const giftCardInvalid =
     giftStatus === "yes" && (!giftAmount.trim() || !Number.isFinite(giftAmountNumber) || giftAmountNumber <= 0)
+  /** A score outside 300–850, or missing under a reported minimum. Mirrors the route's own rule
+   *  and the database CHECK, so the agent sees it here instead of as a rejected field name. */
+  const scoreOutOfRange = (v: string) => {
+    const t = v.trim()
+    if (t === "") return false
+    const n = Number(t)
+    return !Number.isInteger(n) || n < 300 || n > 850
+  }
+  const creditScoreInvalid =
+    scoreOutOfRange(creditScore) || (creditStatus === "reported_minimum" && !creditScore.trim())
+  const creditObservedInvalid = scoreOutOfRange(creditObserved)
+  /**
+   * APPROVAL CRITERIA, validated against the SAME parser the route uses.
+   *
+   * Not a second rule written to resemble the first — literally the same function, so a value the
+   * route would reject cannot pass here, and the agent sees the problem beside the field instead
+   * of as a field name in an error after a round trip.
+   */
+  const approvalErrors = useMemo(() => {
+    const out: Record<string, boolean> = {}
+    for (const [key, spec] of Object.entries(APPROVAL_FIELDS)) {
+      const v = (approval[key] ?? "").trim()
+      if (v === "") continue // blank is the clear back to unknown, and is always valid
+      out[key] = "bad" in parseApprovalValue(spec.kind, v)
+    }
+    return out
+  }, [approval])
+  const approvalInvalid = Object.values(approvalErrors).some(Boolean)
+  /** The gift card's rule, applied to credit and to the approval criteria: a field the route
+   *  would REJECT must not be savable, or the save reports success while the value silently
+   *  never lands. */
+  const blockSave = giftCardInvalid || creditScoreInvalid || creditObservedInvalid || approvalInvalid
 
   // ── CLOSING WITH UNSAVED WORK ───────────────────────────────────────────────────────────
   const requestClose = useCallback(() => {
@@ -238,7 +349,7 @@ export default function MapPropertyEditor({
   }, [open, dirty])
 
   async function save() {
-    if (!loaded || !dirty || saving || giftCardInvalid) return
+    if (!loaded || !dirty || saving || blockSave) return
     setSaving(true)
     setSaveError(null)
     try {
@@ -284,6 +395,62 @@ export default function MapPropertyEditor({
   const field = "w-full rounded-lg border border-[var(--crm-border)] bg-[var(--crm-inset)] px-3 py-2 text-[13px] text-[var(--crm-text-primary)] outline-none focus:border-[var(--crm-accent)]"
   const label = "block text-[11px] font-semibold text-[var(--crm-text-secondary)] mb-1"
   const sectionTitle = "text-[13px] font-semibold text-[var(--crm-text-primary)]"
+  /** A GROUP inside a section — Credit Score, Broken Lease, Eviction… One step below a section
+   *  heading on purpose: Approval Criteria is ONE section, not six. */
+  const groupTitle = "text-[11px] font-bold uppercase tracking-wide text-[var(--crm-text-secondary)]"
+
+  /** A field's age line, read from PROVENANCE. No approval column is stamped by a save, so this
+   *  is the only honest answer to "when was this entered?" — and it says "Verified" only when
+   *  provenance says a source was supplied. */
+  const ageFor = (column: string) =>
+    ageLabel({ at: loaded?.fieldCheckedAt?.[column] ?? null, verified: loaded?.fieldVerified?.[column] })
+
+  const setA = (key: string, v: string) => setApproval((a) => ({ ...a, [key]: v }))
+
+  /** One approval dropdown. "" is always the first option and always means UNKNOWN. */
+  const aSelect = (key: string, lbl: string, options: { value: string; label: string }[], note?: string) => (
+    <div>
+      <div className="mb-1 flex items-baseline justify-between gap-2">
+        <label className={label} style={{ marginBottom: 0 }}>{lbl}</label>
+        <span className="text-[10px] text-[var(--crm-text-muted)]">{ageFor(APPROVAL_FIELDS[key].column)}</span>
+      </div>
+      <select className={field} value={approval[key] ?? ""} onChange={(e) => setA(key, e.target.value)}>
+        {options.map((o) => <option key={o.value || "unknown"} value={o.value}>{o.label}</option>)}
+      </select>
+      {note && <p className="mt-1 text-[10px] leading-snug text-[var(--crm-text-muted)]">{note}</p>}
+    </div>
+  )
+
+  /** One approval input. The warning under it is the SAME parser the route runs, so a value that
+   *  would be rejected is named here instead of after a round trip. */
+  const aInput = (key: string, lbl: string, placeholder: string, mode: "numeric" | "decimal" | "text" | "date", bad: string, note?: string) => (
+    <div>
+      <label className={label}>{lbl}</label>
+      <input
+        type={mode === "date" ? "date" : "text"}
+        inputMode={mode === "text" || mode === "date" ? undefined : mode}
+        className={field}
+        value={approval[key] ?? ""}
+        placeholder={placeholder}
+        onChange={(e) => setA(key, e.target.value)}
+      />
+      {approvalErrors[key] ? (
+        <p className="mt-1 text-[10px] text-amber-400">{bad}</p>
+      ) : note ? (
+        <p className="mt-1 text-[10px] leading-snug text-[var(--crm-text-muted)]">{note}</p>
+      ) : null}
+    </div>
+  )
+
+  /** Should a group's DETAIL fields be shown?
+   *
+   *  Hidden under "Not accepted", where an age or a balance rule is moot — unless something is
+   *  already stored in them. A hidden field keeps its value either way (the panel only sends what
+   *  changed), but hiding a stored requirement would leave the agent unable to see or correct it,
+   *  which is its own kind of loss. So stored data always wins over the tidier layout. */
+  const showDetail = (statusKey: string, columns: string[]) =>
+    (approval[statusKey] ?? "") !== "not_accepted" ||
+    groupHasStoredDetail(columns.map((c) => loaded?.approval?.[c]))
 
   const triControl = (value: Tri, onChange: (v: Tri) => void, name: string) => (
     <div className="flex gap-1" role="radiogroup" aria-label={name}>
@@ -420,13 +587,7 @@ export default function MapPropertyEditor({
                   placeholder="Unknown"
                   onChange={(e) => { setBonus(e.target.value); setCleared((c) => ({ ...c, bonusFlat: false })) }}
                 />
-                <p className="mt-1 text-[10px] text-[var(--crm-text-muted)]">
-                  Paid to the locator. Separate from any resident gift card under Specials.
-                </p>
               </div>
-              <p className="text-[10px] text-[var(--crm-text-muted)]">
-                Blank means nobody has checked. Enter 0 to record a confirmed no-pay property.
-              </p>
             </section>
 
             {/* ── SPECIALS ───────────────────────────────────────────────────────────── */}
@@ -532,6 +693,195 @@ export default function MapPropertyEditor({
               </div>
             </section>
 
+            {/* ── APPROVAL CRITERIA ──────────────────────────────────────────────────────
+                Directly below Property Intelligence, in the SAME panel. One section with six
+                compact groups — not a tab, not a modal, not a second editor.
+
+                INTERNAL ONLY. Nothing here reaches a client page: lb_resolve_client_recommendations
+                does not select these columns, which is a guarantee rather than a rule anyone has
+                to remember.
+
+                NOT A PROMISE. Every value is what a leasing office is REPORTED to accept. The
+                heading says so, the labels say "reported", and whether an office itself confirmed
+                it is a separate fact carried by provenance and by one explicit date at the end. */}
+            <section className="space-y-4 border-t border-[var(--crm-border-soft)] pt-4">
+              <h3 className={sectionTitle}>
+                Approval Criteria <span className="font-normal text-[10px] text-[var(--crm-text-muted)]">· internal only</span>
+              </h3>
+              <p className="text-[10px] leading-snug text-[var(--crm-text-muted)]">
+                What a property is reported to accept. Blank means Unknown — nobody has asked — and is
+                never read as a No. Fill in only what you know; one field saves on its own.
+              </p>
+
+              {/* The structured columns live in a prepared, UNAPPLIED migration. Saying so beats
+                  showing a dozen empty controls, which would read as "no requirements entered". */}
+              {!loaded.approvalAvailable && (
+                <p className="rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-[11px] leading-snug text-amber-600 dark:text-amber-400">
+                  The structured requirement fields are not on this database yet — the prepared
+                  migration has not been applied. Credit Score and Additional Approval Notes below
+                  still save normally, and nothing you enter there is affected.
+                </p>
+              )}
+
+              {/* ── CREDIT SCORE ─────────────────────────────────────────────────────────
+                  The five columns that already ship, moved here unchanged rather than duplicated.
+                  Same state, same payload keys, same validation. */}
+              <div className="space-y-3">
+                <h4 className={groupTitle}>Credit Score</h4>
+                <div>
+                  <div className="mb-1 flex items-baseline justify-between gap-2">
+                    <label className={label} style={{ marginBottom: 0 }}>Minimum Credit Score</label>
+                    <span className="text-[10px] text-[var(--crm-text-muted)]">{ageFor("credit_minimum_status")}</span>
+                  </div>
+                  <select className={field} value={creditStatus} onChange={(e) => setCreditStatus(e.target.value)}>
+                    <option value="">Unknown — not researched</option>
+                    <option value="reported_minimum">Reported minimum score…</option>
+                    <option value="no_check_reported">No credit check reported</option>
+                  </select>
+                  <p className="mt-1 text-[10px] leading-snug text-[var(--crm-text-muted)]">
+                    Unknown means nobody has asked. It is not the same as a property that told us they
+                    do not score credit — that is the third option.
+                  </p>
+                </div>
+                {creditStatus === "reported_minimum" && (
+                  <div>
+                    <label className={label}>Reported Minimum (300–850)</label>
+                    <input inputMode="numeric" className={field} value={creditScore} placeholder="550"
+                      onChange={(e) => setCreditScore(e.target.value)} />
+                    {creditScoreInvalid && (
+                      <p className="mt-1 text-[10px] text-amber-400">
+                        A reported minimum needs a whole number between 300 and 850. Choose Unknown if the office would not say.
+                      </p>
+                    )}
+                  </div>
+                )}
+                <div>
+                  <div className="mb-1 flex items-baseline justify-between gap-2">
+                    <label className={label} style={{ marginBottom: 0 }}>Approved Before With (300–850)</label>
+                    <span className="text-[10px] text-[var(--crm-text-muted)]">{ageFor("credit_observed_approval_score")}</span>
+                  </div>
+                  <input inputMode="numeric" className={field} value={creditObserved} placeholder="450"
+                    onChange={(e) => setCreditObserved(e.target.value)} />
+                  {creditObservedInvalid ? (
+                    <p className="mt-1 text-[10px] text-amber-400">A whole number between 300 and 850, or blank.</p>
+                  ) : (
+                    <p className="mt-1 text-[10px] leading-snug text-[var(--crm-text-muted)]">
+                      A score somebody was actually approved with. Kept apart from the minimum on purpose —
+                      one approval is not a policy, and recording it as one would send the next renter wrong.
+                    </p>
+                  )}
+                </div>
+              </div>
+
+              {loaded.approvalAvailable && (
+                <>
+                  {/* ── BROKEN LEASE ───────────────────────────────────────────────────── */}
+                  <div className="space-y-3 border-t border-[var(--crm-border-soft)] pt-3">
+                    <h4 className={groupTitle}>Broken Lease</h4>
+                    {aSelect("brokenLeaseStatus", "Policy", BROKEN_LEASE_STATUS_OPTIONS,
+                      "“Accepted if paid off” is a policy of its own, not a softer way of saying No.")}
+                    {showDetail("brokenLeaseStatus", [
+                      "broken_lease_min_age_years", "broken_lease_balance_requirement",
+                      "broken_lease_max_balance", "broken_lease_positive_history_required",
+                    ]) && (
+                      <>
+                        <div className="grid grid-cols-2 gap-3">
+                          {aInput("brokenLeaseMinAgeYears", "Minimum age (years)", "3", "numeric",
+                            "A whole number of years, 0–20.")}
+                          {aInput("brokenLeaseMaxBalance", "Max balance ($)", "2000", "decimal",
+                            "A dollar amount, or blank for no known ceiling.")}
+                        </div>
+                        {aSelect("brokenLeaseBalanceRequirement", "Outstanding balance", BALANCE_REQUIREMENT_OPTIONS)}
+                        {aSelect("brokenLeasePositiveHistoryRequired", "Rental history afterward", POSITIVE_HISTORY_OPTIONS,
+                          "“Not required” is a finding too — an office that said it does not matter.")}
+                      </>
+                    )}
+                  </div>
+
+                  {/* ── EVICTION ───────────────────────────────────────────────────────────
+                      Separate from the broken lease throughout: separate status, separate age,
+                      separate balance rule. A property may accept one and refuse the other. */}
+                  <div className="space-y-3 border-t border-[var(--crm-border-soft)] pt-3">
+                    <h4 className={groupTitle}>Eviction</h4>
+                    {aSelect("evictionStatus", "Policy", EVICTION_STATUS_OPTIONS,
+                      "Conditional on anything other than the balance — corporate review, case by case — belongs in the notes below, where it stays a question instead of becoming a rule.")}
+                    {showDetail("evictionStatus", [
+                      "eviction_min_age_years", "eviction_balance_requirement", "eviction_positive_history_required",
+                    ]) && (
+                      <>
+                        {aInput("evictionMinAgeYears", "Minimum age (years)", "5", "numeric",
+                          "A whole number of years, 0–20.")}
+                        {aSelect("evictionBalanceRequirement", "Associated balance", BALANCE_REQUIREMENT_OPTIONS)}
+                        {aSelect("evictionPositiveHistoryRequired", "Rental history afterward", POSITIVE_HISTORY_OPTIONS)}
+                      </>
+                    )}
+                  </div>
+
+                  {/* ── RENTAL DEBT ────────────────────────────────────────────────────────
+                      APARTMENT debt specifically. Medical debt and credit-card collections are
+                      weighed differently by many offices, and this group says nothing about them. */}
+                  <div className="space-y-3 border-t border-[var(--crm-border-soft)] pt-3">
+                    <h4 className={groupTitle}>Rental Debt</h4>
+                    {aSelect("rentalDebtStatus", "Policy", RENTAL_DEBT_STATUS_OPTIONS,
+                      "Apartment and rental debt only. It says nothing about medical debt or credit-card collections.")}
+                    {showDetail("rentalDebtStatus", [
+                      "rental_debt_balance_requirement", "rental_debt_max_balance",
+                    ]) && (
+                      <>
+                        {aSelect("rentalDebtBalanceRequirement", "Outstanding balance", BALANCE_REQUIREMENT_OPTIONS)}
+                        {aInput("rentalDebtMaxBalance", "Max balance ($)", "5000", "decimal",
+                          "A dollar amount, or blank for no known ceiling.")}
+                      </>
+                    )}
+                  </div>
+
+                  {/* ── DEPOSITS & RISK FEES ───────────────────────────────────────────────
+                      SCREENING charges, in their own owner-controlled columns. Deliberately NOT
+                      deposit_amount / deposit_range: those are the property's standard deposit and
+                      automated enrichment may write them from a marketing page, which would put a
+                      screening condition outside the firewall protecting every value above.
+
+                      Free text, because a risk fee is quoted as a range, or as a month's rent, or
+                      with the condition that decides whether it applies at all. */}
+                  <div className="space-y-3 border-t border-[var(--crm-border-soft)] pt-3">
+                    <h4 className={groupTitle}>Deposits &amp; Risk Fees</h4>
+                    {aInput("screeningAdditionalDeposit", "Additional / conditional deposit", "One month, nonrefundable", "text",
+                      "Up to 300 characters.", "Say whether it is conditional and whether it is refundable — both change what the client pays.")}
+                    {aInput("screeningRiskFee", "Risk fee", "$250–$500 depending on score", "text",
+                      "Up to 300 characters.", "A range is fine, and so is the condition that decides it.")}
+                    {aInput("screeningGuarantorProgram", "Guarantor / co-signer program", "Liberty Rent accepted", "text",
+                      "Up to 300 characters.")}
+                  </div>
+                </>
+              )}
+
+              {/* ── ADDITIONAL APPROVAL NOTES ───────────────────────────────────────────────
+                  THE SAME credit_screening_notes field the November screening batch was entered
+                  into, for 43 properties. Relabelled, not replaced: the existing text is loaded
+                  here verbatim and is never touched unless you edit it. */}
+              <div className="space-y-3 border-t border-[var(--crm-border-soft)] pt-3">
+                <h4 className={groupTitle}>Additional Approval Notes</h4>
+                <div>
+                  <div className="mb-1 flex items-baseline justify-between gap-2">
+                    <label className={label} style={{ marginBottom: 0 }}>Conditions and exceptions</label>
+                    <span className="text-[10px] text-[var(--crm-text-muted)]">{ageFor("credit_screening_notes")}</span>
+                  </div>
+                  <textarea className={`${field} min-h-[96px]`} value={creditNotes}
+                    placeholder="Case-by-case above $5,000. Corporate review for recent incidents. Who said so, and when."
+                    onChange={(e) => setCreditNotes(e.target.value)} />
+                  <p className="mt-1 text-[10px] leading-snug text-[var(--crm-text-muted)]">
+                    Everything a dropdown cannot say. Conflicting reports belong here too — keep both
+                    rather than picking one. Never shown to clients.
+                  </p>
+                </div>
+                {loaded.approvalAvailable && aInput(
+                  "screeningRequirementsCheckedAt", "Confirmed with leasing office on", "", "date",
+                  "A real date, or blank.",
+                  "Leave blank for agent-reported. A date here says the office itself confirmed these requirements — saving an edit never fills it in for you.",
+                )}
+              </div>
+            </section>
+
             {/* ── SOURCE ─────────────────────────────────────────────────────────────── */}
             <section className="space-y-2 border-t border-[var(--crm-border-soft)] pt-4">
               <label className={label}>Source (optional)</label>
@@ -566,7 +916,7 @@ export default function MapPropertyEditor({
           <button
             type="button"
             onClick={save}
-            disabled={!dirty || saving || !loaded || giftCardInvalid}
+            disabled={!dirty || saving || !loaded || blockSave}
             className="flex-1 rounded-lg bg-[var(--crm-accent)] px-4 py-2 text-[13px] font-semibold text-white disabled:opacity-40"
           >
             {saving ? "Saving…" : "Save Changes"}

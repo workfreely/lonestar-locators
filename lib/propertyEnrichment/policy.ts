@@ -203,6 +203,74 @@ export const OWNER_COMMISSION_FIELDS = new Set([
   "bonus_flat",
 ])
 
+// ── OWNER-WRITABLE SCREENING REQUIREMENTS ───────────────────────────────────────────────────
+// The structured broken-lease / eviction / rental-debt policy, and the charges attached to
+// approval. Firewalled for the same reason commission is, and the reason is stronger here.
+//
+// These values come from a locator asking a leasing office what they will accept. A scraper
+// reading a marketing page cannot establish that, and a wrong value does not merely mislead a
+// deal — it tells an agent to send a renter somewhere they will be declined, or to skip the one
+// property that would have approved them.
+//
+// So, exactly like commission: kept OUT of ENRICHMENT_WRITABLE_FIELDS and CANONICAL_SCALAR_FIELDS
+// so no automated job can reach these columns at all, and admitted only by the firewall's owner
+// branch, which additionally demands request-level authorization.
+//
+// NOTE the two charge fields. property_catalog already has deposit_amount / deposit_range, but
+// those are the property's STANDARD deposit and they sit in CANONICAL_SCALAR_FIELDS — automated
+// enrichment may write them from a marketing page. A conditional screening surcharge is a
+// different quantity, and storing it there would put a screening condition outside this very
+// firewall. Hence dedicated columns rather than reuse.
+// ── OWNER-WRITABLE CREDIT-SCREENING FIELDS ──────────────────────────────────────────────────
+// The credit answer, firewalled for the same reason the requirements below are. A scraper reading
+// a marketing page cannot establish what a leasing office will accept, and a wrong minimum does
+// not merely mislead a deal — it tells an agent to send a renter somewhere they will be declined,
+// or to skip somewhere they would have been approved.
+export const OWNER_CREDIT_FIELDS = new Set([
+  "credit_minimum_status",
+  "credit_minimum_score",
+  "credit_observed_approval_score",
+  "credit_screening_notes",
+  "credit_screening_checked_at",
+])
+
+export const OWNER_SCREENING_FIELDS = new Set([
+  "broken_lease_status",
+  "broken_lease_min_age_years",
+  "broken_lease_balance_requirement",
+  "broken_lease_max_balance",
+  // Positive rental history AFTER the incident: a third requirement, separate from the age and
+  // from the balance. "2+ years old with good rental history since" states all three.
+  "broken_lease_positive_history_required",
+  "eviction_status",
+  "eviction_min_age_years",
+  // Evictions and rental debt carry their OWN balance rule. Sharing the broken-lease column
+  // would assert that a property treats the three alike, which several do not.
+  "eviction_balance_requirement",
+  "eviction_positive_history_required",
+  "rental_debt_status",
+  "rental_debt_balance_requirement",
+  "rental_debt_max_balance",
+  "screening_additional_deposit",
+  "screening_risk_fee",
+  "screening_guarantor_program",
+  "screening_requirements_checked_at",
+])
+
+/** Every column only an authenticated owner may write: commission, the credit answer, and the
+ *  structured approval criteria. One set, so the writer's firewall has one gate to check and a
+ *  field added to any of the three groups above is protected the moment it is listed. */
+export const OWNER_ONLY_FIELDS = new Set([
+  ...OWNER_COMMISSION_FIELDS, ...OWNER_CREDIT_FIELDS, ...OWNER_SCREENING_FIELDS,
+])
+
+/** Columns an owner may deliberately return to UNKNOWN (null). A screening requirement typed by
+ *  mistake has to be retractable, and "we asked and they would not say" has to stay expressible
+ *  after a value was entered — NULL is the vocabulary's own word for unknown. */
+export const OWNER_CLEARABLE_FIELDS = new Set([
+  ...OWNER_COMMISSION_FIELDS, ...OWNER_CREDIT_FIELDS, ...OWNER_SCREENING_FIELDS,
+])
+
 export const OWNER_CORRECTABLE_FIELDS = new Set([
   "studio_starting_rent",
   "onebr_starting_rent",
@@ -283,7 +351,7 @@ export function decideFieldWrite(args: {
     ownerClear &&
     ownerOverride &&
     candidateSourceType === "manual_verified" &&
-    OWNER_COMMISSION_FIELDS.has(field)
+    OWNER_CLEARABLE_FIELDS.has(field)
   ) {
     // Already unknown ⇒ nothing to do. Writing null over null would add an audit row describing
     // a change that did not happen.
@@ -339,7 +407,7 @@ export function decideFieldWrite(args: {
   if (
     ownerOverride &&
     candidateSourceType === "manual_verified" &&
-    (OWNER_CORRECTABLE_FIELDS.has(field) || OWNER_COMMISSION_FIELDS.has(field))
+    (OWNER_CORRECTABLE_FIELDS.has(field) || OWNER_ONLY_FIELDS.has(field))
   ) {
     return { outcome: "write", reason: `owner_correction_${candidateVerification}` }
   }

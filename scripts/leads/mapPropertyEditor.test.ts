@@ -271,7 +271,24 @@ ok("the payload is built from a computed change set", /const payload[\s\S]{0,120
 ok("…and the same change set decides whether there is anything to lose",
   /const dirty = Object\.keys\(changes\)\.length > 0/.test(PANEL))
 ok("a field equal to its stored value is omitted", /!== commissionToInput\(stored\)\) out\[key\]/.test(PANEL))
-ok("Save is disabled when nothing changed", /disabled=\{!dirty \|\| saving \|\| !loaded \|\| giftCardInvalid\}/.test(PANEL))
+ok("Save is disabled when nothing changed",
+  /disabled=\{!dirty \|\| saving \|\| !loaded \|\| [A-Za-z|& ]+\}/.test(PANEL))
+// AND EVERY VALIDITY FLAG REACHES THAT GATE. The form grew a second group of fields the route
+// can reject (credit screening), and a flag that only paints a warning while Save stays enabled
+// is worse than no warning: the save reports success and the value silently never lands. So this
+// asserts the PROPERTY rather than one spelling of the expression — every `const …Invalid` the
+// panel defines must be reachable from the disabled gate, through `blockSave` or inline — which
+// stays true the next time a field group is added.
+{
+  const gate = (/disabled=\{!dirty \|\| saving \|\| !loaded \|\| ([A-Za-z|& ]+)\}/.exec(PANEL) ?? [, ""])[1]
+  const viaBlockSave = (/const blockSave =([^\n]+)/.exec(PANEL) ?? [, ""])[1]
+  const reachable = `${gate} ${gate.includes("blockSave") ? viaBlockSave : ""}`
+  const flags = [...PANEL.matchAll(/const ([A-Za-z]+Invalid) =/g)].map((m) => m[1])
+  ok("…and every invalid-field flag the panel defines gates Save", flags.length >= 3 &&
+    flags.every((f) => reachable.includes(f)), `flags: ${flags.join(", ")} | gate: ${reachable.trim()}`)
+  ok("…including the credit score and the observed approval",
+    flags.includes("creditScoreInvalid") && flags.includes("creditObservedInvalid"))
+}
 
 console.log("\nunknown is never rendered or sent as a claim:")
 ok("a null amount shows BLANK, not 0", /Number\.isFinite\(n\) \? String\(n\) : ""/.test(PANEL))

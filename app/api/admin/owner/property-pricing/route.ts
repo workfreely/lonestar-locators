@@ -10,6 +10,7 @@ import { enrichProperty } from "@/lib/propertyEnrichment/writer"
 import { SupabaseEnrichmentStore } from "@/lib/propertyEnrichment/stores/supabaseStore"
 import type { FieldCandidate, VerificationStatus } from "@/lib/propertyEnrichment/types"
 import { asCatalogWasherDryerIncluded, asCatalogWasherDryerConnections } from "@/lib/propertyIntel/washerDryerCatalog"
+import { APPROVAL_COLUMNS, planApprovalWrites } from "@/lib/propertyIntel/approvalCriteria"
 
 /**
  * OWNER-ONLY property pricing — the editor behind the pencil on a Recommended Properties card.
@@ -57,6 +58,29 @@ const COMMISSION_FIELDS: Record<string, string> = {
   bonusFlat: "bonus_flat",
 }
 
+/** CREDIT SCREENING columns the owner may edit. The status carries the three states and NULL
+ *  means unknown, exactly as the gift card's does; the score is an integer 300–850 that only
+ *  exists under a reported minimum. The observed-approval score is deliberately NOT in this map:
+ *  it is a different claim with different rules and is handled on its own below. */
+const CREDIT_FIELDS: Record<string, string> = {
+  creditMinimumStatus: "credit_minimum_status",
+  creditMinimumScore: "credit_minimum_score",
+}
+
+/** The two credit statuses the database will accept. NULL is the third state and has no token. */
+const CREDIT_STATUSES = new Set(["reported_minimum", "no_check_reported"])
+
+/** A FICO score, or null. Rejects anything outside the range the CHECK constraint enforces, so a
+ *  bad value becomes a named field the editor can point at rather than a constraint violation. */
+function parseScore(raw: unknown): number | null | "bad" {
+  if (raw === null || raw === undefined) return null
+  const t = String(raw).trim()
+  if (t === "") return null
+  const n = Number(t)
+  if (!Number.isInteger(n) || n < 300 || n > 850) return "bad"
+  return n
+}
+
 const READ_COLUMNS =
   "place_id, property_name, address, city, state, zip, " +
   "onebr_starting_rent, twobr_starting_rent, threebr_starting_rent, " +
@@ -64,8 +88,35 @@ const READ_COLUMNS =
   "send_commission, escort_commission, bonus_flat, " +
   "washer_dryer_included, washer_dryer_connections, " +
   "gift_card_status, gift_card_amount, gift_card_checked_at, current_special_checked_at, " +
+  "credit_minimum_status, credit_minimum_score, credit_observed_approval_score, " +
+  "credit_screening_notes, credit_screening_checked_at, " +
   // Display-only context for the Map panel header, and the location notes it shows.
   "google_rating, property_image_url, property_image_url_backup, nearby_landmark_1, cross_streets"
+
+/**
+ * ARE THE APPROVAL-CRITERIA COLUMNS PRESENT?
+ *
+ * The sixteen structured columns live in a PREPARED, UNAPPLIED migration. Until it is applied
+ * they do not exist, and selecting one would fail the whole read — which would break the editor
+ * that already works. So they are read in their own tolerant query, and their absence is reported
+ * as a fact the panel can show ("not available on this database yet") rather than as an error.
+ *
+ * This is also what makes the UI safe to ship before the migration: nothing silently writes to a
+ * column that is not there, and nothing silently reads blank as "unknown" when the truth is
+ * "the column does not exist".
+ */
+async function readApprovalCriteria(placeId: string): Promise<{ available: boolean; values: Record<string, unknown> }> {
+  const { data, error } = await supabaseAdmin
+    .from("property_catalog")
+    .select(APPROVAL_COLUMNS.join(", "))
+    .eq("place_id", placeId)
+    .maybeSingle()
+  // 42703 = undefined_column, and PostgREST also answers PGRST204 for an unknown column in a
+  // select list. Either way the migration is not applied; anything else is a real read failure
+  // and is reported the same conservative way, because guessing blank would be worse.
+  if (error || !data) return { available: false, values: {} }
+  return { available: true, values: data as unknown as Record<string, unknown> }
+}
 
 function cleanPlaceId(v: unknown): string | null {
   const s = typeof v === "string" ? v.trim() : ""
@@ -141,17 +192,29 @@ export async function GET(req: NextRequest) {
   // says "Verified 12 days ago" only for the former and "Updated …" for the latter, so the two
   // must not be conflated here.
   const fieldVerified: Record<string, boolean> = {}
+  /** Per-field: when was it last written? Read from provenance, never from a stamp column. */
+  const fieldCheckedAt: Record<string, string> = {}
   {
     const { data: prov } = await supabaseAdmin
       .from("property_field_provenance")
-      .select("field_name, source_type, verification_status")
+      .select("field_name, source_type, verification_status, checked_at")
       .eq("place_id", placeId)
-      .in("field_name", ["send_commission", "escort_commission", "bonus_flat", "current_special", "gift_card_status"])
-    for (const r of (prov ?? []) as { field_name: string; source_type: string; verification_status: string }[]) {
+      .in("field_name", ["send_commission", "escort_commission", "bonus_flat", "current_special", "gift_card_status",
+                         "credit_minimum_status", "credit_minimum_score", "credit_observed_approval_score",
+                         "credit_screening_notes",
+                         // THE APPROVAL CRITERIA ANSWER THEIR OWN AGE QUESTION. Nothing stamps a
+                         // column just because a save happened, so provenance is the only record
+                         // of when a requirement was entered — and the only honest source for the
+                         // "Updated 3 days ago" line beside it.
+                         ...APPROVAL_COLUMNS])
+    for (const r of (prov ?? []) as { field_name: string; source_type: string; verification_status: string; checked_at: string | null }[]) {
       fieldVerified[r.field_name] = r.source_type === "manual_verified" && r.verification_status === "verified"
+      if (r.checked_at) fieldCheckedAt[r.field_name] = r.checked_at
     }
   }
   const commissionVerified = fieldVerified
+
+  const approval = await readApprovalCriteria(placeId)
 
   const row = data as unknown as Record<string, unknown>
   const num = (v: unknown) => (v === null || v === undefined || !Number.isFinite(Number(v)) ? null : Number(v))
@@ -189,6 +252,16 @@ export async function GET(req: NextRequest) {
     giftCardStatus: s(row.gift_card_status),
     giftCardAmount: num(row.gift_card_amount),
     giftCardCheckedAt: s(row.gift_card_checked_at),
+    // CREDIT SCREENING — the same three-state round trip as the gift card. A null status means
+    // nobody has asked the leasing office, and is returned as null rather than coerced to
+    // "no_check_reported": the editor must show "Unknown" rather than claim an office said
+    // credit is not scored. The observed-approval score travels separately because it is an
+    // anecdote about one applicant, not a policy, and may exist with no status at all.
+    creditMinimumStatus: s(row.credit_minimum_status),
+    creditMinimumScore: num(row.credit_minimum_score),
+    creditObservedApprovalScore: num(row.credit_observed_approval_score),
+    creditScreeningNotes: s(row.credit_screening_notes),
+    creditScreeningCheckedAt: s(row.credit_screening_checked_at),
     // Display-only context for the panel header; never written back from here.
     googleRating: num(row.google_rating),
     imageUrl: s(row.property_image_url),
@@ -202,6 +275,12 @@ export async function GET(req: NextRequest) {
     // Per-field, derived from provenance. Absent key ⇒ never recorded by a human.
     commissionVerified,
     fieldVerified,
+    fieldCheckedAt,
+    // APPROVAL CRITERIA, in their own block with their own availability flag. `available: false`
+    // means the prepared migration is not applied on this database — which the panel says out
+    // loud, because showing empty controls would read as "no requirements entered".
+    approvalAvailable: approval.available,
+    approval: approval.values,
     // The SPECIAL's own timestamp, for the editor's age line. Not a gate — nothing is hidden
     // by it. Null ⇒ the editor says "Date unknown" rather than guessing.
     currentSpecialCheckedAt: s(row.current_special_checked_at),
@@ -367,6 +446,158 @@ export async function PUT(req: NextRequest) {
   // Its OWN freshness stamp, like the special's. A commission-only or pricing-only edit must not
   // restamp the gift card, and a gift-card edit must not restamp the pricing.
   if (touchedGiftCard) add("gift_card_checked_at", checkedAt.slice(0, 10))
+
+  // ── CREDIT SCREENING ──────────────────────────────────────────────────────────────────────
+  // THREE STATES, same shape as the gift card above:
+  //
+  //   explicit null        the owner cleared it back to unknown (ownerClear, as commission does)
+  //   'no_check_reported'  an office said credit is not scored — a CONFIRMED FINDING, and it
+  //                        clears any stored score in the same save, because a number sitting
+  //                        under "not scored" would be read as a policy by every card
+  //   'reported_minimum'   an office stated a number, which must therefore be present
+  //
+  // THE SCORE IS NEVER INFERRED. A blank score with no status stays unknown; it is not read as
+  // "no check" and not coerced to 0. The database carries the same rule as a CHECK, so the
+  // writer and the column cannot disagree.
+  let touchedCredit = false
+  if ("creditMinimumStatus" in body) {
+    const raw = body.creditMinimumStatus
+    if (raw === null) {
+      touchedCredit = true
+      for (const column of ["credit_minimum_status", "credit_minimum_score"]) {
+        candidates.push({
+          field: column, value: null, sourceType: "manual_verified",
+          sourceReference: sourceRef, verificationStatus, checkedAt,
+          ownerOverride: true, ownerClear: true,
+        })
+      }
+    } else {
+      const v = String(raw ?? "").trim()
+      if (CREDIT_STATUSES.has(v)) {
+        touchedCredit = true
+        add("credit_minimum_status", v)
+        if (v === "no_check_reported") {
+          candidates.push({
+            field: "credit_minimum_score", value: null, sourceType: "manual_verified",
+            sourceReference: sourceRef, verificationStatus, checkedAt,
+            ownerOverride: true, ownerClear: true,
+          })
+        }
+      } else if (v !== "") {
+        rejected.push("creditMinimumStatus")
+      }
+    }
+  }
+  if ("creditMinimumScore" in body) {
+    const parsed = parseScore(body.creditMinimumScore)
+    if (parsed === "bad") rejected.push("creditMinimumScore")
+    // A score is only meaningful under a reported minimum. Sending one alongside
+    // 'no_check_reported' is a caller bug, not something to store and hope readers ignore.
+    else if (parsed !== null && String(body.creditMinimumStatus ?? "").trim() === "no_check_reported") {
+      rejected.push("creditMinimumScore")
+    } else if (parsed !== null) {
+      touchedCredit = true
+      add("credit_minimum_score", parsed)
+    }
+  }
+  // A REPORTED MINIMUM MUST CARRY ITS NUMBER — only when this request is SETTING that status.
+  // A save that touches something else never has to restate a score already stored.
+  if (String(body.creditMinimumStatus ?? "").trim() === "reported_minimum") {
+    const parsed = "creditMinimumScore" in body ? parseScore(body.creditMinimumScore) : null
+    if (parsed === null || parsed === "bad") {
+      if (!rejected.includes("creditMinimumScore")) rejected.push("creditMinimumScore")
+    }
+  }
+  // OBSERVED PRIOR APPROVAL — independent of the status, on purpose. "A 450 was approved here
+  // once" can be true before anyone has asked about policy, and must never harden into one, so
+  // it has its own column, its own write and no relationship to credit_minimum_score.
+  if ("creditObservedApprovalScore" in body) {
+    const parsed = parseScore(body.creditObservedApprovalScore)
+    if (parsed === "bad") rejected.push("creditObservedApprovalScore")
+    else if (parsed === null) {
+      touchedCredit = true
+      candidates.push({
+        field: "credit_observed_approval_score", value: null, sourceType: "manual_verified",
+        sourceReference: sourceRef, verificationStatus, checkedAt,
+        ownerOverride: true, ownerClear: true,
+      })
+    } else {
+      touchedCredit = true
+      add("credit_observed_approval_score", parsed)
+    }
+  }
+  if ("creditScreeningNotes" in body) {
+    const raw = body.creditScreeningNotes
+    const t = raw === null || raw === undefined ? "" : String(raw).trim()
+    touchedCredit = true
+    if (t === "") {
+      candidates.push({
+        field: "credit_screening_notes", value: null, sourceType: "manual_verified",
+        sourceReference: sourceRef, verificationStatus, checkedAt,
+        ownerOverride: true, ownerClear: true,
+      })
+    } else if (t.length > 4000) {
+      rejected.push("creditScreeningNotes")
+    } else {
+      add("credit_screening_notes", t)
+    }
+  }
+  // ── NO AUTOMATIC SCREENING STAMP ──────────────────────────────────────────────────────────
+  // credit_screening_checked_at used to be stamped whenever any credit field was saved. It is
+  // not any more, and that is the point: the owner's own instruction is that saving an edit must
+  // not claim a leasing office confirmed anything. A date on that column reads as "we checked
+  // with the office on this day", and an agent typing up their notes has not.
+  //
+  // When the edit WAS entered is still recorded — in property_enrichment_events, append-only,
+  // per field, with its source and its verification status. The editor's age lines read that
+  // (fieldCheckedAt above), so nothing was lost except a claim that was not true.
+  //
+  // A leasing-office confirmation remains expressible, deliberately and by hand: the
+  // "Confirmed with leasing office on" date in Approval Criteria, which writes
+  // screening_requirements_checked_at and nothing else. `touchedCredit` still gates the save
+  // itself, so a credit-only edit is unaffected.
+  void touchedCredit
+
+  // ── APPROVAL CRITERIA ─────────────────────────────────────────────────────────────────────
+  // The structured broken-lease / eviction / rental-debt requirements and the charges attached to
+  // approval. Same contract as everything above, with one deliberate difference worth naming:
+  //
+  //   key absent   → untouched. The panel sends only what it saw change, so a field hidden by a
+  //                  conditional (age, under "Not accepted") is never in the body and therefore
+  //                  CANNOT be cleared by being out of sight. That is the whole guarantee behind
+  //                  "hiding a conditional field must not delete its saved value".
+  //   blank / null → the owner returned it to UNKNOWN. Unlike a blank rent, this IS a clear:
+  //                  a requirement entered by mistake has to be retractable, and "we asked and
+  //                  they would not say" has to stay sayable after a value was typed. Every one
+  //                  of these columns is in OWNER_CLEARABLE_FIELDS for exactly that reason.
+  //   a value      → written, after being checked against the SAME vocabulary the panel offered
+  //                  and the database CHECK enforces.
+  //
+  // Nothing here is inferred from anything else. A property marked "Not accepted" does not have
+  // its age or balance rule wiped: the owner may have both, and a policy that changes back wants
+  // the detail still there.
+  const approvalPlan = planApprovalWrites(body)
+  if (approvalPlan.keys.length > 0) {
+    // The columns live in a prepared, UNAPPLIED migration. Refuse clearly rather than letting the
+    // writer fail on an undefined column — the agent must never be told "saved" when the value
+    // had nowhere to go.
+    const probe = await readApprovalCriteria(placeId)
+    if (!probe.available) {
+      return NextResponse.json({ error: "approval_columns_missing", fields: approvalPlan.keys }, { status: 409 })
+    }
+    rejected.push(...approvalPlan.rejected)
+    for (const w of approvalPlan.writes) {
+      if (w.clear) {
+        candidates.push({
+          field: w.column, value: null, sourceType: "manual_verified",
+          sourceReference: sourceRef, verificationStatus, checkedAt,
+          ownerOverride: true, ownerClear: true,
+        })
+      } else {
+        add(w.column, w.value)
+      }
+    }
+  }
 
   // ── COMMISSION ────────────────────────────────────────────────────────────────────────────
   // Stored as TEXT in the vocabulary the shared classifier already reads, so the badge, the Map

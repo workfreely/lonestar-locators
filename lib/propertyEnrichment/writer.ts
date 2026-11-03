@@ -6,8 +6,8 @@
 // Store-injected so the same logic runs in production and in tests.
 
 import {
-  COMMISSION_FIELDS,
-  OWNER_COMMISSION_FIELDS,
+  OWNER_ONLY_FIELDS,
+  OWNER_CREDIT_FIELDS,
   ENRICHMENT_WRITABLE_FIELDS,
   IMAGE_FIELDS,
   IMAGE_BACKUP_FIELDS,
@@ -151,7 +151,7 @@ function ownerCommissionWrite(cand: FieldCandidate, ownerAuthorized: boolean): b
     ownerAuthorized === true &&
     cand.ownerOverride === true &&
     cand.sourceType === "manual_verified" &&
-    OWNER_COMMISSION_FIELDS.has(cand.field)
+    OWNER_ONLY_FIELDS.has(cand.field)
   )
 }
 
@@ -183,11 +183,16 @@ function evaluate(
   //    (b) ALONE GRANTS NOTHING. That is the whole point of splitting (a) from (b): a forged or
   //    replayed candidate carrying ownerOverride still meets a closed firewall, because the
   //    request never proved who was asking.
-  if (COMMISSION_FIELDS.has(cand.field)) {
+  //    CREDIT SCREENING passes through the SAME four locks, with its own reason strings so an
+  //    audit row says which firewall refused the write. A leasing office's acceptance criteria
+  //    are established by asking them, never by reading a marketing page, so every public
+  //    source has zero authority here too.
+  if (OWNER_ONLY_FIELDS.has(cand.field)) {
     if (!ownerCommissionWrite(cand, ownerAuthorized)) {
+      const isCredit = OWNER_CREDIT_FIELDS.has(cand.field)
       const reason = PUBLIC_SOURCE_TYPES.has(cand.sourceType)
-        ? "commission_firewall_public_web"
-        : "commission_provider_not_approved"
+        ? isCredit ? "credit_firewall_public_web" : "commission_firewall_public_web"
+        : isCredit ? "credit_provider_not_approved" : "commission_provider_not_approved"
       return { decision: "reject", reason, oldValue: currentText }
     }
   }

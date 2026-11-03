@@ -5,17 +5,55 @@
 // updated_at guard so two jobs cannot silently clobber one another.
 
 import { supabaseAdmin } from "@/lib/supabase/admin"
-import { ENRICHMENT_WRITABLE_FIELDS, IMAGE_FIELDS, COMMISSION_FIELDS } from "../policy"
+import { ENRICHMENT_WRITABLE_FIELDS, IMAGE_FIELDS, OWNER_ONLY_FIELDS, OWNER_SCREENING_FIELDS } from "../policy"
 import type { AttributeRow, AttributeStore, EnrichmentStore } from "../store"
 import type { EnrichmentEvent, FieldProvenance, ImageSelectionState, PropertySnapshot, SourceType, StoredAttribute, VerificationStatus } from "../types"
 
+const BASE_READ_FIELDS = ["place_id", "updated_at", "image_selection_state", "image_backup_state"]
 const READ_COLUMNS = Array.from(
-  new Set(["place_id", "updated_at", "image_selection_state", "image_backup_state", ...ENRICHMENT_WRITABLE_FIELDS, ...IMAGE_FIELDS, ...COMMISSION_FIELDS]),
+  // OWNER_ONLY_FIELDS replaces COMMISSION_FIELDS here: it is commission PLUS credit screening
+  // PLUS the structured approval criteria, all firewalled from enrichment and all readable by the
+  // store so the writer can compare a candidate against the value already stored.
+  new Set([...BASE_READ_FIELDS, ...ENRICHMENT_WRITABLE_FIELDS, ...IMAGE_FIELDS, ...OWNER_ONLY_FIELDS]),
+).join(", ")
+
+/**
+ * THE SAME SELECT, WITHOUT THE COLUMNS THAT MAY NOT EXIST YET.
+ *
+ * ── WHY THIS EXISTS ─────────────────────────────────────────────────────────────────────────
+ * The approval-criteria columns ship in a migration, and a deploy is not atomic with it. Before
+ * this fallback, a release that reached production ahead of its migration took EVERY owner edit
+ * down with it — not just an approval edit: the select above names a column that does not exist,
+ * PostgREST fails the whole read, loadProperty returns null, and the writer answers
+ * `property_not_found` for a commission correction, a special, a gift card, anything.
+ *
+ * That was not a theory. The staging HTTP test dropped one column to imitate production as it is
+ * today, and a notes-only save came back 404.
+ *
+ * So the read degrades instead of failing: the full set first, and if the database has not caught
+ * up, the set without the screening columns. The writer then sees those fields as absent, which is
+ * correct — on that database they ARE absent — and the route's own probe is what stops an
+ * approval write from being attempted at all.
+ */
+const READ_COLUMNS_WITHOUT_SCREENING = Array.from(
+  new Set([...BASE_READ_FIELDS, ...ENRICHMENT_WRITABLE_FIELDS, ...IMAGE_FIELDS, ...OWNER_ONLY_FIELDS]
+    .filter((f) => !OWNER_SCREENING_FIELDS.has(f))),
 ).join(", ")
 
 export class SupabaseEnrichmentStore implements EnrichmentStore, AttributeStore {
   async loadProperty(placeId: string): Promise<PropertySnapshot | null> {
-    const { data } = await supabaseAdmin.from("property_catalog").select(READ_COLUMNS).eq("place_id", placeId).maybeSingle()
+    let { data, error } = await supabaseAdmin.from("property_catalog").select(READ_COLUMNS).eq("place_id", placeId).maybeSingle()
+    if (error) {
+      // 42703 undefined_column / PGRST204 unknown column ⇒ the screening migration has not been
+      // applied here. Read what DOES exist rather than failing every owner edit. Any other error
+      // falls through to the null return below, as before.
+      const retry = await supabaseAdmin.from("property_catalog").select(READ_COLUMNS_WITHOUT_SCREENING).eq("place_id", placeId).maybeSingle()
+      data = retry.data
+      if (retry.error) {
+        console.error("[propertyEnrichment] loadProperty failed:", error.message)
+        return null
+      }
+    }
     if (!data) return null
     // Through `unknown`: READ_COLUMNS is built at runtime from the policy sets, so PostgREST's
     // generated types cannot narrow the select and infer GenericStringError, which has no index
