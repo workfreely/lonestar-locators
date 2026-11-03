@@ -36,7 +36,7 @@ type Option = { value: string; label: string }
 /** Broken lease. "Accepted if the balance is paid" is a real, distinct policy — several
  *  properties state exactly it — and must never be flattened into "not accepted". */
 export const BROKEN_LEASE_STATUS_OPTIONS: Option[] = [
-  { value: "", label: "Unknown — nobody has asked" },
+  { value: "", label: "Unknown" },
   { value: "accepted", label: "Accepted" },
   { value: "accepted_if_paid", label: "Accepted if paid off" },
   { value: "not_accepted", label: "Not accepted" },
@@ -46,7 +46,7 @@ export const BROKEN_LEASE_STATUS_OPTIONS: Option[] = [
  *  Anything conditional on something OTHER than the balance — corporate review, case by case —
  *  belongs in the notes, where it stays a question instead of becoming a rule. */
 export const EVICTION_STATUS_OPTIONS: Option[] = [
-  { value: "", label: "Unknown — nobody has asked" },
+  { value: "", label: "Unknown" },
   { value: "accepted", label: "Accepted" },
   { value: "accepted_if_paid", label: "Conditional — accepted if balances are paid" },
   { value: "not_accepted", label: "Not accepted" },
@@ -55,7 +55,7 @@ export const EVICTION_STATUS_OPTIONS: Option[] = [
 /** Apartment / rental debt and collections. NOT medical debt and NOT credit-card collections:
  *  properties weigh those differently, and this column says nothing about them. */
 export const RENTAL_DEBT_STATUS_OPTIONS: Option[] = [
-  { value: "", label: "Unknown — nobody has asked" },
+  { value: "", label: "Unknown" },
   { value: "accepted", label: "Accepted" },
   { value: "accepted_if_paid", label: "Accepted if paid off" },
   { value: "not_accepted", label: "Not accepted" },
@@ -64,7 +64,7 @@ export const RENTAL_DEBT_STATUS_OPTIONS: Option[] = [
 export const BALANCE_REQUIREMENT_OPTIONS: Option[] = [
   { value: "", label: "Unknown" },
   { value: "must_be_paid", label: "Must be paid in full ($0 outstanding)" },
-  { value: "payments_or_plan", label: "Payments made, or a payment plan, accepted" },
+  { value: "payments_or_plan", label: "Payments made or payment plan accepted" },
   { value: "balance_ok", label: "Balance does not matter" },
 ]
 

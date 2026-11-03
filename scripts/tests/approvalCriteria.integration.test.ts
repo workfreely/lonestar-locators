@@ -471,6 +471,28 @@ async function main() {
   }
 
   // ── TEARDOWN ────────────────────────────────────────────────────────────────────────────────
+  // PUT THE DATABASE BACK THE WAY THE HARNESS BUILT IT.
+  //
+  // This test is destructive on purpose: buildSchema() drops property_catalog and recreates a
+  // minimal one, and the rollback assertions then leave it five columns short. Both are correct
+  // for this test and wrong for the next: the HTTP and release-safety suites share this database
+  // and expect the full staging schema. Running them after this one used to fail with a missing
+  // column, which reads like a product bug and is not one — it cost a confusing ten minutes, so
+  // the test now cleans up after itself rather than documenting a running order nobody will read.
+  {
+    const schema = execFileSync("npx", ["tsx", "scripts/tests/approvalCriteria.schema.ts"], { encoding: "utf8" })
+    execFileSync(PSQL, ["-v", "ON_ERROR_STOP=1", "-q", "-d", URL_], { input: schema, encoding: "utf8" })
+    runFile(M0); runFile(M4)
+    run(`grant all on all tables in schema public to service_role;
+         grant all on all sequences in schema public to service_role;
+         grant select on all tables in schema public to authenticated;
+         notify pgrst, 'reload schema'`)
+    ok("the harness schema and both migrations are restored for whatever runs next",
+      rows<{ n: number }>(`select count(*)::int as n from information_schema.columns
+        where table_schema='public' and table_name='property_catalog'
+          and column_name in (${APPROVAL_COLUMNS.map((c) => `'${c}'`).join(",")})`)[0].n === APPROVAL_COLUMNS.length)
+  }
+
   run(`delete from public.property_enrichment_events where place_id = ${txt(TEST_PLACE)}::text`)
   run(`delete from public.property_catalog where place_id = ${txt(TEST_PLACE)}::text`)
   ok("the fixture row is removed afterwards",

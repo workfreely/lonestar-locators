@@ -44,7 +44,7 @@ export type MoveInSpecialOption = { value: string; label: string; phrase: string
 
 export const MOVE_IN_SPECIAL_OPTIONS: readonly MoveInSpecialOption[] = [
   // phrase null ⇒ writes nothing. Selecting it leaves the stored value exactly as it is.
-  { value: "", label: "Unknown — not researched", phrase: null },
+  { value: "", label: "Unknown", phrase: null },
   { value: "none", label: "No Special", phrase: NO_SPECIAL_TEXT },
   { value: "2_weeks", label: "2 Weeks Free", phrase: freePhrase(2, "Weeks") },
   { value: "4_weeks", label: "4 Weeks Free", phrase: freePhrase(4, "Weeks") },

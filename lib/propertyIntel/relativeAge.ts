@@ -43,6 +43,31 @@ export function relativeAge(at: string | Date | null | undefined, now: number = 
   return rem >= 1 && years === 1 ? `${years} year ${rem} month${rem === 1 ? "" : "s"} ago` : `${years} year${years === 1 ? "" : "s"} ago`
 }
 
+/**
+ * "Updated: Nov 3, 2026" — an ABSOLUTE date, for fields whose age is read as a fact rather than as
+ * staleness. The approval criteria use this; the special and the gift card keep the relative form,
+ * where the question really is "how stale is this?".
+ *
+ * ── WHY IT IS FORMATTED BY HAND ─────────────────────────────────────────────────────────────
+ * toLocaleDateString depends on the runtime's locale and time zone, so a server render and a
+ * client render can disagree and React reports a hydration mismatch. A fixed month table cannot.
+ *
+ * ── AND WHY IT RETURNS EMPTY ────────────────────────────────────────────────────────────────
+ * No provenance means nobody has saved this field yet. "Date unknown" would be a label about
+ * nothing; an empty string lets the row simply not draw one.
+ *
+ * The word still follows the provenance, never the save: "Verified" only when a supporting source
+ * was recorded, "Updated" otherwise. An ordinary save can never produce "Verified".
+ */
+export function updatedLabel(input: AgeLabelInput): string {
+  if (!input.at) return ""
+  const t = input.at instanceof Date ? input.at.getTime() : Date.parse(String(input.at))
+  if (!Number.isFinite(t)) return ""
+  const d = new Date(t)
+  const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
+  return `${input.verified ? "Verified" : "Updated"}: ${MONTHS[d.getMonth()]} ${d.getDate()}, ${d.getFullYear()}`
+}
+
 /** The full line the editor shows beside a field. Never empty — "Date unknown" is itself useful. */
 export function ageLabel(input: AgeLabelInput): string {
   const age = relativeAge(input.at)

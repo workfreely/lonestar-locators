@@ -211,7 +211,7 @@ ok(
 )
 ok("the credit migration leaves both read functions alone", !/create function public\.lb_property_catalog_by_ids/i.test(src.migCredit))
 ok("the editor marks the section internal", /internal only/.test(raw.editor))
-ok("the editor says unknown is not the same as no-check", /It is not the same as a property that told us they/.test(raw.editor))
+ok("the editor says unknown is not the same as no-check", /Unknown is not the same as an office telling us they do not score credit/.test(raw.editor))
 ok("the editor keeps observed approval visibly apart from the minimum", /one approval is not a policy/.test(raw.editor))
 
 // ── 5. The rejected third Map Explorer tab must NOT be here ───────────────────────────────────

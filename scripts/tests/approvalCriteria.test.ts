@@ -29,6 +29,7 @@ import {
   RENTAL_DEBT_STATUS_OPTIONS, BALANCE_REQUIREMENT_OPTIONS, POSITIVE_HISTORY_OPTIONS,
   parseApprovalValue, approvalValueToInput, groupHasStoredDetail,
 } from "@/lib/propertyIntel/approvalCriteria"
+import { updatedLabel } from "@/lib/propertyIntel/relativeAge"
 import {
   ENRICHMENT_WRITABLE_FIELDS, CANONICAL_SCALAR_FIELDS, OWNER_SCREENING_FIELDS,
   OWNER_ONLY_FIELDS, OWNER_CLEARABLE_FIELDS, OWNER_CREDIT_FIELDS, decideFieldWrite,
@@ -70,8 +71,22 @@ ok("no second editor, modal, tab or page was created",
   !/role="dialog"[\s\S]*role="dialog"/.test(panel) && (panel.match(/createPortal\(/g) ?? []).length === 1)
 ok("it is still the one endpoint behind the pencil",
   (panel.match(/const ENDPOINT = "\/api\/admin\/owner\/property-pricing"/g) ?? []).length === 1)
-ok("the six groups are all present", ["Credit Score", "Broken Lease", "Eviction", "Rental Debt",
+ok("the five groups are all present", ["Credit Score", "Broken Lease", "Eviction",
   "Deposits &amp; Risk Fees", "Additional Approval Notes"].every((g) => panel.includes(g)))
+// RENTAL DEBT IS NO LONGER DRAWN — and that is a UI decision, not a data one. The three
+// assertions below are the ones that matter: the group is gone from the panel, its fields are
+// still reachable by the save path, and the panel still LOADS whatever they hold. Together those
+// are what make removing the controls incapable of clearing anybody's stored values.
+ok("the Rental Debt group is not rendered", !/<h4 className=\{groupTitle\}>Rental Debt/.test(panel))
+ok("…and nothing in the panel references its fields", !/rentalDebt/.test(panel))
+ok("…but all three of its columns are still editor fields",
+  ["rental_debt_status", "rental_debt_balance_requirement", "rental_debt_max_balance"]
+    .every((c) => APPROVAL_COLUMNS.includes(c)))
+ok("…still owner-only and still firewalled from enrichment",
+  ["rental_debt_status", "rental_debt_balance_requirement", "rental_debt_max_balance"]
+    .every((c) => OWNER_ONLY_FIELDS.has(c) && !ENRICHMENT_WRITABLE_FIELDS.has(c)))
+ok("…and hydrate still loads every approval field, so a stored value is held and compared",
+  /for \(const \[key, spec\] of Object\.entries\(APPROVAL_FIELDS\)\)[\s\S]{0,160}approvalValueToInput\(d\.approval\?\.\[spec\.column\]\)/.test(panel))
 ok("the section is marked internal only", /Approval Criteria[\s\S]{0,200}internal only/.test(panel))
 
 // ── 2. Credit is REUSED, not duplicated ──────────────────────────────────────────────────────
@@ -131,18 +146,22 @@ for (const [name, opts] of [
 }
 ok("broken lease offers accepted / accepted-if-paid / not-accepted",
   BROKEN_LEASE_STATUS_OPTIONS.map((o) => o.value).join(",") === ",accepted,accepted_if_paid,not_accepted")
-ok("“accepted if paid” is labelled as a policy, not as a softer No",
-  /not a softer way of saying No/.test(rawPanel))
+ok("“accepted if paid” stays a distinct option, never folded into Not accepted",
+  BROKEN_LEASE_STATUS_OPTIONS.some((o) => o.value === "accepted_if_paid") &&
+  BROKEN_LEASE_STATUS_OPTIONS.some((o) => o.value === "not_accepted") &&
+  BROKEN_LEASE_STATUS_OPTIONS.find((o) => o.value === "accepted_if_paid")!.label !==
+    BROKEN_LEASE_STATUS_OPTIONS.find((o) => o.value === "not_accepted")!.label)
 ok("eviction's conditional option says what it is conditional ON",
   /Conditional[\s\S]{0,40}balances are paid/.test(EVICTION_STATUS_OPTIONS[2].label))
 ok("anything conditional on something else is pushed to the notes, not a rule",
-  /corporate review, case by case[\s\S]{0,120}notes/.test(rawPanel))
+  /conditional on something other than the balance belongs in the notes/.test(rawPanel))
 ok("balance options can say paid-in-full, a plan, or does-not-matter",
   BALANCE_REQUIREMENT_OPTIONS.map((o) => o.value).join(",") === ",must_be_paid,payments_or_plan,balance_ok")
 ok("positive history has three states, so “not required” is storable",
   POSITIVE_HISTORY_OPTIONS.length === 3 && POSITIVE_HISTORY_OPTIONS.some((o) => o.value === "no"))
-ok("rental debt is labelled apartment/rental only",
-  /says nothing about medical debt or credit-card collections/.test(rawPanel))
+// The distinction still has to be recorded somewhere, and it is: on the column itself.
+ok("the rental-debt column still documents that it is NOT medical or credit-card debt",
+  /Not medical and not credit-card collections/.test(mig4))
 
 // ── 5. The parser: every kind, and every boundary ────────────────────────────────────────────
 console.log("\nparseApprovalValue — the one gate both sides run")
@@ -205,8 +224,8 @@ ok("the panel hides detail only under Not Accepted",
   /\(approval\[statusKey\] \?\? ""\) !== "not_accepted"/.test(panel))
 ok("…and never when something is stored in the group",
   /groupHasStoredDetail\(columns\.map\(\(c\) => loaded\?\.approval\?\.\[c\]\)\)/.test(panel))
-ok("all three incident groups use that same rule",
-  (panel.match(/showDetail\("(brokenLease|eviction|rentalDebt)Status"/g) ?? []).length === 3)
+ok("both remaining incident groups use that same rule",
+  (panel.match(/showDetail\("(brokenLease|eviction)Status"/g) ?? []).length === 2)
 ok("a hidden field cannot be cleared, because only CHANGED fields are sent",
   /const stored = approvalValueToInput\(loaded\.approval\?\.\[spec\.column\]\)[\s\S]{0,200}if \(now !== stored\) out\[key\] = now/.test(panel))
 ok("saving one field never requires the rest — the payload is the change set",
@@ -254,11 +273,11 @@ ok("no save stamps the requirements date either",
 ok("the confirmation date is an explicit field the owner fills in",
   /screeningRequirementsCheckedAt/.test(panel) && /Confirmed with leasing office on/.test(rawPanel))
 ok("…and the help text says a save will not fill it in",
-  /saving an edit never fills it in for you/.test(rawPanel))
+  /saving never fills it in/.test(rawPanel))
 ok("when the edit happened comes from provenance, per field",
   /fieldCheckedAt\[r\.field_name\] = r\.checked_at/.test(route))
 ok("…and the age lines read that, not a stamp column",
-  /ageLabel\(\{ at: loaded\?\.fieldCheckedAt\?\.\[column\] \?\? null, verified: loaded\?\.fieldVerified\?\.\[column\] \}\)/.test(panel))
+  /updatedLabel\(\{ at: loaded\?\.fieldCheckedAt\?\.\[column\] \?\? null, verified: loaded\?\.fieldVerified\?\.\[column\] \}\)/.test(panel))
 ok("the approval columns are covered by the provenance read",
   /\.\.\.APPROVAL_COLUMNS\]\)/.test(route))
 ok("“Verified” is still earned by a supplied source, not by saving",
@@ -327,14 +346,29 @@ ok("the gap analysis names what was reused instead of duplicated",
 console.log("\nAgent Bonus — the paragraphs went, the field did not")
 ok("the explanatory sentences are gone", !/Paid to the locator\. Separate from any resident gift card/.test(rawPanel))
 ok("…both of them", !/Blank means nobody has checked\. Enter 0 to record a confirmed no-pay property/.test(rawPanel))
-ok("the field itself is intact", /<label className=\{label\}>Agent Bonus \(\$\)<\/label>/.test(panel))
-ok("its state binding is intact", /value=\{cleared\.bonusFlat \? "" : bonus\}/.test(panel))
+ok("the field itself is intact, now as the third cell of the commission row",
+  /\["Bonus \(\$\)", bonus, setBonus, "bonusFlat", loaded\.bonusFlat, false\]/.test(panel))
+// THE UNIT MARKER IS THE POINT. Send and Escort are percentages and say so; the bonus is a dollar
+// amount and must say so too, or 100 typed into it reads as a rate to the person typing it.
+ok("…and it says it takes dollars, where its neighbours say percent",
+  /\["Send %",/.test(panel) && /\["Escort %",/.test(panel) && /\["Bonus \(\$\)",/.test(panel))
+// THE WORD "AGENT" IS GONE, AND MUST STAY GONE. The column, the state and the payload key are all
+// still bonus_flat — only what the agent reads changed.
+ok("…labelled exactly “Bonus”, with no “Agent”", !/Agent Bonus/.test(panel))
+ok("…while the field it writes is still bonus_flat", /bonusFlat: "bonus_flat"/.test(route))
+ok("its state binding is intact", /value=\{cleared\[key\] \? "" : value\}/.test(panel))
 ok("its database mapping is intact", /bonusFlat: "bonus_flat"/.test(route))
 ok("blank-vs-zero behaviour is intact — blank is never written",
   /if \(t === ""\) continue/.test(route) && /const n = Number\(t\)/.test(route))
 ok("an explicit 0 is still written as a confirmed zero",
   /add\(column, column === "bonus_flat" \? String\(Math\.round\(n\)\) : `\$\{Math\.round\(n\)\}%`\)/.test(route))
-ok("the Clear control still reaches bonusFlat", /setCleared\(\(c\) => \(\{ \.\.\.c, bonusFlat: false \}\)\)/.test(panel))
+ok("typing in it still clears the cleared-flag for its own key",
+  /setCleared\(\(c\) => \(\{ \.\.\.c, \[key\]: false \}\)\)/.test(panel))
+// THE BONUS NEVER HAD A CLEAR LINK, and folding it into the same row must not give it one.
+ok("Clear is still offered on send and escort only",
+  /\["Send %", send, setSend, "sendCommission", loaded\.sendCommission, true\]/.test(panel) &&
+  /\["Escort %", escort, setEscort, "escortCommission", loaded\.escortCommission, true\]/.test(panel) &&
+  /\{clearable && stored !== null && !cleared\[key\] && \(/.test(panel))
 ok("commission is still firewalled from enrichment", !ENRICHMENT_WRITABLE_FIELDS.has("bonus_flat"))
 
 // ── 12. Nothing else moved ───────────────────────────────────────────────────────────────────
@@ -364,6 +398,68 @@ ok("the three tristate attributes are untouched",
 ok("the panel still writes through the enrichment writer only", /enrichProperty\(store/.test(route))
 ok("the vocabulary module reaches no database, network or React",
   !/supabase|fetch\(|useState|react/i.test(vocab))
+
+// ── 13. The layout and wording refinements ───────────────────────────────────────────────────
+console.log("\nthe panel is compact, and says less")
+ok("Send, Escort and Bonus are one three-across row",
+  /<div className="grid grid-cols-3 gap-2">[\s\S]{0,400}"sendCommission"[\s\S]{0,200}"escortCommission"[\s\S]{0,200}"bonusFlat"/.test(panel))
+ok("…and no two-column commission grid is left behind",
+  !/grid-cols-2[\s\S]{0,200}sendCommission/.test(panel))
+ok("the unknown option is just “Unknown” on broken lease and eviction",
+  BROKEN_LEASE_STATUS_OPTIONS[0].label === "Unknown" && EVICTION_STATUS_OPTIONS[0].label === "Unknown")
+ok("…and on the credit dropdown beside them, so the section reads consistently",
+  /<option value="">Unknown<\/option>/.test(panel))
+ok("…and on the Move-In Special, whose list is shared with the pricing pencil",
+  /label: "Unknown"/.test(strip(read("lib/propertyIntel/moveInSpecials.ts"))))
+ok("the payment option drops its commas",
+  BALANCE_REQUIREMENT_OPTIONS.find((o) => o.value === "payments_or_plan")!.label ===
+    "Payments made or payment plan accepted")
+ok("…and its stored token is untouched",
+  BALANCE_REQUIREMENT_OPTIONS.map((o) => o.value).join(",") === ",must_be_paid,payments_or_plan,balance_ok")
+
+// ── 14. The date control: the cause, not a cosmetic patch ────────────────────────────────────
+//
+// globals.css styles input[type="date"] (and text/number/select/textarea) at 1rem / .75rem. That
+// selector is element+attribute, specificity 0,1,1, so it outranks `py-2` and `text-[13px]` at
+// 0,1,0 — which is why the one control that must declare a type rendered 16px taller than its
+// neighbours with an oversized native calendar glyph. Every other input in the panel escapes it by
+// declaring no type at all.
+console.log("\nthe date input is fixed at the cause")
+{
+  const globals = read("app/globals.css")
+  ok("the legacy rule that caused it is real, and still there",
+    /input\[type="date"\][\s\S]{0,400}?font-size:\s*1rem/.test(globals),
+    "the global form rule changed shape — re-check the override below")
+  ok("the helper no longer declares type=\"text\"", !/type=\{mode === "date" \? "date" : "text"\}/.test(panel))
+  ok("…and sets a type ONLY for the date input",
+    /\{\.\.\.\(mode === "date" \? \{ type: "date" as const \} : \{\}\)\}/.test(panel))
+  ok("the date input raises its own specificity to match the global rule",
+    /\[&\[type=date\]\]:py-2/.test(panel) && /\[&\[type=date\]\]:text-\[13px\]/.test(panel))
+  ok("…including the border the same rule was overriding",
+    /\[&\[type=date\]\]:rounded-lg/.test(panel) && /\[&\[type=date\]\]:border-\[var\(--crm-border\)\]/.test(panel))
+  ok("…and the native picker glyph follows the panel's theme",
+    /\[color-scheme:light\] dark:\[color-scheme:dark\]/.test(panel))
+  ok("only the date input gets that treatment", /className=\{mode === "date" \? dateField : field\}/.test(panel))
+}
+
+// ── 15. Updated versus Verified ──────────────────────────────────────────────────────────────
+console.log("\nUpdated is a date, and is not Verified")
+{
+  const d = "2026-11-03T18:00:00Z"
+  ok("an unsourced write reads Updated: <date>", updatedLabel({ at: d, verified: false }) === "Updated: Nov 3, 2026")
+  ok("a sourced one reads Verified: <date>", updatedLabel({ at: d, verified: true }) === "Verified: Nov 3, 2026")
+  ok("no provenance draws nothing at all, rather than a label about nothing",
+    updatedLabel({ at: null }) === "" && updatedLabel({ at: undefined }) === "")
+  ok("an unparseable date draws nothing", updatedLabel({ at: "sometime last week" }) === "")
+  ok("it is formatted by hand, so a server and a client cannot disagree",
+    !/toLocaleDateString/.test(strip(read("lib/propertyIntel/relativeAge.ts"))))
+  ok("the relative form still exists for the special and the gift card",
+    /ageLabel\(\{ at: loaded\.currentSpecialCheckedAt/.test(panel) &&
+    /ageLabel\(\{ at: loaded\.giftCardCheckedAt/.test(panel))
+  ok("saving still never stamps a verification date", !/add\("credit_screening_checked_at"/.test(route))
+  ok("…and the only date the agent can set by hand is still the confirmation one",
+    /screeningRequirementsCheckedAt/.test(panel))
+}
 
 console.log(`\n${fail === 0 ? "ALL PASS" : "FAILURES"} — ${pass} passed, ${fail} failed\n`)
 process.exit(fail === 0 ? 0 : 1)

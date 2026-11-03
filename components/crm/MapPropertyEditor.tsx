@@ -10,9 +10,9 @@ import {
   asCatalogWasherDryerIncluded, asCatalogWasherDryerConnections,
 } from "@/lib/propertyIntel/washerDryerCatalog"
 import { MOVE_IN_SPECIAL_OPTIONS, specialToSelection, selectionToSpecial } from "@/lib/propertyIntel/moveInSpecials"
-import { ageLabel } from "@/lib/propertyIntel/relativeAge"
+import { ageLabel, updatedLabel } from "@/lib/propertyIntel/relativeAge"
 import {
-  APPROVAL_FIELDS, BROKEN_LEASE_STATUS_OPTIONS, EVICTION_STATUS_OPTIONS, RENTAL_DEBT_STATUS_OPTIONS,
+  APPROVAL_FIELDS, BROKEN_LEASE_STATUS_OPTIONS, EVICTION_STATUS_OPTIONS,
   BALANCE_REQUIREMENT_OPTIONS, POSITIVE_HISTORY_OPTIONS, approvalValueToInput, parseApprovalValue,
   groupHasStoredDetail,
 } from "@/lib/propertyIntel/approvalCriteria"
@@ -403,7 +403,30 @@ export default function MapPropertyEditor({
    *  is the only honest answer to "when was this entered?" — and it says "Verified" only when
    *  provenance says a source was supplied. */
   const ageFor = (column: string) =>
-    ageLabel({ at: loaded?.fieldCheckedAt?.[column] ?? null, verified: loaded?.fieldVerified?.[column] })
+    updatedLabel({ at: loaded?.fieldCheckedAt?.[column] ?? null, verified: loaded?.fieldVerified?.[column] })
+
+  /**
+   * THE DATE INPUT NEEDS ITS OWN CLASS, AND THIS IS WHY.
+   *
+   * globals.css carries a legacy rule:
+   *
+   *   input[type="text"], input[type="email"], input[type="tel"], input[type="number"],
+   *   input[type="date"], select, textarea { padding: .75rem; font-size: 1rem; border: 1px solid #ccc; … }
+   *
+   * An element-plus-attribute selector outranks a plain utility class, so it beat `py-2` and
+   * `text-[13px]` and rendered this control at 55px against its neighbours' 39px, with the native
+   * calendar glyph scaled to match — which is the "wrong icon" that was visible in the panel. It
+   * was never a hydration problem or a date-picker problem.
+   *
+   * Every other input in this panel escapes that rule by never declaring a `type` at all. The
+   * helper below now does the same for text inputs. A date input cannot: `type="date"` is the
+   * whole point of it. So the arbitrary variant raises these declarations to the same specificity,
+   * scoped to this one control, and `color-scheme` makes the picker glyph follow the panel's
+   * theme instead of always painting for a light one.
+   */
+  const dateField = `${field} [&[type=date]]:px-3 [&[type=date]]:py-2 [&[type=date]]:text-[13px]` +
+    ` [&[type=date]]:rounded-lg [&[type=date]]:border-[var(--crm-border)]` +
+    ` [color-scheme:light] dark:[color-scheme:dark]`
 
   const setA = (key: string, v: string) => setApproval((a) => ({ ...a, [key]: v }))
 
@@ -426,10 +449,13 @@ export default function MapPropertyEditor({
   const aInput = (key: string, lbl: string, placeholder: string, mode: "numeric" | "decimal" | "text" | "date", bad: string, note?: string) => (
     <div>
       <label className={label}>{lbl}</label>
+      {/* NO `type` FOR TEXT. See dateField above: declaring type="text" is what pulled these
+          inputs into the legacy global form rule and made them taller than the rest of the panel.
+          Omitting it matches every other input here, and text is the default anyway. */}
       <input
-        type={mode === "date" ? "date" : "text"}
+        {...(mode === "date" ? { type: "date" as const } : {})}
         inputMode={mode === "text" || mode === "date" ? undefined : mode}
-        className={field}
+        className={mode === "date" ? dateField : field}
         value={approval[key] ?? ""}
         placeholder={placeholder}
         onChange={(e) => setA(key, e.target.value)}
@@ -552,11 +578,17 @@ export default function MapPropertyEditor({
                   {loaded.commissionVerified?.send_commission ? "Verified ✓" : "Not verified"}
                 </span>
               </div>
-              <div className="grid grid-cols-2 gap-3">
+              {/* THREE ACROSS. Send, Escort and Bonus are one answer about one property, and
+                  stacking the bonus under the other two pushed everything below it down a row for
+                  no reason. The controls themselves are unchanged: same state, same placeholder,
+                  same blank-versus-zero rule, and Clear still appears on exactly the two fields
+                  that had it. `clearable` carries that difference rather than a second block. */}
+              <div className="grid grid-cols-3 gap-2">
                 {([
-                  ["Send %", send, setSend, "sendCommission", loaded.sendCommission],
-                  ["Escort %", escort, setEscort, "escortCommission", loaded.escortCommission],
-                ] as const).map(([lbl, value, set, key, stored]) => (
+                  ["Send %", send, setSend, "sendCommission", loaded.sendCommission, true],
+                  ["Escort %", escort, setEscort, "escortCommission", loaded.escortCommission, true],
+                  ["Bonus ($)", bonus, setBonus, "bonusFlat", loaded.bonusFlat, false],
+                ] as const).map(([lbl, value, set, key, stored, clearable]) => (
                   <div key={key}>
                     <label className={label}>{lbl}</label>
                     <input
@@ -566,27 +598,17 @@ export default function MapPropertyEditor({
                       placeholder="Unknown"
                       onChange={(e) => { set(e.target.value); setCleared((c) => ({ ...c, [key]: false })) }}
                     />
-                    {stored !== null && !cleared[key] && (
+                    {clearable && stored !== null && !cleared[key] && (
                       <button
                         type="button"
                         onClick={() => { set(""); setCleared((c) => ({ ...c, [key]: true })) }}
                         className="mt-1 text-[10px] text-[var(--crm-text-muted)] hover:text-[var(--crm-text-primary)] hover:underline"
                       >
-                        Clear to unknown
+                        Clear
                       </button>
                     )}
                   </div>
                 ))}
-              </div>
-              <div>
-                <label className={label}>Agent Bonus ($)</label>
-                <input
-                  inputMode="decimal"
-                  className={field}
-                  value={cleared.bonusFlat ? "" : bonus}
-                  placeholder="Unknown"
-                  onChange={(e) => { setBonus(e.target.value); setCleared((c) => ({ ...c, bonusFlat: false })) }}
-                />
               </div>
             </section>
 
@@ -709,8 +731,7 @@ export default function MapPropertyEditor({
                 Approval Criteria <span className="font-normal text-[10px] text-[var(--crm-text-muted)]">· internal only</span>
               </h3>
               <p className="text-[10px] leading-snug text-[var(--crm-text-muted)]">
-                What a property is reported to accept. Blank means Unknown — nobody has asked — and is
-                never read as a No. Fill in only what you know; one field saves on its own.
+                What a property is reported to accept. Blank means Unknown, never No.
               </p>
 
               {/* The structured columns live in a prepared, UNAPPLIED migration. Saying so beats
@@ -734,13 +755,12 @@ export default function MapPropertyEditor({
                     <span className="text-[10px] text-[var(--crm-text-muted)]">{ageFor("credit_minimum_status")}</span>
                   </div>
                   <select className={field} value={creditStatus} onChange={(e) => setCreditStatus(e.target.value)}>
-                    <option value="">Unknown — not researched</option>
+                    <option value="">Unknown</option>
                     <option value="reported_minimum">Reported minimum score…</option>
                     <option value="no_check_reported">No credit check reported</option>
                   </select>
                   <p className="mt-1 text-[10px] leading-snug text-[var(--crm-text-muted)]">
-                    Unknown means nobody has asked. It is not the same as a property that told us they
-                    do not score credit — that is the third option.
+                    Unknown is not the same as an office telling us they do not score credit.
                   </p>
                 </div>
                 {creditStatus === "reported_minimum" && (
@@ -778,8 +798,7 @@ export default function MapPropertyEditor({
                   {/* ── BROKEN LEASE ───────────────────────────────────────────────────── */}
                   <div className="space-y-3 border-t border-[var(--crm-border-soft)] pt-3">
                     <h4 className={groupTitle}>Broken Lease</h4>
-                    {aSelect("brokenLeaseStatus", "Policy", BROKEN_LEASE_STATUS_OPTIONS,
-                      "“Accepted if paid off” is a policy of its own, not a softer way of saying No.")}
+                    {aSelect("brokenLeaseStatus", "Policy", BROKEN_LEASE_STATUS_OPTIONS)}
                     {showDetail("brokenLeaseStatus", [
                       "broken_lease_min_age_years", "broken_lease_balance_requirement",
                       "broken_lease_max_balance", "broken_lease_positive_history_required",
@@ -792,8 +811,7 @@ export default function MapPropertyEditor({
                             "A dollar amount, or blank for no known ceiling.")}
                         </div>
                         {aSelect("brokenLeaseBalanceRequirement", "Outstanding balance", BALANCE_REQUIREMENT_OPTIONS)}
-                        {aSelect("brokenLeasePositiveHistoryRequired", "Rental history afterward", POSITIVE_HISTORY_OPTIONS,
-                          "“Not required” is a finding too — an office that said it does not matter.")}
+                        {aSelect("brokenLeasePositiveHistoryRequired", "Rental history afterward", POSITIVE_HISTORY_OPTIONS)}
                       </>
                     )}
                   </div>
@@ -804,7 +822,7 @@ export default function MapPropertyEditor({
                   <div className="space-y-3 border-t border-[var(--crm-border-soft)] pt-3">
                     <h4 className={groupTitle}>Eviction</h4>
                     {aSelect("evictionStatus", "Policy", EVICTION_STATUS_OPTIONS,
-                      "Conditional on anything other than the balance — corporate review, case by case — belongs in the notes below, where it stays a question instead of becoming a rule.")}
+                      "Anything conditional on something other than the balance belongs in the notes.")}
                     {showDetail("evictionStatus", [
                       "eviction_min_age_years", "eviction_balance_requirement", "eviction_positive_history_required",
                     ]) && (
@@ -817,23 +835,21 @@ export default function MapPropertyEditor({
                     )}
                   </div>
 
-                  {/* ── RENTAL DEBT ────────────────────────────────────────────────────────
-                      APARTMENT debt specifically. Medical debt and credit-card collections are
-                      weighed differently by many offices, and this group says nothing about them. */}
-                  <div className="space-y-3 border-t border-[var(--crm-border-soft)] pt-3">
-                    <h4 className={groupTitle}>Rental Debt</h4>
-                    {aSelect("rentalDebtStatus", "Policy", RENTAL_DEBT_STATUS_OPTIONS,
-                      "Apartment and rental debt only. It says nothing about medical debt or credit-card collections.")}
-                    {showDetail("rentalDebtStatus", [
-                      "rental_debt_balance_requirement", "rental_debt_max_balance",
-                    ]) && (
-                      <>
-                        {aSelect("rentalDebtBalanceRequirement", "Outstanding balance", BALANCE_REQUIREMENT_OPTIONS)}
-                        {aInput("rentalDebtMaxBalance", "Max balance ($)", "5000", "decimal",
-                          "A dollar amount, or blank for no known ceiling.")}
-                      </>
-                    )}
-                  </div>
+                  {/* ── RENTAL DEBT — REMOVED FROM THE PANEL, NOT FROM THE RECORD ────────
+                      The group duplicated the broken-lease answer in day-to-day use, so it is no
+                      longer drawn. Nothing else changed:
+
+                        • rental_debt_status, rental_debt_balance_requirement and
+                          rental_debt_max_balance are still columns, still in APPROVAL_FIELDS,
+                          still owner-only and still firewalled from enrichment;
+                        • hydrate still loads whatever they hold, so a stored value is carried in
+                          this panel's state and compared on every save;
+                        • BECAUSE it is compared and never edited, it always equals what is
+                          stored, so it is never put in the payload — which is precisely why
+                          removing the controls cannot clear anybody's data;
+                        • the route, the writer and Quick Match read them exactly as before.
+
+                      Restoring the group is re-adding the three lines that drew it. */}
 
                   {/* ── DEPOSITS & RISK FEES ───────────────────────────────────────────────
                       SCREENING charges, in their own owner-controlled columns. Deliberately NOT
@@ -846,9 +862,9 @@ export default function MapPropertyEditor({
                   <div className="space-y-3 border-t border-[var(--crm-border-soft)] pt-3">
                     <h4 className={groupTitle}>Deposits &amp; Risk Fees</h4>
                     {aInput("screeningAdditionalDeposit", "Additional / conditional deposit", "One month, nonrefundable", "text",
-                      "Up to 300 characters.", "Say whether it is conditional and whether it is refundable — both change what the client pays.")}
+                      "Up to 300 characters.")}
                     {aInput("screeningRiskFee", "Risk fee", "$250–$500 depending on score", "text",
-                      "Up to 300 characters.", "A range is fine, and so is the condition that decides it.")}
+                      "Up to 300 characters.")}
                     {aInput("screeningGuarantorProgram", "Guarantor / co-signer program", "Liberty Rent accepted", "text",
                       "Up to 300 characters.")}
                   </div>
@@ -870,14 +886,13 @@ export default function MapPropertyEditor({
                     placeholder="Case-by-case above $5,000. Corporate review for recent incidents. Who said so, and when."
                     onChange={(e) => setCreditNotes(e.target.value)} />
                   <p className="mt-1 text-[10px] leading-snug text-[var(--crm-text-muted)]">
-                    Everything a dropdown cannot say. Conflicting reports belong here too — keep both
-                    rather than picking one. Never shown to clients.
+                    Keep conflicting reports rather than picking one. Never shown to clients.
                   </p>
                 </div>
                 {loaded.approvalAvailable && aInput(
                   "screeningRequirementsCheckedAt", "Confirmed with leasing office on", "", "date",
                   "A real date, or blank.",
-                  "Leave blank for agent-reported. A date here says the office itself confirmed these requirements — saving an edit never fills it in for you.",
+                  "Blank means agent-reported. A date here means the office confirmed it — saving never fills it in.",
                 )}
               </div>
             </section>
