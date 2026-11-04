@@ -1,5 +1,7 @@
 "use client"
 
+import { useMemo } from "react"
+
 import DatePicker from "react-datepicker"
 import "react-datepicker/dist/react-datepicker.css"
 import { formatPhoneInput, phoneDigitCount } from "@/lib/utils/formatPhone"
@@ -20,6 +22,7 @@ import {
 import { getMarketByName } from "@/lib/markets/catalog"
 import { MUST_HAVE_AMENITIES, MAX_MUST_HAVE_AMENITIES, normalizeMustHaveAmenities } from "@bc/companion-shared"
 import { parseMoveDate, csvToArr, arrToCsv } from "@/lib/leads/leadFormValues"
+import { moveDateMin, moveDateMax, toLocalYMD } from "@/lib/leads/moveDate"
 import { isAtAreaLimit, areaLimitHint } from "@/lib/leads/areaLimit"
 import CommuteDestinationField from "@/components/crm/CommuteDestinationField"
 
@@ -234,6 +237,11 @@ export default function LeadFields({
    *  client-criteria field, and isn't part of the edit save. */
   hideSource?: boolean
 }) {
+  // Computed once, the same way the Smart Form does it: a bound that changed on
+  // every render would reopen the picker's month on a re-render.
+  const minMoveDate = useMemo(() => moveDateMin(), [])
+  const maxMoveDate = useMemo(() => moveDateMax(), [])
+
   return (
     <div className="space-y-6">
 
@@ -296,11 +304,23 @@ export default function LeadFields({
       {/* ── Move Details ─────────────────────────────────────────────────── */}
       <Group title="Move Details">
         {/* react-datepicker — wrapper gets display:block;width:100% from globals.css */}
+        {/* BOUNDED BY THE SHARED RULE, like every other date control in the app.
+            This picker had neither minDate nor maxDate, which is how a move-in year
+            of 3030 could be selected here while the public forms and
+            /api/leads/submit had refused it since lib/leads/moveDate shipped. The
+            bounds come from that same module, so there is one definition of the
+            window and not a second one written out here.
+
+            toLocalYMD, not toISOString().split("T")[0]: the latter converts to UTC
+            first, so an evening selection west of Greenwich stores the NEXT day.
+            See docs/date-shift-toISOString.md — this line was the last one left. */}
         <DatePicker
           selected={parseMoveDate(form.move_date)}
           onChange={(date: Date | null) =>
-            updateField("move_date", date ? date.toISOString().split("T")[0] : "")
+            updateField("move_date", date ? toLocalYMD(date) : "")
           }
+          minDate={minMoveDate}
+          maxDate={maxMoveDate}
           placeholderText="Move-In Date"
           dateFormat="MM/dd/yyyy"
           className={inputCls}
@@ -349,7 +369,14 @@ export default function LeadFields({
              locator who doesn't know it yet leaves it blank, and the second
              outreach text still asks "are you trying to stay near a specific
              address or side of town?". */}
-      <div>
+      {/* Commute / Destination and ZIP Code sit SIDE BY SIDE: they are two ways of
+          naming the same thing — the place the search should centre on — and a
+          locator reaches for whichever one the client gave them. The destination
+          takes two thirds because it is a search box with a dropdown; the ZIP needs
+          room for five digits and no more. Below `sm` the pair stacks, so a phone
+          gets two full-width controls instead of two cramped ones. */}
+      <div className="grid grid-cols-1 sm:grid-cols-[minmax(0,2fr)_minmax(0,1fr)] gap-3 items-start">
+      <div className="min-w-0">
         <p className={sectionLabelCls}>Commute / Destination</p>
         <CommuteDestinationField
           label={form.commute_anchor_label || ""}
@@ -373,6 +400,30 @@ export default function LeadFields({
           onMaxMinutesChange={(next) => updateField("commute_max_minutes", next == null ? "" : String(next))}
           inputClassName={inputCls}
         />
+      </div>
+
+      {/* ZIP CODE — the desired area, NOT where the client lives now.
+          leads.destination_zip, the column the earlier Commute work defined for
+          exactly this and whose own comment says so. Five digits, typed by hand:
+          this is the half of the pair that needs no Google and no network, which
+          is why it is here beside a field that needs both. */}
+      <div className="min-w-0">
+        <p className={sectionLabelCls}>ZIP Code</p>
+        {/* The same hint line the destination beside it carries, which aligns the two
+            inputs — and says the one thing a locator has to know about this field:
+            it is where the client wants to BE, not the address they are leaving. */}
+        <p className="text-[11px] text-[var(--crm-text-muted)] mb-1.5">Desired area — not their current address</p>
+        <input
+          className={inputCls}
+          value={form.destination_zip || ""}
+          onChange={(e) => updateField("destination_zip", e.target.value.replace(/\D/g, "").slice(0, 5))}
+          placeholder="Desired area — e.g. 78240"
+          inputMode="numeric"
+          maxLength={5}
+          autoComplete="off"
+          aria-label="Desired area ZIP code"
+        />
+      </div>
       </div>
 
       {/* ── Property Preferences ──────────────────────────────────────────────

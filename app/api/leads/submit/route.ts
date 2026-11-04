@@ -80,6 +80,11 @@ const STRING_FIELDS = [
   "eviction_court", "eviction_age", "eviction_balance",
   "criminal_background", "criminal_charge", "felony_age", "misdemeanor_age",
   "notes", "website",
+  // The desired-area ZIP from the CRM's Add Lead / Edit Client modal. The public
+  // forms never send it, and adding it here changes nothing they do — it is listed
+  // so a manual entry persists it the same way an edit does. Format-checked below,
+  // like move_date, rather than riding on "is a string, under 500 characters".
+  "destination_zip",
   "lead_type", "lead_category",
   "source", "landing_page", "referrer_url",
   // Who referred this client (paired with source = "referral"). Like `source`,
@@ -171,6 +176,15 @@ function validateAndBuildPayload(
   {
     const check = validateMoveDate(payload.move_date)
     if (!check.ok) errors.push({ field: "move_date", message: check.message })
+  }
+
+  // The desired-area ZIP: five digits or absent. The column's CHECK says the same,
+  // and a refusal here names the field instead of surfacing a constraint violation.
+  {
+    const zip = payload.destination_zip
+    if (typeof zip === "string" && zip.trim() !== "" && !/^[0-9]{5}$/.test(zip.trim())) {
+      errors.push({ field: "destination_zip", message: "ZIP code must be five digits" })
+    }
   }
 
   for (const field of NULLABLE_INTEGER_FIELDS) {

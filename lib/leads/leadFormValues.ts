@@ -70,13 +70,21 @@ export const arrToCsv = (a: string[]): string => a.join(", ")
  * desired_rent, beds, baths, broken_lease_amount, eviction_balance, felony_age,
  * misdemeanor_age are all text). They are deliberately left alone.
  *
- * ADD TO THIS SET if a date / numeric / boolean column is ever made editable.
+ * ADD TO THIS SET if a date / numeric / boolean column is ever made editable — or a
+ * text column whose CHECK refuses the empty string, as destination_zip's does.
  */
 export const NON_TEXT_EDITABLE_COLUMNS: ReadonlySet<string> = new Set([
   "move_date",
   // Commute Mode's switch. An `integer`, so "" is invalid for it exactly as it was
   // for move_date — and blank here MEANS "no limit", i.e. back to Area Mode.
   "commute_max_minutes",
+  // The desired-area ZIP. This one is `text`, so the TYPE accepts "" — but its CHECK
+  // does not: `destination_zip ~ '^[0-9]{5}$'` refuses the empty string as surely as
+  // it refuses four digits. Clearing the field would therefore fail the whole save
+  // with a constraint violation, which is the same failure move_date had for a
+  // different reason. So the rule this set encodes is wider than its name: a blank
+  // becomes NULL for any column that cannot store "".
+  "destination_zip",
 ])
 
 /**

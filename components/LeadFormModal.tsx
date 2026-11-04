@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react"
 import LeadFields from "./LeadFields"
+import { validateMoveDate } from "@/lib/leads/moveDate"
 import { DEFAULT_TIMEZONE } from "@/lib/timezone"
 import { supabase } from "@/lib/supabase/client"
 import { isValidUsPhone } from "@/lib/utils/formatPhone"
@@ -28,6 +29,9 @@ const EDITABLE_COLUMNS = [
   // and the patch, so omitting either column would make Edit Client silently fail
   // to load AND to save it — no error, just a field that never persists.
   "commute_anchor_label", "commute_anchor_place_id", "commute_max_minutes",
+  // The desired-area ZIP, beside the destination it stands in for. Same rule as the
+  // three above: in this list or Edit Client silently fails to load AND to save it.
+  "destination_zip",
 ] as const
 
 export default function LeadFormModal({
@@ -90,8 +94,10 @@ export default function LeadFormModal({
     referred_by: "",
     // Commute / Destination — present from the start so the inputs stay controlled.
     commute_anchor_label: "",
-      commute_max_minutes: "",
+    commute_max_minutes: "",
     commute_anchor_place_id: "",
+    // The desired-area ZIP, same reason: controlled from the first render.
+    destination_zip: "",
 
     // defaults
     source: "",
@@ -169,6 +175,24 @@ export default function LeadFormModal({
     // lead holds TODAY, which is what lets a legacy over-cap client be saved while
     // they are still on the way down (12 → 5 is fine; 5 → 5 and 5 → 6 are not).
     // The picker already refuses to ADD past the cap; this catches the save itself.
+    // THE MOVE-IN DATE, on the only path that never checked it. /api/leads/submit has
+    // refused an out-of-window date since lib/leads/moveDate shipped, but Edit Client
+    // writes straight to Supabase under RLS — no route, so no server check — and the
+    // picker above had no bounds either. A date could be typed or pasted into the
+    // field even with the picker bounded, so the gate belongs here as well as there.
+    // Same function the public route calls; nothing is clamped or rewritten.
+    const dateVerdict = validateMoveDate(form.move_date)
+    if (!dateVerdict.ok) {
+      alert(dateVerdict.message)
+      return
+    }
+    // Five digits or nothing. The column's CHECK says the same thing, and a save that
+    // the database refuses would surface as an opaque failure instead of this.
+    const zip = (form.destination_zip ?? "").trim()
+    if (zip && !/^[0-9]{5}$/.test(zip)) {
+      alert("ZIP code must be five digits.")
+      return
+    }
     const areaVerdict = verdictForWrite(
       form.neighborhoods,
       form.submarkets,
@@ -386,6 +410,7 @@ export default function LeadFormModal({
       referred_by: "",
       commute_anchor_label: "",
       commute_max_minutes: "",
+      destination_zip: "",
       commute_anchor_place_id: "",
 
       source: "",
