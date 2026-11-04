@@ -121,10 +121,15 @@ console.log("\nevery surface renders ONE row that cannot wrap:")
   ok("…each pill can shrink (min-w-0)", /inline-flex min-w-0/.test(BADGES))
   ok("…the label truncates rather than widening the row", /className="truncate"/.test(BADGES))
   ok("…and the icon never shrinks", /flex-none/.test(BADGES))
-  // Fitting is CSS, not a character count — the cap is only a backstop for an absurd string.
-  // A fixed per-count cap truncated labels on wide cards where they fit comfortably.
+  // Fitting is CSS, and ONLY CSS. There used to be a default cap of 28 characters here, which
+  // cut labels the card had room for and, on a phone, cut text CSS was about to cut again —
+  // two truncations, the first ellipsis lost inside the second.
   ok("the pills shrink to the container rather than to a guessed character count",
-    /shrink items-center/.test(BADGES) && /const cap = maxChars \?\? 28/.test(BADGES))
+    /shrink items-center/.test(BADGES))
+  ok("…and there is no default character cap left to guess with",
+    !/maxChars \?\? \d+/.test(BADGES) && !/const cap =/.test(BADGES))
+  ok("…the full text reaches the DOM, so the browser decides where it ends",
+    /\{maxChars \? truncateBadgeLabel\(b\.text, maxChars\) : b\.text\}/.test(BADGES))
   ok("…and the row still cannot wrap while they shrink", /flex flex-nowrap/.test(BADGES))
   ok("the special tone is green", /special: "border-\[#8fcaa6\] bg-\[#e4f4ea\] text-\[#16633a\]"/.test(BADGES))
   ok("the gift card keeps the familiar blue", /gift_card: "border-\[#8fb6ea\] bg-\[#e8f0fe\] text-\[#1c3f75\]"/.test(BADGES))

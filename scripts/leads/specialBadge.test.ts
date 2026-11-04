@@ -156,7 +156,17 @@ console.log("\n=== 8. CLEARING A SPECIAL REMOVES THE BADGE ===")
   eq("cleared to empty", normalizeShortSpecial(""), null)
   eq('"n/a"', normalizeShortSpecial("n/a"), null)
   eq('"--"', normalizeShortSpecial("--"), null)
-  eq("unrecognised text", normalizeShortSpecial("Ask the leasing office"), null)
+  // UNRECOGNISED TEXT USED TO BE ASSERTED AS null HERE, AND THAT WAS THE DEFECT.
+  // A property's special is whatever an agent recorded, and the Property Editor's Custom option
+  // exists for an offer that fits none of the four shapes the external site publishes. Returning
+  // null for it meant a locator saved "Reduced Rent + $199 1st Month's Rent!" for The Helix and
+  // the Recommended Properties card showed no special at all. Short unparsed text is now the
+  // agent's own words, verbatim; only text too long to be a label is still dropped. Clearing a
+  // special is still done by clearing it — the three cases above, which are unchanged.
+  eq("short unrecognised text is the agent's own words",
+    normalizeShortSpecial("Ask the leasing office"), "Ask the leasing office")
+  eq("…and long unrecognised text is still dropped rather than truncated into a fragment",
+    normalizeShortSpecial("Ask the leasing office about our current promotion on selected floor plans"), null)
 }
 
 console.log(fail === 0 ? `\nALL PASS ✅ (${pass} passed, ${fail} failed)\n` : `\n${pass} passed, ${fail} failed\n`)

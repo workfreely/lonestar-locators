@@ -243,7 +243,7 @@ export default function BestMatches({
                         <p className="min-w-0 truncate text-[11px] text-[var(--crm-text-muted)]">{r.property_address ? displayAddress(r.property_address) : ""}</p>
                         <PromoBadges
                               size="compact"
-                              className="min-w-0 max-w-[62%]"
+                              className="min-w-0 max-w-[62%] shrink-0"
                               currentSpecial={r.current_special}
                               giftCardStatus={r.gift_card_status}
                               giftCardAmount={r.gift_card_amount}

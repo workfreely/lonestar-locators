@@ -193,6 +193,9 @@ function withCommas(n: number): string {
   return Math.round(n).toLocaleString("en-US");
 }
 
+/** The longest unparsed text that can still serve as a badge label. See normalizeShortSpecial. */
+export const VERBATIM_BADGE_MAX = 60;
+
 /**
  * PROPERTY-CARD BADGE form: the shortest truthful label for a verified special,
  * in Title Case, for the compact green overlay on Map / Companion / /r cards —
@@ -201,9 +204,12 @@ function withCommas(n: number): string {
  *   2. dollars off ("$1,000 off") → "$1,000 Off"
  *   3. gift card ("$200 Gift Card") → "$200 Gift Card"
  *   4. rent credit ("$1,500 credit") → "$1,500 Credit"
- * Returns null for empty / "None" / "Unknown" / unrecognized text — the caller
- * then HIDES the badge rather than showing stale or long raw language. The badge
- * states the offer AS ADVERTISED, qualifier included: "Up to 6 Weeks Free" stays
+ *   5. anything else SHORT ENOUGH to be a label → the text verbatim, so a Custom
+ *      special an agent typed is shown in their own words instead of vanishing
+ * Returns null for empty / "None" / "Unknown", and for unrecognized text LONGER
+ * than VERBATIM_BADGE_MAX — the caller then HIDES the badge rather than showing
+ * stale or long raw language. The badge states the offer AS ADVERTISED,
+ * qualifier included: "Up to 6 Weeks Free" stays
  * "Up to 6 Weeks Free". The ceiling is preserved only when it qualifies the clause
  * the badge is quoting — a "100% off rent for N month(s)" guarantee followed by a
  * separate "up to" offer is still shown as the guarantee it is. Conditions that
@@ -227,7 +233,27 @@ export function normalizeShortSpecial(raw?: string | null): string | null {
   if (gift) return `${isCeilingAt(s, gift.index ?? 0) ? "Up to " : ""}$${withCommas(Number(gift[1].replace(/,/g, "")))} Gift Card`;
   const credit = s.match(/\$\s*([\d,]+)\s*credit/i);
   if (credit) return `${isCeilingAt(s, credit.index ?? 0) ? "Up to " : ""}$${withCommas(Number(credit[1].replace(/,/g, "")))} Credit`;
-  return null;
+
+  // ── A SHORT OFFER WE CANNOT PARSE IS STILL AN OFFER ───────────────────────────────────────
+  // The four extractors above read the shapes the external site publishes. The Property
+  // Editor's "Custom" option exists precisely for an offer that has no such shape — an agent
+  // typed "Reduced Rent + $199 1st Month's Rent!" after a phone call, and it matched none of
+  // them, so the badge was hidden and the card looked like a property with no special at all.
+  // Saving a concession and seeing nothing is worse than any wording we could show.
+  //
+  // So an unparsed text is returned VERBATIM rather than discarded — the agent's own words, not
+  // a generic "Custom" label, and not a restatement.
+  //
+  // WHY A LENGTH BOUND, AND WHY IT IS NOT A GUESS ABOUT PROVENANCE. The badge is a LABEL, and
+  // truncateBadgeLabel may only ever shorten it. Past a certain length what survives truncation
+  // is a fragment rather than a label, and a fragment of an unparsed sentence can read as a
+  // different offer from the one recorded — which is the exact harm the four extractors exist
+  // to avoid. The bound is therefore a statement about what a badge can hold, and anything
+  // longer keeps today's behaviour exactly: null, and the caller hides the badge. (The measured
+  // separation corroborates it. Across every special stored in production, agent-typed and
+  // dropdown values run 18–37 characters; the external site's master text runs 78–122, and all
+  // of those are read by the extractors above and never reach this line.)
+  return s.length <= VERBATIM_BADGE_MAX ? s : null;
 }
 
 /**
@@ -339,8 +365,9 @@ function isGiftCardText(text: string): boolean {
 
 /**
  * A badge label is already short by construction — normalizeShortSpecial returns a canonical
- * form or null, never raw text. This is the last guard for an unusually long canonical form (a
- * large amount, say): truncate on a word boundary with an ellipsis.
+ * form, a verbatim text it has bounded to VERBATIM_BADGE_MAX, or null. This is the last guard
+ * for a label that is still long for the surface it lands on (a large amount, or a Custom
+ * special an agent typed): truncate on a word boundary with an ellipsis.
  *
  * It can only ever SHORTEN. Nothing here rewrites, strengthens or qualifies a claim — a
  * truncated "Up to 12 Weeks Free" never becomes "12 Weeks Free", because the prefix is kept and
@@ -370,8 +397,10 @@ export type PromoBadgeInput = {
  */
 export function resolvePromoBadges(input: PromoBadgeInput): PromoBadge[] {
   // ── The move-in special ──────────────────────────────────────────────────────────────────
-  // normalizeShortSpecial is the ONLY filter: it returns null for "None" / "N/A" / "--" and for
-  // text it cannot read, which is how a cleared or explicitly-absent special stops rendering.
+  // normalizeShortSpecial is the ONLY filter: it returns null for "None" / "N/A" / "--", and for
+  // text it cannot read that is too long to be a label — which is how a cleared or
+  // explicitly-absent special stops rendering. Short unparsed text comes back verbatim, so a
+  // Custom special reaches the badge in the agent's own words.
   // Age is not consulted.
   const specialText = normalizeShortSpecial(input.currentSpecial);
 

@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import { TOUR_TYPE_LABELS, TOUR_WINDOW_LABELS, normalizeShortSpecial, starFillPercent, resolvePromoBadges, truncateBadgeLabel } from "@bc/companion-shared"
+import { TOUR_TYPE_LABELS, TOUR_WINDOW_LABELS, normalizeShortSpecial, starFillPercent, resolvePromoBadges } from "@bc/companion-shared"
 import TourAvailabilityModal, { type Availability, type InitialAvailability } from "./TourAvailability"
 import { washerDryerLabel, washerDryerPillClass } from "@/lib/leads/washerDryer"
 import { averageRentSegments } from "@/lib/leads/averageRent"
@@ -355,7 +355,13 @@ export default function RecommendationList({
                   giftCardAmount: p.giftCardAmount,
                 })
                 if (badges.length === 0) return null
-                const cap = badges.length > 1 ? 16 : 24
+                // NO CHARACTER CAP. It used to be 24, or 16 with two badges, and .lbr-pill-label
+                // already fits the text exactly — overflow:hidden, text-overflow:ellipsis,
+                // white-space:nowrap, inside a flex-nowrap row whose pills are min-width:0. The
+                // cap could only cut text the browser had room for, and on a phone it cut first
+                // and CSS cut again, so the reader saw two truncations and one stray ellipsis.
+                // The row is absolutely positioned with left:12px/right:12px, so the card can
+                // never be widened by a long offer however long it is.
                 return (
                   <div className="lbr-promo">
                     {badges.map((b) => (
@@ -374,7 +380,7 @@ export default function RecommendationList({
                             </>
                           )}
                         </svg>
-                        <span className="lbr-pill-label">{truncateBadgeLabel(b.text, cap)}</span>
+                        <span className="lbr-pill-label">{b.text}</span>
                       </span>
                     ))}
                   </div>

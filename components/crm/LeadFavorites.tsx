@@ -664,7 +664,7 @@ export default function LeadFavorites({
                             <p className="min-w-0 truncate text-[11px] text-[var(--crm-text-muted)]">{fav.property_address ? displayAddress(fav.property_address) : ""}</p>
                             <PromoBadges
                               size="compact"
-                              className="min-w-0 max-w-[62%]"
+                              className="min-w-0 max-w-[62%] shrink-0"
                               currentSpecial={fav.current_special}
                               giftCardStatus={fav.gift_card_status}
                               giftCardAmount={fav.gift_card_amount}

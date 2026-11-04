@@ -306,7 +306,7 @@ export type { PropertyAmenities, MustHaveAmenityValue } from "./amenities";
 
 // Specials V1 — concession + rent DISPLAY normalization (interpretation only; the the external site
 // specials/base-rent selectors are not confirmed yet, so nothing feeds it in the panel)
-export { evaluateSpecials, selectRentConcession, formatSpecialText, formatRent, computeAvgRent, isQualifiedSpecial, normalizeShortSpecial, isSpecialCurrent, resolvePromoBadges, truncateBadgeLabel } from "./specials";
+export { evaluateSpecials, selectRentConcession, formatSpecialText, formatRent, computeAvgRent, isQualifiedSpecial, normalizeShortSpecial, isSpecialCurrent, resolvePromoBadges, truncateBadgeLabel, VERBATIM_BADGE_MAX } from "./specials";
 export type { PromoBadge, PromoBadgeKind, PromoBadgeInput } from "./specials";
 export type { SpecialInput, SpecialsResult, RentConcession } from "./specials";
 export { formatLocatorCommission, evaluateLocatorCommission } from "./commission";

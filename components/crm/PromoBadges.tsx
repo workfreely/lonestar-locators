@@ -77,18 +77,24 @@ export default function PromoBadges({
 }: PromoBadgeInput & {
   size?: keyof typeof SIZES
   className?: string
-  /** Label cap. Narrower surfaces pass a smaller number; it can only shorten. */
+  /** An optional hard cap. CSS does the fitting; leave this unset unless a surface needs one. */
   maxChars?: number
 }) {
   const badges = resolvePromoBadges(input)
   if (badges.length === 0) return null
   const s = SIZES[size]
-  // The CHARACTER cap is a backstop for an absurd string, not the fitting mechanism. Fitting is
-  // done by CSS: each pill is min-w-0 with a truncating label inside a flex-nowrap row, so the
-  // browser shrinks them to whatever width the container actually has — which adapts to the
-  // real screen instead of guessing at one. A tight character cap would truncate on a wide card
-  // where the full label fits comfortably.
-  const cap = maxChars ?? 28
+  // ── THE SPACE IS MEASURED, SO NOTHING IS GUESSED ──────────────────────────────────────────
+  // There is no default character cap, and there used to be: 28. CSS already fits the label
+  // exactly — each pill is min-w-0 inside a flex-nowrap row with a truncating label — so the
+  // cap could only ever cut text the browser had room for. On a phone it did worse than that.
+  // At 390px the pill gets 99px, enough for about 13 characters; the cap had already cut
+  // "Reduced Rent + $199 1st Month's Rent!" to "Reduced Rent + $199 1st…", and CSS then cut
+  // THAT, so the reader saw "Reduced Rent…" — truncated twice, with the first ellipsis itself
+  // truncated away.
+  //
+  // So the full text goes to the DOM and the browser decides. It shows everything that fits and
+  // appends one ellipsis when it does not, at whatever width the card actually has. maxChars is
+  // kept for a caller that has some other reason to bound a label; nothing passes it today.
 
   return (
     <div className={`flex flex-nowrap items-center ${s.row} ${className}`}>
@@ -103,7 +109,7 @@ export default function PromoBadges({
           title={b.text}
         >
           <BadgeIcon kind={b.kind} className={s.icon} />
-          <span className="truncate">{truncateBadgeLabel(b.text, cap)}</span>
+          <span className="truncate">{maxChars ? truncateBadgeLabel(b.text, maxChars) : b.text}</span>
         </span>
       ))}
     </div>
