@@ -3,7 +3,7 @@ export const dynamic = "force-dynamic"
 
 import { NextResponse } from "next/server"
 import { createClient } from "@/lib/supabase/server"
-import { runQuickMatch, loadQuickMatchCollection, DEFAULT_COLLECTION } from "@/lib/quickMatch"
+import { runQuickMatch, evaluateEligibility, loadQuickMatchCollection, DEFAULT_COLLECTION } from "@/lib/quickMatch"
 import { resolveClientNeeds } from "@/lib/quickMatch/needs"
 import { persistQuickMatch, markQuickMatchRun, QUICK_MATCH_ORIGIN } from "@/lib/quickMatch/persist"
 
@@ -85,8 +85,15 @@ async function loadLead(
   }
 }
 
-/** The shared compute step. Pure once the two reads are done. */
+/** The shared compute step. Pure once the two reads are done.
+ *
+ *  ELIGIBILITY IS CHECKED FIRST, before the collection is loaded. It is a statement about the
+ *  CLIENT alone, so it needs no property data — and 14 of the 24 clients on file are not
+ *  eligible, who would otherwise each cost a 68-row read on every workspace open for an answer
+ *  that was already decided. */
 async function compute(supabase: Awaited<ReturnType<typeof createClient>>, lead: Record<string, unknown>) {
+  const eligibility = evaluateEligibility(lead)
+  if (!eligibility.eligible) return { ineligible: eligibility }
   const load = await loadQuickMatchCollection(supabase, DEFAULT_COLLECTION)
   if (load.error) return { error: load.error as string }
   if (load.readPathMissing) return { readPathMissing: true as const }
@@ -126,6 +133,14 @@ export async function GET(_req: Request, ctx: { params: Promise<{ leadId: string
   const { lead, resolutionColumns } = loaded.value
 
   const c = await compute(supabase, lead)
+  if ("ineligible" in c) {
+    // Not an error, and not "no matches": Quick Match does not apply to this client.
+    return NextResponse.json({
+      readPathMissing: false, resolutionColumns,
+      alreadyRan: lead.quick_match_at ?? null,
+      eligibility: c.ineligible, recommendations: [],
+    })
+  }
   if ("error" in c) return NextResponse.json({ error: c.error }, { status: 500 })
   if ("readPathMissing" in c) {
     return NextResponse.json({
@@ -181,6 +196,14 @@ export async function POST(req: Request, ctx: { params: Promise<{ leadId: string
   }
 
   const c = await compute(supabase, lead)
+  if ("ineligible" in c) {
+    // Not an error: Quick Match does not apply to this client. Nothing is written and NOTHING IS
+    // STAMPED, so if their situation is recorded later the automatic pass still runs.
+    return NextResponse.json({
+      eligibility: c.ineligible, recommendations: [], inserted: 0, replaced: 0,
+      alreadyPresent: 0, skipped: "not_eligible",
+    })
+  }
   if ("error" in c) return NextResponse.json({ error: c.error }, { status: 500 })
   if ("readPathMissing" in c) {
     return NextResponse.json({
@@ -191,14 +214,6 @@ export async function POST(req: Request, ctx: { params: Promise<{ leadId: string
   }
 
   const { result } = c
-  if (!result.eligibility.eligible) {
-    // Not an error: Quick Match does not apply to this client. Nothing is written and nothing is
-    // stamped, so if their situation is recorded later the automatic pass still runs.
-    return NextResponse.json({
-      eligibility: result.eligibility, recommendations: [], inserted: 0, replaced: 0,
-      alreadyPresent: 0, skipped: "not_eligible",
-    })
-  }
 
   const persisted = await persistQuickMatch(supabase, {
     leadId,
