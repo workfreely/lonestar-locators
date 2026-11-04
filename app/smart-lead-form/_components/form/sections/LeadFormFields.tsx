@@ -21,6 +21,7 @@ import {
   RENT_RANGE_OPTIONS,
   INCOME_OPTIONS,
 } from "@/lib/formOptions"
+import { moveDateMin, moveDateMax } from "@/lib/leads/moveDate"
 
 // The neighborhood option list for a city = the catalog's neighborhoods. The
 // former "All of {city}" pseudo-option is intentionally gone now that the field
@@ -76,11 +77,8 @@ function formatLocalYMD(date: Date): string {
   const dd = String(date.getDate()).padStart(2, "0")
   return `${y}-${mm}-${dd}`
 }
-// Local midnight today — the earliest selectable move-in date (no past dates).
-function startOfToday(): Date {
-  const d = new Date()
-  return new Date(d.getFullYear(), d.getMonth(), d.getDate())
-}
+// The earliest and latest selectable move-in dates come from lib/leads/moveDate, which the
+// SERVER uses too — so this field and /api/leads/submit cannot disagree about the window.
 
 type FormData = {
   firstName: string
@@ -156,7 +154,13 @@ export default function LeadFormFields({
   const [formData, setFormData] = useState<FormData>(INITIAL)
   // Earliest selectable move-in date (today); memoized so the picker isn't handed
   // a new Date object on every keystroke-driven re-render.
-  const minMoveDate = useMemo(() => startOfToday(), [])
+  const minMoveDate = useMemo(() => moveDateMin(), [])
+  // THE CEILING THE FIELD WAS MISSING. This control is a text input with a calendar attached:
+  // the calendar could never reach a wrong century, but a typed "11/15/2972" was parsed, passed
+  // the lower bound, and was submitted — which is how one actually arrived. `maxDate` bounds both
+  // halves, and /api/leads/submit refuses the same value independently, because a form guard can
+  // always be bypassed.
+  const maxMoveDate = useMemo(() => moveDateMax(), [])
   const [submitted, setSubmitted] = useState(false)
   const [submitting, setSubmitting] = useState(false)
 
@@ -443,6 +447,7 @@ export default function LeadFormFields({
                   setFormData((prev) => ({ ...prev, moveDate: date ? formatLocalYMD(date) : "" }))
                 }
                 minDate={minMoveDate}
+                maxDate={maxMoveDate}
                 dateFormat="MM/dd/yyyy"
                 placeholderText="MM/DD/YYYY"
                 className={`${inputClass} cursor-pointer`}

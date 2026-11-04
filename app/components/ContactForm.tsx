@@ -18,6 +18,7 @@ import { RENT_RANGE_OPTIONS } from "@/lib/formOptions";
 import { parseUserAgent } from "@/lib/leads/parseUserAgent";
 import { fireMetaLead } from "@/lib/analytics/metaPixel";
 import { isValidUsPhone } from "@/lib/utils/formatPhone";
+import { moveDateMin, moveDateMax } from "@/lib/leads/moveDate";
 
 interface ContactFormProps {
   mode?: "short" | "full";
@@ -744,6 +745,12 @@ const noteStyle = {
       moveDate: date ? date.toISOString().split("T")[0] : "",
     });
   }}
+  /* THE SAME WINDOW THE SMART FORM AND THE SERVER USE. This control had neither bound,
+     so a typed year like 2972 was accepted here too. One definition, in
+     lib/leads/moveDate; /api/leads/submit refuses the same value independently.
+     Serialization is deliberately untouched — see the date-shift note. */
+  minDate={moveDateMin()}
+  maxDate={moveDateMax()}
   placeholderText="Desired Move-In Date"
   dateFormat="MM/dd/yyyy"
   className="form-input"

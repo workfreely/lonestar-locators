@@ -14,6 +14,7 @@ import DatePicker from "react-datepicker";
 import { supabase } from "@/app/lib/supabaseClient";
 import "react-datepicker/dist/react-datepicker.css";
 import { useRouter } from "next/navigation";
+import { moveDateMin, moveDateMax } from "@/lib/leads/moveDate";
 
 
 const NewHomeContactForm = ({ defaultCity }: { defaultCity?: string }) => {
@@ -374,6 +375,12 @@ if (formData.email) {
               moveDate: date ? date.toISOString().split("T")[0] : "",
             })
           }
+          /* THE SAME WINDOW THE SMART FORM AND THE SERVER USE. This control had neither bound,
+             so a typed year like 2972 was accepted here too. One definition, in
+             lib/leads/moveDate; /api/leads/submit refuses the same value independently.
+             Serialization is deliberately untouched — see the date-shift note. */
+          minDate={moveDateMin()}
+          maxDate={moveDateMax()}
           placeholderText="Preferred Move-In Date"
           dateFormat="MM/dd/yyyy"
           className="form-input"

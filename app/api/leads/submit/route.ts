@@ -57,6 +57,7 @@ import { shouldAutoEnroll } from "@/lib/followup/autoEnroll"
 import { processNotesLocation } from "@/lib/criteria/processNotesLocation"
 import { verdictForWrite } from "@/lib/leads/areaLimit"
 import { criteriaChangedMetadata, initialCriteria } from "@/lib/leads/criteriaHistory"
+import { validateMoveDate } from "@/lib/leads/moveDate"
 
 // Server-only client — SUPABASE_SERVICE_ROLE_KEY has no NEXT_PUBLIC_
 // prefix, so it is never bundled into browser JS.
@@ -153,6 +154,23 @@ function validateAndBuildPayload(
       continue
     }
     payload[field] = value
+  }
+
+  // ── MOVE-IN DATE: A REAL CALENDAR DAY, INSIDE A REAL WINDOW ────────────────────────────────
+  // A lead arrived with 2972-11-15. Nothing transformed it — `move_date` is one of the plain
+  // STRING_FIELDS above, where the only checks are "is a string" and "is under 500 characters",
+  // so the year was copied through to a Postgres `date` column that accepts years to 5874897 AD.
+  //
+  // The field stays in that list on purpose: duplicate detection and the scalar-change log read
+  // `payload.move_date` exactly as they always have, and this adds a refusal rather than a second
+  // code path. The public forms now bound the same window, but THIS is the half that has to hold
+  // — the route is public, and a form guard is a courtesy, not a boundary.
+  //
+  // The comparison is on "YYYY-MM-DD" strings (see lib/leads/moveDate), so the browser in San
+  // Antonio and this server running UTC agree on where the boundary falls.
+  {
+    const check = validateMoveDate(payload.move_date)
+    if (!check.ok) errors.push({ field: "move_date", message: check.message })
   }
 
   for (const field of NULLABLE_INTEGER_FIELDS) {
