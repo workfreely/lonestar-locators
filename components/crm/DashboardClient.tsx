@@ -762,9 +762,69 @@ export default function DashboardClient({ leads, nextActions, favorites, recomme
       // immediately without calling Google at all when the client has no
       // destination or every pair is already cached against the current one.
       mergeCommuteRows(id, active)
+      // And run Quick Match, ONCE, for a client whose credit, rental history or criminal
+      // background makes ordinary approval uncertain. Runs after the map is on screen for the
+      // same reason: nothing the client already has waits on it.
+      runQuickMatchDraft(id, active)
     })()
     return () => { active = false }
   }, [selectedLeadId])
+
+  /**
+   * QUICK MATCH — draft up to six curated properties into THIS client's Recommended Properties.
+   *
+   * Fires on opening a client, and the route decides whether anything happens:
+   *   • a client with no credit, rental-history or criminal-background signal is not eligible,
+   *     and nothing is written or stamped — so if their situation is recorded later, this runs
+   *     then;
+   *   • a client already stamped with `quick_match_at` is skipped outright. THAT IS WHAT STOPS A
+   *     PROPERTY THE AGENT DELIBERATELY REMOVED FROM COMING BACK the next time they open the
+   *     client. After the first pass, only an explicit refresh re-drafts;
+   *   • before the prepared migrations are applied the route answers `readPathMissing` /
+   *     `writePathMissing` and writes nothing, so this is inert on today's database rather than
+   *     an error in the console.
+   *
+   * It never deletes a row the agent picked or kept — the scope is enforced server-side in
+   * lib/quickMatch/persist.ts — and it sends nothing to anybody. On a successful insert this
+   * re-reads the client's rows through the SAME loader the page uses, so the new cards appear
+   * with their rating, website and specials already resolved instead of after a reload.
+   */
+  const runQuickMatchDraft = useCallback(async (leadId: number | string, active = true) => {
+    if (isDemoLeadId(leadId)) return
+    let body: { inserted?: number } | null = null
+    try {
+      const res = await fetch(`/api/admin/quick-match/${leadId}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ mode: "initial" }),
+      })
+      if (!res.ok) return
+      body = await res.json()
+    } catch {
+      // Offline, or the route is not deployed. Quick Match is additive; the section is correct
+      // without it, so a failure here is silent rather than a broken workspace.
+      return
+    }
+    if (!active || !body || !body.inserted) return
+    const { data, error } = await supabase
+      .from("lead_recommendations")
+      .select("*")
+      .eq("lead_id", leadId)
+      .order("sort_order", { ascending: true, nullsFirst: false })
+      .order("created_at", { ascending: true })
+      .order("id", { ascending: true })
+    if (error || !data || !active) return
+    const enriched = await attachCatalogRatings(data, supabase)
+    if (!active) return
+    // Replace THIS client's rows only. Every other client's rows in the shared array are left
+    // exactly as they were.
+    const others = localRecommendationsRef.current.filter(
+      (r: any) => String(r.lead_id) !== String(leadId),
+    )
+    const next = [...others, ...enriched]
+    localRecommendationsRef.current = next
+    setLocalRecommendations(next)
+  }, [])
 
   // Shared by the three EVENTS that can leave a drive time missing or stale: opening
   // a client, saving their Commute / Destination, and adding a property to either

@@ -168,8 +168,26 @@ console.log("\nthe public Smart Form is untouched:")
 }
 console.log("\nand so is everything outside this modal:")
 {
+  // QUICK MATCH IS NOW A READER, BY REQUEST. It was on this list because, when the ZIP shipped,
+  // nothing consumed it; the approved Quick Match workflow (2026-11-04) asks it to rank on
+  // "preferred areas, destination ZIP Code, and commute destination when available". The claim
+  // this block still makes — that the ZIP reached nothing it should not — is unchanged for the
+  // matching filters and the Explorer, which is where it mattered. What Quick Match does with it
+  // is asserted in scripts/tests/quickMatch.test.ts (one comparable ZIP, named areas NOT
+  // invented into ZIPs), and the two lines below keep the read narrow.
+  ok("Quick Match reads the ZIP in ONE place, the needs resolver",
+    (() => {
+      const { readdirSync, statSync } = require("node:fs") as typeof import("node:fs")
+      const walk = (d: string): string[] => readdirSync(d).flatMap((e) => {
+        const q = `${d}/${e}`
+        return statSync(q).isDirectory() ? walk(q) : /\.(ts|tsx)$/.test(q) ? [q] : []
+      })
+      const readers = walk("lib/quickMatch").filter((f) => read(f).includes("destination_zip"))
+      return readers.length === 1 && readers[0] === "lib/quickMatch/needs.ts"
+    })())
+  ok("…and it reads it as a FIVE-DIGIT ZIP or not at all",
+    /fiveDigitZip\(l\["destination_zip"\]\)/.test(read("lib/quickMatch/needs.ts")))
   for (const [label, path] of [
-    ["Quick Match", "lib/quickMatch"],
     ["the matching filters", "lib/matching"],
   ] as const) {
     if (!existsSync(join(process.cwd(), path))) { ok(`${label} — not present`, true); continue }

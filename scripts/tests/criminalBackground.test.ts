@@ -229,7 +229,14 @@ ok("the sixteen live approval columns are unchanged in number", APPROVAL_COLUMNS
 ok("…and carry no criminal column", APPROVAL_COLUMNS.every((c) => !CRIMINAL_COLUMNS.includes(c)))
 ok("the two column lists do not overlap at all",
   new Set([...APPROVAL_COLUMNS, ...CRIMINAL_COLUMNS]).size === APPROVAL_COLUMNS.length + CRIMINAL_COLUMNS.length)
-for (const dir of ["lib/matching", "lib/leads", "lib/quickMatch", "apps/beast-companion/src", "packages/companion-shared/src", "app/smart-lead-form"]) {
+// lib/quickMatch IS NOW A READER, BY REQUEST. It was on this list while the criminal columns
+// were a property record nothing consumed; the approved Quick Match workflow (2026-11-04) asks
+// it to evaluate "felony/misdemeanor policies, offense categories, and lookback periods", so the
+// isolation this sweep protects has moved rather than loosened. What it still protects is the
+// claim that matters: UNLEASH BEAST SEARCH, ITS FILTERS AND ITS RANKING, the Beast Companion,
+// the shared package and the public Smart Form read none of these columns. Those stay on the
+// list, and lib/quickMatch gets the narrow, named exception below.
+for (const dir of ["lib/matching", "lib/leads", "apps/beast-companion/src", "packages/companion-shared/src", "app/smart-lead-form"]) {
   if (!existsSync(dir)) { ok(`${dir} — not present, nothing to check`, true); continue }
   const hits = (function walk(d: string): string[] {
     const { readdirSync, statSync } = require("node:fs") as typeof import("node:fs")
@@ -265,6 +272,13 @@ for (const dir of ["lib/matching", "lib/leads", "lib/quickMatch", "apps/beast-co
     // writes them through writeWideRow("property_approval_policy", …) — the table is an explicit
     // argument. Asserted below rather than taken on trust.
     "scripts/propertyIntel/qual_apply.ts",
+    // QUICK MATCH, the authorised consumer. Three files, each with one job:
+    "lib/quickMatch/types.ts",        // the shape, re-exporting the editor's own vocabularies
+    "lib/quickMatch/collection.ts",   // the read: RPC rows → that shape, tokens validated
+    "lib/quickMatch/screening.ts",    // the rules, asserted in scripts/tests/quickMatch.test.ts
+    // A READ-ONLY dry-run harness. It names the columns because it reads property_catalog
+    // directly — so it works before the RPC's migration is applied — and it writes nothing.
+    "scripts/quickMatch/dryRun.ts",
   ]
   const SKIP = /^(node_modules|\.next|\.git|dist|build|coverage|supabase|docs|reports|scripts\/tests)/
   const walk = (d: string): string[] => {
@@ -281,8 +295,28 @@ for (const dir of ["lib/matching", "lib/leads", "lib/quickMatch", "apps/beast-co
   const NAMES = [...CRIMINAL_COLUMNS, ...CRIMINAL_KEYS]
   const readers = walk(".").filter((f) => !ALLOWED.includes(f))
     .filter((f) => { const b = strip(read(f)); return NAMES.some((n) => b.includes(n)) })
-  ok(`no module outside the four that own these fields reads any of them (${walk(".").length} files swept)`,
+  ok(`no module outside the seven that own or consume these fields reads any of them (${walk(".").length} files swept)`,
     readers.length === 0, readers.join(", "))
+
+  // The exception is NARROW, and these two assertions are what keep it so. Quick Match may read
+  // the columns; it may not write them, and it may not reach them through any path but the
+  // function that filters to the curated collection.
+  for (const f of ["lib/quickMatch/collection.ts", "lib/quickMatch/screening.ts", "lib/quickMatch/types.ts",
+                   "lib/quickMatch/criminal.ts", "lib/quickMatch/ranking.ts", "lib/quickMatch/index.ts",
+                   "lib/quickMatch/persist.ts", "lib/quickMatch/needs.ts"]) {
+    if (!existsSync(f)) { ok(`${f} — not present`, true); continue }
+    const body = strip(read(f))
+    ok(`${f} never writes property_catalog`,
+      !/\.from\(\s*["'\`]property_catalog/.test(body) && !/update\(|upsert\(.*property_catalog/.test(body)
+      || !/property_catalog/.test(body))
+  }
+  ok("the only property read Quick Match makes is the curated-collection function",
+    (() => {
+      const body = strip(read("lib/quickMatch/collection.ts"))
+      return /lb_quick_match_candidates/.test(body)
+        && !/lb_property_catalog_by_ids/.test(body)
+        && !/\.from\(\s*["'\`]property_catalog/.test(body)
+    })())
 
   // And the matching filters specifically, by name, because that is what the question is about.
   for (const f of ["lib/matching/filters/approvalFilter.ts", "lib/matching/managementApprovalFilter.ts",

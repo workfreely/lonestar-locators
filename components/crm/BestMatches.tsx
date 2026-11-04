@@ -6,6 +6,7 @@ import PropertyPricingEditor from "./PropertyPricingEditor"
 import PropertyThumb from "./PropertyThumb"
 import PromoBadges from "./PromoBadges"
 import CommissionBadge from "./CommissionBadge"
+import QuickMatchBadge, { readScreening } from "./QuickMatchBadge"
 import { MAX_REASONS } from "@bc/companion-shared"
 import { displayReasons } from "@/lib/leads/bedroomPricing"
 import { placeIdFromPropertyUrl } from "@/lib/propertyExplorer/types"
@@ -153,6 +154,12 @@ export default function BestMatches({
             // property to write against could only guess.
             const pricingPlaceId = placeIdFromPropertyUrl(r.property_url)
 
+            // QUICK MATCH — the agent-only screening record on a GENERATED row. A row the
+            // agent added by hand has no `screening` value and renders no chip, so the section
+            // looks exactly as it does today for every manually chosen property. The column is
+            // one neither share function names, so this never reaches the client-facing page.
+            const screening = readScreening((r as { screening?: unknown }).screening)
+
             // The SAVED reasons (canonical, locator-owned) and the DISPLAY list (those plus
             // the derived bedroom price). They are deliberately separate values: the editor
             // writes `savedReasons`, the row renders `shownReasons`, and the price therefore
@@ -272,6 +279,16 @@ export default function BestMatches({
                 )
               })()}
               </div>
+              {/* QUICK MATCH — a chip on this card, never a panel of its own. Present only on a
+                  generated row; the chip names the tier and expands the agent-facing detail
+                  (possible conflicts, open questions, approval costs) inside the same card.
+                  Above the operational row so Commission keeps the bottom-right corner it has
+                  always had. */}
+              {screening && (
+                <div className="mt-2">
+                  <QuickMatchBadge screening={screening} className="w-full" />
+                </div>
+              )}
               {/* Operational row — Recommended has no Guest Card / Schedule Tour actions,
                   so Commission aligns to the bottom-right of the card. Present whenever
                   there is a commission state (always ≥ "Not Verified"). */}

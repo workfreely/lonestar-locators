@@ -958,11 +958,18 @@ export default function MapPropertyEditor({
                   seven of them named exactly as property_approval_policy names them, so the
                   proposed backfill is a column-to-column copy and one reader understands both.
 
-                  WHAT IT IS NOT. It says nothing about any renter, and nothing here feeds
-                  matching: Quick Match does not read these columns, by omission rather than by a
-                  flag. "Considered" is not approval, "Case-by-Case" is not a soft no, and a
-                  charge is not a conviction — which is why the lookback carries its own basis
-                  instead of assuming one. */}
+                  WHAT IT IS NOT. It says nothing about any renter. Unleash Beast search, its
+                  filters and its ranking do not read these columns at all.
+
+                  WHAT DOES READ THEM. Quick Match, and only for a client who has a record on
+                  file — lib/quickMatch/screening.ts. It is strict about what each value can
+                  prove: "Considered" is review and never approval, "Case-by-Case" is undecidable
+                  in advance and comes back as a question rather than a yes or a no, an empty
+                  Restricted Offenses selection means NO RESTRICTIONS RECORDED and not "all
+                  accepted", and a charge is not a conviction — which is why the lookback carries
+                  its own basis, and why a minimum age can only ever prove a PASS from an offense
+                  date or a FAIL from a conviction date (the arithmetic is written out in
+                  lib/quickMatch/criminal.ts). An unknown policy never becomes an approval. */}
               {!loaded.criminalAvailable && (
                 <p className="rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-[11px] leading-snug text-amber-600 dark:text-amber-400">
                   The criminal-background fields are not on this database yet — their prepared
