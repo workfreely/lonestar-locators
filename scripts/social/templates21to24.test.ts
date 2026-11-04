@@ -115,7 +115,7 @@ ok("the sentence stays short: one line, never wrapped, for every allowed noun",
 // ── 3b. T23 / T24 HEADLINES ─────────────────────────────────────────────────
 console.log("\n3b. T23 and T24 headlines: fixed copy, approved emphasis:")
 ok("T23 headline", buildTemplateHeadline(T23, meta({ market: "Dallas", propertyType: "Loft" })) === "Client: “My rent went up AGAIN. I need to move.”")
-ok("T24 headline", buildTemplateHeadline(T24, meta({ market: "Dallas", propertyType: "Loft" })) === "Client: “My apartment has ROACHES. I need OUT!”")
+ok("T24 headline", buildTemplateHeadline(T24, meta({ market: "Dallas", propertyType: "Loft" })) === "Client: “My apartment has ROACHES.”")
 ok("neither varies by market or property type — they describe a situation, not a property",
   [...SOCIAL_MARKETS, null].every((m) => [...PROPERTY_TYPES, null].every((pt) =>
     buildTemplateHeadline(T23, meta({ market: m, propertyType: pt })) === buildTemplateHeadline(T23, meta())
@@ -218,7 +218,7 @@ console.log("\n6. caption-only copy stays out of every burned-in overlay:")
     buildTemplateHeadline(T21, meta({ market: "Dallas" })) === "Client: “I have bad credit. Can you help me?”"
     && buildTemplateHeadline(T22, meta({ market: "Dallas", propertyType: "Loft" })) === "Client: “My ex cheated. I need a new loft.”"
     && buildTemplateHeadline(T23, meta({ market: "Dallas" })) === "Client: “My rent went up AGAIN. I need to move.”"
-    && buildTemplateHeadline(T24, meta({ market: "Dallas" })) === "Client: “My apartment has ROACHES. I need OUT!”")
+    && buildTemplateHeadline(T24, meta({ market: "Dallas" })) === "Client: “My apartment has ROACHES.”")
 }
 
 // ── 7. GENERATED-STATE RECOGNITION ──────────────────────────────────────────

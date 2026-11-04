@@ -1046,11 +1046,12 @@ export function buildTemplateHeadline(template: OverlayTemplate, src: SourceMeta
     // T24 CLIENT / ME — ROACHES follows it. Both are Template 20's structure: the client's line is
     // the HEADLINE, the reply is the DETAIL. Deliberately metadata-free, like T21 — neither
     // complaint varies by property or market, and neither is something to decorate with a city.
-    // The capitalisation ("AGAIN", "ROACHES", "OUT") is the approved emphasis, not a formatter.
+    // The capitalisation ("AGAIN", "ROACHES") is the approved emphasis, not a formatter. T24 used
+    // to end "I need OUT!"; that clause was removed by request and the emphasis went with it.
     case "client_me_rent_increase":
       return "Client: “My rent went up AGAIN. I need to move.”"
     case "client_me_roaches":
-      return "Client: “My apartment has ROACHES. I need OUT!”"
+      return "Client: “My apartment has ROACHES.”"
     // ── T22 CLIENT / ME — MY EX CHEATED ─────────────────────────────────────────────────────
     // Template 20's structure again: client's line in the HEADLINE, reply in the DETAIL.
     //
