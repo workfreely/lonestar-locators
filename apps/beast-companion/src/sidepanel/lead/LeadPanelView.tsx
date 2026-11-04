@@ -1,7 +1,7 @@
 import { useState } from "react";
 import type { LeadSummaryDTO, NextActionDTO } from "@bc/companion-shared";
 import { formatWorkflowActionLabel, formatLastActionLabel, isFollowUpAction, isContactFollowUpAction, isTourFollowUpRow, formatDateDisplay, formatDueDateTime, isPastDue, formatPersonName, formatPhone, formatUnitDisplay,
-  compactDesiredAreas,
+  compactDesiredAreas, criminalScreeningLine,
 } from "@bc/companion-shared";
 import { SectionCard, Field, StageBadge, StatusPill, Button } from "./primitives";
 
@@ -824,7 +824,19 @@ export function LeadPanelBody({
             label: "Eviction",
             value: cs.creditHistory === "Eviction" ? historyDetail(cs.evictionAge, cs.evictionBalance) : null,
           },
-          { label: "Criminal Background", value: cs.criminalBackground },
+          // THE SAME ROW, SAYING WHAT IT ALWAYS HELD. The background, the offense category the
+          // Smart Form has collected all along, and the age — one line, through the shared
+          // formatter the CRM card uses, so the two surfaces cannot read differently. No new
+          // section, no second card, and nothing new asked of the renter.
+          {
+            label: "Criminal Background",
+            value: criminalScreeningLine({
+              background: cs.criminalBackground,
+              charge: cs.criminalCharge,
+              felonyAge: cs.felonyAge,
+              misdemeanorAge: cs.misdemeanorAge,
+            }),
+          },
         ]}
       />
 

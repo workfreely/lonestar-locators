@@ -172,6 +172,9 @@ export type { Period, TimeParts } from "./format/time";
 // Person-name + phone display formatting (mirrors the CRM helpers; raw values
 // are never modified — display/copy only)
 export { formatPersonName, greetingName, displayFirstName, displayLastName, displayFullName } from "./format/name";
+// The one sentence the CRM card and the Companion pre-screening section both show about a
+// reported criminal background. Shared so the two cannot drift again.
+export { criminalScreeningLine } from "./format/criminalScreening";
 export type { PreferredNameParts } from "./format/name";
 export { formatPhone } from "./format/phone";
 

@@ -89,6 +89,11 @@ export const creditScreeningSchema = z.object({
    *  history — the identical omission the CRM fix corrected on both rows at once. */
   evictionBalance: z.string().nullish(),
   criminalBackground: z.string().nullish(),
+  /** The offense CATEGORY. Collected by the Smart Form and stored on the lead since it shipped;
+   *  it reached no agent-facing surface until now, which is the whole of this change. */
+  criminalCharge: z.string().nullish(),
+  /** Gated to the matching background by the server, exactly as the two balances above are: a
+   *  misdemeanor age can never travel beside a felony, so the panel cannot show one for the other. */
   felonyAge: z.string().nullish(),
   misdemeanorAge: z.string().nullish(),
 });

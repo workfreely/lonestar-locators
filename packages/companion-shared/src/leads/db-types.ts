@@ -35,6 +35,9 @@ export interface LeadRow {
   credit_score: string | null;
   credit_history: string | null;
   criminal_background: string | null;
+  /** The OFFENSE CATEGORY the Smart Form collects — DWI, Drug Related, Assault, Theft / Fraud,
+   *  Sex Offense, Other. Stored since the form shipped and read by nothing until now. */
+  criminal_charge: string | null;
   broken_lease_age: string | null;
   eviction_age: string | null;
   felony_age: string | null;

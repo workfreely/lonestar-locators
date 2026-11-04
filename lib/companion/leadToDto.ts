@@ -301,6 +301,9 @@ export function buildActiveClientPayload(
 ): CompanionActiveClientPayload {
   const crmStatus = str(lead.crm_status) ?? "new"
   const historyLower = String(lead.credit_history || "").toLowerCase()
+  /** The reported background, verbatim: "Felony" | "Misdemeanor" | "None" | null. It gates the
+   *  charge and the two ages below the way credit_history gates the two balances. */
+  const criminalBackground = str(lead.criminal_background)
 
   // Resting Status for a still-New lead's pending-outreach Follow Up (Overdue,
   // decided in the panel from dueAt, still wins). "No Answer" for a No-Answer
@@ -414,8 +417,20 @@ export function buildActiveClientPayload(
       evictionAge: lead.credit_history === "Eviction" ? str(lead.eviction_age) : null,
       evictionBalance: lead.credit_history === "Eviction" ? str(lead.eviction_balance) : null,
       criminalBackground: str(lead.criminal_background),
-      felonyAge: str(lead.felony_age),
-      misdemeanorAge: str(lead.misdemeanor_age),
+      // THE CHARGE TRAVELS WITH THE BACKGROUND, for the same reason the balances travel with
+      // their histories: it is collected, it is stored, and it decides which properties will
+      // consider the renter — and until now it reached no agent-facing surface at all.
+      //
+      // Gated on there BEING a background, so a stray category cannot describe a renter who
+      // answered "None", and withheld on "None" itself, where a category would be a
+      // contradiction rather than a detail.
+      criminalCharge:
+        criminalBackground && criminalBackground !== "None" ? str(lead.criminal_charge) : null,
+      // GATED TO THE MATCHING BACKGROUND, mirroring the CRM card and the two balance rows above.
+      // Ungated, a lead who reported a misdemeanor would carry a felony age too, and any surface
+      // that rendered both would describe an offense the renter never reported.
+      felonyAge: criminalBackground === "Felony" ? str(lead.felony_age) : null,
+      misdemeanorAge: criminalBackground === "Misdemeanor" ? str(lead.misdemeanor_age) : null,
     },
     workflow: {
       followUpCount: Number(lead.follow_up_count) || 0,

@@ -12,7 +12,7 @@ import { isGuestCardTitle } from "@/lib/leads/guestCardWorkflow"
 import { recordTimelineEvent } from "@/lib/leads/timeline"
 import { recordFirstContact as recordFirstContactCascade } from "@/lib/leads/contactWorkflow"
 import CompletedActionLine from "@/components/crm/CompletedActionLine"
-import { compactDesiredAreas } from "@bc/companion-shared"
+import { compactDesiredAreas, criminalScreeningLine } from "@bc/companion-shared"
 import { advanceBuildListToSearching } from "@/lib/leads/buildListWorkflow"
 import { isDemoLeadId } from "@/lib/demo/demoWorkspace"
 import LeadSourceBadge from "./LeadSourceBadge"
@@ -1106,13 +1106,15 @@ export default function LeadPanel({
           const eviction = lead.credit_history === "Eviction"
             ? historyDetail(lead.eviction_age, lead.eviction_balance)
             : null
-          const criminal = (() => {
-            const cb = lead.criminal_background
-            if (!hasValue(cb)) return null
-            if (cb === "None") return "None"
-            const age = cb === "Felony" ? lead.felony_age : cb === "Misdemeanor" ? lead.misdemeanor_age : null
-            return age ? `${cb} (${age})` : cb
-          })()
+          // THE SAME SENTENCE BEAST COMPANION SHOWS. This card composed "Felony (3 years)" while
+          // the Companion showed the bare word, and the offense CATEGORY the Smart Form collects
+          // appeared on neither. One shared formatter now, one row, no new card.
+          const criminal = criminalScreeningLine({
+            background: lead.criminal_background,
+            charge: lead.criminal_charge,
+            felonyAge: lead.felony_age,
+            misdemeanorAge: lead.misdemeanor_age,
+          })
           const anyPresent =
             hasValue(lead.credit_score) || hasValue(lead.credit_history) ||
             hasValue(brokenLease) || hasValue(eviction) || hasValue(criminal)
