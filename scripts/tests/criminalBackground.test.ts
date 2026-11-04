@@ -247,6 +247,78 @@ for (const dir of ["lib/matching", "lib/leads", "lib/quickMatch", "apps/beast-co
   })(dir)
   ok(`${dir} does not read the new property columns`, hits.length === 0, hits.join(", "))
 }
+// ── THE WHOLE REPOSITORY, NOT A LIST OF DIRECTORIES ─────────────────────────────────────────
+// The sweep above names six places. This one names the only files ALLOWED to mention the nine
+// columns or the nine payload keys and then checks everything else — so a future reader anywhere
+// in the tree is caught, and so "the migration changes no search or recommendation behaviour" is
+// a measured fact rather than a list somebody remembered to extend.
+{
+  const { readdirSync, statSync } = require("node:fs") as typeof import("node:fs")
+  const ALLOWED = [
+    "lib/propertyIntel/approvalCriteria.ts",          // the vocabulary itself
+    "lib/propertyEnrichment/policy.ts",               // the owner firewall's field list
+    "app/api/admin/owner/property-pricing/route.ts",  // the one endpoint that reads and writes them
+    "components/crm/MapPropertyEditor.tsx",           // the one panel that draws them
+    // NOT a reader of the new columns — a NAME COLLISION, and the one that proves the design.
+    // This is the curated importer that put the eight live answers into the LEGACY table. It
+    // names felony_policy and misdemeanor_policy, which are now columns on both tables, and it
+    // writes them through writeWideRow("property_approval_policy", …) — the table is an explicit
+    // argument. Asserted below rather than taken on trust.
+    "scripts/propertyIntel/qual_apply.ts",
+  ]
+  const SKIP = /^(node_modules|\.next|\.git|dist|build|coverage|supabase|docs|reports|scripts\/tests)/
+  const walk = (d: string): string[] => {
+    const out: string[] = []
+    for (const e of readdirSync(d)) {
+      const p = d === "." ? e : `${d}/${e}`
+      if (SKIP.test(p)) continue
+      let st; try { st = statSync(p) } catch { continue }
+      if (st.isDirectory()) { out.push(...walk(p)); continue }
+      if (/\.(ts|tsx)$/.test(p)) out.push(p)
+    }
+    return out
+  }
+  const NAMES = [...CRIMINAL_COLUMNS, ...CRIMINAL_KEYS]
+  const readers = walk(".").filter((f) => !ALLOWED.includes(f))
+    .filter((f) => { const b = strip(read(f)); return NAMES.some((n) => b.includes(n)) })
+  ok(`no module outside the four that own these fields reads any of them (${walk(".").length} files swept)`,
+    readers.length === 0, readers.join(", "))
+
+  // And the matching filters specifically, by name, because that is what the question is about.
+  for (const f of ["lib/matching/filters/approvalFilter.ts", "lib/matching/managementApprovalFilter.ts",
+                   "lib/matching/filters/finalRankingEngine.ts", "lib/matching/propertyTypeFilter.ts"]) {
+    if (!existsSync(f)) { ok(`${f} — not present`, true); continue }
+    const body = strip(read(f))
+    ok(`${f} reads none of the nine`, !NAMES.some((n) => body.includes(n)))
+  }
+  // The lead-side columns it DOES read are a different set with different names, which is why
+  // adding property columns cannot reach it. Asserted so the distinction stays deliberate.
+  // lib/matching/approvalFilter.ts is the one that actually screens a lead against a property.
+  // It reads the LEAD's criminal answers — criminal_background, criminal_charge, felony_age —
+  // which are different columns on a different table with different names. That is why adding
+  // nine property columns cannot reach it, and why the names were kept apart.
+  const af = strip(read("lib/matching/approvalFilter.ts"))
+  ok("the lead-side filter still reads the LEAD's own criminal answers",
+    af.includes("criminal_background") && af.includes("felony_age"))
+  ok("…and none of the nine property columns, whose names deliberately do not collide with them",
+    !NAMES.some((n) => af.includes(n)))
+
+  // THE LEGACY IMPORTER. Adding the seven shared names to OWNER_ONLY_FIELDS must not break the
+  // import that filled property_approval_policy: that firewall is enforced in enrichProperty
+  // (writer.ts) against property_catalog, and the importer writes the policy table through
+  // writeWideRow, which does not consult it.
+  {
+    const qa = strip(read("scripts/propertyIntel/qual_apply.ts"))
+    ok("the importer writes the LEGACY table by name, and never property_catalog",
+      qa.includes('writeWideRow("property_approval_policy"') && !qa.includes('"property_catalog"'))
+    ok("…and the only field it sends through the firewalled writer is affordable_program",
+      (qa.match(/enrichProperty\(/g) || []).length === 1 && qa.includes('field: "affordable_program"'))
+    const ww = strip(read("lib/propertyIntel/wideWriter.ts"))
+    ok("writeWideRow does not consult OWNER_ONLY_FIELDS, so the import path is unchanged",
+      !ww.includes("OWNER_ONLY_FIELDS") && !ww.includes("ownerCommissionWrite"))
+  }
+}
+
 ok("the panel's change set is gated per group, not by one flag",
   /spec\.group === "criminal" \? loaded\.criminalAvailable : loaded\.approvalAvailable/.test(panel))
 ok("the group is drawn where it was asked for — after Eviction, before Deposits & Risk Fees", (() => {
@@ -302,6 +374,31 @@ console.log("\n   the whole group plans as one save")
   ok("the DISPLAY form of a token is rejected, not coerced", rejected.includes("felonyPolicy"))
   ok("…and the good field beside it is still planned, so the agent is told about both",
     writes.length === 1 && writes[0].column === "felony_min_age_years")
+}
+
+// ── WHAT THE 420px RENDER FOUND ─────────────────────────────────────────────────────────────
+// Both of these were real defects caught by rendering the shipped component at the panel's own
+// width (w-full max-w-[420px] sm:w-[420px]), not by reading the source. They are asserted here
+// so the fix cannot be undone by a later edit that only looks reasonable in a wide window.
+{
+  // A policy cell is 186px and shares its top row with the provenance age line ("Verified:
+  // Oct 27, 2026", 96px). At "Misdemeanor policy" the label was 93px, so label + gap + age came
+  // to exactly 186, the row wrapped, and that select sat 17px below its neighbour. The group
+  // heading already says Criminal Background, which is why Eviction's one select is just "Policy".
+  ok('the policy labels are the SHORT ones that fit beside an age line at 186px',
+    /aSelect\("felonyPolicy", "Felony",/.test(panel) &&
+    /aSelect\("misdemeanorPolicy", "Misdemeanor",/.test(panel))
+
+  // The restrictions carry the leasing office's own sentence. The longest already stored is 57
+  // characters; a 184px half-column shows 27 of them, and reading that sentence is how it becomes
+  // a structured age and category. Full width shows all 57.
+  const group = panel.slice(panel.indexOf("Criminal Background</h4>"), panel.indexOf("RENTAL DEBT"))
+  const restrictionsRow = group.slice(group.indexOf('aInput("felonyRestrictions"'))
+    .slice(0, group.slice(group.indexOf('aInput("felonyRestrictions"')).indexOf("Background notes"))
+  ok("the two restrictions inputs are full width, not a two-column pair",
+    !/grid-cols-2/.test(restrictionsRow))
+  ok("…while the policies and the ages above them still ARE paired",
+    (group.match(/grid grid-cols-2 gap-3/g) || []).length === 2)
 }
 
 console.log(`\n${fail === 0 ? "ALL PASS" : "FAILURES"} — ${pass} passed, ${fail} failed\n`)

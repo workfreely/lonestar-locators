@@ -36,7 +36,7 @@ import {
 import type { EnrichmentStore } from "@/lib/propertyEnrichment/store"
 import type { EnrichmentEvent, FieldCandidate, FieldProvenance, PropertySnapshot } from "@/lib/propertyEnrichment/types"
 import {
-  APPROVAL_FIELDS, APPROVAL_COLUMNS, planApprovalWrites, approvalValueToInput,
+  APPROVAL_FIELDS, APPROVAL_COLUMNS, CRIMINAL_COLUMNS, planApprovalWrites, approvalValueToInput,
 } from "@/lib/propertyIntel/approvalCriteria"
 
 let pass = 0
@@ -264,6 +264,11 @@ async function main() {
     existsSync(`supabase/migrations/${n}`) ? `supabase/migrations/${n}` : `supabase/prepared/${n}`
   const M0 = prepared("20261110000000_property_screening_requirements.sql")
   const M4 = prepared("20261110000004_approval_criteria_fields.sql")
+  // The criminal migration is not exercised here — criminalBackground.http.test.ts owns it — but
+  // this file REBUILDS the catalog table from the generated schema, which deliberately leaves the
+  // criminal columns out. So it has to put them back in teardown, or the next suite on this
+  // shared database opens on a table that has never seen them.
+  const MCRIM = prepared("20261112000000_property_criminal_background.sql")
   runFile(M0); ok("20261110000000 applies to a catalog table that has none of its columns", true)
   runFile(M4); ok("20261110000004 applies on top of it", true)
   runFile(M0); runFile(M4)
@@ -485,15 +490,19 @@ async function main() {
   {
     const schema = execFileSync("npx", ["tsx", "scripts/tests/approvalCriteria.schema.ts"], { encoding: "utf8" })
     execFileSync(PSQL, ["-v", "ON_ERROR_STOP=1", "-q", "-d", URL_], { input: schema, encoding: "utf8" })
-    runFile(M0); runFile(M4)
+    runFile(M0); runFile(M4); runFile(MCRIM)
     run(`grant all on all tables in schema public to service_role;
          grant all on all sequences in schema public to service_role;
          grant select on all tables in schema public to authenticated;
          notify pgrst, 'reload schema'`)
-    ok("the harness schema and both migrations are restored for whatever runs next",
+    ok("the harness schema and all three migrations are restored for whatever runs next",
       rows<{ n: number }>(`select count(*)::int as n from information_schema.columns
         where table_schema='public' and table_name='property_catalog'
           and column_name in (${APPROVAL_COLUMNS.map((c) => `'${c}'`).join(",")})`)[0].n === APPROVAL_COLUMNS.length)
+    ok("…including the nine criminal columns, which this file's rebuild had dropped",
+      rows<{ n: number }>(`select count(*)::int as n from information_schema.columns
+        where table_schema='public' and table_name='property_catalog'
+          and column_name in (${CRIMINAL_COLUMNS.map((c) => `'${c}'`).join(",")})`)[0].n === CRIMINAL_COLUMNS.length)
   }
 
   run(`delete from public.property_enrichment_events where place_id = ${txt(TEST_PLACE)}::text`)

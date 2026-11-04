@@ -1,6 +1,7 @@
 -- VERIFY 20261112000001_criminal_background_backfill. Read-only; run after applying.
 
--- 1) WHAT LANDED. Six properties, a policy on each, the prose beside it.
+-- 1) WHAT LANDED. Eight properties — ragged by row: two carry only a misdemeanor sentence,
+--    two a felony policy with no misdemeanor answer, one both policies with no felony sentence.
 select c.place_id, c.property_name,
        c.felony_policy, c.misdemeanor_policy,
        c.felony_min_age_years, c.misdemeanor_min_age_years,
@@ -11,7 +12,7 @@ select c.place_id, c.property_name,
  where c.felony_policy is not null or c.misdemeanor_policy is not null
     or c.felony_restrictions is not null or c.misdemeanor_restrictions is not null
  order by c.property_name;
--- EXPECT 6 rows. EXPECT felony_policy / misdemeanor_policy = 'case_by_case' where the source had
+-- EXPECT 8 rows. EXPECT felony_policy / misdemeanor_policy = 'case_by_case' where the source had
 --        'Case-by-Case'. EXPECT felony_min_age_years, misdemeanor_min_age_years,
 --        criminal_lookback_basis and criminal_restricted_offense_types ALL NULL on every row —
 --        the lookback and the categories live inside the prose and were deliberately not parsed.
@@ -55,3 +56,21 @@ select count(*) as criminal_provenance_rows
                       'misdemeanor_min_age_years','background_screening_notes');
 -- EXPECT 0 before anybody uses the editor. The editor's own saves add rows here afterwards, each
 --        recorded verified only when a Source was supplied with it.
+
+-- 6) THE ORDERING GUARD DID ITS JOB. Any property the editor had already touched was skipped by
+--    the backfill, so a field an agent deliberately cleared back to Unknown was NOT refilled.
+select c.place_id, c.property_name,
+       (select count(*) from public.property_enrichment_events e
+         where e.place_id = c.place_id
+           and e.field_name in ('felony_policy','misdemeanor_policy','felony_restrictions',
+                                'misdemeanor_restrictions','background_screening_notes',
+                                'felony_min_age_years','misdemeanor_min_age_years')) as prior_events,
+       c.felony_policy, c.misdemeanor_policy
+  from public.property_catalog c
+  join public.property_approval_policy p on p.place_id = c.place_id
+ where (p.felony_policy is not null or p.misdemeanor_policy is not null
+        or p.felony_restrictions is not null or p.misdemeanor_restrictions is not null)
+ order by prior_events desc, c.property_name;
+-- EXPECT prior_events = 0 on all eight rows when this runs beside 20261112000000, which is the
+--        recommended order. A row with prior_events > 0 is one the backfill deliberately left
+--        alone — read it in the editor and decide by hand; nothing was lost either way.

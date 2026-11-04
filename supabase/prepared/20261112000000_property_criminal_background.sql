@@ -18,6 +18,9 @@
 --   misdemeanor_min_age_years    | 0                   | EMPTY — same
 --   background_screening_notes   | 0                   | EMPTY
 --
+-- Those counts are per column; the answers are ragged, so EIGHT distinct properties carry some
+-- criminal answer between them, not six. (Checked against production on 2026-11-04.)
+--
 -- So SEVEN of the nine columns below are that table's own names, deliberately: the same name
 -- means the same thing in both tables, one reader understands both, and the proposed backfill
 -- (20261112000001, separate and separately approvable) is a column-to-column copy with nothing

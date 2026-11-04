@@ -974,8 +974,8 @@ export default function MapPropertyEditor({
                 <div className="space-y-3 border-t border-[var(--crm-border-soft)] pt-3">
                   <h4 className={groupTitle}>Criminal Background</h4>
                   <div className="grid grid-cols-2 gap-3">
-                    {aSelect("felonyPolicy", "Felony policy", FELONY_POLICY_OPTIONS)}
-                    {aSelect("misdemeanorPolicy", "Misdemeanor policy", MISDEMEANOR_POLICY_OPTIONS)}
+                    {aSelect("felonyPolicy", "Felony", FELONY_POLICY_OPTIONS)}
+                    {aSelect("misdemeanorPolicy", "Misdemeanor", MISDEMEANOR_POLICY_OPTIONS)}
                   </div>
                   {/* Hidden only when BOTH policies are Not Considered, and never when something
                       is already stored — a lookback entered before the policy was tightened is
@@ -996,12 +996,16 @@ export default function MapPropertyEditor({
                       </div>
                       {aSelect("criminalLookbackBasis", "Lookback measured from", LOOKBACK_BASIS_OPTIONS)}
                       {offenseChips("criminalRestrictedOffenseTypes")}
-                      <div className="grid grid-cols-2 gap-3">
-                        {aInput("felonyRestrictions", "Felony restrictions", "Nothing assault related", "text",
-                          "Up to 300 characters.")}
-                        {aInput("misdemeanorRestrictions", "Misdemeanor restrictions", "No time frame, case by case", "text",
-                          "Up to 300 characters.")}
-                      </div>
+                      {/* FULL WIDTH, not the two-column pair the fields above use. These carry the
+                          leasing office's own sentence — the longest one already stored is 57
+                          characters ("Heron at Hausman - 10 years old - nothing assault related"),
+                          and a 184px half-column shows 27 of them. The agent reading that sentence
+                          is how it becomes a structured age and category, so it has to be legible
+                          without clicking into the box. 385px shows all 57. */}
+                      {aInput("felonyRestrictions", "Felony restrictions", "Nothing assault related", "text",
+                        "Up to 300 characters.")}
+                      {aInput("misdemeanorRestrictions", "Misdemeanor restrictions", "No time frame, case by case", "text",
+                        "Up to 300 characters.")}
                     </>
                   )}
                   <div>
