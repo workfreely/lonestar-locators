@@ -255,6 +255,26 @@ export const OWNER_SCREENING_FIELDS = new Set([
   "screening_risk_fee",
   "screening_guarantor_program",
   "screening_requirements_checked_at",
+  // ── CRIMINAL BACKGROUND ───────────────────────────────────────────────────────────────────
+  // Firewalled for the same reason as everything above it, and the reason is at its strongest
+  // here. A criminal-background policy is what a leasing office told a locator it will consider;
+  // no page scrape can establish it, and a wrong value either sends somebody to be declined or
+  // skips the one property that would have reviewed their file.
+  //
+  // Seven of the nine names are property_approval_policy's own. That table sits OUTSIDE this
+  // firewall and is written by imports, which is exactly why the editor writes its own columns
+  // on property_catalog instead: an import must never be able to overwrite an answer a leasing
+  // office gave a human being.
+  "felony_policy",
+  "felony_min_age_years",
+  "felony_restrictions",
+  "misdemeanor_policy",
+  "misdemeanor_min_age_years",
+  "misdemeanor_restrictions",
+  // The structured category set and the lookback basis — the two the policy table cannot carry.
+  "criminal_restricted_offense_types",
+  "criminal_lookback_basis",
+  "background_screening_notes",
 ])
 
 /** Every column only an authenticated owner may write: commission, the credit answer, and the

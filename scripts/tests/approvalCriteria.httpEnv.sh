@@ -62,10 +62,11 @@ case "${1:-start}" in
     psql "postgresql://postgres@127.0.0.1:$PG_PORT/postgres" -tAc "select 1 from pg_database where datname='$DBNAME'" | grep -q 1 \
       || psql "postgresql://postgres@127.0.0.1:$PG_PORT/postgres" -qc "create database $DBNAME"
 
-    # ── schema, generated from the policy sets, then the TWO MIGRATIONS UNDER TEST ──────────
+    # ── schema, generated from the policy sets, then the MIGRATIONS UNDER TEST ─────────────
     npx tsx scripts/tests/approvalCriteria.schema.ts > "$RUNDIR/schema.sql"
     psql -v ON_ERROR_STOP=1 -q -d "$DBURL" -f "$RUNDIR/schema.sql"
-    for m in 20261110000000_property_screening_requirements 20261110000004_approval_criteria_fields; do
+    for m in 20261110000000_property_screening_requirements 20261110000004_approval_criteria_fields \
+             20261112000000_property_criminal_background; do
       f="supabase/migrations/$m.sql"; [ -f "$f" ] || f="supabase/prepared/$m.sql"
       psql -v ON_ERROR_STOP=1 -q -d "$DBURL" -f "$f"
       echo "  applied $m" >&2

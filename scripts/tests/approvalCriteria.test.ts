@@ -230,8 +230,16 @@ ok("a stored age keeps the group open", groupHasStoredDetail([null, 3]))
 ok("a stored 0 keeps it open — 0 is a value", groupHasStoredDetail([0]))
 ok("a stored false keeps it open — false is a finding", groupHasStoredDetail([false]))
 ok("a stored token keeps it open", groupHasStoredDetail([null, "must_be_paid"]))
-ok("the panel hides detail only under Not Accepted",
-  /\(approval\[statusKey\] \?\? ""\) !== "not_accepted"/.test(panel))
+ok("the panel hides detail only under a group's own CLOSED answer",
+  // Parameterised when Criminal Background arrived, whose closed answer is "not_considered"
+  // rather than "not_accepted". The rule for THESE groups is unchanged, which is what the
+  // default asserts: they pass no token, so they still hide only under Not Accepted.
+  /\(approval\[statusKey\] \?\? ""\) !== closed/.test(panel) &&
+  /showDetail = \(statusKey: string, columns: string\[\], closed = "not_accepted"\)/.test(panel))
+ok("…and the requirement groups still pass no token, so Not Accepted is still their rule",
+  (panel.match(/showDetail\("(brokenLease|eviction)Status", \[[^\]]*\]\)/g) ?? []).length === 2)
+ok("…while the only other closed token in the panel is the criminal one",
+  [...panel.matchAll(/showDetail\([^)]*?, "([a-z_]+)"\)/g)].every((m) => m[1] === "not_considered"))
 ok("…and never when something is stored in the group",
   /groupHasStoredDetail\(columns\.map\(\(c\) => loaded\?\.approval\?\.\[c\]\)\)/.test(panel))
 ok("both remaining incident groups use that same rule",
@@ -293,7 +301,7 @@ ok("when the edit happened comes from provenance, per field",
 ok("…and the age lines read that, not a stamp column",
   /updatedLabel\(\{ at: loaded\?\.fieldCheckedAt\?\.\[column\] \?\? null, verified: loaded\?\.fieldVerified\?\.\[column\] \}\)/.test(panel))
 ok("the approval columns are covered by the provenance read",
-  /\.\.\.APPROVAL_COLUMNS\]\)/.test(route))
+  /\.\.\.APPROVAL_COLUMNS,/.test(route) && /\.\.\.CRIMINAL_COLUMNS\]\)/.test(route))
 // The Source control stays and still decides verified-vs-inferred in provenance; only the
 // paragraph under it is gone. The behaviour is asserted against the ROUTE, where it lives.
 ok("the Source control is still there", /Source \(optional\)/.test(rawPanel) && /value=\{source\}/.test(panel))

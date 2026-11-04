@@ -5,7 +5,11 @@
  * has exactly the columns the store asks for. A hand-written list drifts the moment a field is
  * added, and the failure looks like a broken route rather than a stale fixture.
  *
- * The sixteen approval columns are deliberately ABSENT: the two migrations under test add them.
+ * The sixteen approval columns are deliberately ABSENT, and so are the nine criminal-background
+ * columns: the migrations under test add them. Declaring them here as text would also give
+ * criminal_restricted_offense_types the wrong TYPE — text instead of text[] — and `add column if
+ * not exists` would then skip it silently, so the array round trip would be tested against a
+ * column shape production does not have.
  *
  *   npx tsx scripts/tests/approvalCriteria.schema.ts > schema.sql
  */
@@ -13,7 +17,7 @@ import {
   ENRICHMENT_WRITABLE_FIELDS, IMAGE_FIELDS, OWNER_COMMISSION_FIELDS, OWNER_CREDIT_FIELDS,
   OWNER_CORRECTABLE_FIELDS,
 } from "@/lib/propertyEnrichment/policy"
-import { APPROVAL_COLUMNS } from "@/lib/propertyIntel/approvalCriteria"
+import { APPROVAL_COLUMNS, CRIMINAL_COLUMNS } from "@/lib/propertyIntel/approvalCriteria"
 
 /** Columns whose TYPE matters — to a CHECK, to the writer, or to the editor's round trip. */
 const TYPED: Record<string, string> = {
@@ -48,7 +52,7 @@ const ROUTE_ONLY = ["current_special_source", "gift_card_status"]
 const cols = new Map<string, string>(Object.entries(TYPED))
 for (const f of [...ENRICHMENT_WRITABLE_FIELDS, ...IMAGE_FIELDS, ...OWNER_COMMISSION_FIELDS,
                  ...OWNER_CREDIT_FIELDS, ...OWNER_CORRECTABLE_FIELDS, ...ROUTE_ONLY]) {
-  if (!cols.has(f) && !APPROVAL_COLUMNS.includes(f)) cols.set(f, "text")
+  if (!cols.has(f) && !APPROVAL_COLUMNS.includes(f) && !CRIMINAL_COLUMNS.includes(f)) cols.set(f, "text")
 }
 
 const out: string[] = []

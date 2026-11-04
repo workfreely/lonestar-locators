@@ -10,7 +10,9 @@ import { enrichProperty } from "@/lib/propertyEnrichment/writer"
 import { SupabaseEnrichmentStore } from "@/lib/propertyEnrichment/stores/supabaseStore"
 import type { FieldCandidate, VerificationStatus } from "@/lib/propertyEnrichment/types"
 import { asCatalogWasherDryerIncluded, asCatalogWasherDryerConnections } from "@/lib/propertyIntel/washerDryerCatalog"
-import { APPROVAL_COLUMNS, planApprovalWrites } from "@/lib/propertyIntel/approvalCriteria"
+import {
+  APPROVAL_COLUMNS, APPROVAL_FIELDS, CRIMINAL_COLUMNS, planApprovalWrites,
+} from "@/lib/propertyIntel/approvalCriteria"
 
 /**
  * OWNER-ONLY property pricing — the editor behind the pencil on a Recommended Properties card.
@@ -122,6 +124,24 @@ async function readApprovalCriteria(placeId: string): Promise<{ available: boole
   return { available: true, values: data as unknown as Record<string, unknown> }
 }
 
+/**
+ * ARE THE CRIMINAL-BACKGROUND COLUMNS PRESENT?
+ *
+ * The same tolerant read, kept SEPARATE on purpose. Criminal background is its own prepared
+ * migration, and folding its nine columns into the select above would mean one unapplied
+ * migration hides Broken Lease and Eviction as well — fields that are live today. Two reads,
+ * two availability facts, and each group of controls answers only for itself.
+ */
+async function readCriminalCriteria(placeId: string): Promise<{ available: boolean; values: Record<string, unknown> }> {
+  const { data, error } = await supabaseAdmin
+    .from("property_catalog")
+    .select(CRIMINAL_COLUMNS.join(", "))
+    .eq("place_id", placeId)
+    .maybeSingle()
+  if (error || !data) return { available: false, values: {} }
+  return { available: true, values: data as unknown as Record<string, unknown> }
+}
+
 function cleanPlaceId(v: unknown): string | null {
   const s = typeof v === "string" ? v.trim() : ""
   // Google place ids are opaque; accept a conservative charset rather than anything at all.
@@ -226,7 +246,11 @@ export async function GET(req: NextRequest) {
                          // column just because a save happened, so provenance is the only record
                          // of when a requirement was entered — and the only honest source for the
                          // "Updated 3 days ago" line beside it.
-                         ...APPROVAL_COLUMNS])
+                         ...APPROVAL_COLUMNS,
+                         // field_name is DATA in the provenance view, not a column, so listing
+                         // the criminal fields is safe before their migration is applied: the
+                         // query simply finds nothing for them.
+                         ...CRIMINAL_COLUMNS])
     for (const r of (prov ?? []) as { field_name: string; source_type: string; verification_status: string; checked_at: string | null; value: string | null }[]) {
       fieldVerified[r.field_name] = r.source_type === "manual_verified" && r.verification_status === "verified"
       // `value === null` is how an owner CLEAR is recorded. A cleared field has a provenance row
@@ -237,6 +261,7 @@ export async function GET(req: NextRequest) {
   }
 
   const approval = await readApprovalCriteria(placeId)
+  const criminal = await readCriminalCriteria(placeId)
 
   const row = data as unknown as Record<string, unknown>
   const num = (v: unknown) => (v === null || v === undefined || !Number.isFinite(Number(v)) ? null : Number(v))
@@ -331,7 +356,11 @@ export async function GET(req: NextRequest) {
     // means the prepared migration is not applied on this database — which the panel says out
     // loud, because showing empty controls would read as "no requirements entered".
     approvalAvailable: approval.available,
-    approval: approval.values,
+    // ONE record for the panel, because every one of these fields is read, compared and sent the
+    // same way. The two AVAILABILITY flags stay separate, which is the only distinction the panel
+    // has to make.
+    criminalAvailable: criminal.available,
+    approval: { ...approval.values, ...criminal.values },
     // The SPECIAL's own timestamp, for the editor's age line. Not a gate — nothing is hidden
     // by it. Null ⇒ the editor says "Date unknown" rather than guessing.
     currentSpecialCheckedAt: s(row.current_special_checked_at),
@@ -629,12 +658,22 @@ export async function PUT(req: NextRequest) {
   // the detail still there.
   const approvalPlan = planApprovalWrites(body)
   if (approvalPlan.keys.length > 0) {
-    // The columns live in a prepared, UNAPPLIED migration. Refuse clearly rather than letting the
-    // writer fail on an undefined column — the agent must never be told "saved" when the value
-    // had nowhere to go.
-    const probe = await readApprovalCriteria(placeId)
-    if (!probe.available) {
-      return NextResponse.json({ error: "approval_columns_missing", fields: approvalPlan.keys }, { status: 409 })
+    // The columns live in prepared, UNAPPLIED migrations — TWO of them, probed separately so a
+    // group that is live still saves while a group that is not refuses clearly. The agent must
+    // never be told "saved" when the value had nowhere to go.
+    const criminalKeys = approvalPlan.keys.filter((k) => APPROVAL_FIELDS[k].group === "criminal")
+    const requirementKeys = approvalPlan.keys.filter((k) => APPROVAL_FIELDS[k].group !== "criminal")
+    if (requirementKeys.length > 0) {
+      const probe = await readApprovalCriteria(placeId)
+      if (!probe.available) {
+        return NextResponse.json({ error: "approval_columns_missing", fields: requirementKeys }, { status: 409 })
+      }
+    }
+    if (criminalKeys.length > 0) {
+      const probe = await readCriminalCriteria(placeId)
+      if (!probe.available) {
+        return NextResponse.json({ error: "criminal_columns_missing", fields: criminalKeys }, { status: 409 })
+      }
     }
     rejected.push(...approvalPlan.rejected)
     for (const w of approvalPlan.writes) {

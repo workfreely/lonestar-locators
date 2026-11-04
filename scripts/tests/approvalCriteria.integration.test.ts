@@ -462,7 +462,10 @@ async function main() {
       `select column_name from information_schema.columns
         where table_schema='public' and table_name='property_catalog'
           and column_name in (${APPROVAL_COLUMNS.map((c) => `'${c}'`).join(",")})`).map((r) => r.column_name)
-    const five = Object.values(APPROVAL_FIELDS).map((f) => f.column)
+    // APPROVAL_COLUMNS, not every APPROVAL_FIELDS column: the field map also carries the nine
+    // criminal-background columns now, and they belong to a DIFFERENT migration. Counting them
+    // here would make this assertion about three migrations instead of the two it tests.
+    const five = APPROVAL_COLUMNS
       .filter((c) => !readFileSync(M0, "utf8").includes(c))
     ok("its five columns are gone", five.every((c) => !left.includes(c)), `still present: ${five.filter((c) => left.includes(c)).join(", ")}`)
     ok("the eleven from 20261110000000 are untouched", left.length === APPROVAL_COLUMNS.length - five.length)

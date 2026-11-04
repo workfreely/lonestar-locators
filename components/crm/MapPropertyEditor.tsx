@@ -15,7 +15,8 @@ import { ageLabel, updatedLabel, formatDayLabel } from "@/lib/propertyIntel/rela
 import {
   APPROVAL_FIELDS, BROKEN_LEASE_STATUS_OPTIONS, EVICTION_STATUS_OPTIONS,
   BALANCE_REQUIREMENT_OPTIONS, POSITIVE_HISTORY_OPTIONS, approvalValueToInput, parseApprovalValue,
-  groupHasStoredDetail,
+  groupHasStoredDetail, FELONY_POLICY_OPTIONS, MISDEMEANOR_POLICY_OPTIONS,
+  LOOKBACK_BASIS_OPTIONS, OFFENSE_TYPE_OPTIONS, toggleOffenseType,
 } from "@/lib/propertyIntel/approvalCriteria"
 
 /**
@@ -72,6 +73,10 @@ type Loaded = {
   /** False until the prepared screening migration is applied on this database. The panel says so
    *  rather than showing sixteen empty controls, which would read as "no requirements entered". */
   approvalAvailable: boolean
+  /** False until the prepared CRIMINAL BACKGROUND migration is applied. Separate from the flag
+   *  above on purpose: one unapplied migration must not hide the requirement fields that are
+   *  already live, and vice versa. */
+  criminalAvailable: boolean
   /** The approval columns as stored, keyed by COLUMN name. Empty when unavailable. */
   approval: Record<string, unknown>
   googleRating: number | null
@@ -293,12 +298,15 @@ export default function MapPropertyEditor({
     // A field the agent EMPTIED is sent as "", which the route reads as the deliberate clear back
     // to unknown. Those two cases are distinguishable here and nowhere else, which is why the
     // comparison lives in the same place the payload is built.
-    if (loaded.approvalAvailable) {
-      for (const [key, spec] of Object.entries(APPROVAL_FIELDS)) {
-        const stored = approvalValueToInput(loaded.approval?.[spec.column])
-        const now = (approval[key] ?? "").trim()
-        if (now !== stored) out[key] = now
-      }
+    for (const [key, spec] of Object.entries(APPROVAL_FIELDS)) {
+      // Gated per GROUP, by the same two facts the panel renders from. Sending a field whose
+      // column does not exist yet would earn a 409 for the whole save, including the fields that
+      // would have landed.
+      const live = spec.group === "criminal" ? loaded.criminalAvailable : loaded.approvalAvailable
+      if (!live) continue
+      const stored = approvalValueToInput(loaded.approval?.[spec.column])
+      const now = (approval[key] ?? "").trim()
+      if (now !== stored) out[key] = now
     }
     return out
   }, [loaded, send, escort, bonus, specialChoice, specialDetails, giftStatus, giftAmount,
@@ -503,9 +511,45 @@ export default function MapPropertyEditor({
    *  already stored in them. A hidden field keeps its value either way (the panel only sends what
    *  changed), but hiding a stored requirement would leave the agent unable to see or correct it,
    *  which is its own kind of loss. So stored data always wins over the tidier layout. */
-  const showDetail = (statusKey: string, columns: string[]) =>
-    (approval[statusKey] ?? "") !== "not_accepted" ||
+  const showDetail = (statusKey: string, columns: string[], closed = "not_accepted") =>
+    (approval[statusKey] ?? "") !== closed ||
     groupHasStoredDetail(columns.map((c) => loaded?.approval?.[c]))
+
+  /** The offense categories, as toggles.
+   *
+   *  A SET, not a dropdown: an office that says "nothing assault related, no sex offenses" has
+   *  named two restrictions, and a single-select would make the second erase the first. Nothing
+   *  selected is UNKNOWN — it is never stored as "no categories are restricted", which is a
+   *  different claim and one nobody made. */
+  const offenseChips = (key: string) => {
+    const current = approval[key] ?? ""
+    const on = new Set(current.split(",").filter(Boolean))
+    return (
+      <div>
+        <div className="mb-1 flex items-baseline justify-between gap-2">
+          <label className={label} style={{ marginBottom: 0 }}>Offense types restricted</label>
+          <span className="text-[10px] text-[var(--crm-text-muted)]">{ageFor(APPROVAL_FIELDS[key].column)}</span>
+        </div>
+        <div className="flex flex-wrap gap-1.5">
+          {OFFENSE_TYPE_OPTIONS.map((o) => (
+            <button
+              key={o.value}
+              type="button"
+              aria-pressed={on.has(o.value)}
+              onClick={() => setA(key, toggleOffenseType(current, o.value))}
+              className={`rounded-md border px-2 py-1 text-[11px] font-semibold transition ${
+                on.has(o.value)
+                  ? "border-[var(--crm-accent)] bg-[var(--crm-accent)]/15 text-[var(--crm-text-primary)]"
+                  : "border-[var(--crm-border-soft)] bg-transparent text-[var(--crm-text-muted)] hover:border-[var(--crm-border)]"
+              }`}
+            >
+              {o.label}
+            </button>
+          ))}
+        </div>
+      </div>
+    )
+  }
 
   const triControl = (value: Tri, onChange: (v: Tri) => void, name: string) => (
     <div className="flex gap-1" role="radiogroup" aria-label={name}>
@@ -902,6 +946,84 @@ export default function MapPropertyEditor({
                     )}
                   </div>
 
+                </>
+              )}
+
+              {/* ── CRIMINAL BACKGROUND ─────────────────────────────────────────────────────
+                  DIRECTLY BENEATH EVICTION, in the same section, with the same controls and the
+                  same save. Its own availability flag, because it is its own prepared migration:
+                  a database without it still shows and saves everything above.
+
+                  WHAT THIS GROUP IS. Nine columns describing what a PROPERTY will consider —
+                  seven of them named exactly as property_approval_policy names them, so the
+                  proposed backfill is a column-to-column copy and one reader understands both.
+
+                  WHAT IT IS NOT. It says nothing about any renter, and nothing here feeds
+                  matching: Quick Match does not read these columns, by omission rather than by a
+                  flag. "Considered" is not approval, "Case-by-Case" is not a soft no, and a
+                  charge is not a conviction — which is why the lookback carries its own basis
+                  instead of assuming one. */}
+              {!loaded.criminalAvailable && (
+                <p className="rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-[11px] leading-snug text-amber-600 dark:text-amber-400">
+                  The criminal-background fields are not on this database yet — their prepared
+                  migration has not been applied.
+                </p>
+              )}
+
+              {loaded.criminalAvailable && (
+                <div className="space-y-3 border-t border-[var(--crm-border-soft)] pt-3">
+                  <h4 className={groupTitle}>Criminal Background</h4>
+                  <div className="grid grid-cols-2 gap-3">
+                    {aSelect("felonyPolicy", "Felony policy", FELONY_POLICY_OPTIONS)}
+                    {aSelect("misdemeanorPolicy", "Misdemeanor policy", MISDEMEANOR_POLICY_OPTIONS)}
+                  </div>
+                  {/* Hidden only when BOTH policies are Not Considered, and never when something
+                      is already stored — a lookback entered before the policy was tightened is
+                      still a fact, and hiding it would leave it uncorrectable. */}
+                  {(showDetail("felonyPolicy", [
+                      "felony_min_age_years", "felony_restrictions", "criminal_lookback_basis",
+                      "criminal_restricted_offense_types",
+                    ], "not_considered") ||
+                    showDetail("misdemeanorPolicy", [
+                      "misdemeanor_min_age_years", "misdemeanor_restrictions",
+                    ], "not_considered")) && (
+                    <>
+                      <div className="grid grid-cols-2 gap-3">
+                        {aInput("felonyMinAgeYears", "Felony minimum age (years)", "7", "numeric",
+                          "A whole number of years, 0–20.")}
+                        {aInput("misdemeanorMinAgeYears", "Misdemeanor minimum age (years)", "3", "numeric",
+                          "A whole number of years, 0–20.")}
+                      </div>
+                      {aSelect("criminalLookbackBasis", "Lookback measured from", LOOKBACK_BASIS_OPTIONS)}
+                      {offenseChips("criminalRestrictedOffenseTypes")}
+                      <div className="grid grid-cols-2 gap-3">
+                        {aInput("felonyRestrictions", "Felony restrictions", "Nothing assault related", "text",
+                          "Up to 300 characters.")}
+                        {aInput("misdemeanorRestrictions", "Misdemeanor restrictions", "No time frame, case by case", "text",
+                          "Up to 300 characters.")}
+                      </div>
+                    </>
+                  )}
+                  <div>
+                    <div className="mb-1 flex items-baseline justify-between gap-2">
+                      <label className={label} style={{ marginBottom: 0 }}>Background notes</label>
+                      <span className="text-[10px] text-[var(--crm-text-muted)]">{ageFor("background_screening_notes")}</span>
+                    </div>
+                    <textarea
+                      className={`${field} min-h-[64px]`}
+                      value={approval.backgroundScreeningNotes ?? ""}
+                      placeholder="Exceptions, corporate review, who said so."
+                      onChange={(e) => setA("backgroundScreeningNotes", e.target.value)}
+                    />
+                    {approvalErrors.backgroundScreeningNotes && (
+                      <p className="mt-1 text-[10px] text-amber-400">Up to 4,000 characters.</p>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {loaded.approvalAvailable && (
+                <>
                   {/* ── RENTAL DEBT — REMOVED FROM THE PANEL, NOT FROM THE RECORD ────────
                       The group duplicated the broken-lease answer in day-to-day use, so it is no
                       longer drawn. Nothing else changed:
