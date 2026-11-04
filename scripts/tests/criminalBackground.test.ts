@@ -399,6 +399,17 @@ console.log("\n   the whole group plans as one save")
     !/grid-cols-2/.test(restrictionsRow))
   ok("…while the policies and the ages above them still ARE paired",
     (group.match(/grid grid-cols-2 gap-3/g) || []).length === 2)
+
+  // THE MIN-AGE LABELS. "Misdemeanor minimum age (years)" measured 184px of a 186px cell — a
+  // 2px margin, so it rendered on one line at exactly 420px and wrapped at any narrower panel
+  // width, dropping its input 16.5px below the felony input beside it. "Min. Age (YRS)" is 78px
+  // and clears 156px, the narrowest the panel gets. Both say the same thing because the column
+  // each sits under already names the offence, and the pair is gated as one fragment, so an
+  // unlabelled lone column cannot occur.
+  ok("both min-age labels are the short form that fits a 186px cell",
+    (group.match(/aInput\("(?:felony|misdemeanor)MinAgeYears", "Min\. Age \(YRS\)"/g) || []).length === 2)
+  ok("…and neither keeps the long label that wrapped",
+    !/minimum age \(years\)/i.test(group))
 }
 
 console.log(`\n${fail === 0 ? "ALL PASS" : "FAILURES"} — ${pass} passed, ${fail} failed\n`)

@@ -989,9 +989,16 @@ export default function MapPropertyEditor({
                     ], "not_considered")) && (
                     <>
                       <div className="grid grid-cols-2 gap-3">
-                        {aInput("felonyMinAgeYears", "Felony minimum age (years)", "7", "numeric",
+                        {/* "Min. Age (YRS)" on BOTH, not "Felony minimum age (years)". The long
+                            labels wrapped to a second line in a 186px half-column and pushed the
+                            two inputs out of alignment. The column each sits in already says
+                            which offence it is — Felony above the left, Misdemeanor above the
+                            right — and the pair is rendered by one gate, so a lone, unlabelled
+                            column is impossible. Display only: same keys, same values, same
+                            validation, same save. */}
+                        {aInput("felonyMinAgeYears", "Min. Age (YRS)", "7", "numeric",
                           "A whole number of years, 0–20.")}
-                        {aInput("misdemeanorMinAgeYears", "Misdemeanor minimum age (years)", "3", "numeric",
+                        {aInput("misdemeanorMinAgeYears", "Min. Age (YRS)", "3", "numeric",
                           "A whole number of years, 0–20.")}
                       </div>
                       {aSelect("criminalLookbackBasis", "Lookback measured from", LOOKBACK_BASIS_OPTIONS)}
