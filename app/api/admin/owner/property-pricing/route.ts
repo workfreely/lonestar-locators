@@ -58,6 +58,10 @@ const COMMISSION_FIELDS: Record<string, string> = {
   bonusFlat: "bonus_flat",
 }
 
+/** The same three as COLUMNS. Derived rather than written out again, so the verification badge
+ *  below and the write path above can never disagree about which fields are the commission. */
+const COMMISSION_COLUMNS = Object.values(COMMISSION_FIELDS)
+
 /** CREDIT SCREENING columns the owner may edit. The status carries the three states and NULL
  *  means unknown, exactly as the gift card's does; the score is an integer 300–850 that only
  *  exists under a reported minimum. The observed-approval score is deliberately NOT in this map:
@@ -176,28 +180,44 @@ export async function GET(req: NextRequest) {
     }
   }
 
-  // COMMISSION VERIFICATION, DERIVED — not a stored boolean.
+  // VERIFICATION, DERIVED — never a stored boolean.
   //
   // There is deliberately no commission_verified column. A flag can drift from reality: it keeps
   // saying "verified" long after the value under it changed. Provenance cannot, because it IS the
-  // record of who wrote the value and how. A commission counts as manually verified only when its
-  // latest provenance row says a human recorded it (manual_verified) AND the finding was verified
-  // rather than inferred — which, per the POST handler, means a supporting source was supplied.
+  // record of who wrote the value and how.
   //
-  // This also keeps "unknown" honest: a field with no provenance and no value is not unverified,
-  // it is unresearched, and the editor shows those differently.
+  // TWO DIFFERENT QUESTIONS ARE ANSWERED BELOW, and conflating them was a real bug.
   //
-  // The same read also answers a smaller question for the editor's age lines: does a field's
-  // timestamp represent a VERIFICATION, or merely the last time somebody wrote it? The editor
-  // says "Verified 12 days ago" only for the former and "Updated …" for the latter, so the two
-  // must not be conflated here.
+  //   fieldVerified   — did a LEASING OFFICE confirm this? True only when a supporting source was
+  //                     recorded (verification_status = 'verified'). This is what the special, the
+  //                     gift card and the approval criteria label "Verified …" rather than
+  //                     "Updated …", and what keeps an ordinary save from claiming a confirmation
+  //                     nobody obtained. UNCHANGED.
+  //
+  //   ownerEntered    — did an AUTHENTICATED OWNER type this value in the editor? That is
+  //                     source_type = 'manual_verified', which for a commission field is the only
+  //                     way a value can arrive at all: the writer's firewall admits a commission
+  //                     write solely with request-level owner authorization plus ownerOverride plus
+  //                     that source type, so no job, scraper or import can produce one.
+  //
+  // The commission badge asks the SECOND question and was reading the first. Every owner edit saved
+  // without filling in the optional Source box is recorded 'inferred', so a rate the owner had just
+  // typed came back "Not verified" — the editor calling its own author an unreliable witness. The
+  // badge now follows ownerEntered, and `inferred` keeps its real job of distinguishing an
+  // office-confirmed finding from an agent-reported one everywhere else.
+  //
+  // What still reads NOT verified, deliberately: a commission with no provenance row at all
+  // (pre-provenance data of unknown origin), one whose latest write came from any other source
+  // type (a bulk locator import, say), and one with no value — an absence is not a finding.
   const fieldVerified: Record<string, boolean> = {}
+  /** Per-field: was the latest write an authenticated owner typing in this editor? */
+  const ownerEntered: Record<string, boolean> = {}
   /** Per-field: when was it last written? Read from provenance, never from a stamp column. */
   const fieldCheckedAt: Record<string, string> = {}
   {
     const { data: prov } = await supabaseAdmin
       .from("property_field_provenance")
-      .select("field_name, source_type, verification_status, checked_at")
+      .select("field_name, source_type, verification_status, checked_at, value")
       .eq("place_id", placeId)
       .in("field_name", ["send_commission", "escort_commission", "bonus_flat", "current_special", "gift_card_status",
                          "credit_minimum_status", "credit_minimum_score", "credit_observed_approval_score",
@@ -207,12 +227,14 @@ export async function GET(req: NextRequest) {
                          // of when a requirement was entered — and the only honest source for the
                          // "Updated 3 days ago" line beside it.
                          ...APPROVAL_COLUMNS])
-    for (const r of (prov ?? []) as { field_name: string; source_type: string; verification_status: string; checked_at: string | null }[]) {
+    for (const r of (prov ?? []) as { field_name: string; source_type: string; verification_status: string; checked_at: string | null; value: string | null }[]) {
       fieldVerified[r.field_name] = r.source_type === "manual_verified" && r.verification_status === "verified"
+      // `value === null` is how an owner CLEAR is recorded. A cleared field has a provenance row
+      // but no finding, so it must not come back as owner-entered.
+      ownerEntered[r.field_name] = r.source_type === "manual_verified" && r.value !== null
       if (r.checked_at) fieldCheckedAt[r.field_name] = r.checked_at
     }
   }
-  const commissionVerified = fieldVerified
 
   const approval = await readApprovalCriteria(placeId)
 
@@ -226,6 +248,32 @@ export async function GET(req: NextRequest) {
     .filter(Boolean)
     .join(", ")
   const fullAddress = street ? (locality ? `${street}, ${locality}` : street) : null
+
+  // COMMISSION, AGENT-VERIFIED — provenance AND the stored value have to agree.
+  //
+  // Provenance alone is not enough. It records what the last write did; the catalog records what
+  // the property actually holds now. A field whose value was removed outside this editor would
+  // still carry an owner provenance row, and claiming "Verified" over an empty control would be
+  // the same error as reading a null commission as a confirmed zero.
+  //
+  // The SECTION reads verified when at least one of the three carries a value and every valued one
+  // was owner-entered. One field written by hand beside another left over from an import is not an
+  // agent-verified commission, so the mixed case stays grey rather than being rounded up.
+  const commissionVerified: Record<string, boolean> = {}
+  for (const column of COMMISSION_COLUMNS) {
+    commissionVerified[column] = ownerEntered[column] === true && s(row[column]) !== null
+  }
+  const valued = COMMISSION_COLUMNS.filter((c) => s(row[c]) !== null)
+  const commissionAgentVerified = valued.length > 0 && valued.every((c) => commissionVerified[c])
+  // WHEN an agent entered it. "Verified" says a human established the rate; it does not say the
+  // rate is fresh, and a commission entered a year ago is exactly the one worth re-checking. The
+  // panel puts this on the badge's hover title so the age is one gesture away instead of a fact
+  // the badge quietly omits. Latest of the three, because one save writes them together.
+  const commissionCheckedAt = valued
+    .map((c) => fieldCheckedAt[c])
+    .filter((d): d is string => !!d)
+    .sort()
+    .at(-1) ?? null
 
   return NextResponse.json({
     placeId,
@@ -274,6 +322,9 @@ export async function GET(req: NextRequest) {
     attributes: attrValues,
     // Per-field, derived from provenance. Absent key ⇒ never recorded by a human.
     commissionVerified,
+    // The whole section's answer, so the panel does not re-derive it from three fields.
+    commissionAgentVerified,
+    commissionCheckedAt,
     fieldVerified,
     fieldCheckedAt,
     // APPROVAL CRITERIA, in their own block with their own availability flag. `available: false`

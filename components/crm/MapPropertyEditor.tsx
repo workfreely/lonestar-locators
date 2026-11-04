@@ -5,12 +5,13 @@ import { createPortal } from "react-dom"
 import PropertyThumb from "@/components/crm/PropertyThumb"
 import { StarRating } from "@/components/crm/StarRating"
 import { commissionToInput } from "@/components/crm/PropertyPricingEditor"
+import DateTimePicker from "@/components/crm/DateTimePicker"
 import {
   CATALOG_WD_INCLUDED_OPTIONS, CATALOG_WD_CONNECTIONS_OPTIONS,
   asCatalogWasherDryerIncluded, asCatalogWasherDryerConnections,
 } from "@/lib/propertyIntel/washerDryerCatalog"
 import { MOVE_IN_SPECIAL_OPTIONS, specialToSelection, selectionToSpecial } from "@/lib/propertyIntel/moveInSpecials"
-import { ageLabel, updatedLabel } from "@/lib/propertyIntel/relativeAge"
+import { ageLabel, updatedLabel, formatDayLabel } from "@/lib/propertyIntel/relativeAge"
 import {
   APPROVAL_FIELDS, BROKEN_LEASE_STATUS_OPTIONS, EVICTION_STATUS_OPTIONS,
   BALANCE_REQUIREMENT_OPTIONS, POSITIVE_HISTORY_OPTIONS, approvalValueToInput, parseApprovalValue,
@@ -32,7 +33,8 @@ import {
  * Inherited from the route, and the reason the panel is safe to open on hundreds of
  * properties: an untouched field is omitted from the payload entirely, so saving one number
  * cannot disturb the other forty. Clearing a value back to unknown is a SEPARATE, explicit
- * act — see the Clear control on commission and the gift card.
+ * act: emptying a commission field sends null rather than a blank, and the gift card and the
+ * approval criteria have "Unknown" as a real, selectable answer.
  *
  * ── UNKNOWN IS NOT NO ───────────────────────────────────────────────────────────────────
  * The distinction runs through every control here. A blank commission means nobody has
@@ -78,7 +80,13 @@ type Loaded = {
   nearbyLandmark: string | null
   crossStreets: string | null
   attributes: Record<string, string>
+  /** Per-commission-field: an authenticated owner typed this value here, and it is still stored. */
   commissionVerified: Record<string, boolean>
+  /** The section's own answer: at least one commission field has a value and every valued one was
+   *  owner-entered. Derived in the route from provenance plus the stored row, never a flag. */
+  commissionAgentVerified: boolean
+  /** When an agent last entered a commission here. Verified says WHO, not HOW FRESH. */
+  commissionCheckedAt: string | null
 }
 
 const ENDPOINT = "/api/admin/owner/property-pricing"
@@ -141,6 +149,9 @@ export default function MapPropertyEditor({
   // another. Every value is the string the control shows, and "" is the unknown state throughout.
   const [approval, setApproval] = useState<Record<string, string>>({})
   const [source, setSource] = useState("")
+  /** Is the leasing-office confirmation calendar open? Purely presentational — the value itself
+   *  lives in `approval`, exactly as it did under the native input. */
+  const [dateOpen, setDateOpen] = useState(false)
 
   const panelRef = useRef<HTMLDivElement | null>(null)
 
@@ -412,46 +423,39 @@ export default function MapPropertyEditor({
   const ageFor = (column: string) =>
     updatedLabel({ at: loaded?.fieldCheckedAt?.[column] ?? null, verified: loaded?.fieldVerified?.[column] })
 
+  /** The commission columns in the panel's own words, in the order the row shows them. */
+  const COMMISSION_LABELS: [column: string, word: string][] = [
+    ["send_commission", "Send"],
+    ["escort_commission", "Escort"],
+    ["bonus_flat", "Bonus"],
+  ]
+  /** Which of the three the "Verified" pill actually covers. The pill sits over three boxes, and a
+   *  property with only a Send rate entered must not be read as a claim about the two empty ones —
+   *  so the pill's own title names them, and each field carries its own tick below. */
+  const verifiedFields = COMMISSION_LABELS
+    .filter(([column]) => loaded?.commissionVerified?.[column])
+    .map(([, word]) => word)
+
   /**
-   * THE DATE INPUT NEEDS ITS OWN CLASS, AND THIS IS WHY.
+   * THERE IS NO NATIVE DATE INPUT IN THIS PANEL ANY MORE.
    *
-   * globals.css carries a legacy rule:
+   * The one date field here — the leasing-office confirmation — now opens the CRM's own calendar
+   * (components/crm/DateTimePicker, the Add Task / Reschedule / Get Invoice Details picker) in
+   * `dateOnly` mode, triggered by a button that fills the field. Three separate problems go away
+   * with the native control, and all three were really one problem:
    *
-   *   input[type="text"], input[type="email"], input[type="tel"], input[type="number"],
-   *   input[type="date"], select, textarea { padding: .75rem; font-size: 1rem; border: 1px solid #ccc; … }
+   *   • globals.css carries a legacy marketing rule keyed on `input[type="date"]`, which outranks
+   *     a utility class and rendered this control half again as tall as its neighbours;
+   *   • a second rule stretched ::-webkit-calendar-picker-indicator across the whole field, which
+   *     is why a white calendar glyph sat over the date instead of beside it;
+   *   • the browser draws a native date picker in the TOP LAYER, outside the page's stacking
+   *     context, so no z-index or overflow rule on this panel could contain it.
    *
-   * An element-plus-attribute selector outranks a plain utility class, so it beat `py-2` and
-   * `text-[13px]` and rendered this control at 55px against its neighbours' 39px, with the native
-   * calendar glyph scaled to match — which is the "wrong icon" that was visible in the panel. It
-   * was never a hydration problem or a date-picker problem.
-   *
-   * Every other input in this panel escapes that rule by never declaring a `type` at all. The
-   * helper below now does the same for text inputs. A date input cannot: `type="date"` is the
-   * whole point of it. So the arbitrary variant raises these declarations to the same specificity,
-   * scoped to this one control, and `color-scheme` makes the picker glyph follow the panel's
-   * theme instead of always painting for a light one.
-   *
-   * ── AND WHY IT CARRIES `lb-date-native` ───────────────────────────────────────────────────
-   * The giant white calendar glyph was a SECOND global rule, not a missing style of ours:
-   *
-   *   input[type="date"]::-webkit-calendar-picker-indicator {
-   *     opacity: 1; width: 100%; height: 100%; position: absolute; inset: 0; z-index: 1;
-   *   }
-   *
-   * That is the marketing site stretching the picker across the whole field, which is why the
-   * icon covered the date instead of sitting beside it. globals.css already carries the cure —
-   * `lb-date-native`, written for precisely this and documented there as "a NORMAL, VISIBLE,
-   * clickable native calendar icon… pair with color-scheme on the input". Its selector is
-   * element + attribute + class, so it outranks the base rule where a utility class would not.
-   *
-   * So this control adopts the convention that already exists rather than inventing a parallel
-   * set of overrides that would lose the same specificity fight twice. The global stylesheet is
-   * untouched, and no other date input changes.
+   * Only a small part of the native field opened its calendar, too. A button opens it from
+   * anywhere inside, which is what was asked for. PropertyPricingEditor — the pencil editor on a
+   * Recommended Properties card — already did exactly this for its own "Date checked" field, so
+   * this is the existing pattern rather than a new one, and globals.css is untouched.
    */
-  const dateField = `${field} lb-date-native` +
-    ` [&[type=date]]:px-3 [&[type=date]]:py-2 [&[type=date]]:text-[13px]` +
-    ` [&[type=date]]:rounded-lg [&[type=date]]:border-[var(--crm-border)]` +
-    ` [color-scheme:light] dark:[color-scheme:dark]`
 
   const setA = (key: string, v: string) => setApproval((a) => ({ ...a, [key]: v }))
 
@@ -471,16 +475,16 @@ export default function MapPropertyEditor({
 
   /** One approval input. The warning under it is the SAME parser the route runs, so a value that
    *  would be rejected is named here instead of after a round trip. */
-  const aInput = (key: string, lbl: string, placeholder: string, mode: "numeric" | "decimal" | "text" | "date", bad: string, note?: string) => (
+  const aInput = (key: string, lbl: string, placeholder: string, mode: "numeric" | "decimal" | "text", bad: string, note?: string) => (
     <div>
       <label className={label}>{lbl}</label>
-      {/* NO `type` FOR TEXT. See dateField above: declaring type="text" is what pulled these
-          inputs into the legacy global form rule and made them taller than the rest of the panel.
-          Omitting it matches every other input here, and text is the default anyway. */}
+      {/* NO `type` AT ALL. Declaring type="text" is what pulled these inputs into the legacy
+          global form rule in globals.css and made them taller than the rest of the panel; omitting
+          it matches every other input here, and text is the default anyway. There is no date mode:
+          the one date field uses the shared calendar, above. */}
       <input
-        {...(mode === "date" ? { type: "date" as const } : {})}
-        inputMode={mode === "text" || mode === "date" ? undefined : mode}
-        className={mode === "date" ? dateField : field}
+        inputMode={mode === "text" ? undefined : mode}
+        className={field}
         value={approval[key] ?? ""}
         placeholder={placeholder}
         onChange={(e) => setA(key, e.target.value)}
@@ -593,28 +597,77 @@ export default function MapPropertyEditor({
             <section className="space-y-3">
               <div className="flex items-center justify-between">
                 <h3 className={sectionTitle}>Commission</h3>
-                {/* DERIVED from provenance, never a stored flag — a flag keeps claiming
-                    "verified" after the value under it changes. */}
-                <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${
-                  loaded.commissionVerified?.send_commission
-                    ? "bg-emerald-500/15 text-emerald-400"
-                    : "bg-[var(--crm-card)] text-[var(--crm-text-muted)]"
-                }`}>
-                  {loaded.commissionVerified?.send_commission ? "Verified ✓" : "Not verified"}
+                {/* AGENT-VERIFIED MEANS AN AGENT ENTERED IT.
+                    It used to require a supporting source in the Source box as well, so a rate the
+                    owner had just typed came back "Not verified" — the editor calling its own
+                    author an unreliable witness. The route now derives this from whether an
+                    authenticated owner wrote the value HERE (provenance source_type
+                    manual_verified, the only way a commission can be written at all) and whether a
+                    value is still stored. Still grey, deliberately: a commission with no
+                    provenance, one whose last write came from a bulk import, and one with no value.
+
+                    Derived per read, never a stored flag — a flag keeps claiming "verified" after
+                    the value under it changes. The green is the commission green the map card's own
+                    chip uses (CommissionBadge), so one colour means "a locator established this"
+                    wherever a commission is shown. */}
+                <span
+                  // VERIFIED SAYS WHO, NOT HOW FRESH, AND IT SAYS WHAT IT COVERS. A rate entered a
+                  // year ago is the one most worth re-checking, and a pill that reads "Verified"
+                  // over a row where two of the three boxes are empty must not be read as a claim
+                  // about the empty ones. The title names the fields it actually covers; the ticks
+                  // beside the labels below show the same thing without a hover.
+                  title={
+                    loaded.commissionAgentVerified
+                      ? `${verifiedFields.join(" and ")} entered in this editor${loaded.commissionCheckedAt ? ` · ${formatDayLabel(loaded.commissionCheckedAt.slice(0, 10))}` : ""}`
+                      : "Nobody has entered a commission here yet"
+                  }
+                  className={`rounded-full border px-2 py-0.5 text-[10px] font-semibold ${
+                    loaded.commissionAgentVerified
+                      ? "border-[#1e5235] bg-[#0f2a1d] text-[#4ade80]"
+                      : "border-transparent bg-[var(--crm-card)] text-[var(--crm-text-muted)]"
+                  }`}
+                >
+                  {loaded.commissionAgentVerified ? "Verified" : "Not verified"}
                 </span>
               </div>
               {/* THREE ACROSS. Send, Escort and Bonus are one answer about one property, and
                   stacking the bonus under the other two pushed everything below it down a row for
                   no reason. The controls themselves are unchanged: same state, same placeholder,
                   same blank-versus-zero rule, same columns. */}
+              {/* THE TICK IS PER FIELD, BECAUSE THE PROVENANCE IS PER FIELD.
+                  Send, Escort and Bonus each carry their own provenance row, and one of them being
+                  agent-entered says nothing about the other two. A single pill above three boxes
+                  could be read as a claim about all three — so each field that an agent actually
+                  entered carries its own mark, and a field nobody has entered carries none and
+                  shows "Unknown" in the box. The route already returned `commissionVerified` per
+                  field; this is the panel finally showing it.
+
+                  A BLANK FIELD NEVER GETS A TICK, because the route requires a stored value as well
+                  as owner provenance — which is the same rule that stops an absence being read as a
+                  confirmed zero everywhere else in this panel. */}
               <div className="grid grid-cols-3 gap-2">
                 {([
-                  ["Send %", send, setSend, "sendCommission"],
-                  ["Escort %", escort, setEscort, "escortCommission"],
-                  ["Bonus ($)", bonus, setBonus, "bonusFlat"],
-                ] as const).map(([lbl, value, set, key]) => (
+                  ["Send %", send, setSend, "sendCommission", "send_commission"],
+                  ["Escort %", escort, setEscort, "escortCommission", "escort_commission"],
+                  ["Bonus ($)", bonus, setBonus, "bonusFlat", "bonus_flat"],
+                ] as const).map(([lbl, value, set, key, column]) => (
                   <div key={key}>
-                    <label className={label}>{lbl}</label>
+                    {/* THE TICK SITS AGAINST ITS OWN LABEL, NOT AT THE EDGE OF THE CELL.
+                        Pushed right in a ~120px column it landed a few pixels from the NEXT
+                        field's label and read as a mark on that one — the precise misreading this
+                        is here to prevent. `justify-start` keeps it as "Send % ✓". */}
+                    <div className="mb-1 flex items-baseline gap-1">
+                      <label className={label} style={{ marginBottom: 0 }}>{lbl}</label>
+                      {loaded.commissionVerified?.[column] && (
+                        <span
+                          title={`Entered in this editor${loaded.commissionCheckedAt ? ` · ${formatDayLabel(loaded.commissionCheckedAt.slice(0, 10))}` : ""}`}
+                          className="flex-none text-[10px] leading-none text-[#4ade80]"
+                        >
+                          <span aria-hidden="true">✓</span>
+                          <span className="sr-only">entered by an agent</span>
+                        </span>
+                      )}
+                    </div>
                     {/* NO CLEAR BUTTON. Selecting the value and deleting it does the same job,
                         and the change set above turns an emptied field into the explicit null the
                         button used to send. `stored` and `clearable` are gone with it. */}
@@ -786,7 +839,12 @@ export default function MapPropertyEditor({
                 )}
                 <div>
                   <div className="mb-1 flex items-baseline justify-between gap-2">
-                    <label className={label} style={{ marginBottom: 0 }}>Approved Before With (300–850)</label>
+                    {/* HISTORY, NOT POLICY — and a separate column (credit_observed_approval_score)
+                        from the reported minimum above it. The two are never combined: one is what
+                        the office says it requires, the other is what somebody was actually
+                        approved with. The range moved into the line underneath to keep the two
+                        labels readable side by side. */}
+                    <label className={label} style={{ marginBottom: 0 }}>Lowest Previously Approved</label>
                     <span className="text-[10px] text-[var(--crm-text-muted)]">{ageFor("credit_observed_approval_score")}</span>
                   </div>
                   <input inputMode="numeric" className={field} value={creditObserved} placeholder="450"
@@ -795,7 +853,7 @@ export default function MapPropertyEditor({
                     <p className="mt-1 text-[10px] text-amber-400">A whole number between 300 and 850, or blank.</p>
                   ) : (
                     <p className="mt-1 text-[10px] leading-snug text-[var(--crm-text-muted)]">
-                      A score somebody was actually approved with. Kept apart from the minimum on purpose —
+                      A score somebody was actually approved with, 300–850. Kept apart from the minimum on purpose —
                       one approval is not a policy, and recording it as one would send the next renter wrong.
                     </p>
                   )}
@@ -898,22 +956,81 @@ export default function MapPropertyEditor({
                     Keep conflicting reports rather than picking one. Never shown to clients.
                   </p>
                 </div>
-                {loaded.approvalAvailable && aInput(
-                  "screeningRequirementsCheckedAt", "Confirmed with leasing office on", "", "date",
-                  "A real date, or blank.",
-                  "Blank means agent-reported. A date here means the office confirmed it — saving never fills it in.",
-                )}
+                {/* CONFIRMED WITH THE LEASING OFFICE — the one date in this panel, and the one
+                    piece of information here that is not agent-reported.
+
+                    THE DISTINCTION IS STILL IN THE DATABASE, and it has not moved: blank means
+                    agent-reported, a date means an office confirmed it, and nothing stamps this
+                    column because a save happened. The route has no code that fills it in, which is
+                    what guarantees an ordinary save cannot claim a confirmation nobody obtained;
+                    the sentence that used to explain that under the control is gone, not the rule.
+
+                    The whole field opens the calendar. The ✕ is how a date gets taken back off —
+                    it sends "" and the route's own vocabulary turns that into NULL (unknown), so
+                    clearing survives the round trip exactly as it did before. */}
+                {loaded.approvalAvailable && (() => {
+                  const picked = approval.screeningRequirementsCheckedAt ?? ""
+                  return (
+                    <div>
+                      <div className="mb-1 flex items-baseline justify-between gap-2">
+                        <label className={label} style={{ marginBottom: 0 }}>Confirmed with leasing office on</label>
+                        <span className="text-[10px] text-[var(--crm-text-muted)]">
+                          {ageFor(APPROVAL_FIELDS.screeningRequirementsCheckedAt.column)}
+                        </span>
+                      </div>
+                      <div className="relative">
+                        <button
+                          type="button"
+                          onClick={() => setDateOpen((v) => !v)}
+                          aria-expanded={dateOpen}
+                          className={`${field} flex items-center justify-between gap-2 text-left ${picked ? "pr-9" : ""}`}
+                        >
+                          <span className={picked ? "tabular-nums" : "text-[var(--crm-text-muted)]"}>
+                            {picked ? formatDayLabel(picked) : "Select date"}
+                          </span>
+                          <svg viewBox="0 0 24 24" className="h-3.5 w-3.5 flex-none text-[var(--crm-text-muted)]" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true">
+                            <rect x="3" y="4" width="18" height="18" rx="2" /><path d="M16 2v4M8 2v4M3 10h18" />
+                          </svg>
+                        </button>
+                        {picked && (
+                          <button
+                            type="button"
+                            onClick={() => { setA("screeningRequirementsCheckedAt", ""); setDateOpen(false) }}
+                            aria-label="Clear the leasing office confirmation date"
+                            className="absolute right-1.5 top-1/2 -translate-y-1/2 rounded px-1.5 py-0.5 text-[11px] leading-none text-[var(--crm-text-muted)] hover:bg-[var(--crm-card)] hover:text-[var(--crm-text-primary)]"
+                          >
+                            ✕
+                          </button>
+                        )}
+                      </div>
+                      {/* IN NORMAL FLOW, FULL WIDTH, BELOW the field — the same choice
+                          PropertyPricingEditor made. In flow it pushes the panel taller instead of
+                          covering the controls under it, and the panel's own scroll keeps Save and
+                          Cancel reachable. */}
+                      {dateOpen && (
+                        <DateTimePicker
+                          value={picked}
+                          dateOnly
+                          onApply={(v) => { setA("screeningRequirementsCheckedAt", v); setDateOpen(false) }}
+                          onCancel={() => setDateOpen(false)}
+                        />
+                      )}
+                    </div>
+                  )
+                })()}
               </div>
             </section>
 
             {/* ── SOURCE ─────────────────────────────────────────────────────────────── */}
             <section className="space-y-2 border-t border-[var(--crm-border-soft)] pt-4">
+              {/* THE CONTROL STAYS AND SO DOES WHAT IT DOES. A source still decides whether the
+                  write is recorded `verified` or `inferred` in provenance, which is still what the
+                  "Verified …" and "Updated …" age lines above follow. Only the paragraph under it
+                  is gone; nothing about the save changed. It no longer governs the commission
+                  badge, which asks a different question — see the Commission section. */}
               <label className={label}>Source (optional)</label>
               <input className={field} value={source} placeholder="Called leasing office, Oct 24"
                 onChange={(e) => setSource(e.target.value)} />
-              <p className="text-[10px] text-[var(--crm-text-muted)]">
-                With a source this save is recorded as verified; without one, as unverified. Either way it saves.
-              </p>
             </section>
           </div>
         )}

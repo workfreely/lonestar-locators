@@ -12,13 +12,20 @@
 //
 //   verified   + a date  →  "Verified 12 days ago"
 //   not        + a date  →  "Updated 2 months ago"
-//   no date at all       →  "Date unknown"
+//   no date at all       →  ""   (nothing is drawn)
 //
 // Calling an unsourced edit "Verified" would be the same class of error as reading a null
 // commission as a confirmed zero: presenting an absence of evidence as evidence.
+//
+// ── AND WHY NO DATE DRAWS NOTHING ───────────────────────────────────────────────────────────
+// It used to say "Date Unknown". That label described the ABSENCE of a timestamp, not the field
+// beside it, and on the special and the gift card — where most properties have never been
+// touched — it was the only thing most rows ever showed. An empty string lets the row simply not
+// draw a line, which is what `updatedLabel` beneath already does. Nothing is hidden: the date is
+// still absent either way, and the control itself is untouched.
 
 export type AgeLabelInput = {
-  /** The column's own timestamp. Null/absent/unparseable → "Date unknown". */
+  /** The column's own timestamp. Null/absent/unparseable → no label at all. */
   at?: string | Date | null
   /** True only when provenance says this field was VERIFIED, not merely written. */
   verified?: boolean
@@ -53,8 +60,9 @@ export function relativeAge(at: string | Date | null | undefined, now: number = 
  * client render can disagree and React reports a hydration mismatch. A fixed month table cannot.
  *
  * ── AND WHY IT RETURNS EMPTY ────────────────────────────────────────────────────────────────
- * No provenance means nobody has saved this field yet. "Date unknown" would be a label about
- * nothing; an empty string lets the row simply not draw one.
+ * No provenance means nobody has saved this field yet. A label about the absence of a date is a
+ * label about nothing; an empty string lets the row simply not draw one. `ageLabel` below now
+ * answers the same way, so no field in the editor announces a missing timestamp.
  *
  * The word still follows the provenance, never the save: "Verified" only when a supporting source
  * was recorded, "Updated" otherwise. An ordinary save can never produce "Verified".
@@ -68,9 +76,32 @@ export function updatedLabel(input: AgeLabelInput): string {
   return `${input.verified ? "Verified" : "Updated"}: ${MONTHS[d.getMonth()]} ${d.getDate()}, ${d.getFullYear()}`
 }
 
-/** The full line the editor shows beside a field. Never empty — "Date unknown" is itself useful. */
+/** The full line the editor shows beside a field: "Verified 12 days ago", "Updated 2 months ago",
+ *  or EMPTY when there is no timestamp to describe. */
 export function ageLabel(input: AgeLabelInput): string {
   const age = relativeAge(input.at)
-  if (!age) return "Date unknown"
+  if (!age) return ""
   return `${input.verified ? "Verified" : "Updated"} ${age}`
+}
+
+/**
+ * "Oct 19, 2026" from a stored "YYYY-MM-DD" — the text on a date field that opens the CRM's own
+ * calendar rather than the browser's. Anything that is not a plain day is returned verbatim, so a
+ * value this function does not understand is shown rather than swallowed.
+ *
+ * Hand-formatted for the same reason `updatedLabel` is: toLocaleDateString follows the runtime's
+ * locale and time zone, so a server render and a client render can disagree and React reports a
+ * hydration mismatch. The month table cannot.
+ */
+export function formatDayLabel(value: string): string {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value)
+  if (!m) return value
+  const [y, mo, day] = [Number(m[1]), Number(m[2]), Number(m[3])]
+  const d = new Date(y, mo - 1, day)
+  // ROUND-TRIP, not just "is it NaN". new Date(2026, 1, 31) is March 3rd, so a date that does not
+  // exist would be shown as a different, real one. A value this function cannot represent
+  // faithfully is returned verbatim instead.
+  if (d.getFullYear() !== y || d.getMonth() !== mo - 1 || d.getDate() !== day) return value
+  const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
+  return `${MONTHS[mo - 1]} ${day}, ${y}`
 }

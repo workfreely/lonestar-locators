@@ -9,7 +9,7 @@
  */
 import { readFileSync } from "node:fs"
 import { join } from "node:path"
-import { relativeAge, ageLabel } from "@/lib/propertyIntel/relativeAge"
+import { relativeAge, ageLabel, formatDayLabel } from "@/lib/propertyIntel/relativeAge"
 
 let pass = 0
 let fail = 0
@@ -33,8 +33,21 @@ console.log("\n'Verified' is earned from provenance, not from the date:")
 ok('verified + date → "Verified 12 days ago"', ageLabel({ at: ago(12), verified: true }) === "Verified 12 days ago")
 ok('NOT verified + date → "Updated …"', ageLabel({ at: ago(61), verified: false }) === "Updated 2 months ago")
 ok("…and the default is the cautious one", ageLabel({ at: ago(12) }) === "Updated 12 days ago")
-ok('no date → "Date unknown"', ageLabel({ at: null, verified: true }) === "Date unknown")
+// NO DATE DRAWS NOTHING. "Date Unknown" described the absence of a timestamp rather than the
+// field beside it, and on the special and the gift card — where most properties have never been
+// touched — it was the only thing most rows ever showed. The date is still absent either way.
+ok("no date → no label at all", ageLabel({ at: null, verified: true }) === "")
 ok("…even when provenance says verified", !/Verified/.test(ageLabel({ at: null, verified: true })))
+ok("an unparseable date draws nothing either", ageLabel({ at: "not a date" }) === "")
+ok("…and the phrase is gone from the helper entirely",
+  !/Date [Uu]nknown/.test(read("lib/propertyIntel/relativeAge.ts")))
+
+console.log("\nformatDayLabel — the text on the field that opens the shared calendar:")
+ok("a stored day becomes a readable date", formatDayLabel("2026-10-19") === "Oct 19, 2026")
+ok("…hand-formatted, so a server and a client render agree",
+  !/toLocaleDateString/.test(read("lib/propertyIntel/relativeAge.ts")))
+ok("anything it does not understand is shown, not swallowed", formatDayLabel("whenever") === "whenever")
+ok("an impossible day is shown verbatim rather than rolled forward", formatDayLabel("2026-02-31") === "2026-02-31")
 
 console.log("\nit informs the editor and gates nothing:")
 {
@@ -43,6 +56,9 @@ console.log("\nit informs the editor and gates nothing:")
   const SHARED = read("packages/companion-shared/src/specials.ts")
   ok("the special shows an age line", /ageLabel\(\{ at: loaded\.currentSpecialCheckedAt/.test(PANEL))
   ok("the gift card shows one too", /ageLabel\(\{ at: loaded\.giftCardCheckedAt/.test(PANEL))
+  // Both still READ their timestamp and their provenance; what changed is only that a missing
+  // timestamp prints nothing. The controls, the columns and the save path are untouched.
+  ok("neither label is hard-coded in the panel", !/Date [Uu]nknown/.test(PANEL))
   ok("both read provenance for the Verified/Updated word",
     /verified: loaded\.fieldVerified\?\.current_special/.test(PANEL) && /verified: loaded\.fieldVerified\?\.gift_card_status/.test(PANEL))
   ok("the route reads provenance for those two fields",

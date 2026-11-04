@@ -315,6 +315,179 @@ async function main() {
       `select bonus_flat as b from public.property_catalog where place_id='${FIXTURE}'`).b === null)
   }
 
+  console.log("\nthe confirmation date, now that a calendar sets it")
+  {
+    // THE CONTROL CHANGED, THE CONTRACT DID NOT. The panel used to send this from a native date
+    // input and now sends it from the shared CRM calendar; either way it is the same payload key
+    // carrying "YYYY-MM-DD", and the ✕ sends "" — which the route reads as a deliberate clear.
+    const set = await put({ placeId: FIXTURE, screeningRequirementsCheckedAt: "2026-10-19" }, ADMIN_COOKIE)
+    ok("a picked date saves", set.status === 200, String(set.status))
+    const readBack = await get(FIXTURE, ADMIN_COOKIE)
+    ok("…and comes back as the day that was picked",
+      String(readBack.body.approval?.screening_requirements_checked_at).startsWith("2026-10-19"),
+      String(readBack.body.approval?.screening_requirements_checked_at))
+
+    const cleared = await put({ placeId: FIXTURE, screeningRequirementsCheckedAt: "" }, ADMIN_COOKIE)
+    ok("the ✕ sends an empty string and that succeeds", cleared.status === 200, String(cleared.status))
+    ok("…and the column reaches NULL — agent-reported again, not a confirmation", one<{ d: string | null }>(
+      `select screening_requirements_checked_at::text as d from public.property_catalog where place_id='${FIXTURE}'`).d === null)
+
+    const again = await put({ placeId: FIXTURE, screeningRequirementsCheckedAt: "2026-11-01" }, ADMIN_COOKIE)
+    ok("…and a date can be picked again afterwards", again.status === 200 && one<{ d: string | null }>(
+      `select screening_requirements_checked_at::text as d from public.property_catalog where place_id='${FIXTURE}'`).d === "2026-11-01")
+
+    // AN ORDINARY SAVE STILL NEVER FILLS IT IN, which is the rule the removed paragraph described.
+    await put({ placeId: FIXTURE, screeningRequirementsCheckedAt: "" }, ADMIN_COOKIE)
+    await put({ placeId: FIXTURE, brokenLeaseMinAgeYears: "4" }, ADMIN_COOKIE)
+    ok("saving something else leaves the confirmation date blank", one<{ d: string | null }>(
+      `select screening_requirements_checked_at::text as d from public.property_catalog where place_id='${FIXTURE}'`).d === null)
+  }
+
+  console.log("\nagent-verified commission, over real HTTP")
+  {
+    // THE BUG, END TO END. The badge demanded verification_status='verified', which is only
+    // recorded when the agent also fills in the optional Source box — so a rate they had just
+    // typed and saved came back "Not verified".
+    sql(`delete from public.property_enrichment_events where place_id='${FIXTURE}' and field_name in ('send_commission','escort_commission','bonus_flat')`)
+    sql(`update public.property_catalog set send_commission=null, escort_commission=null, bonus_flat=null where place_id='${FIXTURE}'`)
+
+    const blank = await get(FIXTURE, ADMIN_COOKIE)
+    ok("with nothing entered it is NOT verified", blank.body.commissionAgentVerified === false,
+      JSON.stringify(blank.body.commissionAgentVerified))
+
+    const saved = await put({ placeId: FIXTURE, sendCommission: "125", escortCommission: "125" }, ADMIN_COOKIE)
+    ok("an agent saves a commission with NO source", saved.status === 200, String(saved.status))
+    const reread = await get(FIXTURE, ADMIN_COOKIE)
+    ok("…and it reads VERIFIED on reload", reread.body.commissionAgentVerified === true,
+      JSON.stringify(reread.body.commissionAgentVerified))
+    ok("…per field as well", reread.body.commissionVerified?.send_commission === true &&
+      reread.body.commissionVerified?.escort_commission === true)
+    ok("…and the entry date comes back with it", typeof reread.body.commissionCheckedAt === "string")
+    ok("the values themselves are untouched by any of this",
+      reread.body.sendCommission === "125%" && reread.body.escortCommission === "125%")
+
+    // THE DATABASE DISTINCTION IS UNCHANGED. 'inferred' still means no supporting source, which is
+    // still what the special, the gift card and the approval criteria read for Verified-vs-Updated.
+    ok("the provenance row is still INFERRED, not promoted", one<{ v: string }>(
+      `select verification_status as v from public.property_enrichment_events
+        where place_id='${FIXTURE}' and field_name='send_commission' order by seq desc limit 1`).v === "inferred")
+    ok("…and fieldVerified still says the office did not confirm it",
+      reread.body.fieldVerified?.send_commission !== true)
+
+    // AN ABSENCE IS NOT A FINDING. A cleared field keeps its provenance row.
+    const cleared2 = await put({ placeId: FIXTURE, sendCommission: null, escortCommission: null }, ADMIN_COOKIE)
+    ok("clearing both succeeds", cleared2.status === 200)
+    const afterClear = await get(FIXTURE, ADMIN_COOKIE)
+    ok("…and an empty commission is NOT verified, though provenance exists",
+      afterClear.body.commissionAgentVerified === false,
+      JSON.stringify(afterClear.body.commissionAgentVerified))
+
+    // IMPORTED DATA IS NOT PROMOTED. A bulk locator entry carries a different source type, and
+    // production holds 117 such rows against 62 properties — none of them may read Verified.
+    sql(`update public.property_catalog set send_commission='100%' where place_id='${FIXTURE}'`)
+    sql(`insert into public.property_enrichment_events
+          (job_id, place_id, field_name, action, old_value, new_value, source_type, source_reference, verification_status, checked_at)
+         values ('bulk-import:test','${FIXTURE}','send_commission','written',null,'100%','trusted_locator_source','master input','unverified', now())`)
+    const imported = await get(FIXTURE, ADMIN_COOKIE)
+    ok("a bulk-imported commission reads NOT verified", imported.body.commissionAgentVerified === false,
+      JSON.stringify(imported.body.commissionAgentVerified))
+
+    // MIXED IS NOT ROUNDED UP. One field by hand beside one from an import is not agent-verified.
+    const mixed = await put({ placeId: FIXTURE, escortCommission: "150" }, ADMIN_COOKIE)
+    ok("an owner edit to the OTHER field succeeds", mixed.status === 200)
+    const afterMixed = await get(FIXTURE, ADMIN_COOKIE)
+    ok("…and the section still reads NOT verified while the import stands",
+      afterMixed.body.commissionAgentVerified === false,
+      JSON.stringify({ v: afterMixed.body.commissionAgentVerified, per: afterMixed.body.commissionVerified }))
+    ok("…while the hand-entered field alone is marked owner-entered",
+      afterMixed.body.commissionVerified?.escort_commission === true &&
+      afterMixed.body.commissionVerified?.send_commission === false)
+
+    // RE-ENTERING IT IS THE WAY OUT, which is what "manually enter or confirm" means.
+    const confirmed = await put({ placeId: FIXTURE, sendCommission: "105" }, ADMIN_COOKIE)
+    ok("confirming the imported field through the editor succeeds", confirmed.status === 200)
+    const afterConfirm = await get(FIXTURE, ADMIN_COOKIE)
+    ok("…and the whole section then reads VERIFIED",
+      afterConfirm.body.commissionAgentVerified === true,
+      JSON.stringify(afterConfirm.body.commissionAgentVerified))
+
+    // A NON-ADMIN CANNOT SEE ANY OF IT. The boundary is unchanged.
+    ok("a plain user still gets 403 on the same read", (await get(FIXTURE, PLAIN_COOKIE)).status === 403)
+  }
+
+  console.log("\na partial commission says only what it knows")
+  {
+    // ONE PILL OVER THREE BOXES. Send, Escort and Bonus each carry their own provenance row, so a
+    // property where only Send has ever been entered must report that field as verified and the
+    // other two as not — the panel draws a tick per field from exactly this map.
+    const reset = async () => {
+      sql(`delete from public.property_enrichment_events where place_id='${FIXTURE}' and field_name in ('send_commission','escort_commission','bonus_flat')`)
+      sql(`update public.property_catalog set send_commission=null, escort_commission=null, bonus_flat=null where place_id='${FIXTURE}'`)
+    }
+
+    await reset()
+    await put({ placeId: FIXTURE, sendCommission: "125" }, ADMIN_COOKIE)
+    const sendOnly = await get(FIXTURE, ADMIN_COOKIE)
+    ok("SEND only: the section reads verified", sendOnly.body.commissionAgentVerified === true)
+    ok("…Send itself is marked", sendOnly.body.commissionVerified?.send_commission === true)
+    ok("…and the two EMPTY fields are NOT marked",
+      sendOnly.body.commissionVerified?.escort_commission === false &&
+      sendOnly.body.commissionVerified?.bonus_flat === false,
+      JSON.stringify(sendOnly.body.commissionVerified))
+    ok("…and they are returned as null, not as a zero",
+      sendOnly.body.escortCommission === null && sendOnly.body.bonusFlat === null)
+
+    await reset()
+    await put({ placeId: FIXTURE, escortCommission: "150" }, ADMIN_COOKIE)
+    const escortOnly = await get(FIXTURE, ADMIN_COOKIE)
+    ok("ESCORT only: the same, the other way round",
+      escortOnly.body.commissionAgentVerified === true &&
+      escortOnly.body.commissionVerified?.escort_commission === true &&
+      escortOnly.body.commissionVerified?.send_commission === false &&
+      escortOnly.body.commissionVerified?.bonus_flat === false,
+      JSON.stringify(escortOnly.body.commissionVerified))
+
+    await reset()
+    await put({ placeId: FIXTURE, bonusFlat: "0" }, ADMIN_COOKIE)
+    const zeroBonus = await get(FIXTURE, ADMIN_COOKIE)
+    ok("BONUS of exactly 0: a confirmed zero is a finding, and is marked",
+      zeroBonus.body.commissionVerified?.bonus_flat === true && zeroBonus.body.bonusFlat === "0",
+      JSON.stringify({ v: zeroBonus.body.commissionVerified, b: zeroBonus.body.bonusFlat }))
+    ok("…while the two empty rates stay unmarked",
+      zeroBonus.body.commissionVerified?.send_commission === false &&
+      zeroBonus.body.commissionVerified?.escort_commission === false)
+
+    // ONE FIELD BY HAND BESIDE ONE FROM AN IMPORT. The section must not round up, and the
+    // hand-entered field must still say so for itself.
+    await reset()
+    await put({ placeId: FIXTURE, sendCommission: "125" }, ADMIN_COOKIE)
+    sql(`update public.property_catalog set escort_commission='100%' where place_id='${FIXTURE}'`)
+    sql(`insert into public.property_enrichment_events
+          (job_id, place_id, field_name, action, old_value, new_value, source_type, source_reference, verification_status, checked_at)
+         values ('bulk-import:test','${FIXTURE}','escort_commission','written',null,'100%','trusted_locator_source','master input','unverified', now())`)
+    const split = await get(FIXTURE, ADMIN_COOKIE)
+    ok("MIXED: the section does NOT read verified", split.body.commissionAgentVerified === false,
+      JSON.stringify(split.body.commissionAgentVerified))
+    ok("…but Send still reports itself as agent-entered",
+      split.body.commissionVerified?.send_commission === true)
+    ok("…and the imported Escort does not",
+      split.body.commissionVerified?.escort_commission === false)
+
+    // CLEARING ONE FIELD TAKES ITS TICK WITH IT, and leaves the other one alone.
+    await reset()
+    await put({ placeId: FIXTURE, sendCommission: "125", escortCommission: "125" }, ADMIN_COOKIE)
+    await put({ placeId: FIXTURE, escortCommission: null }, ADMIN_COOKIE)
+    const afterOneClear = await get(FIXTURE, ADMIN_COOKIE)
+    ok("after clearing Escort it is no longer marked",
+      afterOneClear.body.commissionVerified?.escort_commission === false,
+      JSON.stringify(afterOneClear.body.commissionVerified))
+    ok("…Send keeps its own mark", afterOneClear.body.commissionVerified?.send_commission === true)
+    ok("…and the section still reads verified, because what is left was agent-entered",
+      afterOneClear.body.commissionAgentVerified === true)
+
+    await reset()
+  }
+
   console.log("\nthe audit trail behind the HTTP calls")
   {
     const n = one<{ n: number }>(`select count(*)::int as n from public.property_enrichment_events

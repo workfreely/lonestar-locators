@@ -98,7 +98,17 @@ ok("the credit status control still exists, once",
   (panel.match(/value="reported_minimum"/g) ?? []).length === 1 &&
   (panel.match(/value="no_check_reported"/g) ?? []).length === 1)
 ok("the observed-approval score is still its own control",
-  /Approved Before With/.test(panel) && /one approval is not a policy/.test(rawPanel))
+  /Lowest Previously Approved/.test(panel) && /one approval is not a policy/.test(rawPanel))
+// THE TWO CREDIT FIELDS ARE NOT COMBINED. One is the office's reported screening minimum, the
+// other a score somebody was actually approved with, and they are separate columns.
+ok("…under its new label, still bound to the observed-approval state",
+  /Lowest Previously Approved[\s\S]{0,400}value=\{creditObserved\}/.test(panel))
+ok("…and the reported minimum is still a different control, to a different column",
+  /Reported Minimum \(300–850\)[\s\S]{0,300}value=\{creditScore\}/.test(panel) &&
+  /creditMinimumScore: "credit_minimum_score"/.test(route) &&
+  /credit_observed_approval_score/.test(route))
+ok("the range it dropped from the label is still stated beside the field",
+  /actually approved with, 300–850/.test(rawPanel))
 ok("the notes textarea still binds the SAME credit_screening_notes state",
   (panel.match(/value=\{creditNotes\}/g) ?? []).length === 1)
 ok("…relabelled as the approval notes, not replaced",
@@ -272,16 +282,25 @@ ok("no save stamps the requirements date either",
   !/add\("screening_requirements_checked_at"/.test(route))
 ok("the confirmation date is an explicit field the owner fills in",
   /screeningRequirementsCheckedAt/.test(panel) && /Confirmed with leasing office on/.test(rawPanel))
-ok("…and the help text says a save will not fill it in",
-  /saving never fills it in/.test(rawPanel))
+// THE PARAGRAPH IS GONE; THE RULE IS NOT. What guaranteed an ordinary save could never claim a
+// leasing-office confirmation was never the sentence under the control — it is that no code path
+// writes this column. That is asserted directly above, against the route.
+ok("…and the explanatory paragraph under it is gone",
+  !/saving never fills it in/.test(rawPanel) && !/Blank means agent-reported/.test(rawPanel))
+ok("…while the control itself is still there", /Confirmed with leasing office on/.test(rawPanel))
 ok("when the edit happened comes from provenance, per field",
   /fieldCheckedAt\[r\.field_name\] = r\.checked_at/.test(route))
 ok("…and the age lines read that, not a stamp column",
   /updatedLabel\(\{ at: loaded\?\.fieldCheckedAt\?\.\[column\] \?\? null, verified: loaded\?\.fieldVerified\?\.\[column\] \}\)/.test(panel))
 ok("the approval columns are covered by the provenance read",
   /\.\.\.APPROVAL_COLUMNS\]\)/.test(route))
-ok("“Verified” is still earned by a supplied source, not by saving",
-  /With a source this save is recorded as verified/.test(rawPanel))
+// The Source control stays and still decides verified-vs-inferred in provenance; only the
+// paragraph under it is gone. The behaviour is asserted against the ROUTE, where it lives.
+ok("the Source control is still there", /Source \(optional\)/.test(rawPanel) && /value=\{source\}/.test(panel))
+ok("…and its paragraph is gone", !/With a source this save is recorded as verified/.test(rawPanel))
+ok("“Verified” in the age lines is still earned by a supplied source, not by saving",
+  /const verificationStatus: VerificationStatus = sourceRef \? "verified" : "inferred"/.test(route) &&
+  /fieldVerified\[r\.field_name\] = r\.source_type === "manual_verified" && r\.verification_status === "verified"/.test(route))
 ok("the section calls itself reported, never approved",
   /What a property is reported to accept/.test(rawPanel))
 ok("a historical approval is still kept apart from a minimum",
@@ -347,7 +366,7 @@ console.log("\nAgent Bonus — the paragraphs went, the field did not")
 ok("the explanatory sentences are gone", !/Paid to the locator\. Separate from any resident gift card/.test(rawPanel))
 ok("…both of them", !/Blank means nobody has checked\. Enter 0 to record a confirmed no-pay property/.test(rawPanel))
 ok("the field itself is intact, now as the third cell of the commission row",
-  /\["Bonus \(\$\)", bonus, setBonus, "bonusFlat"\]/.test(panel))
+  /\["Bonus \(\$\)", bonus, setBonus, "bonusFlat", "bonus_flat"\]/.test(panel))
 // THE UNIT MARKER IS THE POINT. Send and Escort are percentages and say so; the bonus is a dollar
 // amount and must say so too, or 100 typed into it reads as a rate to the person typing it.
 ok("…and it says it takes dollars, where its neighbours say percent",
@@ -416,29 +435,52 @@ ok("the payment option drops its commas",
 ok("…and its stored token is untouched",
   BALANCE_REQUIREMENT_OPTIONS.map((o) => o.value).join(",") === ",must_be_paid,payments_or_plan,balance_ok")
 
-// ── 14. The date control: the cause, not a cosmetic patch ────────────────────────────────────
+// ── 14. The date control: the CRM's own calendar, not the browser's ─────────────────────────
 //
-// globals.css styles input[type="date"] (and text/number/select/textarea) at 1rem / .75rem. That
-// selector is element+attribute, specificity 0,1,1, so it outranks `py-2` and `text-[13px]` at
-// 0,1,0 — which is why the one control that must declare a type rendered 16px taller than its
-// neighbours with an oversized native calendar glyph. Every other input in the panel escapes it by
-// declaring no type at all.
-console.log("\nthe date input is fixed at the cause")
+// The native control had three faults and they were one fault. globals.css styles
+// input[type="date"] at 1rem / .75rem (element+attribute, specificity 0,1,1, so it outranks
+// `py-2` at 0,1,0) and separately stretches ::-webkit-calendar-picker-indicator across the whole
+// field — the white glyph that sat over the date. And a native picker is drawn in the browser's
+// TOP LAYER, outside the page's stacking context, where no z-index or overflow rule on this panel
+// can contain it. So the field now opens the CRM's own picker, the one Add Task, Reschedule and
+// Get Invoice Details use, which PropertyPricingEditor already reuses for its "Date checked".
+console.log("\nthe date field opens the shared CRM calendar")
 {
-  const globals = read("app/globals.css")
-  ok("the legacy rule that caused it is real, and still there",
-    /input\[type="date"\][\s\S]{0,400}?font-size:\s*1rem/.test(globals),
-    "the global form rule changed shape — re-check the override below")
-  ok("the helper no longer declares type=\"text\"", !/type=\{mode === "date" \? "date" : "text"\}/.test(panel))
-  ok("…and sets a type ONLY for the date input",
-    /\{\.\.\.\(mode === "date" \? \{ type: "date" as const \} : \{\}\)\}/.test(panel))
-  ok("the date input raises its own specificity to match the global rule",
-    /\[&\[type=date\]\]:py-2/.test(panel) && /\[&\[type=date\]\]:text-\[13px\]/.test(panel))
-  ok("…including the border the same rule was overriding",
-    /\[&\[type=date\]\]:rounded-lg/.test(panel) && /\[&\[type=date\]\]:border-\[var\(--crm-border\)\]/.test(panel))
-  ok("…and the native picker glyph follows the panel's theme",
-    /\[color-scheme:light\] dark:\[color-scheme:dark\]/.test(panel))
-  ok("only the date input gets that treatment", /className=\{mode === "date" \? dateField : field\}/.test(panel))
+  const picker = read("components/crm/DateTimePicker.tsx")
+  ok("the panel imports the shared picker",
+    /import DateTimePicker from "@\/components\/crm\/DateTimePicker"/.test(panel))
+  ok("…and renders it in date-only mode", /<DateTimePicker[\s\S]{0,160}dateOnly/.test(panel))
+  ok("no native date input is left in the panel", !/type="date"|type: "date"/.test(panel))
+  ok("…and nothing in the panel styles a native picker glyph any more",
+    !/-webkit-calendar-picker-indicator/.test(panel) && !/lb-date-native/.test(panel))
+  ok("…so the helper has no date mode at all",
+    !/"numeric" \| "decimal" \| "text" \| "date"/.test(panel) &&
+    /"numeric" \| "decimal" \| "text"/.test(panel))
+
+  // THE WHOLE FIELD OPENS IT. A native input only responded on its small glyph.
+  ok("the trigger is a button the width of the field",
+    /onClick=\{\(\) => setDateOpen\(\(v\) => !v\)\}/.test(panel) &&
+    /\$\{field\} flex items-center justify-between gap-2 text-left/.test(panel))
+  ok("…and it reports its state to assistive tech", /aria-expanded=\{dateOpen\}/.test(panel))
+  ok("the chosen date is shown as a readable day", /formatDayLabel\(picked\)/.test(panel))
+  ok("…and an empty field says so rather than showing a blank box", /"Select date"/.test(panel))
+
+  // CLEARING SURVIVES. "" is the vocabulary's own word for unknown and the route turns it into NULL.
+  ok("a set date can be taken back off",
+    /setA\("screeningRequirementsCheckedAt", ""\)/.test(panel))
+  ok("…with an accessible name on that control",
+    /aria-label="Clear the leasing office confirmation date"/.test(panel))
+  ok("…and the route still reads an empty string as a deliberate clear",
+    /if \(t === ""\) return \{ write: null \}/.test(strip(read("lib/propertyIntel/approvalCriteria.ts"))))
+
+  // THE SHARED COMPONENT IS NOT MODIFIED. Task editing must behave exactly as it did.
+  ok("the picker still emits a bare day in date-only mode",
+    /return dateOnly \? day : `\$\{day\}T\$\{to24Hour\(h, m, p\)\}`/.test(strip(picker)))
+  ok("…still hides the time row there", /\{!dateOnly && \(/.test(strip(picker)))
+  ok("…and still commits only on Apply in confirm mode",
+    /onApply\?\.\(composeValue\(selectedDate, hour12, minute, period\)\)/.test(strip(picker)))
+  ok("the panel uses confirm mode, so a stray click cannot change a saved date",
+    /<DateTimePicker[\s\S]{0,260}onApply=/.test(panel) && !/<DateTimePicker[\s\S]{0,260}onChange=/.test(panel))
 }
 
 // ── 15. Updated versus Verified ──────────────────────────────────────────────────────────────
@@ -490,7 +532,9 @@ ok("commission columns are still owner-clearable in policy",
 ok("the three fields are still one row of three", /grid grid-cols-3 gap-2/.test(panel))
 ok("…and still map to the same columns",
   /"sendCommission"/.test(panel) && /"escortCommission"/.test(panel) && /"bonusFlat"/.test(panel))
-ok("commission verification is untouched", /commissionVerified\?\.send_commission/.test(panel))
+// COMMISSION VERIFICATION CHANGED ON PURPOSE — see section 19.
+ok("the badge reads the section-level answer the route derives",
+  /loaded\.commissionAgentVerified/.test(panel))
 
 // ── 17. The removed helper texts, and the renamed label ──────────────────────────────────────
 console.log("\nless text, clearer label")
@@ -509,27 +553,81 @@ ok("…and broken lease still reads the same thing, so the two match",
   /aSelect\("brokenLeaseBalanceRequirement", "Outstanding balance"/.test(panel))
 ok("the field behind it is unchanged", APPROVAL_FIELDS.evictionBalanceRequirement.column === "eviction_balance_requirement")
 
-// ── 18. The date indicator, styled rather than left to the UA ────────────────────────────────
-console.log("\nthe calendar glyph uses the convention that already existed")
+// ── 18. Agent-verified means an agent entered it ─────────────────────────────────────────────
+//
+// THE BUG. The badge required source_type manual_verified AND verification_status 'verified'. The
+// second is only recorded when the owner also filled in the optional Source box, so every
+// commission the owner typed and saved normally came back "Not verified" — the editor calling its
+// own author an unreliable witness. In production: 34 owner-written commission provenance rows,
+// every one of them 'inferred', and 0 properties reading Verified.
+console.log("\nthe commission the owner typed reads Verified")
 {
-  const globals = read("app/globals.css")
-  // THE CAUSE, AND IT WAS A SECOND GLOBAL RULE. The marketing base rule stretches the picker
-  // across the whole field; that is the giant white glyph that covered the date.
-  ok("the base rule that causes the giant glyph is real, and still there",
-    /input\[type="date"\]::-webkit-calendar-picker-indicator\s*\{[^}]*width:\s*100%/.test(globals),
-    "the marketing base rule changed shape — re-check what lb-date-native is overriding")
-  ok("…and globals.css already carries the cure, written for exactly this",
-    /input\[type="date"\]\.lb-date-native::-webkit-calendar-picker-indicator/.test(globals))
-  ok("the date input adopts that convention rather than a parallel override",
-    /const dateField = `\$\{field\} lb-date-native`/.test(panel))
-  ok("…and defines no competing indicator rules of its own",
-    !/-webkit-calendar-picker-indicator/.test(panel))
-  ok("it still follows the theme, which that convention asks for",
-    /\[color-scheme:light\] dark:\[color-scheme:dark\]/.test(panel))
-  ok("the size overrides for the input itself are still there",
-    /\[&\[type=date\]\]:py-2/.test(panel) && /\[&\[type=date\]\]:text-\[13px\]/.test(panel))
-  ok("only the date input gets that treatment", /className=\{mode === "date" \? dateField : field\}/.test(panel))
+  ok("the route derives it from WHO wrote the value, not from a supplied source",
+    /ownerEntered\[r\.field_name\] = r\.source_type === "manual_verified" && r\.value !== null/.test(route))
+  ok("…and the office-confirmation meaning of fieldVerified is untouched",
+    /fieldVerified\[r\.field_name\] = r\.source_type === "manual_verified" && r\.verification_status === "verified"/.test(route))
+  ok("the two are separate maps now, not the same object",
+    !/const commissionVerified = fieldVerified/.test(route))
+
+  // AN ABSENCE IS NOT A FINDING. A cleared field keeps its provenance row; the value decides.
+  ok("a stored value is required as well as provenance",
+    /commissionVerified\[column\] = ownerEntered\[column\] === true && s\(row\[column\]\) !== null/.test(route))
+  ok("…and the section needs at least one valued field",
+    /valued\.length > 0 && valued\.every\(\(c\) => commissionVerified\[c\]\)/.test(route))
+  ok("the column list is derived from the write path, so the two cannot drift",
+    /const COMMISSION_COLUMNS = Object\.values\(COMMISSION_FIELDS\)/.test(route))
+
+  // NOTHING IMPORTED, UNKNOWN OR STALE IS PROMOTED. A commission can only be written by an
+  // authenticated owner through this editor — the writer's firewall demands request-level
+  // authorization plus ownerOverride plus manual_verified — so any other source type in
+  // provenance is bulk-entered data and still reads grey.
+  const writer = strip(read("lib/propertyEnrichment/writer.ts"))
+  ok("only an authorized owner write can produce that source type at all",
+    /cand\.sourceType === "manual_verified"/.test(writer) && /ownerAuthorized === true/.test(writer))
+  ok("a row from any other source type is not owner-entered",
+    /r\.source_type === "manual_verified"/.test(route))
+
+  ok("the badge says exactly Verified", /\{loaded\.commissionAgentVerified \? "Verified" : "Not verified"\}/.test(panel))
+
+  // ONE PILL OVER THREE BOXES MUST NOT CLAIM ALL THREE.
+  // Send, Escort and Bonus each carry their own provenance row. A property where only Send has
+  // ever been entered reads "Verified", and that pill must not be readable as a statement about
+  // the two empty boxes beside it.
+  ok("each commission field shows its OWN verification",
+    /loaded\.commissionVerified\?\.\[column\] &&/.test(panel))
+  ok("…keyed by the field's own column, not the section",
+    /\["Send %", send, setSend, "sendCommission", "send_commission"\]/.test(panel) &&
+    /\["Escort %", escort, setEscort, "escortCommission", "escort_commission"\]/.test(panel) &&
+    /\["Bonus \(\$\)", bonus, setBonus, "bonusFlat", "bonus_flat"\]/.test(panel))
+  ok("…in the same commission green, so one colour means one thing",
+    /text-\[#4ade80\][\s\S]{0,200}aria-hidden="true">✓/.test(panel))
+  ok("…and the mark has a name for a screen reader, not just a glyph",
+    /sr-only">entered by an agent/.test(panel))
+  ok("a field with no value can never carry a tick, because the route requires a stored value",
+    /commissionVerified\[column\] = ownerEntered\[column\] === true && s\(row\[column\]\) !== null/.test(route))
+  ok("the pill's own title names the fields it covers",
+    /\$\{verifiedFields\.join\(" and "\)\} entered in this editor/.test(panel))
+  ok("…built from the per-field map, in the row's order",
+    /\["send_commission", "Send"\][\s\S]{0,120}\["escort_commission", "Escort"\][\s\S]{0,120}\["bonus_flat", "Bonus"\]/.test(panel) &&
+    /\.filter\(\(\[column\]\) => loaded\?\.commissionVerified\?\.\[column\]\)/.test(panel))
+  ok("…in the commission green the map card's own chip uses",
+    /text-\[#4ade80\]/.test(panel) &&
+    /text-\[#4ade80\]/.test(strip(read("components/crm/CommissionBadge.tsx"))))
+  ok("…and unknown still reads grey, never as a confirmed zero",
+    /bg-\[var\(--crm-card\)\] text-\[var\(--crm-text-muted\)\]/.test(panel))
+
+  // The values, the columns and the save path are untouched by any of this.
+  ok("the commission fields still map to the same three columns",
+    /sendCommission: "send_commission"/.test(route) &&
+    /escortCommission: "escort_commission"/.test(route) &&
+    /bonusFlat: "bonus_flat"/.test(route))
+  // NOTHING IS REWRITTEN TO EARN THE BADGE. The whole change is in how a READ is interpreted.
+  const get = route.slice(0, route.indexOf("/** PUT"))
+  ok("the read path never writes", !/\.update\(|\.insert\(|\.upsert\(|\.delete\(/.test(get))
+  ok("…and verification_status is still set from the Source box alone, on the write path",
+    (route.match(/verificationStatus: VerificationStatus = sourceRef \? "verified" : "inferred"/g) ?? []).length === 1)
 }
+
 ok("the global form stylesheet is still untouched",
   /input\[type="date"\][\s\S]{0,400}?font-size:\s*1rem/.test(read("app/globals.css")))
 
