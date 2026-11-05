@@ -23,6 +23,7 @@
  *   APPROVAL_TEST_DATABASE_URL=$DB npx tsx scripts/tests/quickMatch.db.test.ts
  *   bash scripts/tests/approvalCriteria.localdb.sh stop
  */
+import { resolveClientGeography, assessGeography, type QuickMatchProperty } from "@/lib/quickMatch"
 import { execFileSync } from "node:child_process"
 import { existsSync, readFileSync, writeFileSync, rmSync } from "node:fs"
 import { tmpdir } from "node:os"
@@ -106,6 +107,7 @@ sql(`create table public.leads (
        id bigserial primary key, first_name text, last_name text,
        beds text, desired_rent text, city text, neighborhoods text, submarkets text,
        destination_zip text, commute_max_minutes integer, commute_anchor_label text,
+       commute_anchor_place_id text,
        credit_score integer, credit_history text,
        broken_lease_age text, broken_lease_amount text,
        eviction_age text, eviction_balance text, eviction_court text,
@@ -389,6 +391,70 @@ ok("an explicit refresh is the only path that rewrites the drafts",
     sql(`delete from public.lead_recommendations where lead_id=3 and origin='quick_match' and reviewed_at is null`)
     return num(`select count(*) from public.lead_recommendations where lead_id=3`) === 0
   })())
+
+console.log("\n8c. THE CLIENT'S DESTINATION — ZIP 78240, through the real schema")
+// The CHECK that shipped with destination_zip, exercised rather than described. A psql -c is its
+// own transaction, so a refused update leaves the row as it was.
+const refused = (v: string) => {
+  try { execFileSync(PSQL, ["-v", "ON_ERROR_STOP=1", "-tAX", "-d", WORK_DB, "-c",
+    `update public.leads set destination_zip='${v}' where id=1`], { stdio: "ignore" }); return false }
+  catch { return true }
+}
+sql(`update public.leads set destination_zip='78240' where id=1`)
+ok("the column accepts 78240",
+  one<{ z: string }>(`select destination_zip as z from public.leads where id=1`).z === "78240")
+ok("…and refuses four digits, six digits and letters",
+  refused("7824") && refused("782401") && refused("78A40"))
+ok("…and the refusal left 78240 in place",
+  one<{ z: string }>(`select destination_zip as z from public.leads where id=1`).z === "78240")
+
+// THE ENGINE, on a row that came out of this database rather than out of a fixture literal.
+const leadRow = one<Record<string, unknown>>(`select * from public.leads where id=1`)
+const dbGeo = resolveClientGeography(leadRow, [])
+ok("the engine reads 78240 off the real row", dbGeo.destinationZip === "78240")
+ok("…and records that it came from the destination field", dbGeo.zipSource === "destination_zip")
+ok("…with no named area on this client, geography is still a criterion",
+  dbGeo.applicable && dbGeo.anchors.length === 0)
+
+// The curated member in that ZIP, as the RPC actually returns it. Only the three fields the
+// geographic comparison uses are mapped here — the rest of the read path is section 3's job.
+type Member = { place_id: string; zip: string; latitude: number; longitude: number }
+const members = rows<Member>(
+  `select place_id, zip, latitude, longitude from public.lb_quick_match_candidates('san_antonio')`)
+const asProperty = (m: Member) =>
+  ({ zip: m.zip, latitude: Number(m.latitude), longitude: Number(m.longitude) } as unknown as QuickMatchProperty)
+const inZip = members.filter((m) => m.zip === "78240")
+ok("the curated member in 78240 comes through the read path", inZip.length === 1 && inZip[0].place_id === "ChIJc")
+ok("…and the engine puts it in the destination-ZIP band",
+  assessGeography(asProperty(inZip[0]), dbGeo).band === "destination_zip")
+ok("…while a curated member in another ZIP, with no member coordinates to measure from, is not",
+  members.filter((m) => m.zip !== "78240").every((m) => assessGeography(asProperty(m), dbGeo).band === null))
+// Delta is ALSO in 78240 and is not in the collection. The destination ZIP must not reach past
+// the curated list — the ZIP is a filter on it, never a way around it.
+ok("the 78240 property that is NOT curated never reaches the engine at all",
+  members.every((m) => m.place_id !== "ChIJd"))
+// With that member's coordinates, the ZIP has a measured centroid and the bands widen.
+const withCentroid = resolveClientGeography(leadRow, members.map(asProperty))
+ok("the ZIP gains a centroid averaged over its curated members", withCentroid.anchors.length === 1)
+ok("…and a property a mile away is then in band, measured not assumed",
+  assessGeography({ zip: "78229", latitude: 29.5245, longitude: -98.58 } as unknown as QuickMatchProperty,
+    withCentroid).band === "in_area")
+
+// THE COMMUTE DESTINATION, through its two real columns.
+sql(`update public.leads set destination_zip=null,
+      commute_anchor_label='78254', commute_anchor_place_id=null where id=2`)
+const unanchored = resolveClientGeography(one<Record<string, unknown>>(`select * from public.leads where id=2`), [])
+ok("an UNANCHORED commute destination of 78254 is read as a geographic hint",
+  unanchored.destinationZip === "78254" && unanchored.zipSource === "commute_destination")
+sql(`update public.leads set commute_anchor_place_id='ChIJ_real_place' where id=2`)
+const googleAnchored = resolveClientGeography(one<Record<string, unknown>>(`select * from public.leads where id=2`), [])
+ok("…and anchoring it to a Google place withdraws the hint, leaving the anchor the routing destination",
+  googleAnchored.destinationZip === null && googleAnchored.zipSource === null)
+ok("the anchor itself is untouched by any of this",
+  one<{ l: string; p: string }>(`select commute_anchor_label as l, commute_anchor_place_id as p
+                                  from public.leads where id=2`).p === "ChIJ_real_place")
+// Leave the stage as section 9 and the rollbacks expect to find it.
+sql(`update public.leads set destination_zip=null, commute_anchor_label=null, commute_anchor_place_id=null`)
 
 console.log("\n9. THE SCREENING DETAIL CANNOT REACH A CLIENT")
 // The real share functions are not in this stage, so the claim is checked where it is made: the

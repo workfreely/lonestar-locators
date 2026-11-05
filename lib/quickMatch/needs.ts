@@ -57,7 +57,10 @@ export function resolveClientNeeds(
 
   const bedrooms = requestedBedrooms(str("beds"))
   const budget = parseMoneyRange(str("desired_rent"))
-  const destinationZip = fiveDigitZip(l["destination_zip"])
+  // ONE reading of the client's geography, owned by ./geography — including which field the
+  // destination ZIP came from. A second reading here is how two surfaces come to disagree.
+  const geography = resolveClientGeography(l, properties)
+  const destinationZip = geography.destinationZip
 
   const namedAreas = composeDesiredAreas(str("neighborhoods"), str("submarkets"))
     .split(",").map((a) => a.trim()).filter(Boolean)
@@ -75,6 +78,6 @@ export function resolveClientNeeds(
     commuteLimitMinutes: minutes,
     commuteDestinationLabel: str("commute_anchor_label"),
     namedAreas,
-    geography: resolveClientGeography(l, properties),
+    geography,
   }
 }

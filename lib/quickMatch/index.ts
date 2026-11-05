@@ -26,9 +26,10 @@ export { rankRecommendations, rankRecommendationsDetailed, MAX_RECOMMENDATIONS, 
 export type { ClientNeeds, Recommendation, RankInput, ExcludedCandidate, RankResult } from "./ranking"
 export {
   assessGeography, resolveClientGeography, geographySummary, zipAnchor, fiveDigitZip,
+  resolveAreaAnchors, commuteHintZip,
   GEO_BAND_MILES, GEO_WEIGHT,
 } from "./geography"
-export type { ClientGeography, GeoFit, GeoBand } from "./geography"
+export type { ClientGeography, GeoFit, GeoBand, AreaAnchor } from "./geography"
 export {
   criminalPolicyVerdict, lookbackVerdict, restrictedOffenseVerdict, offenseLabel,
 } from "./criminal"

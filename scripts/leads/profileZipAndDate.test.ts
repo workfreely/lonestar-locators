@@ -175,18 +175,21 @@ console.log("\nand so is everything outside this modal:")
   // matching filters and the Explorer, which is where it mattered. What Quick Match does with it
   // is asserted in scripts/tests/quickMatch.test.ts (one comparable ZIP, named areas NOT
   // invented into ZIPs), and the two lines below keep the read narrow.
-  ok("Quick Match reads the ZIP in ONE place, the needs resolver",
+  // The reader moved from needs.ts to geography.ts, which now owns every comparison a ZIP takes
+  // part in; needs.ts takes the resolved value from it rather than reading the column a second
+  // time. Still ONE read of the column, which is what this asserts.
+  ok("Quick Match reads the ZIP in ONE place, the geography resolver",
     (() => {
       const { readdirSync, statSync } = require("node:fs") as typeof import("node:fs")
       const walk = (d: string): string[] => readdirSync(d).flatMap((e) => {
         const q = `${d}/${e}`
         return statSync(q).isDirectory() ? walk(q) : /\.(ts|tsx)$/.test(q) ? [q] : []
       })
-      const readers = walk("lib/quickMatch").filter((f) => read(f).includes("destination_zip"))
-      return readers.length === 1 && readers[0] === "lib/quickMatch/needs.ts"
+      const readers = walk("lib/quickMatch").filter((f) => /\["destination_zip"\]/.test(read(f)))
+      return readers.length === 1 && readers[0] === "lib/quickMatch/geography.ts"
     })())
   ok("…and it reads it as a FIVE-DIGIT ZIP or not at all",
-    /fiveDigitZip\(l\["destination_zip"\]\)/.test(read("lib/quickMatch/needs.ts")))
+    /fiveDigitZip\(l\["destination_zip"\]\)/.test(read("lib/quickMatch/geography.ts")))
   for (const [label, path] of [
     ["the matching filters", "lib/matching"],
   ] as const) {

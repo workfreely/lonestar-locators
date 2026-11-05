@@ -16,11 +16,14 @@
 //
 //   1. the DESTINATION ZIP from Edit Client Profile. An exact ZIP match is its own band — the
 //      strongest geographic statement available, because it is the one the agent typed for
-//      exactly this purpose.
-//   2. the client's NAMED AREAS, resolved through resolveDesiredAreaAnchors — Unleash's own
-//      market-aware centroid catalogue. A label with no catalogued centroid is DROPPED, never
-//      replaced by a downtown or market center, so an unrecognised area produces no anchor
-//      rather than a wrong one.
+//      exactly this purpose. Failing that, a ZIP found in an UNANCHORED Commute / Destination
+//      box, used as a hint and never as a travel time — see commuteHintZip. Neither is the
+//      client's residential address, which Quick Match does not read at all.
+//   2. the client's NAMED AREAS, resolved by resolveAreaAnchors against the shared market
+//      centroid catalogue. A label with no catalogued centroid is DROPPED, never replaced by a
+//      downtown or market center, so an unrecognised area produces no anchor rather than a
+//      wrong one. Unleash resolves its own search centers from that same catalogue, through its
+//      own untouched function.
 //   3. a CENTROID FOR THE DESTINATION ZIP, averaged over the curated properties that are
 //      actually in that ZIP. This is measured from real addresses in the catalogue, not from a
 //      ZIP-boundary table we do not have, and it exists only when at least one member is in the
@@ -35,13 +38,77 @@
 // requirement, so inventing one — or recommending nothing — would both be wrong. What does NOT
 // happen is a property being credited with a location fit nobody established.
 import { metresBetween, type LatLng } from "@/lib/propertyExplorer/commuteMode"
-import {
-  composeDesiredAreas, resolveDesiredAreaAnchors, MAX_UNLEASH_AREAS, type AreaAnchor,
-} from "@/lib/propertyExplorer/multiArea"
-import { getMarketByName } from "@/lib/markets/catalog"
+import { composeDesiredAreas, MAX_UNLEASH_AREAS } from "@/lib/propertyExplorer/multiArea"
+import { centerForDesiredArea, getMarketByName } from "@/lib/markets/catalog"
 import type { QuickMatchProperty } from "./types"
 
 const METRES_PER_MILE = 1609.344
+
+/** A resolved area, WITH the label it resolved from. */
+export type AreaAnchor = { label: string; lat: number; lng: number }
+
+/**
+ * Resolve the client's comma-joined desired areas to LABELLED centroids, market-aware and
+ * capped at the form's 1–3 limit.
+ *
+ * ── WHY THIS LIVES IN QUICK MATCH ──────────────────────────────────────────────────────────
+ * Unleash's resolveDesiredAreaCenters returns coordinates without their labels, and "about two
+ * miles from Stone Oak" needs the label that produced the centroid. An earlier draft widened
+ * that Unleash function to carry labels; widening it meant editing an Unleash Beast file, so it
+ * was reverted and the resolution lives here instead.
+ *
+ * The rules are deliberately identical to Unleash's, and both read the SAME source of truth —
+ * centerForDesiredArea in the shared market catalogue — so the two cannot disagree about which
+ * areas exist or where they are:
+ *   • resolve each label in order and cap the RESULT at `max`, not the raw label list;
+ *   • a label with no catalogued centroid is DROPPED and consumes no slot (which is what makes
+ *     the form's own "All of {City}" catch-all cost nothing);
+ *   • never fall back to a market or downtown center — an unrecognised area must produce no
+ *     anchor rather than a wrong one.
+ */
+export function resolveAreaAnchors(
+  desiredAreas: string | null | undefined,
+  marketSlug: string | null | undefined,
+  max: number = MAX_UNLEASH_AREAS,
+): AreaAnchor[] {
+  const labels = (desiredAreas ?? "").split(",").map((t) => t.trim()).filter(Boolean)
+  const out: AreaAnchor[] = []
+  for (const label of labels) {
+    if (out.length >= max) break
+    const c = centerForDesiredArea(label, marketSlug)
+    if (c) out.push({ label, lat: c.lat, lng: c.lng })
+  }
+  return out
+}
+
+/**
+ * A ZIP typed into the Commute / Destination box, when that destination is NOT Google-anchored.
+ *
+ * `commute_anchor_place_id` is the canonical routable destination. When it is set, the box holds
+ * a real Google place and this returns null: the anchored destination is left exactly as it is,
+ * and the drive to it keeps coming from a Routes estimate, which is the only thing allowed to
+ * state a travel time. Nothing in this file produces one — a ZIP is a place, not a drive.
+ *
+ * Unanchored destinations are what the office typed before anchoring existed: one client on file
+ * has "78254" in this box, another has "Alamo Heights". A five-digit ZIP is a geographic
+ * statement that can be measured, so it is used as a HINT. A place name is not, because deciding
+ * which "Alamo Heights" was meant would be a guess.
+ */
+export function commuteHintZip(
+  anchorPlaceId: string | null | undefined,
+  destinationLabel: string | null | undefined,
+): string | null {
+  if (typeof anchorPlaceId === "string" && anchorPlaceId.trim() !== "") return null
+  const text = String(destinationLabel ?? "").trim()
+  if (text === "") return null
+  const found = [...text.matchAll(/\b\d{5}\b/g)]
+  const last = found[found.length - 1]
+  if (!last || last.index === undefined) return null
+  // A five-digit number at the START with words after it is a street number — "12345 Main St" is
+  // an address, not a ZIP. A bare "78254" is also at the start, with nothing after it.
+  if (last.index === 0 && text.length > 5) return null
+  return last[0]
+}
 
 /**
  * The bands, in miles from the nearest anchor.
@@ -86,6 +153,15 @@ export const GEO_WEIGHT: Record<GeoBand, number> = {
 export type ClientGeography = {
   /** The five-digit destination ZIP, or null. */
   destinationZip: string | null
+  /**
+   * WHERE that ZIP came from, which is never the client's own address.
+   *   "destination_zip"      — the Edit Client Profile field, added for exactly this.
+   *   "commute_destination"  — a ZIP found in an UNANCHORED Commute / Destination box.
+   * The band is the same either way, because the measurement is the same: the property is in
+   * that ZIP or it is not. The source is carried so the agent-facing sentence can say which
+   * field it read, and so neither is ever reported as the other.
+   */
+  zipSource: "destination_zip" | "commute_destination" | null
   /** Resolved anchors — named-area centroids, plus a derived centroid for the destination ZIP. */
   anchors: AreaAnchor[]
   /** Labels the client named that have no catalogued centroid. Reported, never guessed at. */
@@ -155,13 +231,23 @@ export function resolveClientGeography(
     return typeof v === "string" && v.trim() !== "" ? v.trim() : null
   }
 
-  const destinationZip = fiveDigitZip(l["destination_zip"])
+  // The destination ZIP the agent typed for this purpose, and only that: `leads` has no
+  // residential ZIP column, and the client's own address is not read here or anywhere in Quick
+  // Match. "Where they want to BE, not where they live now" is the column's own comment.
+  const typedZip = fiveDigitZip(l["destination_zip"])
+  // Second best, and only when the first is absent: a ZIP in an unanchored commute destination.
+  const hintZip = typedZip
+    ? null
+    : commuteHintZip(str("commute_anchor_place_id"), str("commute_anchor_label"))
+  const destinationZip = typedZip ?? hintZip
+  const zipSource: ClientGeography["zipSource"] =
+    typedZip ? "destination_zip" : hintZip ? "commute_destination" : null
   // `leads.city` stores the market's DISPLAY NAME, which is how every other surface resolves it.
   const marketSlug = getMarketByName(str("city") ?? "")?.slug ?? null
 
   const desired = composeDesiredAreas(str("neighborhoods"), str("submarkets"))
   const labels = desired.split(",").map((s) => s.trim()).filter(Boolean)
-  const areaAnchors = resolveDesiredAreaAnchors(desired, marketSlug, MAX_UNLEASH_AREAS)
+  const areaAnchors = resolveAreaAnchors(desired, marketSlug, MAX_UNLEASH_AREAS)
   const resolvedLabels = new Set(areaAnchors.map((a) => a.label.toLowerCase()))
   // Only the labels that were REACHED can be called unresolved: beyond MAX_UNLEASH_AREAS the
   // cap stopped the loop, which is not the same as having no centroid.
@@ -174,6 +260,7 @@ export function resolveClientGeography(
 
   return {
     destinationZip,
+    zipSource,
     anchors,
     unresolvedAreas,
     marketSlug,
@@ -194,7 +281,10 @@ export function assessGeography(property: QuickMatchProperty, geo: ClientGeograp
   if (geo.destinationZip && property.zip === geo.destinationZip) {
     return {
       band: "destination_zip", applicable: true, miles: null, anchorLabel: `ZIP ${geo.destinationZip}`,
-      reason: `In the requested destination ZIP ${geo.destinationZip}`, outsideReason: null,
+      reason: geo.zipSource === "commute_destination"
+        ? `In ZIP ${geo.destinationZip}, the ZIP in the client's commute destination`
+        : `In the requested destination ZIP ${geo.destinationZip}`,
+      outsideReason: null,
     }
   }
 
@@ -210,7 +300,7 @@ export function assessGeography(property: QuickMatchProperty, geo: ClientGeograp
   if (geo.anchors.length === 0) {
     return {
       band: null, applicable: true, miles: null, anchorLabel: null, reason: null,
-      outsideReason: `Not in the requested destination ZIP ${geo.destinationZip}, and no curated property is in that ZIP to measure distance from`,
+      outsideReason: `Not in ZIP ${geo.destinationZip}, and no curated property is in that ZIP to measure distance from`,
     }
   }
 
@@ -249,7 +339,11 @@ export function assessGeography(property: QuickMatchProperty, geo: ClientGeograp
 export function geographySummary(geo: ClientGeography): string {
   if (!geo.applicable) return "no area or destination ZIP on record, so location was not used to rank"
   const parts: string[] = []
-  if (geo.destinationZip) parts.push(`destination ZIP ${geo.destinationZip}`)
+  if (geo.destinationZip) {
+    parts.push(geo.zipSource === "commute_destination"
+      ? `ZIP ${geo.destinationZip} (from the commute destination)`
+      : `destination ZIP ${geo.destinationZip}`)
+  }
   const areas = geo.anchors.filter((a) => !a.label.startsWith("ZIP ")).map((a) => a.label)
   if (areas.length) parts.push(areas.join(", "))
   if (geo.unresolvedAreas.length) parts.push(`(${geo.unresolvedAreas.join(", ")}: no centroid on record)`)

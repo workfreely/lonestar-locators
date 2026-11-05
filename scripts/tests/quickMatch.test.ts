@@ -23,6 +23,7 @@ import {
   rankRecommendations, rankRecommendationsDetailed, MAX_RECOMMENDATIONS, CREDIT_CEILING,
   offenseTypeFromCharge, criminalPolicyVerdict, lookbackVerdict, restrictedOffenseVerdict,
   assessGeography, resolveClientGeography, geographySummary, zipAnchor,
+  resolveAreaAnchors, commuteHintZip,
   GEO_BAND_MILES, DISPLAY_TIERS, ASSESSED_TIERS,
   type QuickMatchProperty, type ClientNeeds, type ClientGeography,
 } from "@/lib/quickMatch"
@@ -31,6 +32,10 @@ import { resolveClientNeeds, fiveDigitZip } from "@/lib/quickMatch/needs"
 import { toRecommendationRow, QUICK_MATCH_ORIGIN } from "@/lib/quickMatch/persist"
 import { readScreening } from "@/components/crm/QuickMatchBadge"
 import { CRIMINAL_CHARGE_OPTIONS } from "@/lib/formOptions"
+// Imported HERE, in the test, to cross-check Quick Match's own resolution against the Unleash
+// function this release leaves untouched, and against the catalogue they both read.
+import { resolveDesiredAreaCenters } from "@/lib/propertyExplorer/multiArea"
+import { centerForDesiredArea } from "@/lib/markets/catalog"
 import { OFFENSE_TYPE_OPTIONS } from "@/lib/propertyIntel/approvalCriteria"
 import { readFileSync, existsSync } from "node:fs"
 import { execSync } from "node:child_process"
@@ -100,6 +105,16 @@ ok('rental_debt_status "paid" is an ANSWER, not a problem', !evaluateEligibility
 ok('…nor is "none"', !evaluateEligibility({ rental_debt_status: "none" }).eligible)
 ok("several issues list several reasons",
   evaluateEligibility({ credit_score: 540, credit_history: "Broken Lease" }).reasons.length === 2)
+// INDEPENDENCE, stated as the requirement states it: no credit score at all, still eligible.
+ok("a broken lease with NO credit score on file triggers",
+  evaluateEligibility({ credit_score: null, credit_history: "Broken Lease" }).eligible)
+ok("an eviction with NO credit score on file triggers",
+  evaluateEligibility({ credit_score: null, credit_history: "Eviction" }).eligible)
+ok("apartment debt with NO credit score on file triggers",
+  evaluateEligibility({ credit_score: null, rental_debt_status: "owed" }).eligible)
+ok("…and none of those reasons mentions credit",
+  ["Broken Lease", "Eviction"].every((h) =>
+    evaluateEligibility({ credit_history: h }).reasons.every((r) => !/credit score/i.test(r))))
 
 console.log("\n═══ ELIGIBILITY — criminal background")
 ok("a felony on record triggers, whatever the score",
@@ -118,6 +133,12 @@ ok("the reason names the charge when one is recorded",
 ok("the reason says it needs property-specific screening",
   evaluateEligibility({ criminal_background: "Felony" })
     .reasons.some((r) => r.includes("property-specific screening")))
+ok("a felony with NO credit score on file triggers",
+  evaluateEligibility({ credit_score: null, criminal_background: "Felony" }).eligible)
+ok("a misdemeanor with NO credit score on file triggers",
+  evaluateEligibility({ credit_score: null, criminal_background: "Misdemeanor" }).eligible)
+ok("…and a 590 score needs no second qualifier of any kind",
+  evaluateEligibility({ credit_score: 590, credit_history: "Clean", criminal_background: "None" }).eligible)
 ok("a felony AND a misdemeanor are read independently, not as one answer", (() => {
   const f = readScreeningFacts({ criminal_background: "Felony", misdemeanor_age: "2 years" })
   return f.hasFelony && f.hasMisdemeanor
@@ -501,6 +522,118 @@ ok("…and geography is then not a criterion at all", !unknownArea.applicable)
 ok("a lead with no market cannot resolve an area",
   resolveClientGeography({ city: null, neighborhoods: "Stone Oak" }, []).anchors.length === 0)
 
+console.log("\n═══ DESTINATION ZIP — the field the agent typed, never where the client lives")
+// 78240 is a real San Antonio ZIP (Medical Center / Babcock) and the curated collection has
+// members in it. Here it is a fixture, so the arithmetic is on the page rather than trusted.
+const z240 = resolveClientGeography({ city: "San Antonio", destination_zip: "78240" }, [])
+ok("a typed destination ZIP is read", z240.destinationZip === "78240")
+ok("…and it is recorded as coming from the profile field", z240.zipSource === "destination_zip")
+ok("…so geography is a criterion even with no named area at all",
+  z240.applicable && z240.anchors.length === 0)
+const in240 = prop({ placeId: "in240", zip: "78240" })
+ok("a property in 78240 is in the strongest band", assessGeography(in240, z240).band === "destination_zip")
+ok("…and the reason names the ZIP", (assessGeography(in240, z240).reason ?? "").includes("78240"))
+ok("a property outside it, with no member in 78240 to measure from, is not in band",
+  assessGeography(prop({ placeId: "out240", zip: "78260" }), z240).band === null)
+// With curated members in the ZIP, it gets a MEASURED centroid and the bands widen honestly.
+const m240 = [prop({ placeId: "m1", zip: "78240", latitude: 29.5, longitude: -98.58 })]
+const z240m = resolveClientGeography({ city: "San Antonio", destination_zip: "78240" }, m240)
+ok("a curated member in the ZIP gives it a centroid", z240m.anchors.length === 1)
+ok("…labelled as the ZIP", z240m.anchors[0].label === "ZIP 78240")
+ok("…and a neighbouring property is then ranked by distance from it",
+  assessGeography(prop({ placeId: "nb", zip: "78229", latitude: 29.52, longitude: -98.58 }), z240m).band === "in_area")
+ok("the destination ZIP outranks a named area for the same property", (() => {
+  const both = resolveClientGeography(
+    { city: "San Antonio", destination_zip: "78240", neighborhoods: "Stone Oak" }, m240)
+  return assessGeography(in240, both).band === "destination_zip"
+})())
+// NOT the client's own address. `leads` has no residential ZIP column, and nothing here invents
+// one: a ZIP sitting in any other field is not a destination.
+ok("a ZIP on the lead row that is NOT destination_zip is never used as a destination",
+  !resolveClientGeography(
+    { city: "San Antonio", zip: "78240", current_zip: "78240", address: "123 Main St, San Antonio, TX 78240" },
+    []).applicable)
+ok("…and the destination ZIP stays null in that case",
+  resolveClientGeography({ city: "San Antonio", zip: "78240", address: "123 Main St 78240" }, []).destinationZip === null)
+ok("the end-to-end needs read carries the same ZIP from the same field",
+  resolveClientNeeds({ city: "San Antonio", destination_zip: "78240" }).destinationZip === "78240")
+ok("a malformed value is no ZIP at all",
+  fiveDigitZip("7824") === null && fiveDigitZip("78240-1234") === null && fiveDigitZip("782401") === null)
+
+console.log("\n═══ COMMUTE DESTINATION — a Google anchor is left alone; an unanchored ZIP is a hint")
+ok("an anchored destination yields NO hint, whatever its label says",
+  commuteHintZip("ChIJq6qq1234", "78254") === null
+  && commuteHintZip("ChIJq6qq1234", "Brooke Army Medical Center, TX 78234") === null)
+ok("an unanchored destination that is nothing but a ZIP becomes a hint",
+  commuteHintZip(null, "78254") === "78254")
+ok("…and a ZIP at the end of a typed address is found",
+  commuteHintZip(null, "San Antonio, TX 78254") === "78254")
+ok("a place name with no ZIP yields no hint — which one it meant is a guess",
+  commuteHintZip(null, "Alamo Heights") === null)
+ok("a street number is not a ZIP", commuteHintZip(null, "12345 Main St") === null)
+ok("an empty box yields no hint",
+  commuteHintZip(null, "") === null && commuteHintZip(null, null) === null && commuteHintZip("", "   ") === null)
+
+const hinted = resolveClientGeography(
+  { city: "San Antonio", destination_zip: null, commute_anchor_label: "78254", commute_anchor_place_id: null }, [])
+ok("the hint makes geography a criterion", hinted.applicable && hinted.destinationZip === "78254")
+ok("…and it is recorded as coming from the commute destination", hinted.zipSource === "commute_destination")
+ok("…the agent-facing sentence says which field it read",
+  (assessGeography(prop({ zip: "78254" }), hinted).reason ?? "").includes("commute destination"))
+ok("…and so does the summary", geographySummary(hinted).includes("from the commute destination"))
+const anchoredDest = resolveClientGeography(
+  { city: "San Antonio", commute_anchor_label: "Brooke Army Medical Center, 78234", commute_anchor_place_id: "ChIJbamc" }, [])
+ok("a Google-anchored destination produces no geographic anchor and is otherwise untouched",
+  !anchoredDest.applicable && anchoredDest.destinationZip === null && anchoredDest.zipSource === null)
+ok("a typed destination ZIP wins over a commute hint", (() => {
+  const g = resolveClientGeography(
+    { city: "San Antonio", destination_zip: "78240", commute_anchor_label: "78254" }, [])
+  return g.destinationZip === "78240" && g.zipSource === "destination_zip"
+})())
+// The hint is a PLACE, never a drive: a stated limit with no estimate stays unconfirmed.
+const hintProp = prop({ placeId: "hp", zip: "78254", creditMinimumStatus: "no_check_reported" })
+const hintRun = rankRecommendationsDetailed(
+  [{ property: hintProp, assessment: assessProperty(hintProp, c540), travelMinutes: null }],
+  needs({ geography: hinted, commuteLimitMinutes: 20, commuteDestinationLabel: "78254" }))
+ok("the hinted property is recommended on the ZIP match", hintRun.recommendations.length === 1)
+ok("…the 20-minute limit is reported as unconfirmed, not met",
+  hintRun.recommendations[0].unverified.some((u) => u.includes("could not be estimated")))
+ok("…and no reason invents a travel time",
+  hintRun.recommendations[0].reasons.every((r) => !/minute/.test(r)))
+
+console.log("\n═══ AREA ANCHORS RESOLVE INSIDE QUICK MATCH, off the shared market catalogue")
+ok("a catalogued area resolves to a labelled centroid", (() => {
+  const a = resolveAreaAnchors("Stone Oak", "san-antonio")
+  return a.length === 1 && a[0].label === "Stone Oak" && Number.isFinite(a[0].lat)
+})())
+ok("the centroid is the catalogue's own value, not a copy of it", (() => {
+  const c = centerForDesiredArea("Stone Oak", "san-antonio")
+  const a = resolveAreaAnchors("Stone Oak", "san-antonio")[0]
+  return c !== null && a.lat === c.lat && a.lng === c.lng
+})())
+ok("an unknown label is dropped and consumes no slot", (() => {
+  const a = resolveAreaAnchors("Nowhere At All, Stone Oak, Alamo Heights", "san-antonio", 2)
+  return a.length === 2 && a[0].label === "Stone Oak" && a[1].label === "Alamo Heights"
+})())
+ok("…so the cap applies to what RESOLVED, in order",
+  resolveAreaAnchors("Stone Oak, Alamo Heights, Medical Center, Downtown San Antonio", "san-antonio", 3)
+    .map((a) => a.label).join("|") === "Stone Oak|Alamo Heights|Medical Center")
+ok("no market means no anchors — never a downtown fallback",
+  resolveAreaAnchors("Stone Oak", null).length === 0)
+ok("an unrecognised area is never replaced by a market center",
+  resolveAreaAnchors("Nowhere At All", "san-antonio").length === 0)
+ok("blank input yields nothing",
+  resolveAreaAnchors(null, "san-antonio").length === 0 && resolveAreaAnchors(" , ,", "san-antonio").length === 0)
+// THE POINT OF THE WHOLE FUNCTION: Unleash's own resolver is untouched, and this one agrees with
+// it coordinate for coordinate, because both read the same catalogue entry.
+ok("Unleash's untouched resolver returns exactly the same coordinates", (() => {
+  const input = "Nowhere At All, Stone Oak, Alamo Heights, Medical Center"
+  const u = resolveDesiredAreaCenters(input, "san-antonio")
+  const q = resolveAreaAnchors(input, "san-antonio")
+  return u.length === q.length && u.length === 3
+    && u.every((c, i) => c.lat === q[i].lat && c.lng === q[i].lng)
+})())
+
 console.log("\n═══ NO POLICY ON RECORD — never recommended on curation alone")
 const bare = atMiles(2, { placeId: "q1", propertyName: "No Policy On Record" })
 ok("the fixture really has nothing on record for this client",
@@ -838,6 +971,33 @@ console.log("\n═══ SOURCE DISCIPLINE — the promises a grep can hold")
     repoFiles("lib/propertyExplorer").every((f) => !/quickMatch/.test(read(f))))
   ok("the search, shortlist and ranking modules are not imported by Quick Match at all",
     !/propertySearch|beastShortlist|nameSearch|suggestions|locationFit/.test(qmImports))
+
+  // AND THE WHOLE RELEASE, not only its imports: no Unleash Beast file is touched. An earlier
+  // draft widened resolveDesiredAreaAnchors inside multiArea.ts; it was reverted, and this is
+  // what keeps it reverted. BASELINE is the production commit the release is cut from, so a
+  // rebase that moves it makes these fail rather than quietly check nothing.
+  const BASELINE = "4cae1a4"
+  const haveBaseline = (() => {
+    try { execSync(`git cat-file -e ${BASELINE}^{commit}`, { stdio: "ignore" }); return true } catch { return false }
+  })()
+  ok("the release baseline commit is present, so the diffs below are real", haveBaseline)
+  const touched = (paths: string) => haveBaseline
+    ? execSync(`git diff --name-only ${BASELINE} -- ${paths}`, { encoding: "utf8" }).trim()
+    : "the baseline commit is missing"
+  ok("the release changes nothing under lib/propertyExplorer — Unleash's search, filters, ranking",
+    touched("lib/propertyExplorer") === "", touched("lib/propertyExplorer"))
+  ok("…nor the Explorer UI, its toolbar or its navigation",
+    touched("components/crm/explorer components/crm/BeastPropertyExplorer.tsx") === "",
+    touched("components/crm/explorer components/crm/BeastPropertyExplorer.tsx"))
+  ok("…nor the market centroid catalogue both of them read",
+    touched("lib/markets/catalog.ts") === "", touched("lib/markets/catalog.ts"))
+  // Unleash reads exactly one RPC. No migration in this release redefines it or its grants.
+  const releaseSql = execSync(`git diff --name-only ${BASELINE} -- supabase`, { encoding: "utf8" })
+    .split("\n").filter((f) => f.endsWith(".sql") && existsSync(f)).map(read).join("\n")
+  ok("no migration in this release redefines Unleash's lb_property_catalog_by_ids",
+    !/(create|replace|drop|alter)\s+(or\s+replace\s+)?function\s+[a-z_.]*lb_property_catalog_by_ids/i.test(releaseSql))
+  ok("…and none grants or revokes on it either",
+    !/(grant|revoke)[^;]*lb_property_catalog_by_ids/i.test(releaseSql))
 
   // 4. AGENT-ONLY. The screening column must not be named by either share function.
   for (const m of ["supabase/prepared/20261114000001_lead_quick_match_state.sql"]) {

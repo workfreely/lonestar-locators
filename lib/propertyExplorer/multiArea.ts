@@ -35,29 +35,6 @@ export function resolveDesiredAreaCenters(
   marketSlug: string | null | undefined,
   max: number = MAX_UNLEASH_AREAS,
 ): AreaCenter[] {
-  return resolveDesiredAreaAnchors(desiredAreas, marketSlug, max).map(({ lat, lng }) => ({ lat, lng }))
-}
-
-/** A resolved area, WITH the label it resolved from. */
-export type AreaAnchor = AreaCenter & { label: string }
-
-/**
- * The same resolution as resolveDesiredAreaCenters, keeping each label.
- *
- * WHY IT EXISTS. The centers alone are enough to run a search, but not enough to TELL an agent
- * why a property was chosen — "about 2 miles from Stone Oak" needs the label that produced the
- * centroid. Quick Match shows its geographic reasoning to the agent, so it needs the pair.
- *
- * resolveDesiredAreaCenters now delegates here, so there is ONE implementation of the rules that
- * matter: resolve before capping, drop an unresolved label without consuming a slot, never fall
- * back to the market center. Unleash's behaviour is therefore unchanged by construction rather
- * than by my assurance — scripts/tests/unleash-multi-area.test.ts covers it either way.
- */
-export function resolveDesiredAreaAnchors(
-  desiredAreas: string | null | undefined,
-  marketSlug: string | null | undefined,
-  max: number = MAX_UNLEASH_AREAS,
-): AreaAnchor[] {
   const labels = (desiredAreas ?? "")
     .split(",")
     .map((s) => s.trim())
@@ -74,14 +51,14 @@ export function resolveDesiredAreaAnchors(
   // centroids instead of three while nine resolvable areas sat unused behind it.
   // No special case for it: a label is skipped because it has no centroid, and if
   // a real "all of {city}" centroid is ever catalogued it starts working for free.
-  const out: AreaAnchor[] = []
+  const out: AreaCenter[] = []
   for (const label of labels) {
     if (out.length >= max) break
     const c = centerForDesiredArea(label, marketSlug)
     // null → unresolved → skipped WITHOUT consuming a slot. Never fall back to the
     // market center here: an unrecognised area should cause no search for that
     // area, not a downtown one.
-    if (c) out.push({ label, lat: c.lat, lng: c.lng })
+    if (c) out.push({ lat: c.lat, lng: c.lng })
   }
   return out
 }
