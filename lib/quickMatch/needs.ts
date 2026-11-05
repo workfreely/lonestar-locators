@@ -18,27 +18,37 @@
 // undefined, so area and budget ranking did nothing at all. The real sources are
 // `destination_zip` (one ZIP, added for exactly this) and `desired_rent` (text, a range).
 //
-// Preferred AREAS are therefore names, not ZIPs — "Stone Oak", "La Cantera/The Rim" — and a
-// name cannot be compared to property_catalog.zip. So the ZIP term below runs on
-// destination_zip alone, and the named areas are reported to the agent rather than scored.
-// Inventing a name→ZIP table here would be a guess about this market dressed as data.
+// Preferred AREAS are names, not ZIPs — "Stone Oak", "La Cantera/The Rim" — and a name cannot be
+// compared to property_catalog.zip. It CAN be compared to a property's coordinates, through the
+// same market-aware centroid catalogue Unleash resolves its search centers with, and that is
+// what ./geography does: every one of the 68 curated members carries latitude and longitude, so
+// "within 3 miles of Stone Oak" is a measurement rather than a guess. There is still no
+// name→ZIP table here, because that would be a guess about this market dressed as data.
 import { requestedBedrooms } from "@/lib/leads/bedroomPricing"
 import { parseMoneyRange } from "@bc/companion-shared"
 import { composeDesiredAreas } from "@/lib/propertyExplorer/multiArea"
+import { resolveClientGeography, fiveDigitZip } from "./geography"
+import type { QuickMatchProperty } from "./types"
 import type { ClientNeeds } from "./ranking"
 
-/** A five-digit US ZIP, or null. The same shape `leads_destination_zip_format` enforces. */
-export const fiveDigitZip = (v: unknown): string | null => {
-  const t = String(v ?? "").trim()
-  return /^[0-9]{5}$/.test(t) ? t : null
-}
+/** Re-exported so there is one definition of a destination ZIP. It lives in ./geography, which
+ *  owns every comparison a ZIP takes part in. */
+export { fiveDigitZip }
 
 export type ResolvedNeeds = ClientNeeds & {
-  /** The client's named areas, for the agent-facing summary. Never scored — see above. */
+  /** The client's named areas, as typed. The RESOLVED ones are in `geography.anchors`. */
   namedAreas: string[]
 }
 
-export function resolveClientNeeds(lead: Record<string, unknown> | null | undefined): ResolvedNeeds {
+/**
+ * `properties` is passed so the destination ZIP can be given a measured centroid from the
+ * curated members in it (see ./geography). Omitting it costs only that one anchor: a destination
+ * ZIP then qualifies exact matches and nothing else.
+ */
+export function resolveClientNeeds(
+  lead: Record<string, unknown> | null | undefined,
+  properties: QuickMatchProperty[] = [],
+): ResolvedNeeds {
   const l = lead ?? {}
   const str = (k: string): string | null => {
     const v = l[k]
@@ -59,12 +69,12 @@ export function resolveClientNeeds(lead: Record<string, unknown> | null | undefi
   return {
     bedrooms,
     budgetMax: budget?.max ?? null,
-    // The ONE comparable area signal. `preferredZips` stays a list because the ranking term is
-    // written for one, and because an intake ZIP list is the obvious next thing to add.
+    // `preferredZips` stays a list because an intake ZIP list is the obvious next thing to add.
     preferredZips: destinationZip ? [destinationZip] : [],
     destinationZip,
     commuteLimitMinutes: minutes,
     commuteDestinationLabel: str("commute_anchor_label"),
     namedAreas,
+    geography: resolveClientGeography(l, properties),
   }
 }

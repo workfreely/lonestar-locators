@@ -33,15 +33,25 @@
 import type { SupabaseClient } from "@supabase/supabase-js"
 import { placeUrl } from "@/lib/propertyExplorer/types"
 import type { Recommendation } from "./ranking"
-import type { RecommendableTier } from "./types"
+import type { DisplayTier } from "./types"
 
 /** The agent-facing screening record stored on the row. Never read by any client-facing path. */
 export type StoredScreening = {
-  tier: RecommendableTier
+  tier: DisplayTier
   reasons: string[]
   unverified: string[]
   conflicts: string[]
   conditions: string[]
+  /**
+   * Does the property state ANY requirement bearing on this client's situation?
+   *
+   * Stored rather than inferred from the tier, because a row with nothing on record wears the
+   * Needs Verification label and must still be distinguishable from one whose policies are
+   * recorded and merely incomplete. The chip's detail leads with this.
+   */
+  policyOnRecord: boolean
+  /** Where it sits relative to what the client asked for, in the agent's words. */
+  geography: string | null
   /** When the draft was computed, so a stale one is recognisable. */
   computedAt: string
   /** The collection it was drawn from. */
@@ -68,6 +78,8 @@ export function toRecommendationRow(
 ): Record<string, unknown> {
   const screening: StoredScreening = {
     tier: r.tier,
+    policyOnRecord: r.policyOnRecord,
+    geography: r.geo.reason,
     reasons: r.reasons,
     unverified: r.unverified,
     conflicts: r.conflicts,

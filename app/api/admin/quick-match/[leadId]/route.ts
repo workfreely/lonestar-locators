@@ -98,7 +98,9 @@ async function compute(supabase: Awaited<ReturnType<typeof createClient>>, lead:
   if (load.error) return { error: load.error as string }
   if (load.readPathMissing) return { readPathMissing: true as const }
 
-  const needs = resolveClientNeeds(lead)
+  // The properties are passed so a destination ZIP can be given a measured centroid from the
+  // curated members in it — see lib/quickMatch/geography.
+  const needs = resolveClientNeeds(lead, load.properties)
   // TRAVEL TIMES are deliberately empty. A stated commute limit is reported as MET only when a
   // real estimate says so, and this route does not call the routing service — so the engine
   // lists the limit as unconfirmed rather than letting a nearby ZIP stand in for a drive time.

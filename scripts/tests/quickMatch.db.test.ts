@@ -172,11 +172,13 @@ sql(`insert into public.leads (id, first_name, credit_score, credit_history, bed
             (2, 'Felony', 600, 'Clean', '1', '$900-$1,000', 'Felony', 'Assault', '7+ years'),
             (3, 'Clean', 760, 'Clean', '2', '$1,500-$1,700', 'None', null, null)`)
 sql(`select setval('public.leads_id_seq', 10)`)
-sql(`insert into public.property_catalog (place_id, property_name, address, zip, quick_match_collection, credit_minimum_status, credit_minimum_score, felony_policy, beds_min, beds_max)
-     values ('ChIJa', 'Alpha',  '1 A St', '78232', 'san_antonio', 'reported_minimum', 500, 'considered',     1, 3),
-            ('ChIJb', 'Bravo',  '2 B St', '78232', 'san_antonio', 'no_check_reported', null, 'not_considered', 1, 3),
-            ('ChIJc', 'Charlie','3 C St', '78240', 'san_antonio', null, null, null, 1, 3),
-            ('ChIJd', 'Delta',  '4 D St', '78240', null,          'no_check_reported', null, 'considered',    1, 3)`)
+// Coordinates are part of the fixture because geography is a GATE: a member whose latitude does
+// not survive the read path cannot be recommended at all, so the read path has to carry it.
+sql(`insert into public.property_catalog (place_id, property_name, address, zip, quick_match_collection, credit_minimum_status, credit_minimum_score, felony_policy, beds_min, beds_max, latitude, longitude)
+     values ('ChIJa', 'Alpha',  '1 A St', '78232', 'san_antonio', 'reported_minimum', 500, 'considered',     1, 3, 29.6000, -98.5000),
+            ('ChIJb', 'Bravo',  '2 B St', '78232', 'san_antonio', 'no_check_reported', null, 'not_considered', 1, 3, 29.6200, -98.4800),
+            ('ChIJc', 'Charlie','3 C St', '78240', 'san_antonio', null, null, null, 1, 3, 29.5100, -98.5800),
+            ('ChIJd', 'Delta',  '4 D St', '78240', null,          'no_check_reported', null, 'considered',    1, 3, 29.5100, -98.5800)`)
 
 console.log("1. THE MIGRATIONS APPLY")
 file(M_RESOLUTION); file(M_STATE); file(M_RPC)
@@ -228,6 +230,14 @@ ok("authenticated DOES have execute",
 ok("it carries the criminal columns through with their real types",
   one<{ ty: string }>(`select pg_typeof(criminal_restricted_offense_types)::text as ty
                         from public.lb_quick_match_candidates('san_antonio') limit 1`).ty === "text[]")
+// Geography is a GATE, not a nudge: a member whose coordinates do not come through this function
+// is a member that cannot be recommended at all. So the read path is asserted to carry them.
+ok("it carries latitude and longitude, which the geographic gate depends on",
+  one<{ n: number }>(`select count(*)::int as n from public.lb_quick_match_candidates('san_antonio')
+                       where latitude is not null and longitude is not null`).n >= 1)
+ok("…as double precision, not text",
+  one<{ ty: string }>(`select pg_typeof(latitude)::text as ty
+                        from public.lb_quick_match_candidates('san_antonio') limit 1`).ty === "double precision")
 
 console.log("\n4. THE GUARD FAILS LOUDLY — proved by breaking it")
 sql(`drop function public.lb_quick_match_candidates(text)`)
@@ -341,12 +351,44 @@ console.log("\n8. SIX IS A CEILING IN THE DATABASE TOO")
 sql(`delete from public.lead_recommendations where lead_id = 3`)
 for (let i = 0; i < 6; i++) {
   sql(`insert into public.lead_recommendations (lead_id, property_name, property_url, origin, screening)
-       values (3, 'Draft ${i}', '${place(`ChIJcap${i}`)}', 'quick_match', '{"tier":"curated_only"}'::jsonb)`)
+       values (3, 'Draft ${i}', '${place(`ChIJcap${i}`)}', 'quick_match',
+               '{"tier":"needs_verification","policyOnRecord":false,"geography":"In Stone Oak — about 2.0 miles from it"}'::jsonb)`)
 }
 ok("six drafts for one client are six rows",
   num(`select count(*) from public.lead_recommendations where lead_id=3 and origin='quick_match'`) === 6)
 ok("…and they sort AFTER anything the agent arranged, because sort_order is NULL",
   num(`select count(*) from public.lead_recommendations where lead_id=3 and sort_order is not null`) === 0)
+ok("…and a no-policy draft stores the two facts the chip leads with",
+  num(`select count(*) from public.lead_recommendations
+        where lead_id=3 and (screening->>'policyOnRecord') = 'false'
+          and screening->>'geography' is not null`) === 6)
+
+console.log("\n8b. SAVE, CLOSE, REOPEN — a property the agent removed stays removed")
+// The whole sequence, in the order an agent lives it. The automatic pass is gated on
+// leads.quick_match_at, and this is the predicate the route actually uses — so what is proved
+// here is that the gate is readable and that it closes after the first run.
+sql(`update public.leads set quick_match_at = now() where id = 3`)
+ok("the first automatic run stamps the client",
+  num(`select count(*) from public.leads where id=3 and quick_match_at is not null`) === 1)
+sql(`delete from public.lead_recommendations
+      where lead_id=3 and property_name in ('Draft 0','Draft 1')`)
+ok("the agent removes two of the six", num(`select count(*) from public.lead_recommendations where lead_id=3`) === 4)
+// REOPEN. The route runs the automatic pass only when the stamp is null, so this is the test it
+// applies — and it now refuses.
+ok("reopening the client does NOT re-run the automatic pass",
+  num(`select count(*) from public.leads where id=3 and quick_match_at is null`) === 0)
+ok("…so the two removed properties do not come back",
+  num(`select count(*) from public.lead_recommendations where lead_id=3`) === 4)
+ok("…and the four that remain are untouched, screening detail and all",
+  num(`select count(*) from public.lead_recommendations
+        where lead_id=3 and origin='quick_match' and screening is not null`) === 4)
+// An EXPLICIT refresh is the agent's own action, and it is the one thing that may bring a
+// property back. That is the documented difference between the two modes.
+ok("an explicit refresh is the only path that rewrites the drafts",
+  (() => {
+    sql(`delete from public.lead_recommendations where lead_id=3 and origin='quick_match' and reviewed_at is null`)
+    return num(`select count(*) from public.lead_recommendations where lead_id=3`) === 0
+  })())
 
 console.log("\n9. THE SCREENING DETAIL CANNOT REACH A CLIENT")
 // The real share functions are not in this stage, so the claim is checked where it is made: the

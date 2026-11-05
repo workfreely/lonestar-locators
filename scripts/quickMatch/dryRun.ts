@@ -16,6 +16,7 @@
 import { createClient } from "@supabase/supabase-js"
 import { runQuickMatch, type QuickMatchProperty } from "@/lib/quickMatch"
 import { resolveClientNeeds } from "@/lib/quickMatch/needs"
+import { geographySummary } from "@/lib/quickMatch/geography"
 import { DEFAULT_COLLECTION } from "@/lib/quickMatch/collection"
 import { OFFENSE_TYPES, type OffenseType } from "@/lib/propertyIntel/approvalCriteria"
 
@@ -118,7 +119,7 @@ async function main() {
 
   let eligibleCount = 0
   for (const lead of leads ?? []) {
-    const needs = resolveClientNeeds(lead as Record<string, unknown>)
+    const needs = resolveClientNeeds(lead as Record<string, unknown>, properties)
     const r = runQuickMatch({ lead: lead as Record<string, unknown>, properties, needs, travelMinutes: {} })
     if (!r.eligibility.eligible) continue
     eligibleCount++
@@ -126,17 +127,26 @@ async function main() {
     console.log(`\n── lead ${l.id} — ${l.first_name ?? ""} ${l.last_name ?? ""}`.trimEnd())
     console.log(`   triggers: ${r.eligibility.reasons.join(" | ")}`)
     console.log(`   asks for: ${needs.bedrooms ?? "?"}BR, budget ${needs.budgetMax ?? "?"}, ZIP ${needs.destinationZip ?? "—"}, areas ${needs.namedAreas.join("/") || "—"}`)
-    console.log(`   considered ${r.consideredCount}  →  strong ${r.tierCounts.strong_candidate}, verify ${r.tierCounts.needs_verification}, no-policy ${r.tierCounts.curated_only}, excluded ${r.excludedMismatches.length}`)
-    console.log(`   WOULD DRAFT ${r.recommendations.length}:`)
+    console.log(`   location: ${geographySummary(needs.geography!)}`)
+    console.log(`   pool ${r.consideredCount}  →  assessed: strong ${r.tierCounts.strong_candidate}, verify ${r.tierCounts.needs_verification}, no-policy ${r.tierCounts.curated_only}`)
+    console.log(`   ruled out: ${r.excludedMismatches.length} stated conflict, ${r.excludedByGeography.length} outside the client's areas, ${r.excludedNoPolicy.length} no policy + no other evidence`)
+    const drafted = r.recommendations
+    const onRecord = drafted.filter((x) => x.policyOnRecord)
+    console.log(`   WOULD DRAFT ${drafted.length}  (strong ${drafted.filter((x) => x.tier === "strong_candidate").length}, verify ${drafted.filter((x) => x.tier === "needs_verification").length} — of which ${onRecord.filter((x) => x.tier === "needs_verification").length} with policy on record, ${drafted.length - onRecord.length} with none)`)
     for (const rec of r.recommendations) {
-      console.log(`     • [${rec.tier}] ${rec.property.propertyName} (${rec.property.zip ?? "?"})`)
+      const band = rec.geo.band ? `${rec.geo.band}${rec.geo.miles !== null ? ` ${rec.geo.miles.toFixed(1)}mi ${rec.geo.anchorLabel}` : ""}` : "no geo"
+      console.log(`     • [${rec.tier}${rec.policyOnRecord ? "" : " NO-POLICY"}] ${rec.property.propertyName} (${rec.property.zip ?? "?"}) — ${band}`)
       if (only) {
         for (const c of rec.conflicts) console.log(`         conflict: ${c}`)
         for (const u of rec.unverified.slice(0, 6)) console.log(`         verify:   ${u}`)
       }
     }
     for (const x of r.excludedMismatches) {
-      console.log(`     ✗ EXCLUDED ${x.propertyName}: ${x.why.join("; ")}`)
+      console.log(`     ✗ CONFLICT ${x.propertyName}: ${x.why.join("; ")}`)
+    }
+    if (only) {
+      for (const x of r.excludedByGeography) console.log(`     ✗ FAR     ${x.propertyName}: ${x.why.join("; ")}`)
+      for (const x of r.excludedNoPolicy) console.log(`     ✗ NO DATA ${x.propertyName}: ${x.why.join("; ")}`)
     }
   }
   console.log(`\n${eligibleCount} of ${(leads ?? []).length} clients are eligible. NOTHING WAS WRITTEN.\n`)

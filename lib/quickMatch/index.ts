@@ -12,15 +12,23 @@
 // refuses non-members. Quick Match recommends from the curated list or it recommends nothing.
 import { evaluateEligibility, readScreeningFacts, type Eligibility, type ScreeningFacts } from "./eligibility"
 import { assessProperty } from "./screening"
-import { rankRecommendations, MAX_RECOMMENDATIONS, type ClientNeeds, type Recommendation, type RankInput } from "./ranking"
-import type { QuickMatchProperty, RecommendableTier } from "./types"
+import {
+  rankRecommendationsDetailed, MAX_RECOMMENDATIONS,
+  type ClientNeeds, type Recommendation, type RankInput, type ExcludedCandidate,
+} from "./ranking"
+import type { QuickMatchProperty, AssessedTier } from "./types"
 
 export * from "./types"
 export { evaluateEligibility, readScreeningFacts, offenseTypeFromCharge, CREDIT_CEILING } from "./eligibility"
 export type { ScreeningFacts, Eligibility } from "./eligibility"
 export { assessProperty } from "./screening"
-export { rankRecommendations, MAX_RECOMMENDATIONS, bedroomRent } from "./ranking"
-export type { ClientNeeds, Recommendation, RankInput } from "./ranking"
+export { rankRecommendations, rankRecommendationsDetailed, MAX_RECOMMENDATIONS, bedroomRent } from "./ranking"
+export type { ClientNeeds, Recommendation, RankInput, ExcludedCandidate, RankResult } from "./ranking"
+export {
+  assessGeography, resolveClientGeography, geographySummary, zipAnchor, fiveDigitZip,
+  GEO_BAND_MILES, GEO_WEIGHT,
+} from "./geography"
+export type { ClientGeography, GeoFit, GeoBand } from "./geography"
 export {
   criminalPolicyVerdict, lookbackVerdict, restrictedOffenseVerdict, offenseLabel,
 } from "./criminal"
@@ -34,9 +42,13 @@ export type QuickMatchResult = {
   /** Members considered after the membership guard. */
   consideredCount: number
   /** How the considered members fell out, before the cap. Reported so "only two" is explicable. */
-  tierCounts: Record<RecommendableTier, number>
+  tierCounts: Record<AssessedTier, number>
   /** Members dropped as Known Mismatch — reported so the agent knows they were ruled out. */
-  excludedMismatches: { placeId: string; propertyName: string | null; why: string[] }[]
+  excludedMismatches: ExcludedCandidate[]
+  /** Members outside every geographic band the client's own areas define. */
+  excludedByGeography: ExcludedCandidate[]
+  /** Members with nothing on record and no other established evidence for recommending them. */
+  excludedNoPolicy: ExcludedCandidate[]
   /** Non-members that reached the engine and were refused. Should always be 0 in production. */
   rejectedNonMembers: number
 }
@@ -58,13 +70,14 @@ export function runQuickMatch(args: {
   const { lead, properties, needs, travelMinutes = {} } = args
   const eligibility = evaluateEligibility(lead)
   const facts = readScreeningFacts(lead)
-  const emptyTiers: Record<RecommendableTier, number> = {
+  const emptyTiers: Record<AssessedTier, number> = {
     strong_candidate: 0, needs_verification: 0, curated_only: 0,
   }
   if (!eligibility.eligible) {
     return {
       eligibility, facts, recommendations: [], consideredCount: 0,
-      tierCounts: emptyTiers, excludedMismatches: [], rejectedNonMembers: 0,
+      tierCounts: emptyTiers, excludedMismatches: [], excludedByGeography: [], excludedNoPolicy: [],
+      rejectedNonMembers: 0,
     }
   }
 
@@ -92,13 +105,17 @@ export function runQuickMatch(args: {
       why: a.assessment.findings.filter((x) => x.verdict === "fails").map((x) => x.text),
     }))
 
+  const ranked = rankRecommendationsDetailed(assessed as RankInput[], needs)
+
   return {
     eligibility,
     facts,
-    recommendations: rankRecommendations(assessed as RankInput[], needs),
+    recommendations: ranked.recommendations,
     consideredCount: members.length,
     tierCounts,
     excludedMismatches,
+    excludedByGeography: ranked.excludedByGeography,
+    excludedNoPolicy: ranked.excludedNoPolicy,
     rejectedNonMembers,
   }
 }

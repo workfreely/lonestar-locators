@@ -25,9 +25,26 @@ export type { BalanceRequirement, CriminalPolicy, LookbackBasis, OffenseType }
  */
 export type ScreeningTier = "strong_candidate" | "needs_verification" | "curated_only" | "known_mismatch"
 
-/** Tiers that may be recommended, in order. known_mismatch is never one of them. */
-export const RECOMMENDABLE_TIERS = ["strong_candidate", "needs_verification", "curated_only"] as const
-export type RecommendableTier = (typeof RECOMMENDABLE_TIERS)[number]
+/** The outcomes an assessment can produce for a member, i.e. everything but a mismatch. These
+ *  are COUNTED, so an agent can be told that 31 members had nothing on record. */
+export const ASSESSED_TIERS = ["strong_candidate", "needs_verification", "curated_only"] as const
+export type AssessedTier = (typeof ASSESSED_TIERS)[number]
+
+/**
+ * The two labels a recommendation can WEAR.
+ *
+ * There is no "No policy" label. For the initial release a curated member with nothing on
+ * record is not recommended on curation alone; when it is recommended — because the client's
+ * own stated area puts it in front of them and nothing contradicts it — it wears Needs
+ * Verification and its detail leads with the fact that no policy is on record. One label, one
+ * meaning: "there are open questions here, and they are listed".
+ *
+ * `policyOnRecord` on the recommendation carries the distinction the third label used to, so
+ * the ordering can still prefer a property with real evidence without showing the agent a tier
+ * that looks like a weaker kind of match.
+ */
+export const DISPLAY_TIERS = ["strong_candidate", "needs_verification"] as const
+export type DisplayTier = (typeof DISPLAY_TIERS)[number]
 
 /** A property has to EARN a place. `off_collection` is refused before anything is assessed. */
 export type ScreeningOutcome = ScreeningTier | "off_collection"
