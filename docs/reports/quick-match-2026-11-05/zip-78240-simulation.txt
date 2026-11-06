@@ -1,0 +1,50 @@
+
+── AS ON FILE — no destination ZIP
+   location: Westover Hills, Medical Center
+   would draft 6 (of 68 considered, 11 outside the stated area)
+     • [strong_candidate] Preston Peak (78229) — in_area 0.9mi Medical Center
+     • [strong_candidate] Stoneybrook (78238) — in_area 2.5mi Westover Hills
+     • [strong_candidate] Abacus Alamo Ranch (78253) — adjacent 4.6mi Westover Hills
+     • [strong_candidate] Indian Hollow (78216) — adjacent 6.0mi Medical Center
+     • [strong_candidate] Canyon Point (78232) — nearby 9.5mi Medical Center
+     • [strong_candidate] Stoneleigh (78232) — nearby 9.2mi Medical Center
+
+── destination_zip = 78240, areas as on file
+   location: destination ZIP 78240 + Westover Hills, Medical Center
+   would draft 6 (of 68 considered, 10 outside the stated area)
+     • [strong_candidate] Preston Peak (78229) — in_area 0.9mi Medical Center
+     • [strong_candidate] Stoneybrook (78238) — in_area 2.5mi Westover Hills
+     • [strong_candidate] Abacus Alamo Ranch (78253) — adjacent 4.6mi Westover Hills
+     • [strong_candidate] Indian Hollow (78216) — adjacent 6.0mi Medical Center
+     • [strong_candidate] Canyon Point (78232) — nearby 9.5mi Medical Center
+     • [strong_candidate] Stoneleigh (78232) — nearby 9.2mi Medical Center
+
+── destination_zip = 78240, NO named areas
+   location: destination ZIP 78240
+   would draft 6 (of 68 considered, 13 outside the stated area)
+     • [strong_candidate] Preston Peak (78229) — in_area 2.2mi ZIP 78240
+     • [strong_candidate] Stoneybrook (78238) — adjacent 3.1mi ZIP 78240
+     • [strong_candidate] Abacus Alamo Ranch (78253) — nearby 7.6mi ZIP 78240
+     • [strong_candidate] Canyon Point (78232) — nearby 10.6mi ZIP 78240
+     • [strong_candidate] Indian Hollow (78216) — nearby 7.1mi ZIP 78240
+     • [strong_candidate] Stoneleigh (78232) — nearby 10.3mi ZIP 78240
+
+── an UNANCHORED commute destination of '78240'
+   location: ZIP 78240 (from the commute destination)
+   would draft 6 (of 68 considered, 13 outside the stated area)
+     • [strong_candidate] Preston Peak (78229) — in_area 2.2mi ZIP 78240
+     • [strong_candidate] Stoneybrook (78238) — adjacent 3.1mi ZIP 78240
+     • [strong_candidate] Abacus Alamo Ranch (78253) — nearby 7.6mi ZIP 78240
+     • [strong_candidate] Canyon Point (78232) — nearby 10.6mi ZIP 78240
+     • [strong_candidate] Indian Hollow (78216) — nearby 7.1mi ZIP 78240
+     • [strong_candidate] Stoneleigh (78232) — nearby 10.3mi ZIP 78240
+
+── the SAME destination, Google-anchored
+   location: no area or destination ZIP on record, so location was not used to rank
+   would draft 6 (of 68 considered, 0 outside the stated area)
+     • [strong_candidate] Abacus Alamo Ranch (78253) — no band
+     • [strong_candidate] Canyon Point (78232) — no band
+     • [strong_candidate] Indian Hollow (78216) — no band
+     • [strong_candidate] Judson Pointe (78247) — no band
+     • [strong_candidate] Peaks at Universal City (78148) — no band
+     • [strong_candidate] Preston Peak (78229) — no band
