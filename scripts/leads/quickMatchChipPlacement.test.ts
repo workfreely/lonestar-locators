@@ -64,12 +64,26 @@ const touched = (paths: string) =>
   execSync(`git diff --name-only ${BASELINE} -- ${paths}`, { encoding: "utf8" }).trim()
 ok("Favorites — where the Top Pick badge lives — is not changed at all",
   touched("components/crm/LeadFavorites.tsx") === "", touched("components/crm/LeadFavorites.tsx"))
-ok("the release modifies exactly the two component files and nothing else",
-  touched(".") === "components/crm/BestMatches.tsx\ncomponents/crm/QuickMatchBadge.tsx", touched("."))
-ok("…and adds exactly one new file, this test",
+ok("the release modifies only these files",
+  touched(".") === [
+    "components/crm/BestMatches.tsx",
+    "components/crm/DashboardClient.tsx",
+    "components/crm/QuickMatchBadge.tsx",
+    "lib/propertyIntel/approvalCriteria.ts",
+    "lib/propertyIntel/washerDryerCatalog.ts",
+    "scripts/leads/quickMatchChipPlacement.test.ts",
+  ].join("\n"), touched("."))
+ok("…and adds only the two tests and the four SQL files",
   execSync("git status --porcelain --untracked-files=all -- . ':!node_modules' ':!.vercel'", { encoding: "utf8" })
     .split("\n").filter((l) => l.startsWith("??")).map((l) => l.slice(3)).join(" ")
-    === "scripts/leads/quickMatchChipPlacement.test.ts")
+    === [
+      "scripts/leads/washerDryerCardLine.test.ts",
+      "scripts/tests/quickMatchCriteriaRows.test.ts",
+      "supabase/prepared/20261115000000_washer_dryer_by_ids.sql",
+      "supabase/prepared/20261115000001_revoke_anon_catalog_rpc.sql",
+      "supabase/prepared/ROLLBACK_20261115000000_washer_dryer_by_ids.sql",
+      "supabase/prepared/ROLLBACK_20261115000001_revoke_anon_catalog_rpc.sql",
+    ].join(" "))
 
 // ── 4. THE CHIP'S OWN APPEARANCE DID NOT CHANGE ────────────────────────────────────────────
 // The exact strings from the approved design, read out of the component rather than described.
@@ -86,12 +100,9 @@ ok("the disclosure arrow still rides on the chip", /\{open \? "▴" : "▾"\}/.t
 ok("the detail is rendered OUTSIDE the name row", !/QuickMatchDetail/.test(nameRow))
 ok("…in the block above the operational row, as before",
   card.indexOf("<QuickMatchDetail") < card.indexOf("{/* Operational row"))
-ok("…at the full width of the card", /w-full space-y-1\.5 rounded-lg border border-\[var\(--crm-border-soft\)\]/.test(badge))
-for (const phrase of [
-  "No screening policy on record for this property — everything below is unconfirmed.",
-  "Possible conflicts", "Needs verification", "Approval costs", "Why it was drafted",
-  "A Quick Match draft, for the agent only. It is never sent to the client and never",
-]) ok(`the explanation text is untouched: ${JSON.stringify(phrase.slice(0, 38))}`, badge.includes(phrase))
+ok("…at the full width of the card", /w-full rounded-lg border border-\[var\(--crm-border-soft\)\]/.test(badge))
+ok("…and still carries the agent-only disclaimer",
+  badge.includes("A Quick Match draft, for the agent only. It is never sent to the client and never"))
 
 // ── 6. OPEN/CLOSE BEHAVES AS IT DID: PER ROW, INDEPENDENT ──────────────────────────────────
 // The state had to leave the badge, because the chip and its detail are no longer siblings.

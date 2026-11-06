@@ -1,5 +1,5 @@
 "use client"
-import { useEffect, useRef, useState, useCallback } from "react"
+import { useEffect, useMemo, useRef, useState, useCallback } from "react"
 import BeastPropertyExplorer from "@/components/crm/explorer/BeastPropertyExplorer"
 import MapPropertyEditor from "@/components/crm/MapPropertyEditor"
 import { favoriteMoveBlock, visibleRecommendations } from "@/lib/leads/propertyCollections"
@@ -91,6 +91,9 @@ import { supabase } from "@/lib/supabase/client"
 import { loadReasonsForLead, saveReasons as saveCanonicalReasons, saveWasherDryer, saveAverageRent } from "@/lib/leads/propertyReasons"
 import type { AverageRentInputs } from "@/lib/leads/averageRent"
 import type { WasherDryerStatus } from "@/lib/leads/washerDryer"
+import { loadQuickMatchCollection } from "@/lib/quickMatch/collection"
+import { loadCatalogWasherDryer, type CatalogWasherDryer } from "@/lib/propertyIntel/washerDryerCatalog"
+import type { QuickMatchProperty } from "@/lib/quickMatch/types"
 import { ensureCommuteReasons } from "@/lib/commute/ensureCommute"
 import { getNextFollowUpAction } from "@/lib/workflowEngine"
 import { followUpSuccessorDueAt } from "@/lib/workflow/moveDateCadence"
@@ -469,6 +472,19 @@ export default function DashboardClient({ leads, nextActions, favorites, recomme
   // reasonsByKey — that map is read by two sections and passed to the Companion payload, and a
   // second small map is a far smaller change than a new shape for both.
   const [washerDryerByKey, setWasherDryerByKey] = useState<Map<string, WasherDryerStatus | null>>(new Map())
+  // The curated collection's RECORDED screening criteria, by canonical_property_key. Read once
+  // for the workspace through lb_quick_match_candidates — the same additive read path the
+  // engine uses, granted to `authenticated` and never to `anon`, so this adds no query shape
+  // and no second source of truth. Nothing here is written, ranked or matched: the Quick Match
+  // chip discloses these five values and nothing else reads the map.
+  const [quickMatchCriteriaByKey, setQuickMatchCriteriaByKey] =
+    useState<Map<string, QuickMatchProperty>>(new Map())
+  // PROPERTY-level washer/dryer for the properties currently on screen, by
+  // canonical_property_key. One ID-scoped batch, re-run when the set of recommended
+  // properties changes — which is what makes it correct immediately after a Quick Match run
+  // adds rows, rather than only after a reload.
+  const [catalogWasherDryerByKey, setCatalogWasherDryerByKey] =
+    useState<Map<string, CatalogWasherDryer>>(new Map())
   // The average-rent figures from the SAME canonical rows, flattened alongside the others.
   const [averageRentByKey, setAverageRentByKey] = useState<Map<string, AverageRentInputs>>(new Map())
   // AI Client Insights for the active lead, cached per lead id — the ≤4 bullets
@@ -733,6 +749,45 @@ export default function DashboardClient({ leads, nextActions, favorites, recomme
   const localNextActionsRef = useRef(localNextActions)
   // Reload the canonical reasons on client switch. Cheap (one indexed query per
   // client) and it keeps Favorites/Recommendations in step after any move.
+  // The place ids currently on screen for this client, as a stable string so the effect below
+  // re-runs when the SET changes — after a Quick Match run adds rows, after a ✕, after a move
+  // to Favorites — and not merely when the array identity does.
+  const recommendedPlaceIds = useMemo(() => {
+    const rows = visibleRecommendations(localRecommendations, localFavorites, selectedLead?.id)
+    const ids = rows
+      .map((r: any) => placeIdFromPropertyUrl(r?.property_url))
+      .filter((v: string | null): v is string => !!v)
+    return [...new Set(ids)].sort()
+  }, [localRecommendations, localFavorites, selectedLead?.id])
+
+  // ONE ID-scoped batch for those properties, through the washer/dryer lookup. Read-only, and
+  // a failure (including the function not existing yet) leaves the map empty, which renders no
+  // line rather than breaking the card.
+  useEffect(() => {
+    let active = true
+    if (recommendedPlaceIds.length === 0) { setCatalogWasherDryerByKey(new Map()); return }
+    void (async () => {
+      const byPlace = await loadCatalogWasherDryer(supabase, recommendedPlaceIds)
+      if (!active) return
+      setCatalogWasherDryerByKey(new Map([...byPlace].map(([pid, v]) => [`pid:${pid}`, v])))
+    })()
+    return () => { active = false }
+  }, [recommendedPlaceIds.join(",")])
+
+  // ONE load for the whole workspace, not per client: the criteria belong to the PROPERTY, so
+  // they do not change when the selected client does. A failure leaves the map empty, which the
+  // card reads as "nothing known" — the chip then offers no disclosure rather than printing
+  // five Unknowns, because silence and "we asked and nobody said" are different facts.
+  useEffect(() => {
+    let active = true
+    void (async () => {
+      const { properties } = await loadQuickMatchCollection(supabase)
+      if (!active) return
+      setQuickMatchCriteriaByKey(new Map(properties.map((p) => [`pid:${p.placeId}`, p])))
+    })()
+    return () => { active = false }
+  }, [])
+
   useEffect(() => {
     let active = true
     const id = selectedLeadId
@@ -4997,6 +5052,8 @@ export default function DashboardClient({ leads, nextActions, favorites, recomme
                     // sees this order on the NEXT list sent, never on one already frozen.
                     onReorder={handleReorderRecommendations}
                     washerDryerByKey={washerDryerByKey}
+                    quickMatchCriteriaByKey={quickMatchCriteriaByKey}
+                    catalogWasherDryerByKey={catalogWasherDryerByKey}
                     onSaveWasherDryer={handleSaveWasherDryer}
                     averageRentByKey={averageRentByKey}
                     onSaveAverageRent={handleSaveAverageRent}

@@ -54,3 +54,72 @@ export function asCatalogWasherDryerIncluded(v: unknown): string | null {
 export function asCatalogWasherDryerConnections(v: unknown): string | null {
   return typeof v === "string" && CONNECTIONS.has(v as never) ? v : null
 }
+
+// ── THE READ PATH, AND WHAT IT IS ALLOWED TO SAY ────────────────────────────────────────────
+// One ID-scoped batch through lb_property_washer_dryer_by_ids — the same shape and the same
+// 60-id cap as lb_property_catalog_by_ids, which this deliberately does NOT widen. The caller
+// chunks; the function rejects an over-cap request rather than truncating it.
+//
+// DEGRADES HONESTLY. Until the function exists in a database, the lookup returns an empty map
+// rather than throwing, so the card renders exactly as it does today instead of breaking. An
+// empty map is "nothing is known", which renders no line — never "no washer/dryer".
+import type { SupabaseClient } from "@supabase/supabase-js"
+import { WASHER_DRYER_LABEL, type WasherDryerStatus } from "@/lib/leads/washerDryer"
+
+/** The property-level pair, as recorded. Either side may be null. */
+export type CatalogWasherDryer = { included: string | null; connections: string | null }
+
+const CATALOG_WD_BATCH = 60
+
+export async function loadCatalogWasherDryer(
+  supabase: SupabaseClient,
+  placeIds: string[],
+): Promise<Map<string, CatalogWasherDryer>> {
+  const out = new Map<string, CatalogWasherDryer>()
+  const ids = [...new Set(placeIds)].filter(Boolean)
+  for (let i = 0; i < ids.length; i += CATALOG_WD_BATCH) {
+    const { data, error } = await supabase.rpc("lb_property_washer_dryer_by_ids", {
+      p_place_ids: ids.slice(i, i + CATALOG_WD_BATCH),
+    })
+    // A missing function, a permission error, anything: this is an amenity line, and a failure
+    // here must never cost the locator the rest of the card.
+    if (error || !data) continue
+    for (const r of data as Array<Record<string, unknown>>) {
+      out.set(String(r.place_id), {
+        included: asCatalogWasherDryerIncluded(r.washer_dryer_included),
+        connections: asCatalogWasherDryerConnections(r.washer_dryer_connections),
+      })
+    }
+  }
+  return out
+}
+
+/**
+ * THE ONE LINE THE CARD SHOWS, and the precedence behind it.
+ *
+ * A status CONFIRMED for this client and this property outranks everything: a person checked
+ * the floor plan this client would lease, which is the question the catalog cannot answer. Only
+ * when there is no confirmation does the property-level record speak, and then it says exactly
+ * what is recorded — including the two qualified states, which are the whole reason the
+ * confirmation exists.
+ *
+ * A catalog "No" renders NOTHING. The line is a standard detail, not a verdict, and "this
+ * property has no washer/dryer" is a claim worth making only where someone has confirmed it.
+ * Null everywhere → null here → no line at all.
+ */
+export function washerDryerCardLine(
+  confirmed: WasherDryerStatus | null | undefined,
+  catalog: CatalogWasherDryer | null | undefined,
+): { text: string; confirmed: boolean } | null {
+  if (confirmed) return { text: WASHER_DRYER_LABEL[confirmed], confirmed: true }
+  const included = catalog?.included ?? null
+  const connections = catalog?.connections ?? null
+  if (included === "Yes") return { text: WASHER_DRYER_LABEL.included, confirmed: false }
+  if (connections === "Yes") return { text: "Washer & Dryer Connections", confirmed: false }
+  // Qualified states, said as the catalog says them — never flattened into a flat "Included".
+  if (included === "Select Units" || included === "Specific Floor Plans") {
+    return { text: `Washer & Dryer — ${included}`, confirmed: false }
+  }
+  if (connections === "Select Units") return { text: "Washer & Dryer Connections — Select Units", confirmed: false }
+  return null
+}
