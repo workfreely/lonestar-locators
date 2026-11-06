@@ -1,6 +1,5 @@
 "use client"
 
-import { useState } from "react"
 import type { ReactNode } from "react"
 
 /**
@@ -111,67 +110,102 @@ function Group({ title, items, tone }: { title: string; items: string[]; tone: s
   )
 }
 
-export default function QuickMatchBadge({
+/** The chip's own text and colours, with the no-policy title substituted when it applies. */
+function chipFor(screening: QuickMatchScreening) {
+  const base = CHIP[screening.tier]
+  return screening.policyOnRecord === false ? { ...base, title: NO_POLICY_TITLE } : base
+}
+
+/** Everything the panel would show. Nothing to show → the chip carries no disclosure arrow
+ *  and the panel is never rendered, exactly as before. */
+export function quickMatchDetailLines(screening: QuickMatchScreening): string[] {
+  return [
+    ...(screening.conflicts ?? []),
+    ...(screening.unverified ?? []),
+    ...(screening.conditions ?? []),
+    ...(screening.reasons ?? []),
+  ]
+}
+
+export function quickMatchHasDetail(screening: QuickMatchScreening): boolean {
+  return quickMatchDetailLines(screening).length > 0
+    || screening.policyOnRecord === false
+    || !!screening.geography
+}
+
+/**
+ * THE CHIP. Split out from the panel so the card can place it beside the property name, in the
+ * same name-row slot the Top Pick badge occupies, while the detail it opens keeps the full card
+ * width below. Chip and panel are one disclosure: the caller owns `open` and gives both the same
+ * value. Nothing about either one's appearance or wording changed in the split.
+ */
+export function QuickMatchChip({
+  screening,
+  open,
+  onToggle,
+  className = "",
+}: {
+  screening: QuickMatchScreening
+  open: boolean
+  onToggle: () => void
+  className?: string
+}): ReactNode {
+  const chip = chipFor(screening)
+  return (
+    <button
+      type="button"
+      onClick={onToggle}
+      aria-expanded={open}
+      aria-label={chip.title}
+      title={chip.title}
+      className={`inline-flex items-center gap-1 whitespace-nowrap rounded-lg border px-2.5 py-[3px] text-[11px] font-medium leading-none transition-colors hover:brightness-105 ${chip.cls} ${className}`}
+    >
+      <span className="font-semibold">{chip.label}</span>
+      {quickMatchHasDetail(screening) && (
+        <span aria-hidden className="text-[9px] opacity-70">{open ? "▴" : "▾"}</span>
+      )}
+    </button>
+  )
+}
+
+/** THE PANEL — the markup the chip used to carry, minus its own top margin, which is now the
+ *  caller's business because the chip no longer sits directly above it. Wording, grouping,
+ *  colours and spacing are unchanged. */
+export function QuickMatchDetail({
   screening,
   className = "",
 }: {
   screening: QuickMatchScreening
   className?: string
 }): ReactNode {
-  const [open, setOpen] = useState(false)
-  const base = CHIP[screening.tier]
+  if (!quickMatchHasDetail(screening)) return null
   const noPolicy = screening.policyOnRecord === false
-  const chip = noPolicy ? { ...base, title: NO_POLICY_TITLE } : base
-  const detail = [
-    ...(screening.conflicts ?? []),
-    ...(screening.unverified ?? []),
-    ...(screening.conditions ?? []),
-    ...(screening.reasons ?? []),
-  ]
-
+  // Agent-only detail, inside the card the chip belongs to. Not a panel, not a modal, and not a
+  // second list — it expands below the name row and collapses again.
   return (
-    <span className={`inline-flex flex-col items-start ${className}`}>
-      <button
-        type="button"
-        onClick={() => setOpen((v) => !v)}
-        aria-expanded={open}
-        aria-label={chip.title}
-        title={chip.title}
-        className={`inline-flex items-center gap-1 whitespace-nowrap rounded-lg border px-2.5 py-[3px] text-[11px] font-medium leading-none transition-colors hover:brightness-105 ${chip.cls}`}
-      >
-        <span className="font-semibold">{chip.label}</span>
-        {(detail.length > 0 || noPolicy || screening.geography) && (
-          <span aria-hidden className="text-[9px] opacity-70">{open ? "▴" : "▾"}</span>
-        )}
-      </button>
-      {open && (detail.length > 0 || noPolicy || screening.geography) && (
-        // Agent-only detail, inside the card the chip belongs to. Not a panel, not a modal, and
-        // not a second list — it expands under the chip and collapses again.
-        <div className="mt-1.5 w-full space-y-1.5 rounded-lg border border-[var(--crm-border-soft)] bg-[var(--crm-card)] px-2.5 py-2">
-          {noPolicy && (
-            // FIRST, and in its own words. A row that reached the agent on geography alone must
-            // say so before it says anything else.
-            <p className="text-[11px] font-semibold leading-snug text-[#8a5a10]">
-              No screening policy on record for this property — everything below is unconfirmed.
-            </p>
-          )}
-          {screening.geography && (
-            <p className="text-[11px] leading-snug text-[var(--crm-text-secondary)]">{screening.geography}</p>
-          )}
-          <Group title="Possible conflicts" items={screening.conflicts ?? []} tone="text-[#b42318]" />
-          <Group title="Needs verification" items={screening.unverified ?? []} tone="text-[#8a5a10]" />
-          <Group title="Approval costs" items={screening.conditions ?? []} tone="text-[var(--crm-text-secondary)]" />
-          {/* The geographic sentence is shown above, so it is dropped from the list here: one
-              fact, one place on the card. */}
-          <Group title="Why it was drafted"
-            items={(screening.reasons ?? []).filter((r) => r !== screening.geography)}
-            tone="text-[var(--crm-text-muted)]" />
-          <p className="pt-0.5 text-[10px] leading-snug text-[var(--crm-text-muted)]">
-            A Quick Match draft, for the agent only. It is never sent to the client and never
-            promises approval.
-          </p>
-        </div>
+    <div className={`w-full space-y-1.5 rounded-lg border border-[var(--crm-border-soft)] bg-[var(--crm-card)] px-2.5 py-2 ${className}`}>
+      {noPolicy && (
+        // FIRST, and in its own words. A row that reached the agent on geography alone must
+        // say so before it says anything else.
+        <p className="text-[11px] font-semibold leading-snug text-[#8a5a10]">
+          No screening policy on record for this property — everything below is unconfirmed.
+        </p>
       )}
-    </span>
+      {screening.geography && (
+        <p className="text-[11px] leading-snug text-[var(--crm-text-secondary)]">{screening.geography}</p>
+      )}
+      <Group title="Possible conflicts" items={screening.conflicts ?? []} tone="text-[#b42318]" />
+      <Group title="Needs verification" items={screening.unverified ?? []} tone="text-[#8a5a10]" />
+      <Group title="Approval costs" items={screening.conditions ?? []} tone="text-[var(--crm-text-secondary)]" />
+      {/* The geographic sentence is shown above, so it is dropped from the list here: one
+          fact, one place on the card. */}
+      <Group title="Why it was drafted"
+        items={(screening.reasons ?? []).filter((r) => r !== screening.geography)}
+        tone="text-[var(--crm-text-muted)]" />
+      <p className="pt-0.5 text-[10px] leading-snug text-[var(--crm-text-muted)]">
+        A Quick Match draft, for the agent only. It is never sent to the client and never
+        promises approval.
+      </p>
+    </div>
   )
 }

@@ -1,12 +1,13 @@
 "use client"
 
+import { useState } from "react"
 import { SectionCard } from "./LeadPanelSections"
 import ReasonsControl from "./ReasonsControl"
 import PropertyPricingEditor from "./PropertyPricingEditor"
 import PropertyThumb from "./PropertyThumb"
 import PromoBadges from "./PromoBadges"
 import CommissionBadge from "./CommissionBadge"
-import QuickMatchBadge, { readScreening } from "./QuickMatchBadge"
+import { QuickMatchChip, QuickMatchDetail, readScreening } from "./QuickMatchBadge"
 import { MAX_REASONS } from "@bc/companion-shared"
 import { displayReasons } from "@/lib/leads/bedroomPricing"
 import { placeIdFromPropertyUrl } from "@/lib/propertyExplorer/types"
@@ -103,6 +104,19 @@ export default function BestMatches({
   // new order and the caller persists 1..N, so there is no second source of truth here.
   const canReorder = typeof onReorder === "function" && leadRecommendations.length > 1
   const rowIds = leadRecommendations.map((r) => String(r.id))
+  // WHICH ROWS HAVE THEIR QUICK MATCH DETAIL OPEN. The state moved out of the badge only
+  // because the chip and the detail it opens no longer sit next to each other in the tree —
+  // the chip is in the name row, the detail is below the card's top block. A SET, not a single
+  // id, so each row opens and closes on its own exactly as it did when the badge owned its own
+  // `open`: opening one row has never closed another, and it still does not.
+  const [openScreening, setOpenScreening] = useState<ReadonlySet<string>>(() => new Set())
+  const toggleScreening = (id: string) =>
+    setOpenScreening((prev) => {
+      const next = new Set(prev)
+      if (!next.delete(id)) next.add(id)
+      return next
+    })
+
   // A 5px threshold: a press that never travels is a CLICK and must still reach the control it
   // landed on. Keyboard sorting comes free with dnd-kit's own coordinate getter.
   const sensors = useSensors(
@@ -192,13 +206,43 @@ export default function BestMatches({
                 const recHref = propertyWebsiteHref((r as { website_url?: string | null }).website_url)
                 return (
                   <div className="min-w-0 flex-1">
-                    {/* Name row — property name (typography unchanged) + top-right controls. */}
+                    {/* Name row — property name (typography unchanged) + top-right controls.
+                        THE QUICK MATCH CHIP SITS WITH THE NAME, in the same slot and by the
+                        same pattern Favorites gives its Top Pick badge: name and chip share an
+                        inner `min-w-0 flex items-center gap-1.5` group on the left, the
+                        controls stay the right-hand item of the justify-between row. A long
+                        name truncates and the flex-none chip holds its place, rather than the
+                        chip being pushed off the card.
+
+WRAP, measured rather than assumed. On a 390px phone this row is
+                        192px wide and the "Quick Match · Verify" chip is 142 of them, which
+                        left a long name rendering as two characters and an ellipsis. So the
+                        group wraps: wherever the name and the chip both fit they share a line,
+                        which is every desktop width and every ordinary property name on a
+                        phone, and where they do not the chip drops onto its own line directly
+                        beneath the name — where it sits in production today — with the name
+                        shown in full. Neither is ever clipped to illegibility, and the group
+                        takes the row's spare width (flex-1) so the controls keep their corner. */}
                     <div className="flex items-center justify-between gap-2">
-                      {recHref ? (
-                        <a href={recHref} target="_blank" rel="noopener noreferrer" className="min-w-0 truncate text-[12.5px] font-semibold text-[var(--crm-accent)] hover:underline">{r.property_name}</a>
-                      ) : (
-                        <p className="min-w-0 truncate text-[12.5px] font-semibold text-[var(--crm-text-primary)]">{r.property_name}</p>
-                      )}
+                      <div className="min-w-0 flex-1 flex flex-wrap items-center gap-1.5">
+                        {recHref ? (
+                          <a href={recHref} target="_blank" rel="noopener noreferrer" className="min-w-0 truncate text-[12.5px] font-semibold text-[var(--crm-accent)] hover:underline">{r.property_name}</a>
+                        ) : (
+                          <p className="min-w-0 truncate text-[12.5px] font-semibold text-[var(--crm-text-primary)]">{r.property_name}</p>
+                        )}
+                        {/* Colour, wording, type size and padding are the chip's own, unchanged;
+                            only where it sits has moved. The detail it opens keeps the full card
+                            width below — a disclosure squeezed into a name-row column would be a
+                            change to the dropdown, which this is not. */}
+                        {screening && (
+                          <QuickMatchChip
+                            className="flex-none"
+                            screening={screening}
+                            open={openScreening.has(String(r.id))}
+                            onToggle={() => toggleScreening(String(r.id))}
+                          />
+                        )}
+                      </div>
                       {(onRemoveRecommendation || onMoveToFavorite || (canEditPricing && pricingPlaceId)) && (
                         <div className="flex flex-none items-center gap-1.5">
                           {onRemoveRecommendation && (
@@ -279,14 +323,13 @@ export default function BestMatches({
                 )
               })()}
               </div>
-              {/* QUICK MATCH — a chip on this card, never a panel of its own. Present only on a
-                  generated row; the chip names the tier and expands the agent-facing detail
-                  (possible conflicts, open questions, approval costs) inside the same card.
-                  Above the operational row so Commission keeps the bottom-right corner it has
-                  always had. */}
-              {screening && (
+              {/* QUICK MATCH DETAIL — what the chip in the name row opens: the agent-facing
+                  reading (possible conflicts, open questions, approval costs) at the full width
+                  of the card it belongs to, and still above the operational row, so Commission
+                  keeps the bottom-right corner it has always had. */}
+              {screening && openScreening.has(String(r.id)) && (
                 <div className="mt-2">
-                  <QuickMatchBadge screening={screening} className="w-full" />
+                  <QuickMatchDetail screening={screening} />
                 </div>
               )}
               {/* Operational row — Recommended has no Guest Card / Schedule Tour actions,
