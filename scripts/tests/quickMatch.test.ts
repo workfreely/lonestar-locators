@@ -694,9 +694,9 @@ const sameTier = rankRecommendations([
   { property: assessedAt(2, "two"), assessment: assessProperty(assessedAt(2, "two"), c540), travelMinutes: null },
 ], needs({ geography: stoneOak }))
 ok("within one tier the nearer property wins", sameTier[0].property.placeId === "two")
-// The measurement recorded in GEO_WEIGHT: band must NOT outrank tier. This is the Rebecca
-// Hansford case in miniature — eight properties she is known to qualify for, one mile further
-// out than six about which nothing is recorded.
+// The measurement recorded in GEO_WEIGHT: band must NOT outrank tier. This is the live case
+// described there, in miniature — eight properties the client is known to qualify for, one mile
+// further out than six about which nothing is recorded.
 ok("a NEARER property with nothing on record never displaces a further one that is assessed",
   rankRecommendations([
     { property: atMiles(0.5, { placeId: "closest-bare" }), assessment: assessProperty(atMiles(0.5, { placeId: "closest-bare" }), c540), travelMinutes: null },

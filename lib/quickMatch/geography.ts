@@ -136,8 +136,8 @@ export type GeoBand = "destination_zip" | "in_area" | "adjacent" | "nearby"
  * tiers (300,000) and far larger than every housing term together (hundreds).
  *
  * That ordering was measured, not assumed. Ranking by band ABOVE screening tier was tried first
- * and rejected on the real data: Rebecca Hansford (lead 101) has eight curated properties whose
- * stated credit minimums she meets, and band-first ordering replaced all eight with six
+ * and rejected on the real data: one credit-challenged client had eight curated properties whose
+ * stated credit minimums they meet, and band-first ordering replaced all eight with six
  * properties that have no policy on record at all, because they sat one mile closer. For a
  * credit-challenged renter that is the wrong trade — the agent's problem is approval — and
  * "search the area, THEN evaluate screening compatibility" is a pool followed by an assessment,

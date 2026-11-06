@@ -3,7 +3,7 @@
  *
  *   npx tsx scripts/leads/profileZipAndDate.test.ts
  *
- * Two defects in one modal, found by opening Lance Tello's profile:
+ * Two defects in one modal, found by opening a client profile:
  *
  *   • a move-in year of 3030 was selectable. The two-year rule has been deployed since
  *     lib/leads/moveDate shipped, but this picker had neither minDate nor maxDate, and Edit
