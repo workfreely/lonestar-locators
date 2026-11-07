@@ -10,6 +10,7 @@ import { useRouter } from "next/navigation"
 import { supabase } from "@/lib/supabase/client"
 import { POST_STATUS_LABEL, type PostStatus } from "@/lib/social/postStatus"
 import { previewAspectClass } from "@/lib/social/postTypes"
+import { formatSocialEditableDate, parseSocialEditableDate } from "@/lib/social/displayName"
 import { SiInstagram, SiTiktok, SiYoutube } from "react-icons/si"
 import type { IconType } from "react-icons"
 import { buildHashtags, normalizeHashtag, hashtagLimitFor, MAX_HASHTAGS } from "@/lib/social/hashtags"
@@ -405,9 +406,17 @@ export default function PostEditor({ postId, from }: { postId: string; from?: st
   // "(Penthouses Showcase)" qualifier belongs. Keeping them apart is the whole point: a qualifier
   // typed into the property field used to clear the match, which disabled Building Type.
   //
-  // loadedDisplayName is the value the server sent. patchSource sends displayName ONLY when it
-  // differs, because the content PATCH sets name_customized = true for ANY displayName it
-  // receives — sending it on every save would silently freeze every video's auto-naming.
+  // loadedDisplayName is the value the server sent, in its STORED ISO form. patchSource sends
+  // displayName ONLY when it differs, because the content PATCH sets name_customized = true for
+  // ANY displayName it receives — sending it on every save would silently freeze every video's
+  // auto-naming.
+  //
+  // THE FIELD SHOWS MM-DD-YYYY, THE COLUMN KEEPS ISO. `displayName` below holds the SHOWN value
+  // (formatSocialEditableDate of what the server sent); loadedDisplayName keeps the stored one,
+  // unformatted, so the two are never confused. The save path converts back with
+  // parseSocialEditableDate before the PATCH, and decides "did the operator touch this?" by
+  // comparing the shown value against the shown form of what was loaded — never by comparing a
+  // shown value against a stored one, which would read as an edit on every open.
   const [displayName, setDisplayName] = useState("")
   const loadedDisplayName = useRef("")
   const [propertyType, setPropertyType] = useState("")
@@ -562,7 +571,7 @@ export default function PostEditor({ postId, from }: { postId: string; from?: st
       setScheduleVal(isoToLocalInput(p.scheduledAt))
       setSourceContentId(p.sourceContentId ?? null)
       setPropertyName(p.source?.propertyName ?? "")
-      setDisplayName(p.source?.displayName ?? "")
+      setDisplayName(formatSocialEditableDate(p.source?.displayName ?? ""))
       loadedDisplayName.current = p.source?.displayName ?? ""
       setPropertyType(p.source?.propertyType ?? "")
       setMarket(p.source?.market ?? "")
@@ -685,11 +694,15 @@ export default function PostEditor({ postId, from }: { postId: string; from?: st
       body: JSON.stringify({
         propertyName, propertyType, market, areaNeighborhood, district, placeId, special,
         budgetRange: priceRange, priceLabelMode: priceMode, amenities,
-        // Only when the operator actually changed it — see loadedDisplayName.
-        ...(displayName !== loadedDisplayName.current ? { displayName } : {}),
+        // Only when the operator actually changed it — see loadedDisplayName. The comparison is
+        // shown-vs-shown and the value sent is the canonical ISO one, so reopening and saving a
+        // title nobody edited sends nothing and cannot set name_customized.
+        ...(displayName !== formatSocialEditableDate(loadedDisplayName.current)
+          ? { displayName: parseSocialEditableDate(displayName) }
+          : {}),
       }),
     })
-    if (res.ok) loadedDisplayName.current = displayName
+    if (res.ok) loadedDisplayName.current = parseSocialEditableDate(displayName)
     return res.ok
   }, [sourceContentId, propertyName, displayName, propertyType, market, areaNeighborhood, district, placeId, special, priceRange, priceMode, amenities])
 

@@ -93,6 +93,68 @@ export function formatSocialDisplayName(name: string | null | undefined): string
 }
 
 /**
+ * ── THE VIDEO EDITOR'S PAIR: MM-DD-YYYY in, ISO back out ────────────────────────────────────
+ *
+ * The Post Editor's Video Title field is an INPUT whose value is saved back to
+ * social_content.display_name, which is why formatSocialDisplayDate was deliberately kept away
+ * from it — rendering "Oct 17, 2026" into an input saves a month name into the column on the
+ * next edit. These two do the same job for a writable field, as an exact round trip:
+ *
+ *   formatSocialEditableDate  stored → shown    "… - 2026-10-17 - 01"  →  "… - 10-17-2026 - 01"
+ *   parseSocialEditableDate   shown  → stored   "… - 10-17-2026 - 01"  →  "… - 2026-10-17 - 01"
+ *
+ * parse(format(x)) === x for every name, and each is a no-op on the other's output: ISO needs
+ * `\d{4}-\d{2}-\d{2}` and MM-DD-YYYY needs `\d{2}-\d{2}-\d{4}`, so neither pattern can read the
+ * other's result and no date can be converted twice.
+ *
+ * SEGMENT-ANCHORED, UNLIKE formatSocialDisplayDate. These match only a whole ` - ` separated
+ * segment that is ENTIRELY a date — the shape buildSocialDisplayName emits, since it joins its
+ * parts with " - ". The deployed display-only formatter can afford a loose \b scan because it
+ * only ever writes to the screen; this pair writes to the database, and a loose scan would
+ * rewrite a hand-typed "Unit 01-02-2020 Reno" into "Unit 2020-01-02 Reno" on save. Anchoring to
+ * a full segment makes corrupting a manually edited title impossible.
+ *
+ * NO Date IS CONSTRUCTED here either, for the same reason as above: this is digit reordering,
+ * validated against the same daysInMonth leap rule, so there is no instant that can shift a day.
+ * An unreal date (2026-02-31, or 13-01-2026 typed by hand) is left exactly as it is — showing
+ * the raw value is the more honest failure, and it still round-trips untouched.
+ */
+const SEP = " - "
+
+function mapSegments(name: string | null | undefined, fn: (seg: string) => string): string {
+  if (!name) return ""
+  return name.split(SEP).map(fn).join(SEP)
+}
+
+/** A real calendar day, by the same leap rule the month table above uses. */
+function isRealDay(year: number, month: number, day: number): boolean {
+  if (month < 1 || month > 12) return false
+  return day >= 1 && day <= daysInMonth(year, month)
+}
+
+/** Stored ISO → the Video Editor's MM-DD-YYYY. Everything else is returned exactly as stored. */
+export function formatSocialEditableDate(name: string | null | undefined): string {
+  return mapSegments(name, (seg) => {
+    const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(seg)
+    if (!m) return seg
+    const [, y, mm, dd] = m
+    if (!isRealDay(Number(y), Number(mm), Number(dd))) return seg
+    return `${mm}-${dd}-${y}`
+  })
+}
+
+/** The Video Editor's MM-DD-YYYY → stored ISO. The inverse of the above, and a no-op on ISO. */
+export function parseSocialEditableDate(name: string | null | undefined): string {
+  return mapSegments(name, (seg) => {
+    const m = /^(\d{2})-(\d{2})-(\d{4})$/.exec(seg)
+    if (!m) return seg
+    const [, mm, dd, y] = m
+    if (!isRealDay(Number(y), Number(mm), Number(dd))) return seg
+    return `${y}-${mm}-${dd}`
+  })
+}
+
+/**
  * Drop the trailing ` - NN` batch sequence from a DISPLAYED name.
  *
  *   "EastEnder - Dallas - Oct 4, 2026 - 01"  →  "EastEnder - Dallas - Oct 4, 2026"

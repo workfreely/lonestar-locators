@@ -15,8 +15,11 @@
  * table, one leap rule, one place where a date becomes words.
  *
  * NOTHING IS STORED DIFFERENTLY. buildSocialDisplayName still writes YYYY-MM-DD, the database keeps
- * it, search still matches it, and the Post Editor's Video Title field still shows the raw stored
- * value — formatting that input would save a month name back into display_name on the next edit.
+ * it, and search still matches it. The Post Editor's Video Title field is deliberately NOT given
+ * this formatter — it is an input saved back to the column, and a month name written into it would
+ * be saved on the next edit. It shows MM-DD-YYYY instead, through the round-tripping
+ * formatSocialEditableDate / parseSocialEditableDate pair, proved in
+ * scripts/social/videoEditorTitleDate.test.ts.
  *
  * Run: npx tsx scripts/social/videoTitleDate.test.ts
  */
@@ -125,7 +128,11 @@ console.log("\none rule, two exports")
     /export function formatSocialDisplayName[\s\S]{0,160}?formatSocialDisplayDate\(name\)/.test(impl),
   )
   ok("…and there is only ONE month table in the module", (impl.match(/MONTHS_SHORT = \[/g) ?? []).length === 1)
-  ok("…and only ONE date regex", (impl.match(/\\d\{4\}\)-\(\\d\{2\}\)-\(\\d\{2\}/g) ?? []).length === 1)
+  // Precise to the ISO→WORDS rewrite, which is what must not be copied: it is the \b-scanning
+  // global one. formatSocialEditableDate/parseSocialEditableDate carry their own ^…$ anchored
+  // regexes on purpose — a different rule, reordering digits for a WRITABLE field.
+  ok("…and only ONE date-to-words regex", (impl.match(/\\b\(\\d\{4\}\)-\(\\d\{2\}\)-\(\\d\{2\}\)\\b/g) ?? []).length === 1)
+  ok("…and only ONE place turns a date into words", (impl.match(/MONTHS_SHORT\[/g) ?? []).length === 1)
   for (const n of ["Selene - Dallas - 2026-10-02 - 01", "Knox 1200 - Dallas - 2026-09-09 - 17", "no date here"]) {
     ok(
       `the pair agree on the date for ${JSON.stringify(n)}`,
@@ -167,11 +174,19 @@ ok(
 {
   const editor = strip(read("components/crm/social/PostEditor.tsx"))
   ok(
-    "the Post Editor's Video Title field still shows the RAW stored value",
+    "the Post Editor's Video Title field carries no month-name formatter",
     /value=\{displayName\}/.test(editor) && !/value=\{formatSocialDisplay/.test(editor),
-    "formatting this input would save a month name back into display_name",
+    "formatting this input with formatSocialDisplayDate would save a month name back into display_name",
   )
-  ok("…and still loads it unformatted", /setDisplayName\(p\.source\?\.displayName \?\? ""\)/.test(editor))
+  ok("…and never loads one into the field either", !/setDisplayName\(formatSocialDisplay/.test(editor))
+  // It is no longer loaded unformatted: the field shows MM-DD-YYYY. That is safe where a month
+  // name was not, because the pair is an exact round trip and the save path converts back —
+  // see scripts/social/videoEditorTitleDate.test.ts for the inverse and no-op proofs.
+  ok(
+    "…it loads through the editable pair and saves back through its inverse",
+    /setDisplayName\(formatSocialEditableDate\(/.test(editor) &&
+      /displayName: parseSocialEditableDate\(displayName\)/.test(editor),
+  )
 }
 for (const f of [
   "app/api/admin/social-autopilot/content/route.ts",
