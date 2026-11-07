@@ -8,6 +8,8 @@ import PropertyThumb from "./PropertyThumb"
 import PromoBadges from "./PromoBadges"
 import CommissionBadge from "./CommissionBadge"
 import { QuickMatchChip, QuickMatchDetail, readScreening } from "./QuickMatchBadge"
+import { screeningCriteriaRows } from "@/lib/propertyIntel/approvalCriteria"
+import type { QuickMatchProperty } from "@/lib/quickMatch/types"
 import { MAX_REASONS } from "@bc/companion-shared"
 import { displayReasons } from "@/lib/leads/bedroomPricing"
 import { placeIdFromPropertyUrl } from "@/lib/propertyExplorer/types"
@@ -21,6 +23,7 @@ import SortableRow from "./SortableRow"
 import { CSS } from "@dnd-kit/utilities"
 import { moveItem } from "@/lib/leads/recommendationOrder"
 import type { WasherDryerStatus } from "@/lib/leads/washerDryer"
+import { washerDryerCardLine, type CatalogWasherDryer } from "@/lib/propertyIntel/washerDryerCatalog"
 import { bedroomLineRentOverride, type AverageRentInputs } from "@/lib/leads/averageRent"
 
 // Recommended Properties — the canonical per-client Recommendations collection
@@ -50,6 +53,8 @@ export default function BestMatches({
   onReorder,
   washerDryerByKey,
   onSaveWasherDryer,
+  quickMatchCriteriaByKey,
+  catalogWasherDryerByKey,
   averageRentByKey,
   onSaveAverageRent,
 }: {
@@ -88,6 +93,20 @@ export default function BestMatches({
   washerDryerByKey?: Map<string, WasherDryerStatus | null>
   /** Persist the status for ONE client-property pair. Absent → no dropdown is offered. */
   onSaveWasherDryer?: (canonicalPropertyKey: string, next: WasherDryerStatus | null) => Promise<boolean>
+  /**
+   * The curated collection's recorded screening criteria, by canonical_property_key — READ ONLY,
+   * loaded once for the workspace from the same lb_quick_match_candidates read path the engine
+   * uses. Absent, or missing a key, means nothing is known here and the chip offers no
+   * disclosure; it never means "no requirements".
+   */
+  quickMatchCriteriaByKey?: Map<string, QuickMatchProperty>
+  /**
+   * PROPERTY-level washer/dryer, by canonical_property_key — read-only, one ID-scoped batch
+   * per client through lb_property_washer_dryer_by_ids. It is the FALLBACK: a status confirmed
+   * for this client and this property outranks it, and neither reaches the renter's page,
+   * which still renders only from a confirmation.
+   */
+  catalogWasherDryerByKey?: Map<string, CatalogWasherDryer>
   /** The confirmed average-rent figures per canonical_property_key, for THIS client. */
   averageRentByKey?: Map<string, AverageRentInputs>
   /** Persist all five figures for ONE pair. Absent → no average-rent control is offered. */
@@ -173,6 +192,16 @@ export default function BestMatches({
             // looks exactly as it does today for every manually chosen property. The column is
             // one neither share function names, so this never reaches the client-facing page.
             const screening = readScreening((r as { screening?: unknown }).screening)
+            // The five criteria the chip discloses, derived from the property's OWN recorded
+            // Approval Criteria — never from the screening verdict stored on this row.
+            // The standard-detail washer/dryer line. Confirmed-for-this-client first, then the
+            // property record; null from both renders nothing at all.
+            const wdLine = washerDryerCardLine(
+              washerDryerByKey?.get(String(r.canonical_property_key)) ?? null,
+              catalogWasherDryerByKey?.get(String(r.canonical_property_key)) ?? null,
+            )
+            const qmProperty = quickMatchCriteriaByKey?.get(String(r.canonical_property_key))
+            const criteria = qmProperty ? screeningCriteriaRows(qmProperty) : null
 
             // The SAVED reasons (canonical, locator-owned) and the DISPLAY list (those plus
             // the derived bedroom price). They are deliberately separate values: the editor
@@ -238,6 +267,7 @@ WRAP, measured rather than assumed. On a 390px phone this row is
                           <QuickMatchChip
                             className="flex-none"
                             screening={screening}
+                            criteria={criteria}
                             open={openScreening.has(String(r.id))}
                             onToggle={() => toggleScreening(String(r.id))}
                           />
@@ -319,6 +349,22 @@ WRAP, measured rather than assumed. On a 390px phone this row is
                         )}
                       </div>
                     )}
+                    {/* WASHER / DRYER — a STANDARD PROPERTY DETAIL, with the address and the
+                        rating, not one of the three "Why I chose this" highlights. Those are
+                        the locator's reasons for this client; this is a fact about the unit,
+                        and the same line renders on a hand-picked row and a Quick Match row
+                        because it is resolved below both. The tooltip, not a second colour,
+                        carries where the value came from: one muted line, one treatment. */}
+                    {wdLine && (
+                      <p
+                        className="mt-0.5 text-[11px] text-[var(--crm-text-muted)]"
+                        title={wdLine.confirmed
+                          ? "Confirmed for this client — this is what their recommendation page shows."
+                          : "Recorded for the property in Property Intelligence. Confirm it for this client to send it."}
+                      >
+                        {wdLine.text}
+                      </p>
+                    )}
                   </div>
                 )
               })()}
@@ -329,7 +375,7 @@ WRAP, measured rather than assumed. On a 390px phone this row is
                   keeps the bottom-right corner it has always had. */}
               {screening && openScreening.has(String(r.id)) && (
                 <div className="mt-2">
-                  <QuickMatchDetail screening={screening} />
+                  <QuickMatchDetail criteria={criteria} />
                 </div>
               )}
               {/* Operational row — Recommended has no Guest Card / Schedule Tour actions,

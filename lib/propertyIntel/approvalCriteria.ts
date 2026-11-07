@@ -392,3 +392,39 @@ export function approvalValueToInput(v: unknown): string {
 export function groupHasStoredDetail(values: Array<unknown>): boolean {
   return values.some((v) => v !== null && v !== undefined && v !== "")
 }
+
+/**
+ * THE FIVE CRITERIA A LOCATOR SCANS, each as one row of label and value.
+ *
+ * One vocabulary, read out of the option lists above rather than restated — a label edited there
+ * changes here, and a token this file does not know reads as Unknown rather than as a policy.
+ *
+ * NULL IS PRINTED, NOT HIDDEN. "Unknown" means nobody has asked the office, and a blank row
+ * would read as "no requirement". Of the 68 curated San Antonio properties, 8 record a credit
+ * minimum and none records a broken-lease or eviction status, so most of these rows say Unknown
+ * today; that is the state of the research, and showing it is the point.
+ */
+export type ScreeningCriterionRow = { label: string; value: string; recorded: boolean }
+
+const labelFor = (options: Option[], token: string | null | undefined): string =>
+  options.find((o) => o.value === (token ?? ""))?.label ?? "Unknown"
+
+export function screeningCriteriaRows(p: {
+  creditMinimumScore: number | null
+  brokenLeaseStatus: string | null
+  evictionStatus: string | null
+  misdemeanorPolicy: string | null
+  felonyPolicy: string | null
+}): ScreeningCriterionRow[] {
+  const row = (label: string, value: string, recorded: boolean): ScreeningCriterionRow =>
+    ({ label, value: recorded ? value : "Unknown", recorded })
+  return [
+    row("Minimum Credit Score",
+      typeof p.creditMinimumScore === "number" ? String(p.creditMinimumScore) : "Unknown",
+      typeof p.creditMinimumScore === "number"),
+    row("Broken Lease Policy", labelFor(BROKEN_LEASE_STATUS_OPTIONS, p.brokenLeaseStatus), !!p.brokenLeaseStatus),
+    row("Eviction Policy", labelFor(EVICTION_STATUS_OPTIONS, p.evictionStatus), !!p.evictionStatus),
+    row("Misdemeanor", labelFor(MISDEMEANOR_POLICY_OPTIONS, p.misdemeanorPolicy), !!p.misdemeanorPolicy),
+    row("Felony", labelFor(FELONY_POLICY_OPTIONS, p.felonyPolicy), !!p.felonyPolicy),
+  ]
+}

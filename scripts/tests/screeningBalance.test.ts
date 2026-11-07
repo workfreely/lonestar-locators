@@ -4,7 +4,7 @@
 // Run: npx tsx scripts/tests/screeningBalance.test.ts   (pure — reads source)
 //
 // The value was never lost. Both lead forms ask "Approximate balance owed", the submit route
-// whitelists broken_lease_amount, and Paul Villarreal's row holds "$500-$1,000". The Credit
+// whitelists broken_lease_amount, and one client's row holds "$500-$1,000". The Credit
 // Screening card simply built its row out of the AGE alone.
 import { readFileSync } from "node:fs"
 

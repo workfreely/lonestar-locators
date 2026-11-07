@@ -694,9 +694,9 @@ const sameTier = rankRecommendations([
   { property: assessedAt(2, "two"), assessment: assessProperty(assessedAt(2, "two"), c540), travelMinutes: null },
 ], needs({ geography: stoneOak }))
 ok("within one tier the nearer property wins", sameTier[0].property.placeId === "two")
-// The measurement recorded in GEO_WEIGHT: band must NOT outrank tier. This is the Rebecca
-// Hansford case in miniature — eight properties she is known to qualify for, one mile further
-// out than six about which nothing is recorded.
+// The measurement recorded in GEO_WEIGHT: band must NOT outrank tier. This is the live case
+// described there, in miniature — eight properties the client is known to qualify for, one mile
+// further out than six about which nothing is recorded.
 ok("a NEARER property with nothing on record never displaces a further one that is assessed",
   rankRecommendations([
     { property: atMiles(0.5, { placeId: "closest-bare" }), assessment: assessProperty(atMiles(0.5, { placeId: "closest-bare" }), c540), travelMinutes: null },
@@ -992,12 +992,38 @@ console.log("\n═══ SOURCE DISCIPLINE — the promises a grep can hold")
   ok("…nor the market centroid catalogue both of them read",
     touched("lib/markets/catalog.ts") === "", touched("lib/markets/catalog.ts"))
   // Unleash reads exactly one RPC. No migration in this release redefines it or its grants.
-  const releaseSql = execSync(`git diff --name-only ${BASELINE} -- supabase`, { encoding: "utf8" })
-    .split("\n").filter((f) => f.endsWith(".sql") && existsSync(f)).map(read).join("\n")
+  const releaseSqlFiles = execSync(`git diff --name-only ${BASELINE} -- supabase`, { encoding: "utf8" })
+    .split("\n").filter((f) => f.endsWith(".sql") && existsSync(f))
+  const releaseSql = releaseSqlFiles.map(read).join("\n")
+  const isRollback = (f: string) => /(^|\/)ROLLBACK_/.test(f)
+  const sqlOf = (files: string[]) =>
+    files.map(read).join("\n").split("\n").map((l) => l.replace(/--.*$/, "")).join("\n")
+  const forwardSql = sqlOf(releaseSqlFiles.filter((f) => !isRollback(f)))
+  const rollbackSql = sqlOf(releaseSqlFiles.filter(isRollback))
   ok("no migration in this release redefines Unleash's lb_property_catalog_by_ids",
     !/(create|replace|drop|alter)\s+(or\s+replace\s+)?function\s+[a-z_.]*lb_property_catalog_by_ids/i.test(releaseSql))
-  ok("…and none grants or revokes on it either",
-    !/(grant|revoke)[^;]*lb_property_catalog_by_ids/i.test(releaseSql))
+  // THE GRANTS ON IT DO CHANGE, AND THAT IS THE POINT OF 20261115000001. This guard used to
+  // forbid any grant or revoke naming the function, which was right while the release carried no
+  // SQL; the approved security migration revokes EXECUTE from anon and from public and restates
+  // the authenticated grant that was always intended. So what is asserted now is the END STATE —
+  // nothing may hand this function back to anon or public — which is strictly more than the old
+  // blanket check, because that one would have passed a file containing no grants at all.
+  //
+  // Comments are stripped first: the migration quotes the ORIGINAL `… to anon, authenticated;`
+  // grant in its header to explain what it is undoing, and a blanket regex reads that quote as a
+  // live statement.
+  const grantsOf = (sql: string) => sql.match(/grant\s+execute[^;]*lb_property_catalog_by_ids[^;]*;/gi) ?? []
+  ok("…no migration this release APPLIES grants it to anon or to public",
+    !/grant[^;]*lb_property_catalog_by_ids[^;]*\bto\b[^;]*\b(anon|public)\b/i.test(forwardSql))
+  ok("…every grant it receives goes to authenticated and nothing else",
+    grantsOf(forwardSql).every((s) => /\bto\s+authenticated\s*;/i.test(s)), grantsOf(forwardSql).join(" | "))
+  ok("…and anon and public are both revoked from it",
+    /revoke\s+execute[^;]*lb_property_catalog_by_ids[^;]*from\s+anon\s*;/i.test(forwardSql) &&
+      /revoke\s+execute[^;]*lb_property_catalog_by_ids[^;]*from\s+public\s*;/i.test(forwardSql))
+  // The rollback is the one file that MAY hand it back, because undoing the revoke is its whole
+  // job. Pinned, so an accidental no-op rollback is not mistaken for a safe one.
+  ok("…while the rollback does restore the anon grant, which is what a rollback is for",
+    /grant\s+execute[^;]*lb_property_catalog_by_ids[^;]*\bto\b[^;]*\banon\b/i.test(rollbackSql))
 
   // 4. AGENT-ONLY. The screening column must not be named by either share function.
   for (const m of ["supabase/prepared/20261114000001_lead_quick_match_state.sql"]) {
