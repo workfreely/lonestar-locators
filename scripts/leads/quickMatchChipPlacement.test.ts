@@ -66,6 +66,15 @@ const touched = (paths: string) =>
   execSync(`git diff --name-only ${BASELINE} -- ${paths} ':!next-env.d.ts'`, { encoding: "utf8" }).trim()
 const added = () =>
   execSync(`git diff --name-only --diff-filter=A ${BASELINE} -- . ':!next-env.d.ts'`, { encoding: "utf8" }).trim()
+// ── THE TWO ENUMERATIONS BELOW ARE ABOUT A SHIPPED RELEASE, SO THEY NAME ITS TIP ────────────
+// They answer "what did the Quick Match release change", a closed question now that it is live
+// as dpl_dX9b7VPac4ax55zdLCX4DwEY9vZK. Measuring BASELINE..HEAD instead made them fail on any
+// later branch that merely CONTAINS the release — a forward merge of production into the next
+// release trips them while nothing about Quick Match has moved. Every other assertion in this
+// file still reads the working tree, so drift in the chip, the engine or the SQL is still caught.
+const RELEASE_TIP = "da6405e"
+const inRelease = (flags: string) =>
+  execSync(`git diff --name-only ${flags} ${BASELINE} ${RELEASE_TIP} -- . ':!next-env.d.ts'`, { encoding: "utf8" }).trim()
 /** Source with comments and whitespace removed — "did the CODE change", not "did a line change". */
 const code = (s: string) =>
   s.replace(/\/\*[\s\S]*?\*\//g, "").split("\n").map((l) => l.replace(/\/\/.*$/, "")).join("\n").replace(/\s+/g, " ").trim()
@@ -76,7 +85,7 @@ const codeChanged = (paths: string) =>
 ok("Favorites — where the Top Pick badge lives — is not changed at all",
   touched("components/crm/LeadFavorites.tsx") === "", touched("components/crm/LeadFavorites.tsx"))
 ok("the release modifies only these files",
-  touched(".") === [
+  inRelease("") === [
     "components/crm/BestMatches.tsx",
     "components/crm/DashboardClient.tsx",
     "components/crm/QuickMatchBadge.tsx",
@@ -98,11 +107,11 @@ ok("the release modifies only these files",
     "supabase/prepared/20261115000001_revoke_anon_catalog_rpc.sql",
     "supabase/prepared/ROLLBACK_20261115000000_washer_dryer_by_ids.sql",
     "supabase/prepared/ROLLBACK_20261115000001_revoke_anon_catalog_rpc.sql",
-  ].join("\n"), touched("."))
+  ].join("\n"), inRelease(""))
 // Written while the work was uncommitted, so it counted untracked files. The release is
 // committed now, so the same question — what does this release ADD — is asked of the diff.
 ok("…and adds only the tests, the four SQL files and the deployment record",
-  added() === [
+  inRelease("--diff-filter=A") === [
     "docs/reports/README.md",
     "docs/reports/quick-match-2026-11-04/quick-match-chips.png",
     "docs/reports/quick-match-2026-11-05/DEPLOYED.md",
@@ -115,7 +124,7 @@ ok("…and adds only the tests, the four SQL files and the deployment record",
     "supabase/prepared/20261115000001_revoke_anon_catalog_rpc.sql",
     "supabase/prepared/ROLLBACK_20261115000000_washer_dryer_by_ids.sql",
     "supabase/prepared/ROLLBACK_20261115000001_revoke_anon_catalog_rpc.sql",
-  ].join("\n"), added())
+  ].join("\n"), inRelease("--diff-filter=A"))
 
 // ── 4. THE CHIP'S OWN APPEARANCE DID NOT CHANGE ────────────────────────────────────────────
 // The exact strings from the approved design, read out of the component rather than described.
