@@ -124,6 +124,11 @@ export async function POST(req: NextRequest) {
   // valid for the current anchor. applyCommuteReason does the rest, so recomposition
   // inherits every protection the compute path has: replace in place (order kept,
   // commute first), never displace a manual reason, never exceed 3.
+  // Pairs where a real drive time exists and was WITHHELD, because all three reasons are the
+  // locator's own and none of them is a location line. Collected rather than discarded: folded
+  // in with "unchanged" this was indistinguishable from having no drive time at all, which is a
+  // very different thing to tell a locator.
+  const suppressed: string[] = []
   const recomposed = keys
     .filter((k) => !stale.includes(k))
     .map((propertyKey) => {
@@ -132,9 +137,11 @@ export async function POST(req: NextRequest) {
       if (minutes == null) return null // unroutable pair — nothing to re-word
       const priorReasons = Array.isArray(prior?.reasons) ? (prior!.reasons as string[]) : []
       const { reasons, outcome } = applyCommuteReason(priorReasons, minutes, anchorLabel)
+      if (outcome === "skipped_at_limit") suppressed.push(propertyKey)
       // "unchanged" and "skipped_at_limit" mean the stored array is already correct;
-      // writing it back would churn updated_at for nothing.
-      if (outcome !== "updated" && outcome !== "added") return null
+      // writing it back would churn updated_at for nothing. "replaced_area" is a real
+      // change — the generated area line became the measured drive time.
+      if (outcome !== "updated" && outcome !== "added" && outcome !== "replaced_area") return null
       return {
         row: {
           lead_id: leadId,
@@ -206,6 +213,9 @@ export async function POST(req: NextRequest) {
 
   // Measured rows and re-worded rows share one uniform write.
   const upserts = [...computedUpserts, ...recomposed]
+  for (const u of computedUpserts) {
+    if (u.outcome === "skipped_at_limit") suppressed.push(String(u.row.canonical_property_key))
+  }
 
   const { data: saved, error: saveErr } = await supabase
     .from("lead_property_reasons")
@@ -230,6 +240,9 @@ export async function POST(req: NextRequest) {
     routesCalled: stale.length > 0,
     upToDate: keys.length - stale.length - recomposed.length,
     outcomes: tally,
+    // Pairs that HAVE a drive time the client will not see, because slot one is a manual reason.
+    // Never silently empty: an empty array means nothing was withheld.
+    suppressed,
     anchorLabel,
     // Returned so the caller can merge into its reasons map without a refetch.
     rows: saved ?? [],

@@ -34,6 +34,8 @@ import type { SupabaseClient } from "@supabase/supabase-js"
 import { placeUrl } from "@/lib/propertyExplorer/types"
 import type { Recommendation } from "./ranking"
 import type { DisplayTier } from "./types"
+import type { ScreeningFacts } from "./eligibility"
+import { quickMatchHighlights } from "./highlights"
 
 /** The agent-facing screening record stored on the row. Never read by any client-facing path. */
 export type StoredScreening = {
@@ -60,14 +62,24 @@ export type StoredScreening = {
 
 export const QUICK_MATCH_ORIGIN = "quick_match"
 
+/** One pair's client-facing lines, for the workspace to show without a refetch. */
+export type HighlightRow = { canonical_property_key: string; reasons: string[] }
+
 export type PersistResult = {
   inserted: number
   /** Rows skipped because the agent already had that property. */
   alreadyPresent: number
   /** Unreviewed Quick Match rows cleared before the write (a refresh only). */
   replaced: number
+  /** Pairs whose "Why I chose this for you" lines this draft wrote. Empty is a normal outcome. */
+  highlights: HighlightRow[]
   error: string | null
 }
+
+/** lead_recommendations.canonical_property_key is GENERATED as 'pid:<place id>' from
+ *  property_url. Rebuilding it here is how an inserted row is matched back to the
+ *  recommendation that produced it, with no extra round trip. */
+const canonicalKey = (placeId: string): string => `pid:${placeId}`
 
 /** One recommendation → the row shape lead_recommendations takes. */
 export function toRecommendationRow(
@@ -122,10 +134,13 @@ export async function persistQuickMatch(
     recommendations: Recommendation[]
     collection: string
     mode: "initial" | "refresh"
+    /** The client's own screening answers, for the third highlight. Read from the lead row the
+     *  caller already holds; nothing here re-queries it. */
+    facts: ScreeningFacts
     computedAt?: string
   },
 ): Promise<PersistResult> {
-  const { leadId, recommendations, collection, mode } = args
+  const { leadId, recommendations, collection, mode, facts } = args
   const computedAt = args.computedAt ?? new Date().toISOString()
   let replaced = 0
 
@@ -139,23 +154,99 @@ export async function persistQuickMatch(
       .eq("origin", QUICK_MATCH_ORIGIN)
       .is("reviewed_at", null)
       .select("id")
-    if (delErr) return { inserted: 0, alreadyPresent: 0, replaced: 0, error: delErr.message }
+    if (delErr) return { inserted: 0, alreadyPresent: 0, replaced: 0, highlights: [], error: delErr.message }
     replaced = (cleared ?? []).length
   }
 
   if (recommendations.length === 0) {
-    return { inserted: 0, alreadyPresent: 0, replaced, error: null }
+    return { inserted: 0, alreadyPresent: 0, replaced, highlights: [], error: null }
   }
 
   const rows = recommendations.map((r) => toRecommendationRow(leadId, r, collection, computedAt))
   const { data, error } = await supabase
     .from("lead_recommendations")
     .upsert(rows, { onConflict: "lead_id,canonical_property_key", ignoreDuplicates: true })
-    .select("id")
-  if (error) return { inserted: 0, alreadyPresent: 0, replaced, error: error.message }
+    // canonical_property_key, not just id: with ignoreDuplicates these rows are EXACTLY the pairs
+    // this draft created, so a property the agent already had is absent and its reasons are out
+    // of reach by construction rather than by a check that could be forgotten.
+    .select("id, canonical_property_key")
+  if (error) return { inserted: 0, alreadyPresent: 0, replaced, highlights: [], error: error.message }
 
   const inserted = (data ?? []).length
-  return { inserted, alreadyPresent: rows.length - inserted, replaced, error: null }
+  const highlights = await writeHighlights(supabase, leadId, recommendations, data ?? [], facts)
+  return { inserted, alreadyPresent: rows.length - inserted, replaced, highlights, error: null }
+}
+
+/**
+ * Write "Why I chose this for you" for the pairs this draft just created.
+ *
+ * ── THREE GUARDS, AND THE FIRST IS STRUCTURAL ───────────────────────────────────────────────
+ * 1. Only pairs in `insertedRows`. The upsert above ignores duplicates, so a property the agent
+ *    already recommended never appears here.
+ * 2. Only pairs whose reasons row is absent or blank. A lead_property_reasons row OUTLIVES
+ *    removal from either collection — that is the point of the table — so a pair Quick Match has
+ *    just inserted can still carry words a locator wrote months ago. Those are never touched.
+ * 3. Only the `reasons` column is sent. Supabase updates the columns supplied, exactly as
+ *    saveReasons and saveWasherDryer each send only their own, so the commute cache, the
+ *    washer/dryer status and the average-rent figures cannot be disturbed by this write.
+ *
+ * NEVER FAILS THE DRAFT. The recommendations are already written and are useful without their
+ * highlights; a locator can type three lines by hand. So every failure path here returns an empty
+ * list and logs, and the caller reports a successful draft.
+ */
+async function writeHighlights(
+  supabase: SupabaseClient,
+  leadId: number | string,
+  recommendations: Recommendation[],
+  insertedRows: Array<Record<string, unknown>>,
+  facts: ScreeningFacts,
+): Promise<HighlightRow[]> {
+  const insertedKeys = new Set(
+    insertedRows.map((row) => String(row.canonical_property_key ?? "")).filter(Boolean),
+  )
+  if (insertedKeys.size === 0) return []
+
+  const { data: existing, error: readErr } = await supabase
+    .from("lead_property_reasons")
+    .select("canonical_property_key, reasons")
+    .eq("lead_id", leadId)
+  if (readErr) {
+    console.error("[quick-match] highlights: reasons read failed:", readErr.message)
+    return []
+  }
+  // An all-blank array counts as empty: the editor stores [] when a locator clears every line,
+  // and a row kept alive by its commute cache is not a row with something to say.
+  const occupied = new Set(
+    (existing ?? [])
+      .filter((row) => ((row.reasons ?? []) as unknown[]).some((t) => String(t ?? "").trim() !== ""))
+      .map((row) => String(row.canonical_property_key)),
+  )
+
+  const now = new Date().toISOString()
+  const payload: Array<Record<string, unknown>> = []
+  for (const r of recommendations) {
+    const key = canonicalKey(r.property.placeId)
+    if (!insertedKeys.has(key) || occupied.has(key)) continue
+    const reasons = quickMatchHighlights(r, facts)
+    // Nothing supportable to say about this property. The slot stays open for manual entry
+    // rather than carrying a hedge.
+    if (reasons.length === 0) continue
+    payload.push({ lead_id: leadId, canonical_property_key: key, reasons, updated_at: now })
+  }
+  if (payload.length === 0) return []
+
+  const { data: saved, error: saveErr } = await supabase
+    .from("lead_property_reasons")
+    .upsert(payload, { onConflict: "lead_id,canonical_property_key" })
+    .select("canonical_property_key, reasons")
+  if (saveErr) {
+    console.error("[quick-match] highlights: save failed:", saveErr.message)
+    return []
+  }
+  return (saved ?? []).map((row) => ({
+    canonical_property_key: String(row.canonical_property_key),
+    reasons: Array.isArray(row.reasons) ? (row.reasons as string[]) : [],
+  }))
 }
 
 /**

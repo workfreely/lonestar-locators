@@ -820,7 +820,13 @@ export default function DashboardClient({ leads, nextActions, favorites, recomme
       // And run Quick Match, ONCE, for a client whose credit, rental history or criminal
       // background makes ordinary approval uncertain. Runs after the map is on screen for the
       // same reason: nothing the client already has waits on it.
-      runQuickMatchDraft(id, active)
+      // …then, only if it wrote rows, ask the commute pass again. The two run in this order on
+      // every open, so the first pass above could not have seen the pairs the draft was about to
+      // create. Without this an anchored client's slot one stays the generated area line until
+      // some later event, and the real drive time waits a visit for no reason.
+      void runQuickMatchDraft(id, active).then((wrote) => {
+        if (wrote && active) mergeCommuteRows(id, active)
+      })
     })()
     return () => { active = false }
   }, [selectedLeadId])
@@ -844,23 +850,36 @@ export default function DashboardClient({ leads, nextActions, favorites, recomme
    * re-reads the client's rows through the SAME loader the page uses, so the new cards appear
    * with their rating, website and specials already resolved instead of after a reload.
    */
-  const runQuickMatchDraft = useCallback(async (leadId: number | string, active = true) => {
-    if (isDemoLeadId(leadId)) return
-    let body: { inserted?: number } | null = null
+  const runQuickMatchDraft = useCallback(async (leadId: number | string, active = true): Promise<boolean> => {
+    if (isDemoLeadId(leadId)) return false
+    let body: {
+      inserted?: number
+      highlights?: { canonical_property_key: string; reasons: string[] }[]
+    } | null = null
     try {
       const res = await fetch(`/api/admin/quick-match/${leadId}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ mode: "initial" }),
       })
-      if (!res.ok) return
+      if (!res.ok) return false
       body = await res.json()
     } catch {
       // Offline, or the route is not deployed. Quick Match is additive; the section is correct
       // without it, so a failure here is silent rather than a broken workspace.
-      return
+      return false
     }
-    if (!active || !body || !body.inserted) return
+    if (!active || !body || !body.inserted) return false
+    // "Why I chose this for you" for the pairs the draft just created, merged exactly as
+    // mergeCommuteRows merges a drive time — so the lines are on screen with no refetch.
+    const written = body.highlights ?? []
+    if (written.length > 0) {
+      setReasonsByKey((prev) => {
+        const next = new Map(prev)
+        for (const h of written) next.set(String(h.canonical_property_key), h.reasons ?? [])
+        return next
+      })
+    }
     const { data, error } = await supabase
       .from("lead_recommendations")
       .select("*")
@@ -868,9 +887,11 @@ export default function DashboardClient({ leads, nextActions, favorites, recomme
       .order("sort_order", { ascending: true, nullsFirst: false })
       .order("created_at", { ascending: true })
       .order("id", { ascending: true })
-    if (error || !data || !active) return
+    // Rows WERE inserted server-side even when this local refetch fails, so the commute pass
+    // still has new pairs to cover — hence true on both of these paths, not just the happy one.
+    if (error || !data || !active) return true
     const enriched = await attachCatalogRatings(data, supabase)
-    if (!active) return
+    if (!active) return true
     // Replace THIS client's rows only. Every other client's rows in the shared array are left
     // exactly as they were.
     const others = localRecommendationsRef.current.filter(
@@ -879,6 +900,7 @@ export default function DashboardClient({ leads, nextActions, favorites, recomme
     const next = [...others, ...enriched]
     localRecommendationsRef.current = next
     setLocalRecommendations(next)
+    return true
   }, [])
 
   // Shared by the three EVENTS that can leave a drive time missing or stale: opening

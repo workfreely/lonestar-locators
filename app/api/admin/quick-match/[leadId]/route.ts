@@ -4,6 +4,7 @@ export const dynamic = "force-dynamic"
 import { NextResponse } from "next/server"
 import { createClient } from "@/lib/supabase/server"
 import { runQuickMatch, evaluateEligibility, loadQuickMatchCollection, DEFAULT_COLLECTION } from "@/lib/quickMatch"
+import { readScreeningFacts } from "@/lib/quickMatch/eligibility"
 import { resolveClientNeeds } from "@/lib/quickMatch/needs"
 import { persistQuickMatch, markQuickMatchRun, QUICK_MATCH_ORIGIN } from "@/lib/quickMatch/persist"
 
@@ -222,6 +223,10 @@ export async function POST(req: Request, ctx: { params: Promise<{ leadId: string
     recommendations: result.recommendations,
     collection: DEFAULT_COLLECTION,
     mode: wantRefresh ? "refresh" : "initial",
+    // The same pure reader the screening engine used on this very row a moment ago. Re-reading
+    // it costs nothing and keeps the third highlight and the agent-facing assessment answering
+    // to one source for what this client has on record.
+    facts: readScreeningFacts(lead),
   })
   if (persisted.error) {
     if (isMissingColumn(persisted.error)) {
@@ -251,6 +256,8 @@ export async function POST(req: Request, ctx: { params: Promise<{ leadId: string
     inserted: persisted.inserted,
     alreadyPresent: persisted.alreadyPresent,
     replaced: persisted.replaced,
+    // The lines just written, so the workspace can show them without refetching the reasons.
+    highlights: persisted.highlights,
     stamped,
     stampError: stamped ? null : stampError,
     recommendations: result.recommendations.map(asJson),

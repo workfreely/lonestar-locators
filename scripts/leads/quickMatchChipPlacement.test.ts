@@ -158,14 +158,32 @@ ok("the detail renders only for an open row", /\{screening && openScreening\.has
 ok("the chip is still rendered by exactly one surface",
   (card.match(/<QuickMatchChip/g) ?? []).length === 1)
 ok("a row with no screening record renders no chip at all", /\{screening && \(\s*<QuickMatchChip/.test(card))
-// Eligibility, screening, ranking and property selection all live under lib/quickMatch. One file
-// there DID change — lib/quickMatch/geography.ts — but only inside a JSDoc block, where a named
-// client became a description of them. So the assertion is on the CODE, which is what could alter
-// a recommendation, and the comment edit is allowed through without blinding the guard.
-ok("the engine, its API route and its persistence carry no code change",
-  codeChanged("lib/quickMatch app/api").length === 0, codeChanged("lib/quickMatch app/api").join(" "))
-ok("…and the only file touched there at all is the comment cleanup",
-  touched("lib/quickMatch app/api") === "lib/quickMatch/geography.ts", touched("lib/quickMatch app/api"))
+// ── WHAT THIS GUARD PROTECTS, AND WHAT IT DELIBERATELY ALLOWS ──────────────────────────────
+// Eligibility, screening, ranking, geography and property selection decide WHICH properties a
+// client is shown. Nothing in any approved release since this baseline may change them, and the
+// assertion is on the CODE rather than the lines, so a comment edit — geography.ts, where a named
+// client became a description of them — passes without blinding the guard.
+//
+// Persistence and the two API routes are a different question. The highlights release writes
+// "Why I chose this for you" for the pairs a draft creates, which is persist.ts, the Quick Match
+// route and the commute route, by approval. So they are enumerated here instead of forbidden:
+// the guard still fails the moment a file outside the list changes.
+const ENGINE = [
+  "lib/quickMatch/eligibility.ts", "lib/quickMatch/ranking.ts", "lib/quickMatch/geography.ts",
+  "lib/quickMatch/screening.ts", "lib/quickMatch/collection.ts", "lib/quickMatch/buckets.ts",
+  "lib/quickMatch/criminal.ts", "lib/quickMatch/needs.ts", "lib/quickMatch/types.ts",
+  "lib/quickMatch/index.ts",
+].join(" ")
+ok("the engine that chooses and ranks properties carries no code change",
+  codeChanged(ENGINE).length === 0, codeChanged(ENGINE).join(" "))
+ok("…and the only Quick Match files touched are its persistence and the two routes",
+  touched("lib/quickMatch app/api") === [
+    "app/api/admin/leads/commute/route.ts",
+    "app/api/admin/quick-match/[leadId]/route.ts",
+    "lib/quickMatch/geography.ts",
+    "lib/quickMatch/highlights.ts",
+    "lib/quickMatch/persist.ts",
+  ].join("\n"), touched("lib/quickMatch app/api"))
 // The release now carries SQL, which it did not when this guard was written: the washer/dryer RPC
 // and the anon-grant revoke, each with a rollback. Nothing else, and no 20261114* file reopened.
 ok("the only SQL is the four approved files",

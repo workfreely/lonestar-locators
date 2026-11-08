@@ -30,6 +30,21 @@ const ok = (label: string, cond: boolean, detail = "") => {
 type Case = { label: string; saved: string[]; beds: string | null; one: number | null; two: number | null; three: number | null }
 
 const CASES: Case[] = [
+  // ── THE QUICK MATCH SHAPE ────────────────────────────────────────────────────────────────
+  // The draft stores TWO lines and leaves slot two empty precisely so these two composers fill
+  // it. If they ever disagreed, the card the locator approves and the page the client opens
+  // would show different middles — so the shape is pinned here, in both bands and after the
+  // commute pass has replaced the area line with a measured drive time.
+  { label: "Quick Match: area + screening, price lands between them",
+    saved: ["Located in Medical Center", "Credit-Friendly"], beds: "2", one: null, two: 1679, three: null },
+  { label: "Quick Match: adjacent band reads the same way",
+    saved: ["Next to Westover Hills", "Eviction 5+ Years OK"], beds: "1", one: 1249, two: null, three: null },
+  { label: "Quick Match: no bedroom rent → the slot simply stays open",
+    saved: ["Located in Medical Center", "Credit-Friendly"], beds: "2", one: null, two: null, three: null },
+  { label: "Quick Match: after the commute pass replaced the area line",
+    saved: ["19 min to Fort Sam", "Background Case-by-Case"], beds: "2", one: null, two: 1679, three: null },
+  { label: "Quick Match: a locator's third line yields the price, in both implementations",
+    saved: ["Located in Medical Center", "Credit-Friendly", "Corner unit"], beds: "2", one: null, two: 1679, three: null },
   // Reagan's real shape.
   { label: "2BR client, price present, 2 saved reasons", saved: ["7 min to Frisco", "Washer and Dryer"], beds: "2", one: null, two: 1679, three: null },
   // Bedroom matching — the clarification: the client's saved preference decides.

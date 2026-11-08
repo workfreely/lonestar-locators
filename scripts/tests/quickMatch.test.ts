@@ -953,12 +953,19 @@ console.log("\n═══ SOURCE DISCIPLINE — the promises a grep can hold")
     !/top_pick|topPick/i.test(qmDir))
   ok("…nor lead_favorites, where favourites and their order live",
     !/lead_favorites/.test(qmDir))
-  ok("…and the only tables it writes are lead_recommendations and leads.quick_match_at",
+  // lead_property_reasons joined this list when Quick Match began writing "Why I chose this for
+  // you" — the canonical client-property row both collections already share. It is here
+  // deliberately and under the three guards writeHighlights enforces; nothing else may be added
+  // without the same deliberation.
+  ok("…and the only tables it writes are lead_recommendations, lead_property_reasons and leads.quick_match_at",
     (() => {
       const writes = (persist + route).match(/from\("([a-z_]+)"\)/g) ?? []
       const tables = new Set(writes.map((w) => w.slice(6, -2)))
-      return [...tables].every((t) => ["lead_recommendations", "leads", "property_catalog"].includes(t))
+      return [...tables].every((t) =>
+        ["lead_recommendations", "lead_property_reasons", "leads", "property_catalog"].includes(t))
     })())
+  ok("…and its write to lead_property_reasons can only ever set the reasons column",
+    !/from\("lead_property_reasons"\)[\s\S]*?(commute_minutes|washer_dryer_status|avg_rent_)/.test(persist))
 
   // 3. UNLEASH BEAST. Quick Match borrows its centroid resolution and its distance function and
   //    touches nothing else; Unleash, for its part, knows nothing about Quick Match.

@@ -279,6 +279,14 @@ for (const dir of ["lib/matching", "lib/leads", "apps/beast-companion/src", "pac
     // A READ-ONLY dry-run harness. It names the columns because it reads property_catalog
     // directly — so it works before the RPC's migration is applied — and it writes nothing.
     "scripts/quickMatch/dryRun.ts",
+    // THE CLIENT-FACING LABEL, and the narrowest reader of all. It reads felonyPolicy and
+    // misdemeanorPolicy — and nothing else about a criminal record — to decide whether a
+    // property has recorded that it reviews one individually. What can leave it is a single
+    // fixed string, "Background Case-by-Case": no charge, no age, no restriction text, no agent
+    // note, nothing about the client. It is added here deliberately; see
+    // scripts/leads/quickMatchHighlights.test.ts, which asserts those limits.
+    "lib/quickMatch/highlights.ts",
+    "scripts/leads/quickMatchHighlights.test.ts",
   ]
   const SKIP = /^(node_modules|\.next|\.git|dist|build|coverage|supabase|docs|reports|scripts\/tests)/
   const walk = (d: string): string[] => {
@@ -303,7 +311,8 @@ for (const dir of ["lib/matching", "lib/leads", "apps/beast-companion/src", "pac
   // function that filters to the curated collection.
   for (const f of ["lib/quickMatch/collection.ts", "lib/quickMatch/screening.ts", "lib/quickMatch/types.ts",
                    "lib/quickMatch/criminal.ts", "lib/quickMatch/ranking.ts", "lib/quickMatch/index.ts",
-                   "lib/quickMatch/persist.ts", "lib/quickMatch/needs.ts"]) {
+                   "lib/quickMatch/persist.ts", "lib/quickMatch/needs.ts",
+                   "lib/quickMatch/highlights.ts"]) {
     if (!existsSync(f)) { ok(`${f} — not present`, true); continue }
     const body = strip(read(f))
     ok(`${f} never writes property_catalog`,

@@ -1,5 +1,6 @@
 import { MAX_REASONS } from "@bc/companion-shared"
 import { displayDestinationLabel } from "@/lib/commute/destinationAliases"
+import { isAreaHighlight } from "@/lib/leads/locationHighlight"
 
 // How a drive time becomes a client-facing reason, and the rules that protect the
 // locator's own words while doing it.
@@ -69,24 +70,39 @@ export function isCommuteReason(reason: string): boolean {
   return COMMUTE_REASON_PATTERN.test(reason)
 }
 
-export type ApplyOutcome = "updated" | "added" | "unchanged" | "skipped_at_limit"
+export type ApplyOutcome = "updated" | "added" | "unchanged" | "replaced_area" | "skipped_at_limit"
 
 /**
  * Put the commute reason into an existing reasons array.
  *
- * The four rules, in the order they apply:
+ * The rules, in the order they apply:
  *
  *   1. REPLACE, never duplicate. An existing commute reason is rewritten in place,
  *      keeping its position, so recomputing after a new anchor or a changed drive
  *      time can never grow the array or leave two commute lines.
- *   2. HIGHEST PRIORITY. A new one goes at index 0 — it is the most concrete thing
+ *   2. SLOT ONE HOLDS ONE LOCATION LINE. An UNEDITED generated area line ("Located in
+ *      Medical Center") is the same slot saying the weaker thing, so a measured drive
+ *      time takes its place rather than stacking on top of it. See below.
+ *   3. HIGHEST PRIORITY. A new one goes at index 0 — it is the most concrete thing
  *      the list can say about a property.
- *   3. NEVER DISPLACE. It is only ever INSERTED, so no existing reason — least of
- *      all one the locator typed — is dropped to make room.
- *   4. HARD CAP 3. At the cap with no commute reason present, the commute is
- *      SKIPPED rather than shoving a manual reason out. The database check
- *      constraint enforces the same 3, so breaking this rule would fail the write
- *      outright rather than silently truncate.
+ *   4. NEVER DISPLACE. Otherwise it is only ever INSERTED, so no existing reason —
+ *      least of all one the locator typed — is dropped to make room.
+ *   5. HARD CAP 3. At the cap with no location line present, the commute is SKIPPED
+ *      rather than shoving a manual reason out. The database check constraint
+ *      enforces the same 3, so breaking this rule would fail the write outright
+ *      rather than silently truncate.
+ *
+ * ── WHY RULE 2 EXISTS, AND WHY IT IS SAFE ───────────────────────────────────────
+ * Quick Match writes slot one before an anchored drive time is available: on opening
+ * a client the commute pass runs BEFORE the draft, so the first thing in the slot is
+ * the area line. Without rule 2 the drive time would unshift beside it, leaving two
+ * location lines, three stored reasons, and — because both price composers yield when
+ * the array is full — no price on the client's page.
+ *
+ * Safe because isAreaHighlight is anchored end to end: it matches only a line exactly
+ * as generated. The moment a locator edits one, it stops matching and falls through to
+ * rule 5, where the drive time is skipped and the route reports the suppression. A
+ * manually edited location reason is therefore never silently replaced.
  */
 export function applyCommuteReason(
   existing: readonly string[],
@@ -101,6 +117,11 @@ export function applyCommuteReason(
     if (reasons[at] === text) return { reasons, outcome: "unchanged" }
     reasons[at] = text
     return { reasons, outcome: "updated" }
+  }
+  const area = reasons.findIndex(isAreaHighlight)
+  if (area >= 0) {
+    reasons[area] = text
+    return { reasons, outcome: "replaced_area" }
   }
   if (reasons.length >= MAX_REASONS) {
     return { reasons, outcome: "skipped_at_limit" }
