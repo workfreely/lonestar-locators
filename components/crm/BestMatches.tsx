@@ -57,6 +57,7 @@ export default function BestMatches({
   catalogWasherDryerByKey,
   averageRentByKey,
   onSaveAverageRent,
+  onBackfillHighlights,
 }: {
   lead: any
   recommendations?: any[]
@@ -111,6 +112,20 @@ export default function BestMatches({
   averageRentByKey?: Map<string, AverageRentInputs>
   /** Persist all five figures for ONE pair. Absent → no average-rent control is offered. */
   onSaveAverageRent?: (canonicalPropertyKey: string, next: AverageRentInputs) => Promise<boolean>
+  /**
+   * Populate the missing automatic highlights on this client's EXISTING Quick Match rows, for a
+   * client whose draft ran before those highlights existed.
+   *
+   * Writes only lead_property_reasons.reasons, only where it is blank, and only for
+   * `origin = 'quick_match'` rows — it adds, removes, reorders and re-ranks nothing, which is
+   * why the control below sits apart from Send List rather than among the row actions. Absent →
+   * no control is offered and this section behaves exactly as it did.
+   */
+  onBackfillHighlights?: (leadId: number | string) => Promise<{
+    written: number
+    considered: number
+    skipped: { canonical_property_key: string; reason: string }[]
+  } | null>
 }) {
   const leadRecommendations = (recommendations || []).filter(
     (r) => String(r.lead_id) === String(lead?.id),
@@ -121,6 +136,26 @@ export default function BestMatches({
   // LAST, created_at, id, the same rule the share fingerprint and the snapshot's row_number()
   // use. This section renders it as given and never re-sorts; a drag reports the ids in their
   // new order and the caller persists 1..N, so there is no second source of truth here.
+  // ── WHICH ROWS A BACKFILL WOULD HAVE ANYTHING TO DO ────────────────────────────────────────
+  // Derived from props this section already holds, so offering the action needs no extra read.
+  //
+  // `origin === "quick_match"` is the whole scope: a hand-picked row (origin NULL from before
+  // the feature, or 'agent') is excluded HERE as well as server-side, so the control is never
+  // even offered for a list the locator assembled themselves.
+  //
+  // Blankness is tested against the SAME rule the writer uses — an all-blank array counts as
+  // empty — so what this counts and what the server would write cannot disagree. A row holding
+  // words a locator wrote is not counted, which is what makes the control self-clearing: once
+  // the lines are in, the count is zero and the button is gone. That is idempotence made
+  // visible, on top of the server's own guard.
+  const backfillableKeys = leadRecommendations
+    .filter((r) => String(r.origin ?? "") === "quick_match")
+    .map((r) => String(r.canonical_property_key ?? ""))
+    .filter((key) => key !== "")
+    .filter((key) => !(reasonsByKey?.get(key) ?? []).some((t) => String(t ?? "").trim() !== ""))
+  const [backfilling, setBackfilling] = useState(false)
+  const [backfillNote, setBackfillNote] = useState<string | null>(null)
+
   const canReorder = typeof onReorder === "function" && leadRecommendations.length > 1
   const rowIds = leadRecommendations.map((r) => String(r.id))
   // WHICH ROWS HAVE THEIR QUICK MATCH DETAIL OPEN. The state moved out of the badge only
@@ -422,6 +457,47 @@ WRAP, measured rather than assumed. On a 390px phone this row is
         </div>
         </SortableContext>
         </DndContext>
+      )}
+
+      {/* BACKFILL HIGHLIGHTS — shown ONLY while a Quick Match row of this client's is actually
+          missing its automatic lines. Its own row, above the share actions, because it does not
+          belong among them: it sends nothing and changes no property. It disappears the moment
+          there is nothing left to fill, so a second click is not something the locator has to
+          decide against. */}
+      {lead?.id != null && onBackfillHighlights && backfillableKeys.length > 0 && (
+        <div className="mt-3 flex flex-wrap items-center gap-x-2 gap-y-1 border-t border-[var(--crm-border-soft)] pt-3">
+          <button
+            type="button"
+            disabled={backfilling}
+            onClick={async () => {
+              setBackfilling(true)
+              setBackfillNote(null)
+              const summary = await onBackfillHighlights(lead.id)
+              setBackfilling(false)
+              if (!summary) {
+                setBackfillNote("Could not reach the server — nothing was changed.")
+                return
+              }
+              const kept = summary.skipped.filter((s) => s.reason === "has_saved_reasons").length
+              const quiet = summary.skipped.filter((s) => s.reason === "nothing_supportable").length
+              const unranked = summary.skipped.filter((s) => s.reason === "not_currently_ranked").length
+              const parts = [
+                summary.written === 1 ? "Added highlights to 1 property." : `Added highlights to ${summary.written} properties.`,
+                kept > 0 ? `${kept} kept your saved wording.` : "",
+                quiet > 0 ? `${quiet} had nothing verified to show.` : "",
+                unranked > 0 ? `${unranked} are no longer in the curated collection.` : "",
+              ]
+              setBackfillNote(parts.filter(Boolean).join(" "))
+            }}
+            title={`Fill the missing "Why I chose this for you" lines on ${backfillableKeys.length === 1 ? "1 Quick Match property" : `${backfillableKeys.length} Quick Match properties`}. Adds nothing, removes nothing, and leaves any wording you have saved exactly as it is.`}
+            className="inline-flex flex-none items-center justify-center gap-1.5 whitespace-nowrap rounded-lg border border-[var(--crm-border)] px-3 py-2 text-[12px] font-semibold text-[var(--crm-text-secondary)] transition-colors hover:bg-[var(--crm-card)] hover:border-[var(--crm-text-muted)] hover:text-[var(--crm-text-primary)] disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {backfilling ? "Backfilling…" : `Backfill Highlights (${backfillableKeys.length})`}
+          </button>
+          {backfillNote && (
+            <span className="min-w-0 text-[11px] text-[var(--crm-text-muted)]">{backfillNote}</span>
+          )}
+        </div>
       )}
 
       {/* Recommendation actions — BELOW the cards, inside Recommended Properties (never

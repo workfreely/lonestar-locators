@@ -903,6 +903,55 @@ export default function DashboardClient({ leads, nextActions, favorites, recomme
     return true
   }, [])
 
+  /**
+   * BACKFILL HIGHLIGHTS — the missing "Why I chose this for you" lines on Quick Match rows this
+   * client ALREADY HAS.
+   *
+   * For clients whose draft ran before the highlights shipped. It is NOT the refresh path: it
+   * sends `mode: "backfill"`, which returns from the route before persistQuickMatch is reached,
+   * so no recommendation is deleted, added or re-ranked and `quick_match_at` is not re-stamped.
+   *
+   * Which is why this merges the returned lines and DOES NOT refetch lead_recommendations the way
+   * runQuickMatchDraft does: there is nothing new to read. The cards keep their ids, their order
+   * and their arrangement because the rows themselves were never written.
+   *
+   * Scoped server-side to `origin = 'quick_match'`, so a property the locator picked themselves
+   * is never given generated wording.
+   */
+  const handleBackfillHighlights = useCallback(async (leadId: number | string) => {
+    if (isDemoLeadId(leadId)) return null
+    try {
+      const res = await fetch(`/api/admin/quick-match/${leadId}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ mode: "backfill" }),
+      })
+      if (!res.ok) return null
+      const body = await res.json() as {
+        highlights?: { canonical_property_key: string; reasons: string[] }[]
+        considered?: number
+        skipped?: { canonical_property_key: string; reason: string }[]
+      }
+      const written = body.highlights ?? []
+      if (written.length > 0) {
+        setReasonsByKey((prev) => {
+          const next = new Map(prev)
+          for (const h of written) next.set(String(h.canonical_property_key), h.reasons ?? [])
+          return next
+        })
+      }
+      return {
+        written: written.length,
+        considered: body.considered ?? 0,
+        skipped: body.skipped ?? [],
+      }
+    } catch {
+      // Offline, or the route is not deployed. The section is correct without the highlights,
+      // so this reports nothing rather than breaking the workspace.
+      return null
+    }
+  }, [])
+
   // Shared by the three EVENTS that can leave a drive time missing or stale: opening
   // a client, saving their Commute / Destination, and adding a property to either
   // collection. Merging the returned rows means the new "12 min to Fort Sam" appears
@@ -5079,6 +5128,10 @@ export default function DashboardClient({ leads, nextActions, favorites, recomme
                     onSaveWasherDryer={handleSaveWasherDryer}
                     averageRentByKey={averageRentByKey}
                     onSaveAverageRent={handleSaveAverageRent}
+                    // Offered to Recommended Properties only, and BestMatches shows the control
+                    // only while a Quick Match row of this client's is actually missing its
+                    // lines — so a client with none, or one already backfilled, never sees it.
+                    onBackfillHighlights={handleBackfillHighlights}
                   />
                   {/* The engagement summary now lives INSIDE the action row (see BestMatches),
                       beside the Sent List History button it describes. It used to render here as

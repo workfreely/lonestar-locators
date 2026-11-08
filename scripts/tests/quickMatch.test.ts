@@ -917,8 +917,13 @@ console.log("\n═══ SOURCE DISCIPLINE — the promises a grep can hold")
       const get = route.slice(route.indexOf("export async function GET"), route.indexOf("export async function POST"))
       return !/persistQuickMatch|markQuickMatchRun|\.insert\(|\.upsert\(|\.delete\(|\.update\(/.test(get)
     })())
+  // Written as `mode === "initial"` since the backfill release, which must NOT be blocked by the
+  // stamp: it exists for clients whose draft already ran. The automatic pass is still stopped.
   ok("the automatic pass respects the stamp, so a removed property is not resurrected",
-    /!wantRefresh && alreadyRan/.test(route) && /already_ran/.test(route))
+    /if \(mode === "initial" && alreadyRan\)/.test(route) && /already_ran/.test(route))
+  ok("…and the backfill is the only mode the stamp does not stop",
+    route.indexOf('if (mode === "backfill")') > route.indexOf("already_ran")
+    && !/mode === "backfill" && alreadyRan/.test(route))
   ok("the stamp is written only AFTER a successful persist",
     route.indexOf("persistQuickMatch") < route.indexOf("markQuickMatchRun"))
 

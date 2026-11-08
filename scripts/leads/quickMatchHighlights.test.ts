@@ -251,12 +251,16 @@ console.log("\nMANUAL EDITS SURVIVE A LATER COMMUTE:")
 console.log("\nTHE WRITE PATH — guards that must not be edited away:")
 {
   const persist = read("lib/quickMatch/persist.ts")
-  ok("only pairs this draft inserted are considered", /ignoreDuplicates: true/.test(persist) && /insertedKeys/.test(persist))
+  // `eligibleKeys` since the backfill release — the draft still vouches for exactly the rows its
+  // ignoreDuplicates upsert returned, which is what this has always been asserting.
+  ok("only pairs this draft inserted are considered",
+    /ignoreDuplicates: true/.test(persist) && /eligibleKeys/.test(persist)
+    && /data \?\? \[\], facts\)/.test(persist))
   ok("a non-empty reasons row is never overwritten", /occupied\.has\(key\)/.test(persist))
   ok("an all-blank row counts as empty", /String\(t \?\? ""\)\.trim\(\) !== ""/.test(persist))
   ok("only the reasons column is sent, so the commute cache survives",
     !/commute_minutes/.test(persist) && !/washer_dryer_status/.test(persist))
-  ok("a highlight failure never fails the draft", /never fails the draft/i.test(persist.toLowerCase() + persist))
+  ok("a highlight failure never fails its caller", /never fails its caller/i.test(persist))
   const hl = read("lib/quickMatch/highlights.ts")
   ok("no agent-facing screening text is read",
     !/assessment\.reasons|\.unverified|\.conditions|screening\.reasons/.test(hl))

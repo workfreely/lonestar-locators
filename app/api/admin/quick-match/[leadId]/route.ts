@@ -6,12 +6,20 @@ import { createClient } from "@/lib/supabase/server"
 import { runQuickMatch, evaluateEligibility, loadQuickMatchCollection, DEFAULT_COLLECTION } from "@/lib/quickMatch"
 import { readScreeningFacts } from "@/lib/quickMatch/eligibility"
 import { resolveClientNeeds } from "@/lib/quickMatch/needs"
-import { persistQuickMatch, markQuickMatchRun, QUICK_MATCH_ORIGIN } from "@/lib/quickMatch/persist"
+import { persistQuickMatch, markQuickMatchRun, backfillQuickMatchHighlights, QUICK_MATCH_ORIGIN } from "@/lib/quickMatch/persist"
 
 // /api/admin/quick-match/[leadId] — the Quick Match draft for one client.
 //
 //   GET   compute and return. Writes NOTHING. Used to show the agent what a run would produce.
 //   POST  compute and PERSIST into the existing lead_recommendations collection.
+//
+// POST takes three modes, and only the middle one removes anything:
+//
+//   initial    the automatic first pass. Adds rows, clears nothing, stamps quick_match_at.
+//   refresh    an explicit re-draft. Clears the unreviewed rows IT owns, then writes again.
+//   backfill   "Backfill Highlights". Writes ONLY lead_property_reasons.reasons, for Quick Match
+//              rows the client already has whose highlights are missing. It adds no row, removes
+//              no row, re-ranks nothing and does not stamp — see the branch below.
 //
 // ── AUTH ────────────────────────────────────────────────────────────────────────────────────
 // Runs under the caller's OWN session, never the service role. The lead read is subject to the
@@ -174,22 +182,28 @@ export async function POST(req: Request, ctx: { params: Promise<{ leadId: string
   const { data: auth } = await supabase.auth.getUser()
   if (!auth?.user) return NextResponse.json({ error: "unauthenticated" }, { status: 401 })
 
-  // `refresh` is the agent asking again. Anything else is the automatic first pass, which runs
-  // once per client and only when nothing has run before.
-  let wantRefresh = false
+  // `refresh` is the agent asking again; `backfill` is the agent asking for the missing wording
+  // on rows they already have. Anything else is the automatic first pass, which runs once per
+  // client and only when nothing has run before.
+  let mode: "initial" | "refresh" | "backfill" = "initial"
   try {
     const body = await req.json()
-    wantRefresh = body?.mode === "refresh"
+    if (body?.mode === "refresh") mode = "refresh"
+    else if (body?.mode === "backfill") mode = "backfill"
   } catch {
     // No body is the automatic pass.
   }
+  const wantRefresh = mode === "refresh"
 
   const loaded = await loadLead(supabase, leadId)
   if (!loaded.ok) return loaded.response
   const { lead, resolutionColumns } = loaded.value
 
   const alreadyRan = lead.quick_match_at ?? null
-  if (!wantRefresh && alreadyRan) {
+  // BACKFILL IS DELIBERATELY NOT BLOCKED BY THE STAMP. The stamp means "the draft has run", and
+  // a client whose draft ran before the highlights existed is precisely the case this mode is
+  // for — it is the only mode whose whole purpose is to act on an already-stamped client.
+  if (mode === "initial" && alreadyRan) {
     // ALREADY DONE. Re-running automatically is what would resurrect a property the agent
     // deliberately removed, so the stamp is respected and nothing is written.
     return NextResponse.json({
@@ -217,6 +231,42 @@ export async function POST(req: Request, ctx: { params: Promise<{ leadId: string
   }
 
   const { result } = c
+
+  // ── BACKFILL ────────────────────────────────────────────────────────────────────────────────
+  // Returns BEFORE persistQuickMatch is reached, so neither the delete nor the recommendation
+  // upsert is on this path at all — the draft's write code is not merely skipped by a flag, it is
+  // unreachable from here. The engine above supplied the wording and nothing else; the list comes
+  // from the client's own rows (see lib/quickMatch/persist.backfillQuickMatchHighlights).
+  //
+  // And it does NOT stamp. markQuickMatchRun is further down, past this return.
+  if (mode === "backfill") {
+    const filled = await backfillQuickMatchHighlights(supabase, {
+      leadId,
+      recommendations: result.recommendations,
+      facts: readScreeningFacts(lead),
+    })
+    if (filled.error) {
+      if (isMissingColumn(filled.error)) {
+        return NextResponse.json({
+          writePathMissing: true,
+          message: "lead_recommendations has no origin column — the prepared Quick Match migration has not been applied, so a Quick Match row cannot be told from a hand-picked one and nothing is written.",
+          mode, highlights: [], considered: 0, skipped: [],
+        })
+      }
+      return NextResponse.json({ error: filled.error }, { status: 500 })
+    }
+    return NextResponse.json({
+      mode,
+      // Unchanged, and said so explicitly: this mode answers for leaving them alone.
+      alreadyRan,
+      stamped: false,
+      inserted: 0,
+      replaced: 0,
+      considered: filled.considered,
+      highlights: filled.highlights,
+      skipped: filled.skipped,
+    })
+  }
 
   const persisted = await persistQuickMatch(supabase, {
     leadId,

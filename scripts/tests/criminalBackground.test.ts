@@ -287,6 +287,11 @@ for (const dir of ["lib/matching", "lib/leads", "apps/beast-companion/src", "pac
     // scripts/leads/quickMatchHighlights.test.ts, which asserts those limits.
     "lib/quickMatch/highlights.ts",
     "scripts/leads/quickMatchHighlights.test.ts",
+    // The backfill suite. It names the columns ONLY in the QuickMatchProperty fixture every
+    // Quick Match test builds — all nine are null in it — because a Recommendation cannot be
+    // constructed without them. No assertion in it reads a criminal field, and the backfill it
+    // tests reaches them solely through screeningHighlight, already allowed above.
+    "scripts/leads/quickMatchBackfill.test.ts",
   ]
   const SKIP = /^(node_modules|\.next|\.git|dist|build|coverage|supabase|docs|reports|scripts\/tests)/
   const walk = (d: string): string[] => {
