@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { supabase } from "@/lib/supabase/client"
 import { SOCIAL_MARKETS } from "@/lib/social/markets"
 import { PROPERTY_TYPES } from "@/lib/social/propertyTypes"
-import { inferFromFilename, detectMarket, suggestArea, type FilenameInference } from "@/lib/social/filenameInference"
+import { inferFromFilename, suggestArea, marketAfterMatch, type FilenameInference } from "@/lib/social/filenameInference"
 import { resolvePropertyMatch } from "@/lib/social/resolveProperty"
 import { buildHashtags, MAX_HASHTAGS } from "@/lib/social/hashtags"
 import { preparePost, DEFAULT_OVERLAY_TEMPLATE } from "@/lib/social/composePost"
@@ -45,6 +45,9 @@ type Row = {
   inf: FilenameInference
   propertyName: string
   market: string
+  /** True once the operator has picked this row's market themselves — here or through Change
+   *  Market. A matched property's verified city refines a SUGGESTED market, never a chosen one. */
+  marketTouched: boolean
   areaNeighborhood: string
   propertyType: string
   overlayMode: "generate" | "existing"
@@ -138,6 +141,7 @@ export default function BulkReview({ files, onClose, onUploaded }: { files: File
         // UUID/hash/export filenames are not property names — leave blank so the search is usable.
         propertyName: propertyNamePrefill(inf.propertyName),
         market: inf.market ?? "",
+        marketTouched: false,
         areaNeighborhood: "",
         propertyType: inf.propertyType ?? "",
         overlayMode: "generate",
@@ -163,7 +167,8 @@ export default function BulkReview({ files, onClose, onUploaded }: { files: File
         if (cancelled || !res.match) continue
         setRows((prev) => prev.map((row) => {
           if (row.uid !== r.uid || row.matched || row.propertyName !== seed) return row
-          const market = row.market || detectMarket(res.match!.address ?? "") || ""
+          // Verified city first, the filename's guess second — but never over the operator's pick.
+          const market = marketAfterMatch({ current: row.market, locked: row.marketTouched, address: res.match!.address })
           const area = row.areaNeighborhood || suggestArea(res.match!.address, market)
           return { ...row, propertyName: res.match!.name, placeId: res.match!.placeId, matched: true, ...(market ? { market } : {}), ...(area ? { areaNeighborhood: area } : {}) }
         }))
@@ -204,7 +209,7 @@ export default function BulkReview({ files, onClose, onUploaded }: { files: File
       if (!selected.has(r.uid)) return r
       const next = { ...r }
       if (bulkKind === "property") { next.propertyName = batch.propertyName.trim(); next.placeId = batch.matched ? batch.placeId : null; next.matched = batch.matched }
-      if (bulkKind === "market") next.market = batch.market
+      if (bulkKind === "market") { next.market = batch.market; next.marketTouched = true }
       if (bulkKind === "type") next.propertyType = batch.propertyType
       if (bulkKind === "overlay") next.overlayMode = batch.overlayMode
       return next
@@ -215,7 +220,7 @@ export default function BulkReview({ files, onClose, onUploaded }: { files: File
   // Detail-panel property match → set name + place_id + (derive market from address if empty).
   const onMatch = (uid: string, m: PropertyMatch) => {
     const row = rows.find((r) => r.uid === uid)
-    const market = row?.market || detectMarket(m.address ?? "") || detectMarket(m.name) || ""
+    const market = marketAfterMatch({ current: row?.market, locked: row?.marketTouched, address: m.address, propertyName: m.name })
     const area = row?.areaNeighborhood || suggestArea(m.address, market)
     patchRow(uid, { propertyName: m.name, placeId: m.placeId, matched: true, ...(market ? { market } : {}), ...(area ? { areaNeighborhood: area } : {}) })
   }
@@ -346,7 +351,7 @@ export default function BulkReview({ files, onClose, onUploaded }: { files: File
                     <span className={fieldLabel}>Canonical property</span>
                     <PropertySearchField value={batch.propertyName} matched={batch.matched} inputClassName={`${inputCls} mt-0.5`} placeholder="Search existing property or type…"
                       onChange={(v) => setBatch((b) => ({ ...b, propertyName: v, matched: false, placeId: null }))}
-                      onMatch={(m) => setBatch((b) => ({ ...b, propertyName: m.name, placeId: m.placeId, matched: true, market: detectMarket(m.address ?? "") || b.market }))}
+                      onMatch={(m) => setBatch((b) => ({ ...b, propertyName: m.name, placeId: m.placeId, matched: true, market: marketAfterMatch({ current: b.market, address: m.address }) }))}
                       onClearMatch={() => setBatch((b) => ({ ...b, matched: false, placeId: null }))}
                     />
                   </div>
@@ -485,7 +490,7 @@ export default function BulkReview({ files, onClose, onUploaded }: { files: File
                   <div className="grid grid-cols-2 gap-2">
                     <label className="block">
                       <span className={fieldLabel}>Market</span>
-                      <select className={`${inputCls} mt-1`} value={active.market} onChange={(e) => patchRow(active.uid, { market: e.target.value })}>
+                      <select className={`${inputCls} mt-1`} value={active.market} onChange={(e) => patchRow(active.uid, { market: e.target.value, marketTouched: true })}>
                         <option value="">—</option>{SOCIAL_MARKETS.map((m) => <option key={m} value={m}>{m}</option>)}
                       </select>
                     </label>

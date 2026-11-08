@@ -47,6 +47,64 @@ export function suggestArea(address: string | null | undefined, market: string |
   return loc
 }
 
+/**
+ * The market a MATCHED property's verified address actually names, or null.
+ *
+ * ── WHY THIS IS NOT detectMarket(address) ───────────────────────────────────
+ * detectMarket scans free text and returns the FIRST market phrase it finds, in
+ * table order. An address is not free text: it has a locality field, and a street
+ * can be named after a city it is nowhere near. "Ashton on West Dallas" sits at
+ * 2900 W Dallas St, HOUSTON — and because Dallas is tested before Houston, the
+ * free-text scan called it Dallas and the upload form prefilled the wrong city.
+ *
+ * It is order-dependent luck, not a one-off: "E Houston St, San Antonio" happens
+ * to read correctly only because San Antonio is tested first, and "Dallas St,
+ * Austin" would fail exactly as the Houston case did.
+ *
+ * So this reads the LOCALITY — the token immediately before the two-letter state
+ * code — and maps only that through the same market table. A street name is never
+ * in range, and the vocabulary stays single: Fort Worth still becomes DFW, Dallas
+ * stays Dallas, and a suburb with no market of its own (Schertz, Katy, Plano)
+ * returns null so the caller falls back to the inference it already had.
+ */
+export function marketFromAddress(address: string | null | undefined): string | null {
+  const locality = localityFromAddress(address)
+  return locality ? detectMarket(locality) : null
+}
+
+/**
+ * THE ONE PRECEDENCE RULE for City / Market after a property is matched. Every call site uses
+ * it, so the six of them cannot drift apart the way two copies of a vocabulary would.
+ *
+ *   1. A market the operator CHOSE. Never overwritten by anything below.
+ *   2. The matched property's VERIFIED city (marketFromAddress).
+ *   3. Whatever is already on the form — the filename's guess.
+ *   4. The old free-text scans, kept so nothing that used to resolve stops resolving: the
+ *      address first, then the property name where the caller supplies one.
+ *
+ * Rule 2 above rule 3 is the fix: the filename for "Ashton on West Dallas Apartments" infers
+ * Dallas, and the property is in Houston. Rule 1 above rule 2 is the safeguard: a locator who
+ * picks a market has said something the data cannot contradict.
+ */
+export function marketAfterMatch(opts: {
+  /** The market currently on the form. */
+  current?: string | null
+  /** The operator chose `current` themselves, so it is not a suggestion to refine. */
+  locked?: boolean
+  /** The matched property's formatted address. */
+  address?: string | null
+  /** The matched property's name — a last-resort scan, only where the caller already did one. */
+  propertyName?: string | null
+}): string {
+  const current = (opts.current ?? "").trim()
+  if (opts.locked) return current
+  return marketFromAddress(opts.address)
+    || current
+    || detectMarket(opts.address ?? "")
+    || (opts.propertyName ? detectMarket(opts.propertyName) : null)
+    || ""
+}
+
 /** Detect an SA-taxonomy market anywhere in free text (filename or a place address).
  *  Fort Worth → DFW; Dallas stays Dallas (distinct). Null when none present. */
 export function detectMarket(text: string): string | null {

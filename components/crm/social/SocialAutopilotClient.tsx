@@ -13,7 +13,7 @@ import VideoLightbox from "@/components/crm/social/VideoLightbox"
 import { computeOverlayLayout, type OverlayLayout } from "@/lib/social/overlaySpec"
 import { OVERLAY_TEMPLATES, OVERLAY_TEMPLATE_LABEL, DEFAULT_OVERLAY_TEMPLATE } from "@/lib/social/composePost"
 import { PROPERTY_TYPES } from "@/lib/social/propertyTypes"
-import { inferFromFilename, detectMarket, suggestArea } from "@/lib/social/filenameInference"
+import { inferFromFilename, suggestArea, marketAfterMatch } from "@/lib/social/filenameInference"
 import { resolvePropertyMatch } from "@/lib/social/resolveProperty"
 import BulkReview from "@/components/crm/social/BulkReview"
 import PropertySearchField from "@/components/crm/social/PropertySearchField"
@@ -160,6 +160,15 @@ type BatchMeta = {
   overlayMode: "generate" | "existing"
   /** Per-SOURCE meaning of Starting At — same field the Post Editor sets, captured at intake. */
   priceLabelMode: PriceLabelMode
+  /**
+   * Has the operator chosen the market THEMSELVES?
+   *
+   * Everything else in this object is a suggestion that a later, better suggestion may refine.
+   * The market is the one field where a matched property's verified city now outranks what the
+   * filename guessed — so the form needs to know the difference between "nobody has said" and
+   * "the operator picked this", and only the first may be overwritten.
+   */
+  marketTouched: boolean
 }
 
 const SORTS = ["Newest", "Oldest", "Property", "Market"] as const
@@ -573,7 +582,7 @@ export default function SocialAutopilotClient() {
   const fileRef = useRef<HTMLInputElement>(null)
   const [pendingFiles, setPendingFiles] = useState<File[] | null>(null) // 1-file quick setup
   const [bulkFiles, setBulkFiles] = useState<File[] | null>(null) // 2+ files → Bulk Review
-  const [batch, setBatch] = useState<BatchMeta>({ market: "", areaNeighborhood: "", propertyName: "", propertyType: "", placeId: null, matched: false, special: "", budgetRange: "", amenities: "", notes: "", overlayMode: "generate", priceLabelMode: "starting_at" })
+  const [batch, setBatch] = useState<BatchMeta>({ market: "", areaNeighborhood: "", propertyName: "", propertyType: "", placeId: null, matched: false, special: "", budgetRange: "", amenities: "", notes: "", overlayMode: "generate", priceLabelMode: "starting_at", marketTouched: false })
   const [uploads, setUploads] = useState<UploadFile[] | null>(null) // active/finished progress list
   const [uploadingBatch, setUploadingBatch] = useState(false)
 
@@ -900,7 +909,7 @@ export default function SocialAutopilotClient() {
       setPendingFiles(files)
       // A UUID/hash/export filename is not a property name — leave the field blank so the
       // property search is usable immediately. Market/type inference is unaffected.
-      setBatch({ market: inf.market ?? "", areaNeighborhood: "", propertyName: propertyNamePrefill(inf.propertyName), propertyType: inf.propertyType ?? "", placeId: null, matched: false, special: "", budgetRange: "", amenities: "", notes: "", overlayMode: "generate", priceLabelMode: "starting_at" })
+      setBatch({ market: inf.market ?? "", areaNeighborhood: "", propertyName: propertyNamePrefill(inf.propertyName), propertyType: inf.propertyType ?? "", placeId: null, matched: false, special: "", budgetRange: "", amenities: "", notes: "", overlayMode: "generate", priceLabelMode: "starting_at", marketTouched: false })
       // Auto-resolve the inferred name against the read-only property search. A single clear
       // in-market match auto-fills the canonical name + place_id (+ area from its address);
       // anything ambiguous is left as inferred text for the operator to confirm. Guarded so a
@@ -912,7 +921,9 @@ export default function SocialAutopilotClient() {
           if (!r.match) return
           setBatch((b) => {
             if (b.matched || b.propertyName !== seed) return b
-            const market = b.market || detectMarket(r.match!.address ?? "") || ""
+            // The matched property's VERIFIED city outranks the filename's guess — "Ashton on
+            // West Dallas" is in Houston — but never outranks a market the operator chose.
+            const market = marketAfterMatch({ current: b.market, locked: b.marketTouched, address: r.match!.address })
             return { ...b, propertyName: r.match!.name, placeId: r.match!.placeId, matched: true, market, areaNeighborhood: b.areaNeighborhood || suggestArea(r.match!.address, market) }
           })
         })
@@ -1601,13 +1612,16 @@ export default function SocialAutopilotClient() {
                   inputClassName={`${inputCls} mt-1`}
                   placeholder="Search existing property or type…"
                   onChange={(v) => setBatch((b) => ({ ...b, propertyName: v, matched: false, placeId: null }))}
-                  onMatch={(m) => setBatch((b) => { const market = b.market || detectMarket(m.address ?? "") || ""; return { ...b, propertyName: m.name, placeId: m.placeId, matched: true, market, areaNeighborhood: b.areaNeighborhood || suggestArea(m.address, market) } })}
+                  onMatch={(m) => setBatch((b) => {
+                    const market = marketAfterMatch({ current: b.market, locked: b.marketTouched, address: m.address })
+                    return { ...b, propertyName: m.name, placeId: m.placeId, matched: true, market, areaNeighborhood: b.areaNeighborhood || suggestArea(m.address, market) }
+                  })}
                   onClearMatch={() => setBatch((b) => ({ ...b, matched: false, placeId: null }))}
                 />
               </label>
               <label className="block">
                 <span className={fieldLabel}>City / Market <span className="text-[var(--crm-text-primary)]">*</span></span>
-                <select className={`${inputCls} mt-1`} value={batch.market} onChange={(e) => setBatch((b) => ({ ...b, market: e.target.value }))}>
+                <select className={`${inputCls} mt-1`} value={batch.market} onChange={(e) => setBatch((b) => ({ ...b, market: e.target.value, marketTouched: true }))}>
                   <option value="">Select market…</option>
                   {SOCIAL_MARKETS.map((m) => (
                     <option key={m} value={m}>{m}</option>

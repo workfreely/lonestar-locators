@@ -35,7 +35,7 @@ import { parseAmenities, serializeAmenities } from "@/lib/social/amenities"
 import { SOCIAL_MARKETS } from "@/lib/social/markets"
 import { PROPERTY_TYPES } from "@/lib/social/propertyTypes"
 import { BUILDING_TYPES } from "@/lib/social/buildingTypes"
-import { detectMarket } from "@/lib/social/filenameInference"
+import { marketAfterMatch } from "@/lib/social/filenameInference"
 import PropertySearchField from "@/components/crm/social/PropertySearchField"
 import { resolveLoadedCopy } from "@/lib/social/loadedCopy"
 import ScheduleWorkspace from "@/components/crm/social/ScheduleWorkspace"
@@ -1738,7 +1738,7 @@ export default function PostEditor({ postId, from }: { postId: string; from?: st
                   inputClassName={`${control} mt-1`}
                   placeholder="Search existing property or type…"
                   onChange={(v) => { setPropertyName(v); setPlaceId(""); setAddress(null) }}
-                  onMatch={(m) => { setPropertyName(m.name); setPlaceId(m.placeId); setMarket((mk) => mk || detectMarket(m.address ?? "") || "") }}
+                  onMatch={(m) => { setPropertyName(m.name); setPlaceId(m.placeId); setMarket((mk) => marketAfterMatch({ current: mk, locked: !!mk, address: m.address })) }}
                   onClearMatch={() => { setPlaceId(""); setAddress(null) }}
                 />
               )}
