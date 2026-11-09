@@ -292,6 +292,11 @@ for (const dir of ["lib/matching", "lib/leads", "apps/beast-companion/src", "pac
     // constructed without them. No assertion in it reads a criminal field, and the backfill it
     // tests reaches them solely through screeningHighlight, already allowed above.
     "scripts/leads/quickMatchBackfill.test.ts",
+    // The location-correction suite, for exactly the same reason: the nine columns appear only in
+    // its all-null QuickMatchProperty fixture, which a Recommendation cannot be built without.
+    // It asserts about ZIPs, reference landmarks and drive times; nothing in it reads a criminal
+    // field, and the correction path it tests never looks at one.
+    "scripts/leads/quickMatchLocationDriveTime.test.ts",
   ]
   const SKIP = /^(node_modules|\.next|\.git|dist|build|coverage|supabase|docs|reports|scripts\/tests)/
   const walk = (d: string): string[] => {

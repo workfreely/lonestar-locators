@@ -5,8 +5,9 @@
 import { readFileSync } from "node:fs"
 import path from "node:path"
 import { areaHighlightText, isAreaHighlight, LOCATION_SLOT_INDEX } from "@/lib/leads/locationHighlight"
+import type { LocationInputs } from "@/lib/quickMatch/highlights"
 import {
-  screeningHighlight, quickMatchHighlights,
+  screeningHighlight, quickMatchHighlights, locationHighlight,
   CREDIT_FRIENDLY, BACKGROUND_CASE_BY_CASE, BROKEN_LEASE_CASE_BY_CASE, EVICTION_CASE_BY_CASE,
   brokenLeaseYearsLabel, evictionYearsLabel,
 } from "@/lib/quickMatch/highlights"
@@ -186,13 +187,20 @@ console.log("\nTHE LABELS NEVER PROMISE APPROVAL:")
 
 console.log("\nTWO WRITTEN, NEVER THREE — the price slot is left for the composers:")
 {
+  // The ZIP is what now earns "Located in": membership is PROVED against the curated list, and
+  // the band no longer has any say in the wording. 78229 is the Medical Center ZIP.
   const rec = {
-    property: prop(),
+    property: prop({ zip: "78229" }),
     geo: { band: "in_area", applicable: true, miles: 0.9, anchorLabel: "Medical Center", reason: "In Medical Center", outsideReason: null },
     assessment: { outcome: "strong_candidate", findings: [], unverified: [], conflicts: [], conditions: [] },
     conflicts: [],
   } as unknown as Recommendation
-  const written = quickMatchHighlights(rec, lowCredit)
+  const inMedicalCenter: LocationInputs = {
+    market: "San Antonio",
+    requestedAreas: ["Medical Center"],
+    driveTimeLineByPlaceId: new Map(),
+  }
+  const written = quickMatchHighlights(rec, lowCredit, inMedicalCenter)
   ok("location first, screening second", written.join("|") === "Located in Medical Center|Credit-Friendly")
   ok("never more than two are stored", written.length <= 2)
   ok("no price is ever stored", !written.some((t) => t.includes("$")))
@@ -213,10 +221,68 @@ console.log("\nTWO WRITTEN, NEVER THREE — the price slot is left for the compo
     noPrice.join("|") === "Located in Medical Center|Credit-Friendly")
 
   const unsupported = quickMatchHighlights(
-    { ...rec, geo: { ...rec.geo, band: null, anchorLabel: null } } as unknown as Recommendation,
+    { ...rec, property: prop({ zip: null }), geo: { ...rec.geo, band: null, anchorLabel: null } } as unknown as Recommendation,
     readScreeningFacts({}),
+    inMedicalCenter,
   )
   ok("nothing supportable means nothing written", unsupported.length === 0)
+}
+
+console.log("\nNO \"NEAR\" AND NO \"NEXT TO\" ARE GENERATED ANY MORE:")
+{
+  // The bands still choose and order the properties. They no longer choose any WORDING: an
+  // approximation from a centroid is not an answer to "how convenient is this to my area?".
+  const loc: LocationInputs = {
+    market: "San Antonio",
+    requestedAreas: ["Medical Center"],
+    driveTimeLineByPlaceId: new Map(),
+  }
+  const outside = (band: string) =>
+    locationHighlight(
+      {
+        property: prop({ zip: "78216" }),
+        geo: { band, applicable: true, miles: 4.1, anchorLabel: "Medical Center", reason: null, outsideReason: null },
+      } as unknown as Recommendation,
+      loc,
+    )
+  ok("adjacent generates nothing on its own", outside("adjacent") === null)
+  ok("nearby generates nothing on its own", outside("nearby") === null)
+  ok("and neither does in_area without a ZIP that proves membership",
+    locationHighlight(
+      { property: prop({ zip: "78216" }), geo: { band: "in_area", anchorLabel: "Medical Center" } } as unknown as Recommendation,
+      loc,
+    ) === null)
+
+  // A MEASURED figure is the only thing that fills the slot for a property outside the area.
+  const withDrive: LocationInputs = {
+    ...loc,
+    driveTimeLineByPlaceId: new Map([["pid-1", "11 min to Medical Center"]]),
+  }
+  ok("a measured drive time fills the slot instead",
+    locationHighlight(
+      { property: prop({ zip: "78216" }), geo: { band: "nearby", anchorLabel: "Medical Center" } } as unknown as Recommendation,
+      withDrive,
+    ) === "11 min to Medical Center")
+
+  // Rule 1 beats rule 2, and it beats the band too.
+  ok("proven membership outranks a drive time",
+    locationHighlight(
+      { property: prop({ zip: "78229" }), geo: { band: "nearby", anchorLabel: "Medical Center" } } as unknown as Recommendation,
+      withDrive,
+    ) === "Located in Medical Center")
+  ok("membership is checked against EVERY requested area, not just the nearest anchor",
+    locationHighlight(
+      { property: prop({ zip: "78251" }), geo: { band: "adjacent", anchorLabel: "Medical Center" } } as unknown as Recommendation,
+      { ...loc, requestedAreas: ["Medical Center", "Westover Hills"] },
+    ) === "Located in Westover Hills")
+
+  // The retired wordings must not survive anywhere in the generator.
+  const gen = readFileSync(path.join(process.cwd(), "lib/quickMatch/highlights.ts"), "utf8")
+    .split("\n").filter((l) => !l.trim().startsWith("*") && !l.trim().startsWith("//")).join("\n")
+  ok("highlights.ts no longer passes a band to the wording function",
+    !/areaHighlightText\(\s*r\.geo\.band/.test(gen))
+  ok("…and the only preposition it can produce is the membership one",
+    /areaHighlightText\("in_area"/.test(gen) && !/"adjacent"|"nearby"/.test(gen))
 }
 
 console.log("\nMANUAL EDITS SURVIVE A LATER COMMUTE:")
@@ -253,9 +319,11 @@ console.log("\nTHE WRITE PATH — guards that must not be edited away:")
   const persist = read("lib/quickMatch/persist.ts")
   // `eligibleKeys` since the backfill release — the draft still vouches for exactly the rows its
   // ignoreDuplicates upsert returned, which is what this has always been asserting.
+  // The third argument is `loc` since the location release; the SECOND is still `data ?? []`,
+  // which is the claim — the draft vouches for exactly the rows its upsert returned, nothing more.
   ok("only pairs this draft inserted are considered",
     /ignoreDuplicates: true/.test(persist) && /eligibleKeys/.test(persist)
-    && /data \?\? \[\], facts\)/.test(persist))
+    && /data \?\? \[\], facts, loc\)/.test(persist))
   ok("a non-empty reasons row is never overwritten", /occupied\.has\(key\)/.test(persist))
   ok("an all-blank row counts as empty", /String\(t \?\? ""\)\.trim\(\) !== ""/.test(persist))
   ok("only the reasons column is sent, so the commute cache survives",

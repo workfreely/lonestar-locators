@@ -929,19 +929,29 @@ export default function DashboardClient({ leads, nextActions, favorites, recomme
       if (!res.ok) return null
       const body = await res.json() as {
         highlights?: { canonical_property_key: string; reasons: string[] }[]
+        corrected?: { canonical_property_key: string; reasons: string[]; after: string | null }[]
         considered?: number
         skipped?: { canonical_property_key: string; reason: string }[]
       }
       const written = body.highlights ?? []
-      if (written.length > 0) {
+      // Rows whose EXISTING location line was rewritten or removed. Merged from the same
+      // response for the same reason the written ones are: the section shows the new wording
+      // without a refetch, and still without touching localRecommendations — no row moved.
+      const corrected = body.corrected ?? []
+      if (written.length > 0 || corrected.length > 0) {
         setReasonsByKey((prev) => {
           const next = new Map(prev)
           for (const h of written) next.set(String(h.canonical_property_key), h.reasons ?? [])
+          for (const c of corrected) next.set(String(c.canonical_property_key), c.reasons ?? [])
           return next
         })
       }
       return {
         written: written.length,
+        corrected: corrected.filter((c) => c.after !== null).length,
+        // A removed line is reported apart from a replaced one: the slot is now the locator's
+        // to fill, and that is a different thing to tell them.
+        cleared: corrected.filter((c) => c.after === null).length,
         considered: body.considered ?? 0,
         skipped: body.skipped ?? [],
       }

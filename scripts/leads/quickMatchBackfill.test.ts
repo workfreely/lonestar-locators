@@ -11,6 +11,7 @@ import { readFileSync } from "node:fs"
 import path from "node:path"
 import { backfillQuickMatchHighlights, persistQuickMatch, QUICK_MATCH_ORIGIN } from "@/lib/quickMatch/persist"
 import { readScreeningFacts } from "@/lib/quickMatch/eligibility"
+import type { LocationInputs } from "@/lib/quickMatch/highlights"
 import { displayReasons } from "@/lib/leads/bedroomPricing"
 import type { QuickMatchProperty } from "@/lib/quickMatch/types"
 import type { Recommendation } from "@/lib/quickMatch/ranking"
@@ -84,8 +85,8 @@ const touched = (ops: Op[], table: string, verbs: Op["verb"][]) =>
 // ── LEAD 100'S ACTUAL SHAPE ──────────────────────────────────────────────────────────────────
 // Six Quick Match rows, no reasons rows, credit 580, two named areas — read from production on
 // 2026-11-08 and restated here as fixtures. No test in this file reaches production.
-const prop = (placeId: string, name: string): QuickMatchProperty => ({
-  placeId, propertyName: name, address: null, zip: null, websiteUrl: null,
+const prop = (placeId: string, name: string, zip: string | null): QuickMatchProperty => ({
+  placeId, propertyName: name, address: null, zip, websiteUrl: null,
   imageUrl: null, googleRating: null, currentSpecial: null, quickMatchCollection: "default",
   creditMinimumStatus: null, creditMinimumScore: null, creditObservedApprovalScore: null,
   creditScreeningNotes: null,
@@ -103,9 +104,9 @@ const prop = (placeId: string, name: string): QuickMatchProperty => ({
   threebrStartingRent: null, rentMin: null, latitude: 29.5, longitude: -98.5,
 }) as QuickMatchProperty
 
-const rec = (placeId: string, name: string, band: string, area: string): Recommendation =>
+const rec = (placeId: string, name: string, band: string, area: string, zip: string | null = null): Recommendation =>
   ({
-    property: prop(placeId, name),
+    property: prop(placeId, name, zip),
     tier: "likely", policyOnRecord: false,
     geo: { band, anchorLabel: area, reason: `in ${area}` },
     assessment: { findings: [], reasons: [], tier: "likely" },
@@ -114,14 +115,29 @@ const rec = (placeId: string, name: string, band: string, area: string): Recomme
 
 /** The six, in the id order the workspace shows them in. */
 const SIX = [
-  rec("ChIJlUJOAKlgXIYRyCjjga9TDcI", "Preston Peak", "in_area", "Medical Center"),
-  rec("ChIJlwBDKBtdXIYRUZJzjC9UlKg", "Stoneybrook", "in_area", "Westover Hills"),
-  rec("ChIJq42a1ZhDXIYRtrTF7gbdX7c", "Abacus Alamo Ranch", "adjacent", "Westover Hills"),
-  rec("ChIJl2KKrjNgXIYRGP2EAXL3hno", "Indian Hollow", "adjacent", "Medical Center"),
-  rec("ChIJqRkNDzeKXIYRN-GXnUuVnqw", "Canyon Point", "nearby", "Medical Center"),
-  rec("ChIJqfomHk-KXIYRonV7zQzoDC8", "Stoneleigh", "nearby", "Medical Center"),
+  rec("ChIJlUJOAKlgXIYRyCjjga9TDcI", "Preston Peak", "in_area", "Medical Center", "78229"),
+  rec("ChIJlwBDKBtdXIYRUZJzjC9UlKg", "Stoneybrook", "in_area", "Westover Hills", "78238"),
+  rec("ChIJq42a1ZhDXIYRtrTF7gbdX7c", "Abacus Alamo Ranch", "adjacent", "Westover Hills", "78253"),
+  rec("ChIJl2KKrjNgXIYRGP2EAXL3hno", "Indian Hollow", "adjacent", "Medical Center", "78216"),
+  rec("ChIJqRkNDzeKXIYRN-GXnUuVnqw", "Canyon Point", "nearby", "Medical Center", "78232"),
+  rec("ChIJqfomHk-KXIYRonV7zQzoDC8", "Stoneleigh", "nearby", "Medical Center", "78232"),
 ]
 const KEYS = SIX.map((r) => `pid:${r.property.placeId}`)
+
+// Lead 100's real location inputs. Two named areas, NO commute destination, and a measured
+// drive time for each of the five properties whose ZIP does not prove membership. The minutes
+// are the figures Routes returned on 2026-11-08; nothing here calls Google.
+const LOC: LocationInputs = {
+  market: "San Antonio",
+  requestedAreas: ["Westover Hills", "Medical Center"],
+  driveTimeLineByPlaceId: new Map([
+    ["ChIJlwBDKBtdXIYRUZJzjC9UlKg", "9 min to Westover Hills"],
+    ["ChIJq42a1ZhDXIYRtrTF7gbdX7c", "11 min to Westover Hills"],
+    ["ChIJl2KKrjNgXIYRGP2EAXL3hno", "12 min to Medical Center"],
+    ["ChIJqRkNDzeKXIYRN-GXnUuVnqw", "18 min to Medical Center"],
+    ["ChIJqfomHk-KXIYRonV7zQzoDC8", "17 min to Medical Center"],
+  ]),
+}
 const facts = readScreeningFacts({ credit_score: 580, credit_history: "Clean", criminal_background: "None" })
 
 const ownedRows = (keys: string[]) => keys.map((canonical_property_key) => ({ canonical_property_key }))
@@ -134,18 +150,24 @@ async function main() {
       lead_recommendations: ownedRows(KEYS),
       lead_property_reasons: [],
     })
-    const r = await backfillQuickMatchHighlights(client, { leadId: 100, recommendations: SIX, facts })
+    const r = await backfillQuickMatchHighlights(client, { leadId: 100, recommendations: SIX, facts, loc: LOC })
     ok("all six are considered", r.considered === 6)
     ok("all six receive highlights", r.highlights.length === 6)
     ok("nothing is skipped", r.skipped.length === 0)
     ok("no error", r.error === null)
     const byKey = new Map(r.highlights.map((h) => [h.canonical_property_key, h.reasons]))
-    ok("an in_area property claims membership",
+    // A ZIP on the curated list is the only thing that earns a membership claim.
+    ok("a property whose ZIP proves membership says so",
       byKey.get(KEYS[0])?.join(" · ") === "Located in Medical Center · Credit-Friendly")
-    ok("an adjacent property does NOT claim membership",
-      byKey.get(KEYS[2])?.join(" · ") === "Next to Westover Hills · Credit-Friendly")
-    ok("a nearby property does NOT claim membership",
-      byKey.get(KEYS[4])?.join(" · ") === "Near Medical Center · Credit-Friendly")
+    // Everything else gets a measured figure. "Next to" and "Near" are no longer generated.
+    ok("a property outside the area gets a measured drive time, not a preposition",
+      byKey.get(KEYS[2])?.join(" · ") === "11 min to Westover Hills · Credit-Friendly")
+    ok("…and so does one further out",
+      byKey.get(KEYS[4])?.join(" · ") === "18 min to Medical Center · Credit-Friendly")
+    ok("an in_area BAND with an unlisted ZIP still gets a drive time, not a claim",
+      byKey.get(KEYS[1])?.join(" · ") === "9 min to Westover Hills · Credit-Friendly")
+    ok("no highlight anywhere in the run says Near or Next to",
+      !r.highlights.some((h) => h.reasons.some((t) => /^(?:Near|Next to)\b/.test(t))))
     ok("every line pair is exactly two long, leaving the locator a third",
       r.highlights.every((h) => h.reasons.length === 2))
     ok("no line claims approval",
@@ -189,11 +211,14 @@ async function main() {
         { canonical_property_key: KEYS[3], reasons: ["She asked for a yard"] },
       ],
     })
-    const r = await backfillQuickMatchHighlights(client, { leadId: 100, recommendations: SIX, facts })
+    const r = await backfillQuickMatchHighlights(client, { leadId: 100, recommendations: SIX, facts, loc: LOC })
     ok("the four blank pairs are filled", r.highlights.length === 4)
     ok("the two edited pairs are skipped", r.skipped.length === 2)
-    ok("…and the reason given is the locator's wording",
-      r.skipped.every((s) => s.reason === "has_saved_reasons"))
+    // Since the location release the correction pass examines non-blank rows too, so the reason
+    // is now the sharper one: it could not PROVE either line was system-generated. Same claim,
+    // stricter test — "Walkable to the hospital" is not an area line and not a drive time.
+    ok("…and the reason given is that the wording could not be proved ours",
+      r.skipped.every((s) => s.reason === "no_generated_location_line"))
     ok("…naming the right two pairs",
       r.skipped.map((s) => s.canonical_property_key).sort().join(",") === [KEYS[1], KEYS[3]].sort().join(","))
     const written = touched(ops, "lead_property_reasons", ["upsert"])[0].payload as Record<string, unknown>[]
@@ -211,7 +236,7 @@ async function main() {
       lead_recommendations: ownedRows([KEYS[0]]),
       lead_property_reasons: [{ canonical_property_key: KEYS[0], reasons: ["", "  "] }],
     })
-    const r = await backfillQuickMatchHighlights(client, { leadId: 100, recommendations: SIX, facts })
+    const r = await backfillQuickMatchHighlights(client, { leadId: 100, recommendations: SIX, facts, loc: LOC })
     ok("whitespace is not wording", r.highlights.length === 1)
     ok("…and the row is reported as filled, not skipped", r.skipped.length === 0)
   }
@@ -221,21 +246,22 @@ async function main() {
     // The state after the first run: the six now hold the lines the first run wrote.
     const afterFirstRun = KEYS.map((canonical_property_key, i) => ({
       canonical_property_key,
-      reasons: [["Located in Medical Center", "Credit-Friendly"], ["Located in Westover Hills", "Credit-Friendly"],
-                ["Next to Westover Hills", "Credit-Friendly"], ["Next to Medical Center", "Credit-Friendly"],
-                ["Near Medical Center", "Credit-Friendly"], ["Near Medical Center", "Credit-Friendly"]][i],
+      reasons: [["Located in Medical Center", "Credit-Friendly"], ["9 min to Westover Hills", "Credit-Friendly"],
+                ["11 min to Westover Hills", "Credit-Friendly"], ["12 min to Medical Center", "Credit-Friendly"],
+                ["18 min to Medical Center", "Credit-Friendly"], ["17 min to Medical Center", "Credit-Friendly"]][i],
     }))
     const { client, ops } = recorder({
       lead_recommendations: ownedRows(KEYS),
       lead_property_reasons: afterFirstRun,
     })
-    const r = await backfillQuickMatchHighlights(client, { leadId: 100, recommendations: SIX, facts })
+    const r = await backfillQuickMatchHighlights(client, { leadId: 100, recommendations: SIX, facts, loc: LOC })
     ok("the second run writes nothing", r.highlights.length === 0)
     ok("…issues no write statement at all",
       ops.filter((o) => o.verb !== "select").length === 0)
     ok("…and creates no duplicate row", touched(ops, "lead_property_reasons", ["insert", "upsert"]).length === 0)
-    ok("…reporting all six as already worded",
-      r.skipped.length === 6 && r.skipped.every((s) => s.reason === "has_saved_reasons"))
+    ok("…reporting all six as already saying the right thing",
+      r.skipped.length === 6 && r.skipped.every((s) => s.reason === "already_correct"))
+    ok("…and correcting none of them", r.corrected.length === 0)
     ok("…with the six still considered, so the count is honest", r.considered === 6)
   }
 
@@ -247,7 +273,7 @@ async function main() {
       lead_recommendations: ownedRows([KEYS[0]]), // the one Quick Match row; the others are the agent's
       lead_property_reasons: [],
     })
-    const r = await backfillQuickMatchHighlights(client, { leadId: 100, recommendations: SIX, facts })
+    const r = await backfillQuickMatchHighlights(client, { leadId: 100, recommendations: SIX, facts, loc: LOC })
     ok("only the Quick Match row is considered", r.considered === 1)
     ok("…and only it is written", r.highlights.length === 1 && r.highlights[0].canonical_property_key === KEYS[0])
     const written = touched(ops, "lead_property_reasons", ["upsert"])[0].payload as Record<string, unknown>[]
@@ -264,7 +290,7 @@ async function main() {
       lead_recommendations: ownedRows([KEYS[0], retired]),
       lead_property_reasons: [],
     })
-    const r = await backfillQuickMatchHighlights(client, { leadId: 100, recommendations: SIX, facts })
+    const r = await backfillQuickMatchHighlights(client, { leadId: 100, recommendations: SIX, facts, loc: LOC })
     ok("both rows are counted as considered", r.considered === 2)
     ok("the ranked one is filled", r.highlights.length === 1)
     ok("the unranked one is reported, not silently dropped",
@@ -276,7 +302,7 @@ async function main() {
   console.log("\nA CLIENT WITH NO QUICK MATCH ROWS:")
   {
     const { client, ops } = recorder({ lead_recommendations: [], lead_property_reasons: [] })
-    const r = await backfillQuickMatchHighlights(client, { leadId: 101, recommendations: SIX, facts })
+    const r = await backfillQuickMatchHighlights(client, { leadId: 101, recommendations: SIX, facts, loc: LOC })
     ok("nothing is considered", r.considered === 0)
     ok("nothing is written", r.highlights.length === 0)
     ok("…and the reasons table is never even read",
@@ -289,12 +315,17 @@ async function main() {
     // A client with no credit signal and a property with no recorded policy: no screening label is
     // earned. With the location line also absent, the pair is left blank rather than hedged.
     const bare = readScreeningFacts({})
-    const noArea = [{ ...SIX[0], geo: { band: null, anchorLabel: null, reason: null } } as unknown as Recommendation]
+    const noArea = [{
+      ...SIX[0],
+      // No ZIP, so membership cannot be proved; and this placeId has no measured drive time.
+      property: { ...SIX[0].property, zip: null },
+      geo: { band: null, anchorLabel: null, reason: null },
+    } as unknown as Recommendation]
     const { client, ops } = recorder({
       lead_recommendations: ownedRows([KEYS[0]]),
       lead_property_reasons: [],
     })
-    const r = await backfillQuickMatchHighlights(client, { leadId: 100, recommendations: noArea, facts: bare })
+    const r = await backfillQuickMatchHighlights(client, { leadId: 100, recommendations: noArea, facts: bare, loc: LOC })
     ok("the pair is left blank", r.highlights.length === 0)
     ok("…and says why", r.skipped.length === 1 && r.skipped[0].reason === "nothing_supportable")
     ok("…issuing no write", touched(ops, "lead_property_reasons", ["upsert"]).length === 0)
@@ -314,7 +345,7 @@ async function main() {
         },
       }),
     } as any
-    const r = await backfillQuickMatchHighlights(client, { leadId: 100, recommendations: SIX, facts })
+    const r = await backfillQuickMatchHighlights(client, { leadId: 100, recommendations: SIX, facts, loc: LOC })
     ok("the error is reported", r.error !== null)
     ok("…and nothing is claimed as written", r.highlights.length === 0 && r.considered === 0)
   }
@@ -322,7 +353,7 @@ async function main() {
   console.log("\nPRICING — DERIVED AT READ TIME, NEVER STORED:")
   {
     const { client } = recorder({ lead_recommendations: ownedRows([KEYS[0]]), lead_property_reasons: [] })
-    const r = await backfillQuickMatchHighlights(client, { leadId: 100, recommendations: SIX, facts })
+    const r = await backfillQuickMatchHighlights(client, { leadId: 100, recommendations: SIX, facts, loc: LOC })
     const stored = r.highlights[0].reasons
     ok("no price is stored", !stored.some((t) => /\$/.test(t)))
     ok("no washer/dryer line is stored", !stored.some((t) => /washer|dryer/i.test(t)))
@@ -349,7 +380,7 @@ async function main() {
       lead_property_reasons: [],
     })
     const r = await persistQuickMatch(client, {
-      leadId: 100, recommendations: [SIX[0]], collection: "default", mode: "initial", facts,
+      leadId: 100, recommendations: [SIX[0]], collection: "default", mode: "initial", facts, loc: LOC,
     })
     ok("it still reports what it inserted", r.inserted === 1)
     ok("it still writes highlights for an inserted pair", r.highlights.length === 1)
@@ -359,7 +390,7 @@ async function main() {
   {
     const { client, ops } = recorder({ lead_recommendations: [], lead_property_reasons: [] })
     await persistQuickMatch(client, {
-      leadId: 100, recommendations: [SIX[0]], collection: "default", mode: "refresh", facts,
+      leadId: 100, recommendations: [SIX[0]], collection: "default", mode: "refresh", facts, loc: LOC,
     })
     const del = touched(ops, "lead_recommendations", ["delete"])[0]
     ok("a refresh still deletes, and is still scoped three ways",
@@ -410,8 +441,10 @@ async function main() {
     const bm = read("components/crm/BestMatches.tsx")
     ok("the control is offered only for Quick Match rows",
       /String\(r\.origin \?\? ""\) === "quick_match"/.test(bm))
-    ok("…only while a row is actually blank",
-      /!\(reasonsByKey\?\.get\(key\) \?\? \[\]\)\.some/.test(bm))
+    ok("…only while a row is blank, by the same rule the writer uses",
+      /if \(!reasons\.some\(\(t\) => t\.trim\(\) !== ""\)\) return true/.test(bm))
+    ok("…or still shows a retired preposition, which is the other thing to correct",
+      /\/\^\\s\*\(\?:Next to\|Near\)\\s\+\\S\//.test(bm))
     ok("…and only when the caller supplies the action",
       /onBackfillHighlights && backfillableKeys\.length > 0/.test(bm))
     ok("the button is labelled Backfill Highlights", /Backfill Highlights \(\$\{backfillableKeys\.length\}\)/.test(bm))
@@ -430,8 +463,13 @@ async function main() {
     // not that the list is short but that it is CLOSED: a later change that reaches into
     // Unleash Beast, the share flow or the client-facing page fails here rather than shipping.
     const BASELINE = "57ae50f"
+    const RELEASE_TIP = "a5c58e2"
     const has = (() => {
-      try { execSync(`git cat-file -e ${BASELINE}^{commit}`, { stdio: "ignore" }); return true } catch { return false }
+      try {
+        execSync(`git cat-file -e ${BASELINE}^{commit}`, { stdio: "ignore" })
+        execSync(`git cat-file -e ${RELEASE_TIP}^{commit}`, { stdio: "ignore" })
+        return true
+      } catch { return false }
     })()
     if (!has) {
       console.log(`  – skipped: ${BASELINE} is not in this clone`)
@@ -440,10 +478,11 @@ async function main() {
       // after the commit — a new file that git has not been told about is still a change.
       const lines = (cmd: string) =>
         execSync(cmd, { encoding: "utf8" }).trim().split("\n").map((l) => l.trim()).filter(Boolean)
-      const changed = [...new Set([
-        ...lines(`git diff --name-only ${BASELINE} -- . ':!next-env.d.ts'`),
-        ...lines("git ls-files --others --exclude-standard"),
-      ])].sort()
+      // PINNED END TO END, like quickMatchChipPlacement's. This enumerates the files the
+      // BACKFILL release shipped, between its baseline and its own tip — so it keeps describing
+      // that release instead of failing the moment a later one touches another file. The
+      // prohibitions below are the valuable half and they still hold against this fixed range.
+      const changed = lines(`git diff --name-only ${BASELINE} ${RELEASE_TIP} -- . ':!next-env.d.ts'`).sort()
       const APPROVED = [
         "app/api/admin/quick-match/[leadId]/route.ts", // the backfill mode
         "components/crm/BestMatches.tsx",              // the Backfill Highlights control

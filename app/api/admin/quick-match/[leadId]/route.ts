@@ -7,6 +7,10 @@ import { runQuickMatch, evaluateEligibility, loadQuickMatchCollection, DEFAULT_C
 import { readScreeningFacts } from "@/lib/quickMatch/eligibility"
 import { resolveClientNeeds } from "@/lib/quickMatch/needs"
 import { persistQuickMatch, markQuickMatchRun, backfillQuickMatchHighlights, QUICK_MATCH_ORIGIN } from "@/lib/quickMatch/persist"
+import type { LocationInputs } from "@/lib/quickMatch/highlights"
+import { isVerifiedInArea, areaDriveTimeText } from "@/lib/quickMatch/areaReference"
+import { resolveAreaDriveTimes, type DriveTimeMiss } from "@/lib/quickMatch/areaDriveTime"
+import { composeDesiredAreas } from "@/lib/propertyExplorer/multiArea"
 
 // /api/admin/quick-match/[leadId] — the Quick Match draft for one client.
 //
@@ -39,6 +43,74 @@ import { persistQuickMatch, markQuickMatchRun, backfillQuickMatchHighlights, QUI
 // 200 with `readPathMissing` / `writePathMissing` and an empty list, so the workspace can say
 // plainly that Quick Match has not shipped yet. "Not installed" and "no matches" must never
 // look the same.
+
+/**
+ * Everything slot one needs: which areas the client asked for, and a measured drive time to the
+ * approved reference point for every property that is not provably inside one of them.
+ *
+ * ── WHY commute_anchor_place_id IS READ HERE AND NOT ADDED TO LEAD_COLUMNS ───────────────────
+ * It must not go in LEAD_COLUMNS. `lib/quickMatch/geography.ts` calls commuteHintZip with that
+ * exact field, and it is absent from the engine's column list today — so adding it would start
+ * returning null where the engine currently derives a destination ZIP from the label, changing
+ * the client's geography and therefore the ranking. That is out of scope. A separate one-column
+ * read answers the only question this release has for it: does a real destination exist, in
+ * which case the commute pass owns slot one and this stands down (rule 3).
+ *
+ * ── THE DRIVE TIME IS ASKED FOR ONLY WHERE MEMBERSHIP FAILS ──────────────────────────────────
+ * Rule 1 outranks rule 2, so a property whose ZIP proves it is inside a requested area is never
+ * sent to Google at all. For the rest, resolveAreaDriveTimes reads the durable cache first and
+ * issues one computeRouteMatrix request per destination for whatever is left.
+ */
+async function readLocationInputs(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  lead: Record<string, unknown>,
+  leadId: number | string,
+  recommendations: Array<{ property: { placeId: string; zip: string | null }; geo: { anchorLabel: string | null } }>,
+): Promise<{ loc: LocationInputs; anchoredElsewhere: boolean; driveTimes: { fromCache: number; computed: number; routesRequests: number; misses: DriveTimeMiss[] } }> {
+  const market = typeof lead.city === "string" ? lead.city : null
+  const requestedAreas = composeDesiredAreas(
+    typeof lead.neighborhoods === "string" ? lead.neighborhoods : null,
+    typeof lead.submarkets === "string" ? lead.submarkets : null,
+  )
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean)
+
+  const empty: LocationInputs = { market, requestedAreas, driveTimeLineByPlaceId: new Map() }
+  const noTimes = { fromCache: 0, computed: 0, routesRequests: 0, misses: [] as DriveTimeMiss[] }
+
+  // Rule 3: a saved destination outranks an area. The commute pass already measures to it and
+  // already replaces a generated area line with its own figure, so nothing is computed here.
+  const anchor = await supabase
+    .from("leads")
+    .select("commute_anchor_place_id")
+    .eq("id", leadId)
+    .maybeSingle()
+  const anchoredElsewhere = String(anchor.data?.commute_anchor_place_id ?? "").trim() !== ""
+  if (anchoredElsewhere) return { loc: empty, anchoredElsewhere, driveTimes: noTimes }
+
+  const needed = recommendations
+    .filter((r) => !requestedAreas.some((area) => isVerifiedInArea(market, area, r.property.zip)))
+    .map((r) => ({ propertyPlaceId: r.property.placeId, areaLabel: String(r.geo.anchorLabel ?? "") }))
+    .filter((x) => x.areaLabel !== "")
+  if (needed.length === 0) return { loc: empty, anchoredElsewhere, driveTimes: noTimes }
+
+  // This route never holds a privileged client. The two GLOBAL landmark tables have RLS with no
+  // policies, so reaching them needs the service role — and that privilege is confined to
+  // lib/quickMatch/areaDriveTime.ts, which touches nothing else. Every client-scoped read and
+  // write on this route stays on the caller's own session, so no authorization boundary moves.
+  const out = await resolveAreaDriveTimes(market, needed)
+  const driveTimeLineByPlaceId = new Map<string, string>()
+  for (const [placeId, answer] of out.byProperty) {
+    const text = areaDriveTimeText(answer.minutes, answer.areaLabel)
+    if (text) driveTimeLineByPlaceId.set(placeId, text)
+  }
+  return {
+    loc: { market, requestedAreas, driveTimeLineByPlaceId },
+    anchoredElsewhere,
+    driveTimes: { fromCache: out.fromCache, computed: out.computed, routesRequests: out.routesRequests, misses: out.misses },
+  }
+}
 
 /** PostgREST's answer when a column in the body is not in its cached schema. */
 const isMissingColumn = (msg: string | null | undefined, code?: string) =>
@@ -232,6 +304,9 @@ export async function POST(req: Request, ctx: { params: Promise<{ leadId: string
 
   const { result } = c
 
+  // Slot one, for every mode: membership first, then a measured drive time, then nothing.
+  const location = await readLocationInputs(supabase, lead, leadId, result.recommendations)
+
   // ── BACKFILL ────────────────────────────────────────────────────────────────────────────────
   // Returns BEFORE persistQuickMatch is reached, so neither the delete nor the recommendation
   // upsert is on this path at all — the draft's write code is not merely skipped by a flag, it is
@@ -244,13 +319,15 @@ export async function POST(req: Request, ctx: { params: Promise<{ leadId: string
       leadId,
       recommendations: result.recommendations,
       facts: readScreeningFacts(lead),
+      loc: location.loc,
+      anchoredElsewhere: location.anchoredElsewhere,
     })
     if (filled.error) {
       if (isMissingColumn(filled.error)) {
         return NextResponse.json({
           writePathMissing: true,
           message: "lead_recommendations has no origin column — the prepared Quick Match migration has not been applied, so a Quick Match row cannot be told from a hand-picked one and nothing is written.",
-          mode, highlights: [], considered: 0, skipped: [],
+          mode, highlights: [], corrected: [], considered: 0, skipped: [],
         })
       }
       return NextResponse.json({ error: filled.error }, { status: 500 })
@@ -264,7 +341,11 @@ export async function POST(req: Request, ctx: { params: Promise<{ leadId: string
       replaced: 0,
       considered: filled.considered,
       highlights: filled.highlights,
+      corrected: filled.corrected,
       skipped: filled.skipped,
+      // How the location lines were arrived at, so a locator can see that a run cost nothing.
+      driveTimes: location.driveTimes,
+      anchoredElsewhere: location.anchoredElsewhere,
     })
   }
 
@@ -277,6 +358,7 @@ export async function POST(req: Request, ctx: { params: Promise<{ leadId: string
     // it costs nothing and keeps the third highlight and the agent-facing assessment answering
     // to one source for what this client has on record.
     facts: readScreeningFacts(lead),
+    loc: location.loc,
   })
   if (persisted.error) {
     if (isMissingColumn(persisted.error)) {

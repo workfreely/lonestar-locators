@@ -123,6 +123,8 @@ export default function BestMatches({
    */
   onBackfillHighlights?: (leadId: number | string) => Promise<{
     written: number
+    corrected: number
+    cleared: number
     considered: number
     skipped: { canonical_property_key: string; reason: string }[]
   } | null>
@@ -148,11 +150,26 @@ export default function BestMatches({
   // words a locator wrote is not counted, which is what makes the control self-clearing: once
   // the lines are in, the count is zero and the button is gone. That is idempotence made
   // visible, on top of the server's own guard.
-  const backfillableKeys = leadRecommendations
+  //
+  // A SECOND REASON TO OFFER IT: a RETIRED WORDING. "Next to Medical Center" and "Near Medical
+  // Center" were generated from straight-line distance to a neighbourhood centroid and are no
+  // longer written at all — slot one now carries either proven membership or a measured drive
+  // time. A row still showing one has something to correct even though it is not blank, so it is
+  // counted here too, and the count still clears once every line has been replaced.
+  //
+  // Known blind spot, stated rather than hidden: an unverified "Located in …" also needs
+  // correcting and cannot be told from a verified one without the property's ZIP and the curated
+  // table, neither of which this component holds. The server is the authority and corrects it on
+  // any run; this count is therefore "at least this many", never "exactly".
+  const quickMatchKeys = leadRecommendations
     .filter((r) => String(r.origin ?? "") === "quick_match")
     .map((r) => String(r.canonical_property_key ?? ""))
     .filter((key) => key !== "")
-    .filter((key) => !(reasonsByKey?.get(key) ?? []).some((t) => String(t ?? "").trim() !== ""))
+  const backfillableKeys = quickMatchKeys.filter((key) => {
+    const reasons = (reasonsByKey?.get(key) ?? []).map((t) => String(t ?? ""))
+    if (!reasons.some((t) => t.trim() !== "")) return true
+    return reasons.some((t) => /^\s*(?:Next to|Near)\s+\S/.test(t))
+  })
   const [backfilling, setBackfilling] = useState(false)
   const [backfillNote, setBackfillNote] = useState<string | null>(null)
 
@@ -481,15 +498,26 @@ WRAP, measured rather than assumed. On a 390px phone this row is
               const kept = summary.skipped.filter((s) => s.reason === "has_saved_reasons").length
               const quiet = summary.skipped.filter((s) => s.reason === "nothing_supportable").length
               const unranked = summary.skipped.filter((s) => s.reason === "not_currently_ranked").length
+              const yours = summary.skipped.filter((s) => s.reason === "no_generated_location_line").length
+              const already = summary.skipped.filter((s) => s.reason === "already_correct").length
               const parts = [
-                summary.written === 1 ? "Added highlights to 1 property." : `Added highlights to ${summary.written} properties.`,
+                summary.written > 0
+                  ? (summary.written === 1 ? "Added highlights to 1 property." : `Added highlights to ${summary.written} properties.`)
+                  : "",
+                summary.corrected > 0
+                  ? (summary.corrected === 1 ? "Updated 1 location line." : `Updated ${summary.corrected} location lines.`)
+                  : "",
+                summary.cleared > 0 ? `${summary.cleared} had nothing verified, so the line is yours to write.` : "",
                 kept > 0 ? `${kept} kept your saved wording.` : "",
+                yours > 0 ? `${yours} left your own wording alone.` : "",
+                already > 0 ? `${already} were already right.` : "",
                 quiet > 0 ? `${quiet} had nothing verified to show.` : "",
                 unranked > 0 ? `${unranked} are no longer in the curated collection.` : "",
               ]
-              setBackfillNote(parts.filter(Boolean).join(" "))
+              const note = parts.filter(Boolean).join(" ")
+              setBackfillNote(note === "" ? "Nothing needed changing." : note)
             }}
-            title={`Fill the missing "Why I chose this for you" lines on ${backfillableKeys.length === 1 ? "1 Quick Match property" : `${backfillableKeys.length} Quick Match properties`}. Adds nothing, removes nothing, and leaves any wording you have saved exactly as it is.`}
+            title={`Fill or correct the "Why I chose this for you" location line on ${backfillableKeys.length === 1 ? "1 Quick Match property" : `${backfillableKeys.length} Quick Match properties`}. Adds no property, removes no property, and leaves wording you have edited exactly as it is.`}
             className="inline-flex flex-none items-center justify-center gap-1.5 whitespace-nowrap rounded-lg border border-[var(--crm-border)] px-3 py-2 text-[12px] font-semibold text-[var(--crm-text-secondary)] transition-colors hover:bg-[var(--crm-card)] hover:border-[var(--crm-text-muted)] hover:text-[var(--crm-text-primary)] disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {backfilling ? "Backfilling…" : `Backfill Highlights (${backfillableKeys.length})`}

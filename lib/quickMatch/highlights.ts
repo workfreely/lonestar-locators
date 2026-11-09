@@ -24,6 +24,7 @@ import type { Recommendation } from "./ranking"
 import type { Finding, QuickMatchProperty } from "./types"
 import { CREDIT_CEILING, type ScreeningFacts } from "./eligibility"
 import { areaHighlightText } from "@/lib/leads/locationHighlight"
+import { isVerifiedInArea } from "./areaReference"
 
 /**
  * THE APPROVED CLIENT-FACING LABELS. This is the whole vocabulary — no label is assembled
@@ -155,12 +156,68 @@ export function screeningHighlight(
 }
 
 /**
+ * What slot one needs to know about where a property sits relative to what the client asked for.
+ *
+ * Assembled once per run by the caller and threaded through, because two of the three fields are
+ * properties of the CLIENT, not of a property, and the third is the result of a network call
+ * that must not happen inside a pure function.
+ */
+export type LocationInputs = {
+  /** The market display name (`leads.city`), which keys the curated tables. */
+  market: string | null | undefined
+  /** EVERY area the client asked for. Rule 1 is "inside a requested neighbourhood" — any of
+   *  them — so membership is checked against the whole list, not just the nearest anchor. */
+  requestedAreas: string[]
+  /** property place_id → a measured drive-time line, for properties that are not provably
+   *  inside a requested area. Absent means no verified figure exists. */
+  driveTimeLineByPlaceId: Map<string, string>
+}
+
+/**
+ * The client-facing LOCATION line for one property, or null to leave the slot editable.
+ *
+ * ── NO "NEAR", NO "NEXT TO", EVER ───────────────────────────────────────────────────────────
+ * This function used to hand the engine's band straight to areaHighlightText, which turned
+ * `adjacent` into "Next to Medical Center" and `nearby` into "Near Medical Center". Those are
+ * approximations derived from straight-line distance to a neighbourhood CENTROID, and they
+ * answered a question the client did not ask: she wants to know how convenient a property is to
+ * the area she chose, and "Near" does not tell her. They are gone. The two things that remain
+ * are both facts:
+ *
+ *   1. MEMBERSHIP, proven by ZIP against a curated list → "Located in Medical Center".
+ *      Checked across every requested area, and it OUTRANKS the band: a property whose ZIP is
+ *      inside the area is inside it, whatever its distance from the centroid happens to be.
+ *   2. A MEASURED DRIVE TIME to that area's approved reference point → "11 min to Medical Center".
+ *
+ * Neither is available → null, and the locator types what they know. That is rule 4, and it is
+ * the whole reason this returns null rather than falling back to a vaguer sentence.
+ *
+ * Note that `r.geo.band` is no longer read here at all. The band still decides which properties
+ * are recommended and in what order — this file has never had any say in that and still has none.
+ */
+export function locationHighlight(r: Recommendation, loc: LocationInputs): string | null {
+  for (const area of loc.requestedAreas) {
+    if (isVerifiedInArea(loc.market, area, r.property.zip)) {
+      // areaHighlightText still owns the wording and its length cap; "in_area" is passed
+      // because membership is exactly what has been proven.
+      const text = areaHighlightText("in_area", area)
+      if (text) return text
+    }
+  }
+  return loc.driveTimeLineByPlaceId.get(r.property.placeId) ?? null
+}
+
+/**
  * The lines Quick Match writes for one recommendation: location, then screening, each present
  * only when it is supported. Never more than two, never a price, never a washer/dryer line.
  */
-export function quickMatchHighlights(r: Recommendation, facts: ScreeningFacts): string[] {
+export function quickMatchHighlights(
+  r: Recommendation,
+  facts: ScreeningFacts,
+  loc: LocationInputs,
+): string[] {
   const out: string[] = []
-  const location = areaHighlightText(r.geo.band, r.geo.anchorLabel)
+  const location = locationHighlight(r, loc)
   if (location) out.push(location)
   const screening = screeningHighlight(r.property, r.assessment.findings, r.conflicts, facts)
   if (screening) out.push(screening)

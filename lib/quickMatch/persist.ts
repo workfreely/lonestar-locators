@@ -35,7 +35,9 @@ import { placeUrl } from "@/lib/propertyExplorer/types"
 import type { Recommendation } from "./ranking"
 import type { DisplayTier } from "./types"
 import type { ScreeningFacts } from "./eligibility"
-import { quickMatchHighlights } from "./highlights"
+import { quickMatchHighlights, locationHighlight, type LocationInputs } from "./highlights"
+import { isAreaHighlight } from "@/lib/leads/locationHighlight"
+import { isCommuteReason } from "@/lib/commute/commuteReason"
 
 /** The agent-facing screening record stored on the row. Never read by any client-facing path. */
 export type StoredScreening = {
@@ -82,6 +84,23 @@ export type HighlightSkip = {
     /** Backfill only: the row is in the collection but the engine does not currently rank it,
      *  so there is no band and no screening assessment to word a highlight from. */
     | "not_currently_ranked"
+    /** Correction only: slot one could not be PROVED system-generated, so the row was left
+     *  exactly as the locator left it. */
+    | "no_generated_location_line"
+    /** Correction only: the line already says what it should say. Writing it back would churn
+     *  updated_at for nothing. */
+    | "already_correct"
+}
+
+/** One existing location line the correction pass rewrote, and what it rewrote it from. */
+export type LocationCorrection = {
+  canonical_property_key: string
+  /** The generated line that was there, kept for the release record. */
+  before: string
+  /** Its replacement, or null when nothing was verifiable and the slot was left editable. */
+  after: string | null
+  /** The whole stored array afterwards, so the caller can update its map without a refetch. */
+  reasons: string[]
 }
 
 export type PersistResult = {
@@ -156,10 +175,13 @@ export async function persistQuickMatch(
     /** The client's own screening answers, for the third highlight. Read from the lead row the
      *  caller already holds; nothing here re-queries it. */
     facts: ScreeningFacts
+    /** Where each property sits relative to the areas the client asked for. Assembled by the
+     *  caller because membership and the drive times are client-level facts. */
+    loc: LocationInputs
     computedAt?: string
   },
 ): Promise<PersistResult> {
-  const { leadId, recommendations, collection, mode, facts } = args
+  const { leadId, recommendations, collection, mode, facts, loc } = args
   const computedAt = args.computedAt ?? new Date().toISOString()
   let replaced = 0
 
@@ -192,7 +214,7 @@ export async function persistQuickMatch(
   if (error) return { inserted: 0, alreadyPresent: 0, replaced, highlights: [], error: error.message }
 
   const inserted = (data ?? []).length
-  const { written } = await writeHighlights(supabase, leadId, recommendations, data ?? [], facts)
+  const { written } = await writeHighlights(supabase, leadId, recommendations, data ?? [], facts, loc)
   return { inserted, alreadyPresent: rows.length - inserted, replaced, highlights: written, error: null }
 }
 
@@ -231,6 +253,7 @@ async function writeHighlights(
   recommendations: Recommendation[],
   eligibleRows: Array<Record<string, unknown>>,
   facts: ScreeningFacts,
+  loc: LocationInputs,
 ): Promise<{ written: HighlightRow[]; skipped: HighlightSkip[] }> {
   const eligibleKeys = new Set(
     eligibleRows.map((row) => String(row.canonical_property_key ?? "")).filter(Boolean),
@@ -263,7 +286,7 @@ async function writeHighlights(
       skipped.push({ canonical_property_key: key, reason: "has_saved_reasons" })
       continue
     }
-    const reasons = quickMatchHighlights(r, facts)
+    const reasons = quickMatchHighlights(r, facts, loc)
     // Nothing supportable to say about this property. The slot stays open for manual entry
     // rather than carrying a hedge.
     if (reasons.length === 0) {
@@ -291,12 +314,127 @@ async function writeHighlights(
   }
 }
 
+/**
+ * Rewrite the location line on pairs that ALREADY have one.
+ *
+ * ── THIS IS THE ONE PATH THAT WRITES TO A NON-BLANK ROW ─────────────────────────────────────
+ * writeHighlights refuses any pair that carries words, which is correct for a backfill and
+ * useless for a correction: the lines being corrected are exactly the lines that are there. So
+ * the guard is replaced with a narrower one rather than loosened — PROVENANCE instead of
+ * emptiness.
+ *
+ * ── PROVING A LINE WAS GENERATED ────────────────────────────────────────────────────────────
+ * Only two shapes qualify, and both are anchored patterns this system owns:
+ *
+ *   isAreaHighlight   "Located in Medical Center" / "Next to …" / "Near …"   an area line
+ *   isCommuteReason   "11 min to Medical Center"                            our own drive time
+ *
+ * isAreaHighlight is anchored end to end, so a locator's edit — an appended word, a comma,
+ * different punctuation — stops it matching and the row is reported as
+ * `no_generated_location_line` and left alone. The second shape is what makes a re-run update in
+ * place instead of stacking, which is where idempotence comes from.
+ *
+ * The caller must not offer this function a client who has a real commute destination saved:
+ * then "11 min to …" belongs to the commute pass, and rule 3 gives that priority. The route
+ * enforces it; see the `anchoredElsewhere` gate.
+ *
+ * ── IT NEVER APPENDS, SO IT CANNOT COST THE CLIENT THEIR PRICE ──────────────────────────────
+ * Every outcome either replaces one element in place or removes it. The array can shrink but it
+ * can never grow, which matters more than it looks: MAX_REASONS is 3, and both price composers
+ * YIELD when the array is full, so a third line would silently remove "2BR from $1,679" from the
+ * client's page. A line that cannot be proved generated is therefore skipped, never worked
+ * around by adding a second location line beside it.
+ *
+ * ── AND IT NEVER TOUCHES THE SCREENING LINE ─────────────────────────────────────────────────
+ * "Credit-Friendly" is not an area line and not a drive time, so it matches neither pattern and
+ * is not a candidate. Only the matched index is ever written.
+ */
+async function correctLocationHighlights(
+  supabase: SupabaseClient,
+  leadId: number | string,
+  recommendations: Recommendation[],
+  eligibleRows: Array<Record<string, unknown>>,
+  loc: LocationInputs,
+): Promise<{ corrected: LocationCorrection[]; skipped: HighlightSkip[] }> {
+  const eligibleKeys = new Set(
+    eligibleRows.map((row) => String(row.canonical_property_key ?? "")).filter(Boolean),
+  )
+  if (eligibleKeys.size === 0) return { corrected: [], skipped: [] }
+
+  // A second read of a tiny table rather than threading writeHighlights' read through it:
+  // writeHighlights is shared with the draft path, and changing what it returns to serve this
+  // one caller would put the draft's behaviour at risk for a saved round trip.
+  const { data: existing, error: readErr } = await supabase
+    .from("lead_property_reasons")
+    .select("canonical_property_key, reasons")
+    .eq("lead_id", leadId)
+  if (readErr) {
+    console.error("[quick-match] location correction: reasons read failed:", readErr.message)
+    return { corrected: [], skipped: [] }
+  }
+  const stored = new Map<string, string[]>()
+  for (const row of existing ?? []) {
+    const reasons = Array.isArray(row.reasons) ? (row.reasons as unknown[]) : []
+    stored.set(String(row.canonical_property_key), reasons.map((t) => String(t ?? "")))
+  }
+
+  const now = new Date().toISOString()
+  const payload: Array<Record<string, unknown>> = []
+  const planned: LocationCorrection[] = []
+  const skipped: HighlightSkip[] = []
+
+  for (const r of recommendations) {
+    const key = canonicalKey(r.property.placeId)
+    if (!eligibleKeys.has(key)) continue
+    const reasons = stored.get(key)
+    // No row, or a row with nothing in it, is the BACKFILL's business, not this pass's.
+    if (!reasons || !reasons.some((t) => t.trim() !== "")) continue
+
+    const at = reasons.findIndex((t) => isAreaHighlight(t) || isCommuteReason(t))
+    if (at < 0) {
+      skipped.push({ canonical_property_key: key, reason: "no_generated_location_line" })
+      continue
+    }
+
+    const before = reasons[at]
+    const after = locationHighlight(r, loc)
+    if (after === before) {
+      skipped.push({ canonical_property_key: key, reason: "already_correct" })
+      continue
+    }
+
+    // Rule 4: nothing verifiable to say. The line goes, and the slot is left for the locator —
+    // which is the whole point of removing it rather than leaving an approximation standing.
+    const next = after === null
+      ? [...reasons.slice(0, at), ...reasons.slice(at + 1)]
+      : [...reasons.slice(0, at), after, ...reasons.slice(at + 1)]
+
+    payload.push({ lead_id: leadId, canonical_property_key: key, reasons: next, updated_at: now })
+    planned.push({ canonical_property_key: key, before, after, reasons: next })
+  }
+  if (payload.length === 0) return { corrected: [], skipped }
+
+  // Only the `reasons` column is sent, exactly as writeHighlights does, so the commute cache,
+  // the washer/dryer status and the average-rent figures on these same rows cannot be disturbed.
+  const { error: saveErr } = await supabase
+    .from("lead_property_reasons")
+    .upsert(payload, { onConflict: "lead_id,canonical_property_key" })
+    .select("canonical_property_key")
+  if (saveErr) {
+    console.error("[quick-match] location correction: save failed:", saveErr.message)
+    return { corrected: [], skipped }
+  }
+  return { corrected: planned, skipped }
+}
+
 /** What a backfill did, and for every pair it did nothing to, why. */
 export type BackfillResult = {
   /** Quick Match rows this client has — the whole population the backfill considered. */
   considered: number
   /** Pairs whose highlights were written by this run. */
   highlights: HighlightRow[]
+  /** Pairs whose EXISTING generated location line was rewritten or removed. */
+  corrected: LocationCorrection[]
   /** Pairs deliberately left exactly as they were, each with its reason. */
   skipped: HighlightSkip[]
   error: string | null
@@ -332,9 +470,13 @@ export async function backfillQuickMatchHighlights(
     /** The engine's current recommendations — the source of the WORDING, never of the list. */
     recommendations: Recommendation[]
     facts: ScreeningFacts
+    loc: LocationInputs
+    /** True when the client has a real commute destination saved. The commute pass owns slot
+     *  one then (rule 3), so the location correction stands down rather than competing with it. */
+    anchoredElsewhere?: boolean
   },
 ): Promise<BackfillResult> {
-  const { leadId, recommendations, facts } = args
+  const { leadId, recommendations, facts, loc } = args
 
   // The client's OWN Quick Match rows. This read is what defines the population; the engine
   // cannot add to it.
@@ -344,14 +486,21 @@ export async function backfillQuickMatchHighlights(
     .eq("lead_id", leadId)
     .eq("origin", QUICK_MATCH_ORIGIN)
   if (ownedErr) {
-    return { considered: 0, highlights: [], skipped: [], error: ownedErr.message }
+    return { considered: 0, highlights: [], corrected: [], skipped: [], error: ownedErr.message }
   }
   const ownedRows = (owned ?? []).filter((row) => String(row.canonical_property_key ?? "") !== "")
   if (ownedRows.length === 0) {
-    return { considered: 0, highlights: [], skipped: [], error: null }
+    return { considered: 0, highlights: [], corrected: [], skipped: [], error: null }
   }
 
-  const { written, skipped } = await writeHighlights(supabase, leadId, recommendations, ownedRows, facts)
+  const { written, skipped } = await writeHighlights(supabase, leadId, recommendations, ownedRows, facts, loc)
+
+  // The blank rows have just been filled; these are the ones that already said something. The
+  // two passes cannot collide: writeHighlights refuses a pair that carries words and this one
+  // refuses a pair that does not.
+  const { corrected, skipped: correctionSkips } = args.anchoredElsewhere === true
+    ? { corrected: [] as LocationCorrection[], skipped: [] as HighlightSkip[] }
+    : await correctLocationHighlights(supabase, leadId, recommendations, ownedRows, loc)
 
   // A row the engine does not currently rank has no band and no assessment behind it, so there is
   // nothing to word a highlight FROM. Reported rather than silently dropped: it is the one case
@@ -360,13 +509,33 @@ export async function backfillQuickMatchHighlights(
   const accountedFor = new Set([
     ...written.map((h) => h.canonical_property_key),
     ...skipped.map((s) => s.canonical_property_key),
+    ...corrected.map((c) => c.canonical_property_key),
+    ...correctionSkips.map((s) => s.canonical_property_key),
   ])
   const unranked: HighlightSkip[] = ownedRows
     .map((row) => String(row.canonical_property_key))
     .filter((key) => !ranked.has(key) && !accountedFor.has(key))
     .map((key) => ({ canonical_property_key: key, reason: "not_currently_ranked" as const }))
 
-  return { considered: ownedRows.length, highlights: written, skipped: [...skipped, ...unranked], error: null }
+  // writeHighlights reports every non-blank pair as `has_saved_reasons`, which was the whole
+  // story before the correction pass existed and is now misleading for a pair the correction then
+  // handled. Those entries are dropped in favour of the correction's own answer, so each pair is
+  // accounted for exactly once.
+  const handled = new Set([
+    ...corrected.map((c) => c.canonical_property_key),
+    ...correctionSkips.map((s) => s.canonical_property_key),
+  ])
+  const backfillSkips = skipped.filter(
+    (s) => !(s.reason === "has_saved_reasons" && handled.has(s.canonical_property_key)),
+  )
+
+  return {
+    considered: ownedRows.length,
+    highlights: written,
+    corrected,
+    skipped: [...backfillSkips, ...correctionSkips, ...unranked],
+    error: null,
+  }
 }
 
 /**
