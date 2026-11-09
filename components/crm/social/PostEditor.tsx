@@ -13,7 +13,7 @@ import { previewAspectClass } from "@/lib/social/postTypes"
 import { formatSocialEditableDate, parseSocialEditableDate } from "@/lib/social/displayName"
 import { SiInstagram, SiTiktok, SiYoutube } from "react-icons/si"
 import type { IconType } from "react-icons"
-import { buildHashtags, normalizeHashtag, hashtagLimitFor, MAX_HASHTAGS } from "@/lib/social/hashtags"
+import { normalizeHashtag, hashtagLimitFor, hashtagsForPost, MAX_HASHTAGS } from "@/lib/social/hashtags"
 import { voiceClipsFit } from "@/lib/social/voiceFit"
 import { useVoicePreview } from "@/components/crm/social/useVoicePreview"
 import { PRICE_LABEL_MODES, priceLabelMode as narrowPriceLabelMode, type PriceLabelMode, buildCaption, specialDisplay, buildTemplateHeadline, buildTemplateDetail, OVERLAY_TEMPLATES, OVERLAY_TEMPLATE_ORDER, OVERLAY_TEMPLATE_LABEL, DEFAULT_OVERLAY_TEMPLATE, type OverlayTemplate, isOverlayPreviewStale, type OverlayPreviewBaseline, type SourceMeta } from "@/lib/social/composePost"
@@ -630,7 +630,7 @@ export default function PostEditor({ postId, from }: { postId: string; from?: st
         seed,
         template: tpl,
         generatedHeadline: genHead,
-        generatedHashtags: buildHashtags(meta.market, MAX_HASHTAGS, meta.propertyType),
+        generatedHashtags: hashtagsForPost(tpl, meta.market, meta.propertyType),
       })
       setHeadlineDirty(loaded.headlineDirty)
       const loadedHeadline = loaded.headline
@@ -1097,7 +1097,9 @@ export default function PostEditor({ postId, from }: { postId: string; from?: st
   const removeTag = (idx: number) => { setHashtags((prev) => prev.filter((_, i) => i !== idx)); setHashtagsDirty(true) }
   // Suggest from the approved bank, capped at the Instagram limit — this RE-SYNCS hashtags to the
   // current market/type, so it clears the manual-override flag.
-  const suggestTags = () => { setHashtags(buildHashtags(market || post?.source?.market, MAX_HASHTAGS, propertyType || post?.source?.propertyType).slice(0, MAX_HASHTAGS)); setHashtagsDirty(false) }
+  // Routed through the same resolver, so Suggest cannot overwrite a template's own five with
+  // the market bank's ranked set.
+  const suggestTags = () => { setHashtags(hashtagsForPost(overlayTemplate, market || post?.source?.market, propertyType || post?.source?.propertyType)); setHashtagsDirty(false) }
 
   // ── Synchronization engine ─────────────────────────────────────────────────────────────────
   // The overlay headline, the Instagram caption, and the hashtags are AUTO-GENERATED from metadata;
@@ -1114,7 +1116,10 @@ export default function PostEditor({ postId, from }: { postId: string; from?: st
     // `tpl`, not the overlayTemplate STATE: changeTemplate calls this before the state has settled,
     // and the caption's opener is now template-aware.
     if (!captionDirty) setCaption(buildCaption(meta, sourceContentId ?? undefined, tpl))
-    if (!hashtagsDirty) setHashtags(buildHashtags(meta.market, MAX_HASHTAGS, meta.propertyType))
+    // `tpl`, not the overlayTemplate STATE — changeTemplate calls this before the state has
+    // settled, which is what makes selecting T34 populate its five immediately, and what
+    // makes a market change re-resolve the two city tags without touching the three fixed ones.
+    if (!hashtagsDirty) setHashtags(hashtagsForPost(tpl, meta.market, meta.propertyType))
     // Overlay Detail is derived from the template + metadata — no state to set here.
   }
   /**

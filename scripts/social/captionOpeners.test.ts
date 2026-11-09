@@ -54,7 +54,10 @@ const EXPECTED: [OverlayTemplate, string][] = [
 // section builder has no slot for. It is therefore excluded from the opener table and from the
 // shared-body invariant below — and that exclusion is ASSERTED, not assumed, so a future template
 // cannot fall out of this suite silently.
-const FIXED_CAPTION_TEMPLATES = ["client_me_bad_credit", "client_me_ex_cheated", "client_me_rent_increase", "client_me_roaches"] as const
+// T34 military_special joins them for the same reason: its approved block states its own three
+// specials, so routing it through the section builder would append a special and amenities nobody
+// approved. This exclusion is what the assertion below exists to make explicit.
+const FIXED_CAPTION_TEMPLATES = ["client_me_bad_credit", "client_me_ex_cheated", "client_me_rent_increase", "client_me_roaches", "military_special"] as const
 const OPENER_TEMPLATES = (OVERLAY_TEMPLATES as readonly string[]).filter((t) => !(FIXED_CAPTION_TEMPLATES as readonly string[]).includes(t))
 ok("every opener-driven template is covered exactly once", EXPECTED.length === OPENER_TEMPLATES.length && EXPECTED.every(([t]) => OPENER_TEMPLATES.includes(t)))
 ok("...and every excluded template really does return a fixed caption",

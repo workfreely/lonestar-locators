@@ -71,10 +71,16 @@ console.log("\nSource guarantees (PostEditor uses the shared cap for the editor,
   ok("add-cap uses hashtagLimit (prevent adding past the cap)", /prev\.length\s*>=\s*hashtagLimit/.test(noComments))
   ok("add-input visibility uses hashtagLimit", /hashtags\.length\s*<\s*hashtagLimit/.test(noComments))
   ok("count label / warning uses hashtagLimit", /hashtags\.length\s*>\s*hashtagLimit/.test(noComments))
-  // Generation is UNCHANGED — every buildHashtags call still uses MAX_HASHTAGS, never hashtagLimit.
-  const genCalls = noComments.match(/buildHashtags\([^)]*\)/g) ?? []
-  ok("buildHashtags is still called (generation present)", genCalls.length >= 2)
-  ok("no buildHashtags call uses hashtagLimit (generation untouched)", genCalls.every((c) => !/hashtagLimit/.test(c)))
+  // Generation is UNCHANGED — it still runs off MAX_HASHTAGS, never the display cap.
+  // The editor now generates through hashtagsForPost (the shared resolver that applies a
+  // template's own set and otherwise calls buildHashtags with MAX_HASHTAGS). Same claim, same
+  // guarantee: generation is present, and the per-platform display cap is not what sizes it.
+  const genCalls = noComments.match(/(?:buildHashtags|hashtagsForPost)\([^)]*\)/g) ?? []
+  ok("hashtag generation is still called (generation present)", genCalls.length >= 2)
+  ok("no generation call uses hashtagLimit (generation untouched)", genCalls.every((c) => !/hashtagLimit/.test(c)))
+  // And the resolver really does cap at MAX_HASHTAGS, so routing through it cannot widen the set.
+  ok("the shared resolver caps at MAX_HASHTAGS",
+    /\.slice\(0, MAX_HASHTAGS\)/.test(readFileSync(`${process.cwd()}/lib/social/hashtags.ts`, "utf8")))
   // The generation constant now lives in lib/social/hashtags (one canonical source, value 5) and
   // PostEditor imports it instead of declaring its own.
   ok("PostEditor imports the shared MAX_HASHTAGS rather than declaring its own", /import\s*\{[^}]*MAX_HASHTAGS[^}]*\}\s*from\s*"@\/lib\/social\/hashtags"/.test(noComments) && !/const\s+MAX_HASHTAGS\s*=/.test(noComments))

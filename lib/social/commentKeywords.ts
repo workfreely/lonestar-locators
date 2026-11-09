@@ -52,6 +52,21 @@ export type CommentKeyword = {
 export const COMMENT_KEYWORDS: readonly CommentKeyword[] = [
   // Property keywords first: they say what someone is looking for, so they outrank general interest.
   { keyword: "LIST", propertyType: "Apartment" },
+  // USA — a CAMPAIGN keyword, not a property type, asked for by the Military Special template's
+  // caption. It sits in this group because the lead it produces is an apartment lead like LIST's,
+  // and `utm_content=USA` is what keeps the campaign distinguishable on the lead itself.
+  //
+  // "USA 🇺🇸" matches: tokenize treats the flag as a separator, so the comment reduces to ["USA"].
+  // Whole-token matching is what makes this safe — no English word tokenises to USA, so ordinary
+  // praise cannot trigger it. Two things deliberately do NOT match, because the matcher is
+  // token-based and nothing here weakens that: "U.S.A." (three tokens) and a flag-only comment
+  // (no tokens at all).
+  //
+  // PRECEDENCE, stated so it is not a surprise: a comment containing BOTH ("USA send the list")
+  // resolves to LIST, because equal token counts break on character length and LIST is longer.
+  // Declaring USA earlier would not change that — length is compared before the declared index.
+  // Both are apartment leads, so the outcome is a correctly captured lead either way.
+  { keyword: "USA", propertyType: "Apartment" },
   { keyword: "TOWN", propertyType: "Townhome" },
   { keyword: "LOFT", propertyType: "Loft" },
   { keyword: "RISE", propertyType: "High-Rise" },
@@ -180,6 +195,34 @@ export function leadFormLink(input: {
  */
 export const APPROVED_DM_BODY =
   "I got you! Fill out this quick form. I’ll send over your best options! 🔑"
+
+/**
+ * Per-keyword private messages, for campaigns whose offer the general message cannot describe.
+ *
+ * ADDITIVE BY CONSTRUCTION. A keyword absent from this map gets APPROVED_DM_BODY, so the thirteen
+ * keywords that existed before this map — and every keyword added later — are unaffected by it.
+ * That is the whole reason it is a lookup with a fallback rather than a branch in the runner.
+ *
+ * The same rules still apply to anything in here as to the general message: it is the EXACT
+ * wording, the branded lead-form link is appended by the caller as a SEPARATE paragraph and never
+ * spliced into the sentence, and it must not claim anything the platform has not accepted.
+ */
+export const KEYWORD_DM_BODY: Record<string, string> = {
+  // The Military Special campaign. Names the offer the commenter actually responded to, which the
+  // general message cannot — and thanks them for their service, which is the whole reason this
+  // keyword is not just LIST.
+  USA: "Thank you for your service! 🇺🇸 Fill out this quick form and I’ll send over the best military specials in San Antonio! 🔑",
+}
+
+/**
+ * The private message for a keyword — its own, or the general approved one.
+ *
+ * Uppercased before lookup so it cannot miss on casing: COMMENT_KEYWORDS stores canonical
+ * uppercase, but a caller passing through a provider's value should not have to know that.
+ */
+export function dmBodyForKeyword(keyword: string | null | undefined): string {
+  return KEYWORD_DM_BODY[String(keyword ?? "").trim().toUpperCase()] ?? APPROVED_DM_BODY
+}
 
 /**
  * The approved public reply used when a DM was NOT sent — because messaging is not authorised, or

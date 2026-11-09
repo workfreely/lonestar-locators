@@ -11,7 +11,7 @@
 // SourceMeta, so they can never leak into public copy automatically. The operator may still type
 // any of those into the editable fields as an explicit creative decision.
 
-import { buildHashtags, isCanonicalHashtag, MAX_HASHTAGS, PLATFORM_HASHTAG_LIMIT } from "@/lib/social/hashtags"
+import { buildHashtags, hashtagsForPost, templateHashtags, isCanonicalHashtag, MAX_HASHTAGS, PLATFORM_HASHTAG_LIMIT } from "@/lib/social/hashtags"
 import { parseAmenities, amenityEquivalenceKey, amenityImpliedBySelection } from "@/lib/social/amenities"
 import { normalizeSocialMarket, SOCIAL_MARKETS } from "@/lib/social/markets"
 import { propertyNoun, propertyNounPlural, normalizeToCanonical, PROPERTY_TYPES, COMPOUND_TYPE_QUALIFIERS, SOCIAL_CANONICAL_ORDER } from "@/lib/social/propertyTypes"
@@ -282,9 +282,17 @@ export function commentCtaKeyword(propertyType: string | null | undefined): stri
   return COMMENT_KEYWORDS[head] ?? "LIST"
 }
 
-/** The closing CTA line for a Property Type. */
-export function commentCta(propertyType: string | null | undefined): string {
-  return `✅ Comment "${commentCtaKeyword(propertyType)}" and I’ll send you the best options within your budget.`
+/**
+ * The closing CTA line for a Property Type.
+ *
+ * `keywordOverride` exists for a CAMPAIGN keyword — one that is not derived from a property type at
+ * all. T34's "USA" is the first: a Military Special post can be an apartment, which would derive
+ * "LIST". Passing the keyword explicitly keeps ONE copy of this sentence, so a future change to the
+ * wording still reaches every template from here, and no caller has to rewrite the string itself.
+ */
+export function commentCta(propertyType: string | null | undefined, keywordOverride?: string): string {
+  const keyword = (keywordOverride ?? "").trim() || commentCtaKeyword(propertyType)
+  return `✅ Comment "${keyword}" and I’ll send you the best options within your budget.`
 }
 
 // Deterministic, stable string hash (FNV-1a, 32-bit unsigned) used ONLY to pick a hook. Same seed
@@ -590,6 +598,59 @@ const roachesLines = (cta: string) => [
 ].join("\n\n")
 export const ROACHES_CAPTION = roachesLines(CLIENT_ME_CTA)
 
+// ── T34 MILITARY SPECIAL — FIXED COPY, AND ITS OWN KEYWORD ──────────────────────────────────
+//
+// Fixed and returned WHOLE for the same reason the Client / Me captions are: the approved copy
+// states its own three specials, so routing it through captionSections would append whichever
+// special and amenities the property happens to carry — copy nobody approved — and would print a
+// price line the offer does not mention. It also means the PROPERTY NAME can never appear: the
+// section builder is bypassed entirely, and nothing below reads a name.
+//
+// ── THE PARAGRAPH SHAPE IS THE DELIVERABLE ──────────────────────────────────────────────────
+// Four blocks joined by "\n\n" (one blank line between each), and the specials block is three
+// lines joined by a SINGLE "\n" so they sit consecutively:
+//
+//     Deploying to San Antonio? I got you 🇺🇸
+//                                                  ← blank
+//     ✅ $0 Security Deposit
+//     ✅ $0 App and Admin Fees
+//     ✅ 8 WEEKS FREE RENT! 🔥
+//                                                  ← blank
+//     My apartment locating service is completely FREE!
+//                                                  ← blank
+//     ✅ Comment "USA" and I’ll send you the best options within your budget.
+//
+// The uppercase "FREE!" is the Client / Me family's own service line, not the lowercase
+// SERVICE_LINE the composed captions use — this caption belongs to the fixed family.
+//
+// ── THE CTA KEYWORD IS PINNED, NOT DERIVED ──────────────────────────────────────────────────
+// commentCtaKeyword() derives a keyword from the post's PROPERTY TYPE, so an apartment would
+// render 'Comment "LIST"'. USA is a campaign keyword, not a property type, so it is passed
+// through commentCta directly — which keeps this sentence identical in structure to every other
+// template's closing line, so a future change to that wording still reaches all of them from one
+// place.
+export const MILITARY_KEYWORD = "USA"
+const MILITARY_CTA = commentCta(null, MILITARY_KEYWORD)
+
+/** T34. The city is the ONE variable, exactly as T21's is: it reflects the selected market, and a
+ *  missing or blank market degrades to the cityless opening rather than naming a market the post
+ *  is not for or inventing one. Social Beast posts to five markets, so a hardcoded city would be
+ *  wrong on four of them. */
+const militaryLines = (city: string, cta: string) => [
+  city ? `Deploying to ${city}? I got you 🇺🇸` : "Deploying? I got you 🇺🇸",
+  ["✅ $0 Security Deposit", "✅ $0 App and Admin Fees", "✅ 8 WEEKS FREE RENT! 🔥"].join("\n"),
+  "My apartment locating service is completely FREE!",
+  cta,
+].join("\n\n")
+
+export function militarySpecialCaption(src: SourceMeta): string {
+  return militaryLines(clean(normalizeSocialMarket(src.market)), MILITARY_CTA)
+}
+
+/** The CITYLESS form — what T34 produces for a post with no market. Exported for the same reason
+ *  BAD_CREDIT_CAPTION is: the generated-vs-manual check needs every form the generator can emit. */
+export const MILITARY_SPECIAL_CAPTION = militaryLines("", MILITARY_CTA)
+
 /** Every SUPERSEDED form of a fixed Client / Me caption, for isGeneratedCaption only. Rebuilt from
  *  the CURRENT copy with the old CTA substituted, rather than re-spelling the old captions, so an
  *  edit to the copy cannot leave a stale duplicate behind here. */
@@ -630,6 +691,9 @@ export function buildCaption(src: SourceMeta, seed?: string | number, template?:
   // T23 and T24 are the same shape, checked here for the same reason.
   if (template === "client_me_rent_increase") return RENT_INCREASE_CAPTION
   if (template === "client_me_roaches") return ROACHES_CAPTION
+  // T34 is the same shape: fixed copy, checked BEFORE resolveOpener so no hook is chosen, no
+  // special or amenity section can be appended, and the property name can never reach it.
+  if (template === "military_special") return militarySpecialCaption(src)
   return captionSections(src, resolveOpener(src, seed, template ?? null))
 }
 
@@ -652,7 +716,9 @@ export function preparePost(src: SourceMeta, seed?: string | number, template?: 
     overlaySubheadline: buildOverlaySubheadline(src),
     // No template supplied (Bulk Review has no per-row template yet) ⇒ the original rotating hook.
     caption: buildCaption(src, seed, template),
-    hashtags: buildHashtags(src.market, MAX_HASHTAGS, src.propertyType),
+    // Template-aware: T34 dictates its own five, every other template draws the ranked
+    // market bank exactly as before.
+    hashtags: hashtagsForPost(template ?? null, src.market, src.propertyType),
   }
 }
 
@@ -731,7 +797,13 @@ export const OVERLAY_TEMPLATES = ["market_type", "market_type_centered", "your_s
   // existing entry moves. It is SHOWN at dropdown position 27 (immediately after POV Couple) via
   // OVERLAY_TEMPLATE_ORDER — which is why display position 27 and registry position 33 differ,
   // and why nothing already saved as "roomie" can be re-read as something else.
-  "pov_regular_shmegular"] as const
+  "pov_regular_shmegular",
+  // T34 MILITARY SPECIAL. APPENDED LAST, for the one reason that has always governed this array: a
+  // saved post stores its template as a STRING, so appending is what guarantees no existing entry
+  // moves and nothing already saved can be re-read as something else. It is SHOWN at dropdown
+  // position 27, immediately before the Client / Me group, via OVERLAY_TEMPLATE_ORDER — which is
+  // why display position 27 and registry position 34 differ.
+  "military_special"] as const
 export type OverlayTemplate = (typeof OVERLAY_TEMPLATES)[number]
 export const DEFAULT_OVERLAY_TEMPLATE: OverlayTemplate = "market_type"
 export const OVERLAY_TEMPLATE_LABEL: Record<OverlayTemplate, string> = {
@@ -776,6 +848,7 @@ export const OVERLAY_TEMPLATE_LABEL: Record<OverlayTemplate, string> = {
   pov_couple: "POV Couple",
   roomie: "Roomie",
   pov_regular_shmegular: "POV: Regular Shmegular Upgrade",
+  military_special: "Military Special",
 }
 
 /**
@@ -833,6 +906,10 @@ export const OVERLAY_TEMPLATE_ORDER: readonly OverlayTemplate[] = [
   // changes, because this list is display only; identity lives in OVERLAY_TEMPLATES above.
   "pov_regular_shmegular",
   "roomie",
+  // DROPDOWN POSITION 27. Everything below shifts down one DISPLAY position — the Client / Me
+  // group 27-31 becomes 28-32, so Roaches stays last at 32. No stored value changes: this list is
+  // display only, and identity lives in OVERLAY_TEMPLATES above.
+  "military_special",
   "client_me", "client_me_bad_credit", "client_me_ex_cheated", "client_me_rent_increase", "client_me_roaches",
 ]
 
@@ -1098,6 +1175,11 @@ export function buildTemplateHeadline(template: OverlayTemplate, src: SourceMeta
         : null
       return short ? `2 bed ${short}…` : ROOMIE_FALLBACK_HEADLINE
     }
+    // T34 MILITARY SPECIAL. Fixed, and deliberately independent of every piece of property
+    // metadata: the headline names the OFFER, not the listing, so it carries no type, no city, no
+    // price and no property name. Nothing here can degrade, because nothing here is derived.
+    case "military_special":
+      return "MILITARY SPECIAL"
     // T28 THEM VS. ME. Structurally a Client / Me exchange — the first statement is the HEADLINE,
     // the reply is the DETAIL — so it joins that family in overlaySpec and inherits its layout,
     // sizing, gap and timing wholesale. Nothing of Client / Me is copied or modified; membership
@@ -1239,6 +1321,11 @@ export function buildTemplateDetail(template: OverlayTemplate, src: SourceMeta):
       const perPerson = roomiePerPersonDollars(src)
       return perPerson === null ? "" : `Only ${formatRoomieSplit(perPerson)}${PER_MONTH_SUFFIX} per roomie`
     }
+    // T34 MILITARY SPECIAL. The offer itself, on one line directly under the headline. Fixed for
+    // the same reason the headline is: it states the SPECIAL, which no property field supplies, so
+    // there is nothing to derive and nothing that can go stale against the data.
+    case "military_special":
+      return "$0 Deposit - $0 App/Admin Fees - 8 Weeks Free"
 
     // T28 THEM VS. ME fills the detail slot with the second half of its exchange, exactly as
     // Client / Me fills it with "Me: “Say less.”" — same slot, same size, same gap, same timing.
@@ -1485,10 +1572,23 @@ export function isGeneratedCaption(text: string | null | undefined, src: SourceM
  *  matches buildHashtags for SOME market × type, OR — to cover re-ordered / OLDER-engine generated
  *  sets — when EVERY tag is a recognized canonical/legacy hashtag. A set containing any tag outside
  *  the canonical vocabulary is treated as a MANUAL override and is preserved (never overwritten). */
-export function isGeneratedHashtags(tags: string[] | null | undefined, src: SourceMeta): boolean {
+export function isGeneratedHashtags(
+  tags: string[] | null | undefined,
+  src: SourceMeta,
+  template?: OverlayTemplate | null,
+): boolean {
   const arr = (tags ?? []).filter(Boolean)
   if (arr.length === 0) return true
   const joined = arr.join(" ")
+  // A template that dictates its own set owns that set for EVERY market, including the cityless
+  // form. Checking all of them is what lets a market change re-resolve the two city tags instead
+  // of the stored set being read as a manual override and frozen — which is exactly what would
+  // happen otherwise, since a campaign tag like #militarylife is not in the canonical vocabulary.
+  if (templateHashtags(template ?? null, src.market)) {
+    for (const m of [...SOCIAL_MARKETS, ""]) {
+      if ((templateHashtags(template ?? null, m) ?? []).join(" ") === joined) return true
+    }
+  }
   for (const m of SOCIAL_MARKETS) for (const pt of TYPES_WITH_NULL) {
     if (buildHashtags(m, MAX_HASHTAGS, pt).join(" ") === joined) return true
   }
@@ -1633,8 +1733,11 @@ export function buildTikTokCaptionPayload(input: {
     amenities: s?.amenities ?? null,
   }
   const body = publishCaption(input.caption, meta, input.sourceContentId ?? undefined, input.overlayTemplate ?? null)
-  // TikTok hashtags computed independently from Instagram's, limited to 5.
-  const tags = buildHashtags(meta.market, TIKTOK_MAX_HASHTAGS, meta.propertyType)
+  // TikTok hashtags computed independently from Instagram's, limited to 5 — and template-aware
+  // for the same reason the body is: a template that dictates its own five must send the same five
+  // on both platforms, not the ranked market bank here and its own set there.
+  const tags = (templateHashtags(input.overlayTemplate ?? null, meta.market)
+    ?? buildHashtags(meta.market, TIKTOK_MAX_HASHTAGS, meta.propertyType)).slice(0, TIKTOK_MAX_HASHTAGS)
   // LAST STEP, TikTok only: make the blank lines survive TikTok's rendering. Applied after the
   // body and hashtags are composed so every section boundary is covered, including CTA → hashtags.
   return padTikTokSectionBreaks(composeFinalCaption(body, tags))

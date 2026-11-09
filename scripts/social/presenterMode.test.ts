@@ -278,8 +278,8 @@ console.log("\nshadows, fitting and the single composition pipeline:")
 
 // ── 7. NOTHING ELSE CHANGED ───────────────────────────────────────────────────────────────────
 console.log("\nselector and identities untouched:")
-ok("33 registered identities", OVERLAY_TEMPLATES.length === 33)
-ok("31 visible selections", OVERLAY_TEMPLATE_ORDER.length === 31)
+ok("34 registered identities", OVERLAY_TEMPLATES.length === 34)
+ok("32 visible selections", OVERLAY_TEMPLATE_ORDER.length === 32)
 ok("the hidden pair is still registered and still hidden",
   (OVERLAY_TEMPLATES as readonly string[]).includes("market_type") &&
   !(OVERLAY_TEMPLATE_ORDER as readonly string[]).includes("market_type") &&

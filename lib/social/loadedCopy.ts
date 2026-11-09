@@ -71,7 +71,9 @@ export function resolveLoadedCopy(input: LoadedCopyInput): LoadedCopy {
   const captionDirty = !isGeneratedCaption(storedCaption, meta, seed)
   const headlineDirty =
     !!storedHeadline && storedHeadline !== generatedHeadline && !isGeneratedHeadline(storedHeadline)
-  const hashtagsDirty = !isGeneratedHashtags(storedHashtags, meta)
+  // The TEMPLATE is part of this judgement: T34 dictates its own five, and without it those
+  // five read as a manual override and would never re-sync when the market changed.
+  const hashtagsDirty = !isGeneratedHashtags(storedHashtags, meta, template)
 
   // DISPLAY — stored wins; generation fills a gap.
   return {

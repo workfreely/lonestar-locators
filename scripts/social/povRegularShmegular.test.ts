@@ -41,8 +41,13 @@ const REGISTRY_BEFORE_T33 = [
 ok("every pre-existing id is at its exact former index",
   REGISTRY_BEFORE_T33.every((id, i) => OVERLAY_TEMPLATES[i] === id),
   REGISTRY_BEFORE_T33.find((id, i) => OVERLAY_TEMPLATES[i] !== id))
-ok("the new id is APPENDED, not inserted", OVERLAY_TEMPLATES[OVERLAY_TEMPLATES.length - 1] === NEW)
-ok("the registry grew by exactly one", OVERLAY_TEMPLATES.length === REGISTRY_BEFORE_T33.length + 1,
+// Pinned to T33's OWN append position rather than "last", so a later release appending T34 cannot
+// make this read as a failure while the claim it encodes — T33 was appended, nothing was inserted
+// ahead of it, and it added exactly one id — still holds exactly.
+ok("the new id is APPENDED, not inserted", OVERLAY_TEMPLATES[REGISTRY_BEFORE_T33.length] === NEW)
+ok("the registry grew by exactly one at that point",
+  JSON.stringify(OVERLAY_TEMPLATES.slice(0, REGISTRY_BEFORE_T33.length + 1))
+  === JSON.stringify([...REGISTRY_BEFORE_T33, NEW]),
   String(OVERLAY_TEMPLATES.length))
 ok("no duplicate ids", new Set(OVERLAY_TEMPLATES).size === OVERLAY_TEMPLATES.length)
 
@@ -55,9 +60,17 @@ const pos = (t: string) => OVERLAY_TEMPLATE_ORDER.indexOf(t as OverlayTemplate) 
 // thing that was actually asked for: it sits immediately after the template it is built from.
 ok(`it is directly after POV Couple (POV Couple ${pos(BASE)}, this ${pos(NEW)})`, pos(NEW) === pos(BASE) + 1)
 ok("…and Roomie directly after it", pos("roomie") === pos(NEW) + 1)
-ok("…with the Client / Me group still contiguous and in order after Roomie",
-  ["client_me", "client_me_bad_credit", "client_me_ex_cheated", "client_me_rent_increase", "client_me_roaches"]
-    .every((t, i) => pos(t) === pos("roomie") + 1 + i))
+// T34 Military Special was later inserted between Roomie and this group, so the group is no
+// longer directly after Roomie. What was approved is that the group stays CONTIGUOUS, IN ORDER and
+// at the END of the dropdown, which is what is pinned here.
+ok("…with the Client / Me group still contiguous, in order, and last",
+  (() => {
+    const group = ["client_me", "client_me_bad_credit", "client_me_ex_cheated", "client_me_rent_increase", "client_me_roaches"]
+    const first = pos(group[0])
+    // pos() is 1-BASED, so the last member's position is the list's length.
+    return group.every((t, i) => pos(t) === first + i)
+      && pos(group[group.length - 1]) === OVERLAY_TEMPLATE_ORDER.length
+  })())
 ok("it appears in the dropdown exactly once", OVERLAY_TEMPLATE_ORDER.filter((t) => t === NEW).length === 1)
 ok("the two hidden templates are absent from the dropdown",
   !OVERLAY_TEMPLATE_ORDER.includes("market_type" as OverlayTemplate) &&

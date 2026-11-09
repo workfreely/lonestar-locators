@@ -31,7 +31,7 @@ import {
 } from "@/lib/social/commentIdentity"
 import { screenComment, shouldSendPublicReply, type ScreenReason } from "@/lib/social/commentSafety"
 import {
-  matchComment, pickVariant, leadFormLink, APPROVED_DM_BODY, APPROVED_PUBLIC_FALLBACK,
+  matchComment, pickVariant, leadFormLink, dmBodyForKeyword, APPROVED_PUBLIC_FALLBACK,
 } from "@/lib/social/commentKeywords"
 import {
   featureGate, sendGate, privateReplyWindow, classifySendAttempt, isOutsideWindowError,
@@ -313,7 +313,9 @@ export async function processComment(
         mediaId: c.externalMediaId,
       })
       // EXACT APPROVED WORDING, then the link. The sentence is never reworded or appended to.
-      const attempt: SendResult = await sender.sendPrivateReply(ctx, c.externalCommentId, `${APPROVED_DM_BODY}\n\n${link}`)
+      // The keyword's own message when it has one, else the general approved body. The link stays a
+      // SEPARATE paragraph either way, so copy and URL are still reviewable on their own.
+      const attempt: SendResult = await sender.sendPrivateReply(ctx, c.externalCommentId, `${dmBodyForKeyword(keyword.keyword)}\n\n${link}`)
       usage = attempt.usage ?? usage
 
       const cls = classifySendAttempt(attempt)

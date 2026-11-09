@@ -243,6 +243,67 @@ export function hashtagLimitFor(selected: Iterable<string>, fallback = MAX_HASHT
   return limits.length ? Math.min(...limits) : fallback
 }
 
+// ── TEMPLATE-SPECIFIC HASHTAGS ───────────────────────────────────────────────────────────────
+//
+// One template, T34 Military Special, states its own five tags instead of drawing from the market
+// bank. It is a CAMPAIGN: the audience is military renters, so #militarylife and #militaryhousing
+// carry it in a way no market/property ranking would ever produce.
+//
+// EVERY OTHER TEMPLATE IS UNAFFECTED BY CONSTRUCTION. templateHashtags returns null for anything
+// it does not name, and every caller treats null as "use buildHashtags" — so the ranked bank is
+// still the only source for the other thirty-three, and there is no branch anywhere that could
+// accidentally widen this.
+
+/** The three that never change, in their approved order. */
+export const MILITARY_SPECIAL_FIXED_HASHTAGS = ["#militarylife", "#relocation", "#militaryhousing"] as const
+
+/**
+ * A market label as a hashtag token: lowercase, with everything that is not a letter or a digit
+ * removed. "San Antonio" → "sanantonio", "Fort Worth" → "fortworth", "DFW" → "dfw".
+ *
+ * A transformation, deliberately, rather than a lookup in MARKET_BANKS: the rule is the same for
+ * every market including ones with no curated bank, so a market added later needs no entry here.
+ * Note this means DFW yields #movingtodfw, where the general bank's relocation tag for DFW is
+ * #movingtodallas — this template follows the stated rule, not the bank.
+ */
+export function marketHashtagSlug(market: string | null | undefined): string {
+  return normalizeSocialMarket(market).toLowerCase().replace(/[^\p{L}\p{N}]+/gu, "")
+}
+
+/**
+ * The hashtags a TEMPLATE dictates, or null when it dictates none.
+ *
+ * Military Special: the three fixed tags, then #movingto{city} and #{city}apartments built from
+ * the selected market — exactly five, in that order. A blank market yields the three fixed tags
+ * alone rather than #movingto or #apartments, because half a tag is worse than a missing one and
+ * nothing here may invent a city.
+ */
+export function templateHashtags(
+  template: string | null | undefined,
+  market: string | null | undefined,
+): string[] | null {
+  if ((template ?? "").trim() !== "military_special") return null
+  const city = marketHashtagSlug(market)
+  const fixed = [...MILITARY_SPECIAL_FIXED_HASHTAGS]
+  return city ? [...fixed, `#movingto${city}`, `#${city}apartments`] : fixed
+}
+
+/**
+ * The hashtags for one post: the template's own when it has them, else the ranked market bank.
+ *
+ * The ONE place that decision is made, so the editor's load, its metadata sync and its Suggest
+ * button cannot disagree about it — which is what stops the market suggestion system overwriting
+ * a template's own five.
+ */
+export function hashtagsForPost(
+  template: string | null | undefined,
+  market: string | null | undefined,
+  propertyType?: string | null,
+): string[] {
+  return (templateHashtags(template, market) ?? buildHashtags(market, MAX_HASHTAGS, propertyType))
+    .slice(0, MAX_HASHTAGS)
+}
+
 /** Normalize a user-entered tag to a single #token (letters/digits/underscore). */
 export function normalizeHashtag(raw: string): string {
   const t = (raw || "").trim().replace(/^#+/, "").replace(/[^\p{L}\p{N}_]/gu, "")

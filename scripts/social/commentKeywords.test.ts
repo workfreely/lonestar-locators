@@ -65,7 +65,9 @@ console.log("\n3. DETERMINISTIC PRECEDENCE WHEN SEVERAL MATCH:")
 
 console.log("\n4. EVERY APPROVED KEYWORD IS SUPPORTED, AND NOTHING EXTRA:")
 {
-  const want = ["LIST","TOWN","LOFT","RISE","HOME","KEY","INFO","DETAILS","MORE","WHERE","LOCATION","INTERESTED","CONTACT ME","MESSAGE"]
+  // USA is the fifteenth, added for the Military Special template's caption. "No extras" still
+  // means exactly this list — it grew by one approved entry, it was not loosened.
+  const want = ["LIST","USA","TOWN","LOFT","RISE","HOME","KEY","INFO","DETAILS","MORE","WHERE","LOCATION","INTERESTED","CONTACT ME","MESSAGE"]
   const got = COMMENT_KEYWORDS.map((k) => k.keyword)
   ok(`all ${want.length} approved keywords present`, want.every((w) => got.includes(w)), got.join(","))
   ok("no extras", got.length === want.length, got.join(","))

@@ -60,9 +60,14 @@ console.log("\n=== 1. THE ORIGINAL 24 ARE UNTOUCHED ===")
   eq("every original id is still registered, in its original index", OVERLAY_TEMPLATES.slice(0, 24), ORIGINAL_24)
   // T33 (pov_regular_shmegular) was appended after this batch, so the length moves while every
   // index this suite cares about stays put — which is exactly what the next assertion proves.
-  eq("the registry grew by APPENDING", OVERLAY_TEMPLATES.length, 33)
+  // 34 since T34 military_special was appended. The CLAIM is unchanged: the registry grows by
+  // APPENDING, which is what keeps this batch at indices 24-31.
+  eq("the registry grew by APPENDING", OVERLAY_TEMPLATES.length, 34)
   eq("…and the eight ids of THIS batch still occupy indices 24-31", OVERLAY_TEMPLATES.slice(24, 32), [...NEW7, "roomie"])
-  eq("…with T33 appended after them, touching none of the above", OVERLAY_TEMPLATES.slice(32), ["pov_regular_shmegular"])
+  // T33 then T34, each appended after this batch and touching none of it. The claim is unchanged:
+  // everything this batch owns sits at indices 24-31 and later releases only append.
+  eq("…with T33 and T34 appended after them, touching none of the above",
+    OVERLAY_TEMPLATES.slice(32), ["pov_regular_shmegular", "military_special"])
   ok("no id is duplicated", new Set(OVERLAY_TEMPLATES).size === OVERLAY_TEMPLATES.length)
   ok("every registered template has a label", OVERLAY_TEMPLATES.every((t) => !!OVERLAY_TEMPLATE_LABEL[t]))
   // The original labels, spot-checked at the boundaries that a careless edit would hit.
@@ -108,8 +113,11 @@ console.log("\n=== 2. DISPLAY ORDER IS SEPARATE FROM IDENTITY ===")
   // ADJACENCY, NOT ABSOLUTE POSITIONS. Hiding two templates above this batch moved every one of
   // them up two, for a reason with nothing to do with the batch. What was approved is the order
   // they sit in relative to one another, so that is what is pinned.
+  // T34 Military Special was later inserted at display 27, between Roomie and the Client / Me
+  // group, so it belongs in this sequence at that spot. The ADJACENCY claim is unchanged — this
+  // run of labels is still contiguous and still ends the list; it simply has one more member.
   const seq = ["Apartment Crush", "Live With", "Level Up", "Them vs. Me", "View", "Aura", "POV Couple",
-    "POV: Regular Shmegular Upgrade", "Roomie",
+    "POV: Regular Shmegular Upgrade", "Roomie", "Military Special",
     "Client / Me", "Client / Me — Bad Credit", "Client / Me — My Ex Cheated",
     "Client / Me — Rent Increase", "Client / Me — Roaches"]
   const labels = OVERLAY_TEMPLATE_ORDER.map((t) => OVERLAY_TEMPLATE_LABEL[t])

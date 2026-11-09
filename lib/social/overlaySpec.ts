@@ -705,6 +705,12 @@ export function templateFamily(template: string): LayoutFamily {
     // "Only $800/month per roomie" pair gets the identical centred placement, sizing, side
     // margins and 17px gap every other hook+detail template has.
     || template === "roomie"
+    // T34 MILITARY SPECIAL joins on exactly the same terms: membership IS the layout, so its
+    // "MILITARY SPECIAL" / "$0 Deposit - …" pair inherits the identical centred placement,
+    // fit-to-width hook sizing, side margins and 17px gap without copying a single value — and
+    // without touching any existing template to get them. Note the default below is `hero`, so a
+    // template omitted here renders top-anchored in hero typography and says nothing about it.
+    || template === "military_special"
     || template === "your_sign" || template === "property_tour") return "center_hook_detail"
   return "hero" // market_type, market_type_centered (vertically centered in the hero branch), special_feature, unknown → hero
 }
