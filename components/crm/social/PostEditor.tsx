@@ -1142,9 +1142,15 @@ export default function PostEditor({ postId, from }: { postId: string; from?: st
   // template — the caption's first line is template-aware, so it must move with the selection.
   const changeTemplate = (tpl: OverlayTemplate) => {
     setOverlayTemplate(tpl)
-    const meta = metaOf()
-    if (!headlineDirty) setHeadline(buildTemplateHeadline(tpl, meta))
-    if (!captionDirty) setCaption(buildCaption(meta, sourceContentId ?? undefined, tpl))
+    // syncGenerated, NOT a second copy of its body.
+    //
+    // This used to inline the headline and caption updates and say nothing about hashtags, so a
+    // template that dictates its own tags changed the caption and left the hashtag field showing
+    // the market bank's. Every generated field is resolved in ONE place now, which is also what
+    // stops the next generated field from being forgotten here.
+    //
+    // `tpl` is passed explicitly because setOverlayTemplate has not settled yet.
+    syncGenerated(metaOf(), tpl)
   }
   // Overlay DETAIL — derived from the selected template + metadata (never manual).
   const overlayDetail = overlayMode === "generate" ? buildTemplateDetail(overlayTemplate, metaOf()) : ""

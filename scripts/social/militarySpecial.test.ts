@@ -260,6 +260,7 @@ console.log("\nTHE FIVE HASHTAGS:")
     "Austin": "#militarylife #relocation #militaryhousing #movingtoaustin #austinapartments",
     "Houston": "#militarylife #relocation #militaryhousing #movingtohouston #houstonapartments",
     "Fort Worth": "#militarylife #relocation #militaryhousing #movingtofortworth #fortworthapartments",
+    "DFW": "#militarylife #relocation #militaryhousing #movingtodallas #dallasapartments",
   }
   for (const [market, want] of Object.entries(EXPECTED)) {
     eq(`${market}`, (templateHashtags("military_special", market) ?? []).join(" "), want)
@@ -275,7 +276,13 @@ console.log("\nTHE FIVE HASHTAGS:")
   eq("multiword cities lose their spaces", marketHashtagSlug("San Antonio"), "sanantonio")
   eq("…and their case", marketHashtagSlug("Fort Worth"), "fortworth")
   eq("…and any punctuation", marketHashtagSlug(" St. Louis "), "stlouis")
-  eq("an acronym market is left as itself", marketHashtagSlug("DFW"), "dfw")
+  // DFW is a metroplex, not a city: it maps to Dallas rather than inventing a DFW-specific pair.
+  eq("DFW maps to the Dallas city tags", marketHashtagSlug("DFW"), "dallas")
+  eq("…case-insensitively", marketHashtagSlug("dfw"), "dallas")
+  eq("…and it is the ONLY override", (templateHashtags("military_special", "DFW") ?? []).join(" "),
+    (templateHashtags("military_special", "Dallas") ?? []).join(" "))
+  ok("no #movingtodfw or #dfwapartments is ever produced",
+    SOCIAL_MARKETS.every((m) => !(templateHashtags("military_special", m) ?? []).some((t) => /dfw/i.test(t))))
 
   // CHANGING THE MARKET changes ONLY the last two.
   const a = templateHashtags("military_special", "San Antonio") ?? []
@@ -323,6 +330,34 @@ console.log("\nTHE FIVE HASHTAGS:")
         isGeneratedHashtags(templateHashtags("military_special", stored) ?? [], src({ market: now }), "military_special"))))
   ok("…while a locator's own tags are still treated as manual and preserved",
     !isGeneratedHashtags(["#mytag", "#custom"], src(), "military_special"))
+}
+
+console.log("\nSELECTING THE TEMPLATE POPULATES THE VISIBLE HASHTAG FIELD:")
+{
+  // THE DEFECT THIS RELEASE FIXES. changeTemplate used to inline the headline and caption updates
+  // and say nothing about hashtags, so picking Military Special in the dropdown changed the
+  // caption and left the hashtag field showing the market bank's five. The editor and the
+  // published caption disagreed, and the editor was the one that was wrong.
+  const editor = strip(read("components/crm/social/PostEditor.tsx"))
+  const body = (editor.split("const changeTemplate")[1] ?? "").split("\n  }")[0]
+  ok("changeTemplate resolves every generated field through syncGenerated",
+    /syncGenerated\(metaOf\(\), tpl\)/.test(body))
+  ok("…and no longer sets the headline or caption itself",
+    !/setHeadline\(/.test(body) && !/setCaption\(/.test(body))
+  ok("…so there is exactly ONE place a generated field is resolved",
+    (editor.match(/if \(!hashtagsDirty\) setHashtags\(/g) ?? []).length === 1
+    && (editor.match(/if \(!captionDirty\) setCaption\(/g) ?? []).length === 1)
+  ok("syncGenerated still resolves all three",
+    /if \(!headlineDirty\) setHeadline\(/.test(editor)
+    && /if \(!captionDirty\) setCaption\(/.test(editor)
+    && /if \(!hashtagsDirty\) setHashtags\(hashtagsForPost\(tpl,/.test(editor))
+  // The dropdown is the only way a locator changes the template, and it goes through it.
+  ok("the dropdown calls changeTemplate",
+    /onChange=\{\(e\) => changeTemplate\(e\.target\.value as OverlayTemplate\)\}/.test(editor))
+  // A locator's own tags are still theirs: the dirty guard is inside syncGenerated, unchanged.
+  ok("a manually edited set is still protected by the dirty guard",
+    /setHashtagsDirty\(true\) \/\/ manual edit/.test(editor)
+    && /if \(!hashtagsDirty\)/.test(editor))
 }
 
 console.log("\nBOTH PLATFORMS GET THE SAME FIVE, AND THE SPACING SURVIVES:")
@@ -452,7 +487,9 @@ console.log("\nWHAT THIS RELEASE DID NOT TOUCH:")
       ["lib/social/overlaySpec.ts", 1],
       ["lib/social/hashtags.ts", 1],       // the doc line above normalizeHashtag
       ["lib/social/loadedCopy.ts", 1],     // the hashtagsDirty line, now template-aware
-      ["components/crm/social/PostEditor.tsx", 4], // the import and the three generate sites
+      // Seven: the hashtags import and the three generate sites, plus the three lines
+      // changeTemplate duplicated from syncGenerated — which were the defect itself.
+      ["components/crm/social/PostEditor.tsx", 7],
     ] as const) {
       const removed = lines(`git diff --unified=0 ${BASELINE} -- ${f}`)
         .filter((l) => l.startsWith("-") && !l.startsWith("---"))

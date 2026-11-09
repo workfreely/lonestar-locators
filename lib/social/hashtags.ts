@@ -258,16 +258,22 @@ export function hashtagLimitFor(selected: Iterable<string>, fallback = MAX_HASHT
 export const MILITARY_SPECIAL_FIXED_HASHTAGS = ["#militarylife", "#relocation", "#militaryhousing"] as const
 
 /**
- * A market label as a hashtag token: lowercase, with everything that is not a letter or a digit
- * removed. "San Antonio" → "sanantonio", "Fort Worth" → "fortworth", "DFW" → "dfw".
+ * The CITY a market's hashtags are built from.
  *
- * A transformation, deliberately, rather than a lookup in MARKET_BANKS: the rule is the same for
- * every market including ones with no curated bank, so a market added later needs no entry here.
- * Note this means DFW yields #movingtodfw, where the general bank's relocation tag for DFW is
- * #movingtodallas — this template follows the stated rule, not the bank.
+ * A transformation by default — lowercase, with everything that is not a letter or a digit removed
+ * — so "San Antonio" → "sanantonio", "Fort Worth" → "fortworth", and a market added later needs no
+ * entry here.
+ *
+ * ONE market overrides it. **DFW is a metroplex, not a city**, and #movingtodfw is not a tag anyone
+ * searches: the curated bank already answers DFW's relocation tag with #movingtodallas, and these
+ * five follow it rather than inventing a DFW-specific pair. That is the only entry below, and it
+ * exists because a region's abbreviation is not a city name — not as a general escape hatch.
  */
+const MARKET_HASHTAG_CITY: Record<string, string> = { dfw: "dallas" }
+
 export function marketHashtagSlug(market: string | null | undefined): string {
-  return normalizeSocialMarket(market).toLowerCase().replace(/[^\p{L}\p{N}]+/gu, "")
+  const slug = normalizeSocialMarket(market).toLowerCase().replace(/[^\p{L}\p{N}]+/gu, "")
+  return MARKET_HASHTAG_CITY[slug] ?? slug
 }
 
 /**
