@@ -293,6 +293,10 @@ console.log("\nTHE SIBLING WORKFLOW — what it is, and what blocks it:")
 console.log("\nRELEASE SCOPE:")
 {
   const BASELINE = "57b018c"
+  // The END of that change, not the working tree — the same pinning every guard before it carries.
+  // It was left open-ended while this release WAS the working tree, which made the guard report on
+  // whatever came next instead of on the release it describes. Pinned now, so its claim stays true.
+  const RELEASE = "11ef126"
   const has = (() => {
     try { execSync(`git cat-file -e ${BASELINE}^{commit}`, { stdio: "ignore" }); return true } catch { return false }
   })()
@@ -301,10 +305,7 @@ console.log("\nRELEASE SCOPE:")
   } else {
     const lines = (cmd: string) =>
       execSync(cmd, { encoding: "utf8" }).trim().split("\n").map((l) => l.trim()).filter(Boolean)
-    const changed = [...new Set([
-      ...lines(`git diff --name-only ${BASELINE} -- . ':!next-env.d.ts'`),
-      ...lines("git ls-files --others --exclude-standard"),
-    ])].sort()
+    const changed = lines(`git diff --name-only ${BASELINE} ${RELEASE} -- . ':!next-env.d.ts'`).sort()
     const APPROVED = [
       // The network is the destination's.
       "lib/social/autopilotEligibility.ts",
