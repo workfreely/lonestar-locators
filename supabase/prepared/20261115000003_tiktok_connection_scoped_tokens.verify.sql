@@ -1,4 +1,4 @@
--- VERIFICATION for 20261115000000_tiktok_connection_scoped_tokens.sql.
+-- VERIFICATION for 20261115000003_tiktok_connection_scoped_tokens.sql.
 -- Every statement is a SELECT. This file writes nothing, so it is safe to run BEFORE and AFTER the
 -- migration and safe to run against production. Expect 9 rows.
 --

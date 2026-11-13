@@ -511,6 +511,11 @@ console.log("\nROTATION — each connection consumes the pool at its own rate:")
 console.log("\nRELEASE SCOPE — Phase 2 only:")
 {
   const BASELINE = "abe0b1c"
+  // The END of Phase 2, not the working tree — the same pinning the earlier guards carry. Phase 2's
+  // scope claim is about a pair of commits and is therefore permanently checkable; diffed against
+  // the tree it would break on every later release, which is what it did the moment the integration
+  // audit moved the two prepared migrations.
+  const RELEASE = "1c5ebed"
   const has = (() => {
     try { execSync(`git cat-file -e ${BASELINE}^{commit}`, { stdio: "ignore" }); return true } catch { return false }
   })()
@@ -519,10 +524,7 @@ console.log("\nRELEASE SCOPE — Phase 2 only:")
   } else {
     const lines = (cmd: string) =>
       execSync(cmd, { encoding: "utf8" }).trim().split("\n").map((l) => l.trim()).filter(Boolean)
-    const changed = [...new Set([
-      ...lines(`git diff --name-only ${BASELINE} -- . ':!next-env.d.ts'`),
-      ...lines("git ls-files --others --exclude-standard"),
-    ])].sort()
+    const changed = lines(`git diff --name-only ${BASELINE} ${RELEASE} -- . ':!next-env.d.ts'`).sort()
     const APPROVED = [
       // Independent cadences.
       "lib/social/autopilotDestination.ts",
@@ -581,7 +583,7 @@ console.log("\nRELEASE SCOPE — Phase 2 only:")
       // command, and the byte-identical comparison now pinned to Phase 1's own commit.
       ["scripts/social/tiktokAccountIsolation.test.ts", 12, "the Phase-2-pending assertions (6) and the diff range (6)"],
     ] as const) {
-      const removed = lines(`git diff --unified=0 ${BASELINE} -- ${f}`)
+      const removed = lines(`git diff --unified=0 ${BASELINE} ${RELEASE} -- ${f}`)
         .filter((l) => l.startsWith("-") && !l.startsWith("---"))
       ok(`${f} removes at most the ${allowed} line(s) it replaces (${why})`, removed.length <= allowed,
         `removed ${removed.length}`)
@@ -598,8 +600,9 @@ console.log("\nRELEASE SCOPE — Phase 2 only:")
       "lib/social/postingHistory.ts",
       "components/crm/social/PublishingDestinations.tsx",
     ]) {
-      ok(`${f} is byte-identical to ${BASELINE}`,
-        execSync(`git show ${BASELINE}:${f}`, { encoding: "utf8" }) === read(f))
+      ok(`${f} was byte-identical across ${BASELINE}..${RELEASE}`,
+        execSync(`git show ${BASELINE}:${f}`, { encoding: "utf8" })
+        === execSync(`git show ${RELEASE}:${f}`, { encoding: "utf8" }))
     }
     // Every guard both workers had is still present.
     for (const guard of ["CRON_SECRET", "readAutoPosting", "publishHoldDecision", "isWithinLatenessWindow",

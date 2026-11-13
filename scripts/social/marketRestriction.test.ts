@@ -45,7 +45,7 @@ const PLAN_RUN = code(read("lib/social/autopilotPlanRun.ts"))
 const IG_WORKER = code(read("app/api/cron/social-instagram-publish/route.ts"))
 const TT_WORKER = code(read("app/api/cron/social-tiktok-publish/route.ts"))
 const MANAGE = code(read("app/api/admin/social-autopilot/destinations/manage/route.ts"))
-const MIGRATION = sql(read("supabase/migrations/20261114000000_destination_market_restriction.sql"))
+const MIGRATION = sql(read("supabase/prepared/20261115000002_destination_market_restriction.sql"))
 
 // ── 1. WHAT A RESTRICTION MEANS ───────────────────────────────────────────────────────────────
 console.log("The restriction itself — one definition, consulted from three layers:")
@@ -417,7 +417,7 @@ console.log("\nTHE COLUMN — opt-in, nullable, and no existing destination can 
   }
   // The verification file must be runnable BEFORE the migration, or it cannot establish a
   // pre-state. Postgres resolves column names at parse time, so it reads through to_jsonb.
-  const VERIFY = sql(read("supabase/migrations/20261114000000_destination_market_restriction.verify.sql"))
+  const VERIFY = sql(read("supabase/prepared/20261115000002_destination_market_restriction.verify.sql"))
   ok("the verification reads the new column through to_jsonb, so it runs pre-apply too",
     /to_jsonb\(sc\) ->> 'market_restriction'/.test(VERIFY))
   ok("…and is entirely SELECTs", !/\b(insert|update|delete|alter|create|drop)\b/i.test(VERIFY))
@@ -502,7 +502,12 @@ console.log("\nRELEASE SCOPE — exactly the approved files, and nothing the bri
       "app/api/admin/social-autopilot/destinations/manage/route.ts",
       "app/admin/social-autopilot/accounts/page.tsx",
       "components/crm/social/PublishingDestinations.tsx",
-      // The column and its verification.
+      // The column and its verification, AT THE PATH THEY HAD IN THIS RELEASE. The list is
+      // compared against the beb7c81 commit, so it names what that commit contained — the files
+      // were later moved to supabase/prepared/ under a free version number, because
+      // supabase/migrations/ is the APPLIED history and 20261114000000 was already taken in
+      // production by the Quick Match release. The reads above follow the current path; this list
+      // must not.
       "supabase/migrations/20261114000000_destination_market_restriction.sql",
       "supabase/migrations/20261114000000_destination_market_restriction.verify.sql",
       // This file, and the non-publishing dry run it is paired with: the suite proves the rules

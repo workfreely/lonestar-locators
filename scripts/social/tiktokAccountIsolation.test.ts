@@ -30,7 +30,7 @@
 // The SQL and the wiring are source assertions, with comments stripped so no assertion can be
 // satisfied by prose. They pin the things that actually broke: a WHERE clause's scope, a missing
 // row lock, a token variable reused across rows. The live database is checked separately by
-// 20261115000000_…verify.sql, which runs before and after the migration.
+// 20261115000003_…verify.sql, which runs before and after the migration.
 //
 // Run: npx tsx scripts/social/tiktokAccountIsolation.test.ts
 import { readFileSync } from "node:fs"
@@ -49,7 +49,7 @@ const read = (p: string) => readFileSync(`${process.cwd()}/${p}`, "utf8")
 const code = (s: string) => s.replace(/\/\*[\s\S]*?\*\//g, "").replace(/(^|[^:])\/\/.*$/gm, "$1")
 const sqlOf = (s: string) => s.replace(/--[^\n]*/g, "")
 
-const MIG = sqlOf(read("supabase/migrations/20261115000000_tiktok_connection_scoped_tokens.sql"))
+const MIG = sqlOf(read("supabase/prepared/20261115000003_tiktok_connection_scoped_tokens.sql"))
 const SERVER = code(read("lib/social/tiktokServer.ts"))
 const WORKER = code(read("app/api/cron/social-tiktok-publish/route.ts"))
 const UI = code(read("components/crm/social/PublishingDestinations.tsx"))
@@ -236,7 +236,7 @@ console.log("\nSCOPE OF THE MIGRATION — functions only:")
     /delete from public\.social_connections where owner_user_id = v_uid and provider = 'tiktok';/.test(MIG))
   // String literals stripped first: the file legitimately CONTAINS the word "update" inside
   // '%for update%', which is an assertion about a function body, not a statement.
-  const VERIFY = sqlOf(read("supabase/migrations/20261115000000_tiktok_connection_scoped_tokens.verify.sql"))
+  const VERIFY = sqlOf(read("supabase/prepared/20261115000003_tiktok_connection_scoped_tokens.verify.sql"))
   const VERIFY_STMTS = VERIFY.replace(/'(?:[^']|'')*'/g, "''")
   ok("the verification writes nothing", !/\b(insert|update|delete|alter|create|drop|grant|revoke)\b/i.test(VERIFY_STMTS))
   ok("…and asserts every TikTok connection still points at a live Vault secret, in BOTH states",
@@ -245,7 +245,7 @@ console.log("\nSCOPE OF THE MIGRATION — functions only:")
   // STRUCTURE, because this migration has not been executed anywhere yet — applying it is the
   // approval gate. A server would catch an unbalanced dollar quote or a missing `end`; until one
   // does, these catch the two ways that goes wrong silently in review.
-  const raw = read("supabase/migrations/20261115000000_tiktok_connection_scoped_tokens.sql")
+  const raw = read("supabase/prepared/20261115000003_tiktok_connection_scoped_tokens.sql")
   const defs = raw.match(/create or replace function public\.\w+\(/g) ?? []
   eq("six function definitions, no more", defs.length, 6)
   eq("…and the dollar-quote delimiters are balanced", (raw.match(/\$\$/g) ?? []).length, defs.length * 2)
@@ -418,6 +418,9 @@ console.log("\nRELEASE SCOPE — Phase 1 only:")
       execSync(cmd, { encoding: "utf8" }).trim().split("\n").map((l) => l.trim()).filter(Boolean)
     const changed = lines(`git diff --name-only ${BASELINE} ${RELEASE} -- . ':!next-env.d.ts'`).sort()
     const APPROVED = [
+      // AT THE PATH THEY HAD IN THIS RELEASE — the list is compared against abe0b1c. They were
+      // later moved to supabase/prepared/ under a free version, since 20261115000000 was already
+      // taken by a prepared Quick Match migration. The reads above follow the current path.
       "supabase/migrations/20261115000000_tiktok_connection_scoped_tokens.sql",
       "supabase/migrations/20261115000000_tiktok_connection_scoped_tokens.verify.sql",
       // The decisions, split out so they are testable at all.

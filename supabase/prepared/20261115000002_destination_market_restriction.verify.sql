@@ -1,4 +1,4 @@
--- VERIFICATION for 20261114000000_destination_market_restriction.sql.
+-- VERIFICATION for 20261115000002_destination_market_restriction.sql.
 -- Every statement is a SELECT. This file writes nothing — not a row, not a temporary table — so
 -- it is safe to run BEFORE and AFTER the migration, and safe to run against production. Expect
 -- 8 rows.

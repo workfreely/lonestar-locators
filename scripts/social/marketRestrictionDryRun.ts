@@ -107,15 +107,18 @@ async function main() {
       connectionId: "SIMULATED:locatorbeast-instagram", platform: "instagram", enabled: true,
       timezone: DEFAULT_TIMEZONE, dailyTimes: dailyTimesForPostsPerDay(2), postsPerDay: 2,
       marketWeights: {}, allowedMarkets: ["Dallas"], marketRotationSeed: null,
-      // NULL, so the derived 1..5 stagger applies — which is what a newly connected destination
-      // will actually carry, and what keeps it inside the 7:30 window.
-      staggerOffsetMinutes: null, startIndex: null,
+      // EXPLICIT 0 — the agreed configuration: exactly 07:30 and 19:30 Central, the same times Real
+      // Estate Pro already uses. An explicit value always wins over the derived 1..5 stagger, so
+      // this is what the row must carry once the account is connected. Two destinations at the
+      // identical instant is not a conflict: social_posts_connection_slot_uidx keys on
+      // (connection_id, scheduled_at), so each account holds its own 07:30.
+      staggerOffsetMinutes: 0, startIndex: null,
     },
     {
       connectionId: "SIMULATED:locatorbeast-tiktok", platform: "tiktok", enabled: true,
       timezone: DEFAULT_TIMEZONE, dailyTimes: dailyTimesForPostsPerDay(2), postsPerDay: 2,
       marketWeights: {}, allowedMarkets: ["Dallas"], marketRotationSeed: null,
-      staggerOffsetMinutes: null, startIndex: null,
+      staggerOffsetMinutes: 0, startIndex: null,
     },
   ]
 
@@ -203,10 +206,25 @@ async function main() {
   check("no placement anywhere broke a restriction", plan.inventory.marketRestrictionViolations === 0,
     String(plan.inventory.marketRestrictionViolations))
   check("no placement violated the 21-day cooldown", plan.inventory.cooldownViolations === 0)
-  check("the two Instagram destinations never share a minute", (() => {
+  // THIS USED TO ASSERT THE TWO INSTAGRAM DESTINATIONS NEVER SHARE A MINUTE, which was true while
+  // a new destination derived a 1..30 stagger. The agreed configuration pins Locator Beast to
+  // stagger 0 — exactly 07:30 and 19:30, the same times Real Estate Pro uses — so they now share
+  // both instants deliberately.
+  //
+  // The invariant that actually matters, and the one the database enforces, is per DESTINATION:
+  // social_posts_connection_slot_uidx keys on (connection_id, scheduled_at), so each account holds
+  // its own 07:30 and two accounts at one instant are two distinct rows. What must never happen is
+  // the same destination being given the same instant twice.
+  check("no destination is given the same instant twice", (() => {
+    const keys = plan.planned.map((p) => `${p.connectionId}@${p.scheduledAtUtc}`)
+    return keys.length === new Set(keys).size
+  })())
+  check("…and sharing an instant across destinations is expected at stagger 0", (() => {
     const ig = [...liveRules, ...SIMULATED].filter((r) => r.platform === "instagram" && r.enabled)
-    const sets = ig.map((r) => new Set(plan.planned.filter((p) => p.connectionId === r.connectionId).map((p) => `${p.dateKey}T${p.minute}`)))
-    return sets.every((s, i) => sets.every((t, j) => i === j || [...s].every((k) => !t.has(k))))
+    const atBaseline = ig.filter((r) => r.staggerOffsetMinutes === 0)
+    // Every destination pinned to 0 posts at the same minutes as every other such destination.
+    const sets = atBaseline.map((r) => [...new Set(plan.planned.filter((p) => p.connectionId === r.connectionId).map((p) => p.minute))].sort())
+    return sets.length < 2 || sets.every((m) => JSON.stringify(m) === JSON.stringify(sets[0]))
   })())
 
   // ── 4. THE SCENARIO THE REQUIREMENT IS ABOUT: Dallas has nothing ───────────────────────────
