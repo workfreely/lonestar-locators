@@ -7,6 +7,7 @@ import { shouldHoldForReview, publishHoldEnabled, publishHoldDecision } from "@/
 import { isAgentOwnedPost } from "@/lib/social/agentIdentity"
 import { readAutoPosting, isEligibleAfterResume, isWithinLatenessWindow } from "@/lib/social/autoPosting"
 import { DESTINATIONS, isSocialDestination } from "@/lib/social/destinations"
+import { parseMarketRestriction, marketRestrictionViolation } from "@/lib/social/marketRestriction"
 import { tiktokConfigured, truncateToRunes } from "@/lib/social/tiktok"
 import { tiktokAutopublishEnabled } from "@/lib/social/tiktokGate"
 import {
@@ -143,7 +144,41 @@ async function run(req: NextRequest) {
     missedWhilePaused: 0, tooLate: 0, heldForReview: 0, tooLong: 0,
     missingSettings: 0, settingsNoLongerValid: 0,
     notPublishableDestination: 0,
+    blockedByMarketRestriction: 0, skippedDestinationUnreadable: 0,
     heldReasons: [] as { id: string; reason: string }[],
+  }
+
+  // ── THE DESTINATION'S MARKET RESTRICTION, per connection ───────────────────────────────────
+  // THE SAME module the Instagram worker and the planner use — one definition of what a
+  // restriction means, consulted from three layers, so an Instagram guard and a TikTok guard can
+  // never disagree about whether "dallas" is Dallas.
+  //
+  // Per CONNECTION rather than per owner, deliberately. This worker's TOKEN is still owner-scoped
+  // (sa_get_tiktok_token takes p_owner), which is the pre-existing limitation that has to be
+  // resolved before a second TikTok account can publish — but the restriction is a property of the
+  // DESTINATION, and reading it off the row means this guard is already correct for that second
+  // account the moment its row exists. Cached for the run: MAX_PER_RUN is 3, and the value cannot
+  // change mid-run in a way we would want to act on.
+  const restrictionCache = new Map<string, string[] | null>()
+  const destinationRestriction = async (
+    connectionId: string | null,
+  ): Promise<{ ok: true; restriction: string[] | null } | { ok: false; reason: string }> => {
+    // A TikTok row with no connection id has no destination row to be restricted by. That is the
+    // shape every TikTok post has today, because the token is resolved from the owner rather than
+    // from a connection — so this is "unrestricted", exactly as it behaves now.
+    if (!connectionId) return { ok: true, restriction: null }
+    if (restrictionCache.has(connectionId)) return { ok: true, restriction: restrictionCache.get(connectionId) ?? null }
+    const { data, error } = await supabaseAdmin
+      .from("social_connections")
+      .select("market_restriction")
+      .eq("id", connectionId)
+      .maybeSingle()
+    // FAIL CLOSED, non-destructively: the caller leaves the post untouched and still due rather
+    // than publishing on an unknown restriction or failing it over a transient read.
+    if (error) return { ok: false, reason: `could not read destination market restriction: ${error.message.slice(0, 160)}` }
+    const parsed = parseMarketRestriction((data as { market_restriction?: unknown } | null)?.market_restriction)
+    restrictionCache.set(connectionId, parsed)
+    return { ok: true, restriction: parsed }
   }
 
   const token = await getValidTikTokAccessToken(owner)
@@ -266,6 +301,27 @@ async function run(req: NextRequest) {
       }
       if (row.render_status !== "ready" || !row.rendered_storage_path) {
         result.skippedNoRender++
+        continue
+      }
+
+      // ── THE DESTINATION'S MARKET RESTRICTION — THE SECOND ENFORCEMENT POINT ───────────────
+      // The planner filters each destination's pool before selection, so a restricted account is
+      // never offered another market. This is the independent check at the publishing end, for the
+      // paths that never consult a plan: a destination chosen by hand in the editor, a duplicated
+      // post, an autoschedule, a SQL statement. Checked BEFORE the claim so a refused post keeps
+      // its slot, and recorded as a FAULT because nothing in normal operation produces it — a post
+      // that reaches here is on the wrong brand and needs a human to move it.
+      const restriction = await destinationRestriction(row.connection_id as string | null)
+      if (!restriction.ok) {
+        console.warn("[tiktok-worker]", postId, restriction.reason)
+        result.skippedDestinationUnreadable++
+        continue // untouched: no claim, no status change, still scheduled
+      }
+      const marketViolation = marketRestrictionViolation(restriction.restriction, (rowSrc?.market as string | null) ?? null)
+      if (marketViolation) {
+        await markFailed(postId, marketViolation)
+        result.blockedByMarketRestriction++
+        result.failed++
         continue
       }
 

@@ -36,7 +36,7 @@ const planRun = code("lib/social/autopilotPlanRun.ts")
 const APPROVED = "2026-10-01T00:00:00Z"
 const rule = (id: string, over: Partial<AutopilotRule> = {}): AutopilotRule => ({
   connectionId: id, platform: "instagram", enabled: true, timezone: DEFAULT_TIMEZONE,
-  dailyTimes: BASELINE_DAILY_TIMES, postsPerDay: 2, marketWeights: {}, marketRotationSeed: null,
+  dailyTimes: BASELINE_DAILY_TIMES, postsPerDay: 2, marketWeights: {}, allowedMarkets: null, marketRotationSeed: null,
   staggerOffsetMinutes: 0, startIndex: 0, ...over,
 })
 const post = (id: string, place: string, /* RAW place_id — propertyKeyOf adds the "place:" prefix */ market = "Dallas", over: Partial<PoolPost> = {}): PoolPost => ({

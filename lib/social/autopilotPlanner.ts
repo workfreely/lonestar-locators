@@ -18,6 +18,7 @@ import { planDailyTimes, dayKeysFrom, type Occupancy, type Placement } from "@/l
 import { effectiveDailyTimes, marketOrderFor } from "@/lib/social/autopilotDestination"
 import { planRotation, rotatePool, type RotationCollision } from "@/lib/social/autopilotRotation"
 import { ineligibleReason, type EligibilityInput, type Ineligible } from "@/lib/social/autopilotEligibility"
+import { parseMarketRestriction, isMarketAllowed } from "@/lib/social/marketRestriction"
 
 export type PoolPost = EligibilityInput & {
   id: string
@@ -76,6 +77,25 @@ export type AutopilotRule = {
    *  day count. The only bound is planAutopilot's `maxDays` safety cap, which is global rather than
    *  per rule so two connections cannot disagree about how far the queue reaches. */
   marketWeights: Record<string, number>
+  /**
+   * THE HARD MARKET RESTRICTION — null means unrestricted.
+   *
+   * Not a preference. `marketWeights` above is the preference, and a preference is satisfied by
+   * ORDER: when the preferred market has nothing fresh, the slot falls forward to whatever else is
+   * in the pool and records a MarketFallback. That is right for an account that leans towards a
+   * market and wrong for one that is only permitted to post it.
+   *
+   * This list removes the other markets from the destination's candidate set BEFORE any selection
+   * happens, so the fallback branch has nothing else to reach for and cannot substitute. When the
+   * permitted market has no eligible inventory the slot is left UNFILLED — the same outcome the
+   * cooldown already produces, and the only outcome that is honest for a Dallas-only account.
+   *
+   * REQUIRED rather than optional, deliberately: a destination whose restriction was forgotten
+   * would read as unrestricted, and this type is the place where that omission is still cheap to
+   * notice. The publish workers re-check the column independently, so a planner that somehow got
+   * it wrong still cannot publish the wrong market.
+   */
+  allowedMarkets: readonly string[] | null
   marketRotationSeed: number | null
   /** social_connections.stagger_offset_minutes — null ⇒ derived. */
   staggerOffsetMinutes: number | null
@@ -162,6 +182,10 @@ export type AutopilotPlan = {
     firstRecycleAt: { dateKey: string; minute: number; propertyName: string | null } | null
     /** Must always be 0 — a placement inside its cooldown is a planner bug, not a policy choice. */
     cooldownViolations: number
+    /** Must always be 0 — a restricted destination offered another market is a planner bug. This
+     *  is the number a dry run reads to prove the restriction held, rather than inferring it from
+     *  the absence of something in the plan. */
+    marketRestrictionViolations: number
     cooldownDays: number
     marketFallbacks: number
     /** Slots the cap asked for that could not be filled because everything was inside cooldown. */
@@ -233,7 +257,7 @@ export function planAutopilot(input: {
   const excluded: { postId: string; reason: Ineligible }[] = []
   const collisions: RotationCollision[] = []
   const byPlatformStats: AutopilotPlan["inventory"]["byPlatform"] = []
-  let unfilledSlots = 0, requiredPoolSize = 0, cooldownViolations = 0
+  let unfilledSlots = 0, requiredPoolSize = 0, cooldownViolations = 0, marketRestrictionViolations = 0
   let freshPlacements = 0, recycledPlacements = 0
   const recycledPropertyKeys = new Set<string>()
   const usableSomewhere = new Set<string>()
@@ -268,6 +292,34 @@ export function planAutopilot(input: {
     let groupDaysFilled = 0, groupFreshDays = 0
 
     for (const rule of groupRules) {
+      // ── THE PER-DESTINATION MARKET RESTRICTION, APPLIED BEFORE ANY SELECTION ──────────────
+      // Everything below this point sees only what this destination is permitted to post. That
+      // ordering is the guarantee: `fresh`, `legal`, the market order, the fallback's "is there
+      // any inventory in that market" question and the creative choice all read the RESTRICTED
+      // set, so no line further down has to remember the restriction and none of them can
+      // substitute another market. An empty restricted set simply yields no candidate, and the
+      // existing `unfilledSlots++; continue` leaves the slot empty.
+      //
+      // Filtering per RULE rather than per platform group is what keeps the two Instagram
+      // destinations independent: @realestatepro_tx is unrestricted and still draws from the
+      // whole group pool, with the same rotation, the same stagger and the same required-pool
+      // accounting as before. An unrestricted rule reuses the group's own map by identity, so it
+      // is not merely equivalent to today's behaviour — it is the same object.
+      const allowed = parseMarketRestriction(rule.allowedMarkets)
+      const rulePool = allowed ? pool.filter((p) => isMarketAllowed(allowed, p.market)) : pool
+      let rulePostsByProperty = postsByProperty
+      if (allowed) {
+        const m = new Map<string, PoolPost[]>()
+        for (const p of rulePool) {
+          const k = propertyKeyOf(p)
+          m.set(k, [...(m.get(k) ?? []), p])
+        }
+        rulePostsByProperty = m
+        if (rulePool.length === 0) {
+          notes.push(`Destination ${rule.connectionId} is restricted to ${allowed.join(", ")} and has no eligible ${platform} inventory there — every slot is left UNFILLED rather than substituting another market.`)
+        }
+      }
+
       const times = effectiveDailyTimes(rule.connectionId, rule.staggerOffsetMinutes, rule.dailyTimes)
       const placements: Placement[] = planDailyTimes({
         intervalDays: 1, dailyTimes: times, days: dayKeys,
@@ -275,8 +327,8 @@ export function planAutopilot(input: {
         maxOccurrences: maxDays * postsPerDay,
       })
       const start = rotation.startIndices.get(rule.connectionId) ?? 0
-      const orderedProps = rotatePool([...postsByProperty.keys()], start)
-      const marketsPresent = pool.map((p) => p.market ?? "").filter(Boolean)
+      const orderedProps = rotatePool([...rulePostsByProperty.keys()], start)
+      const marketsPresent = rulePool.map((p) => p.market ?? "").filter(Boolean)
       const order = marketOrderFor(rule.connectionId, weightedMarketOrder(rule.marketWeights, marketsPresent), rule.marketRotationSeed)
 
       // lastPosted starts from real history and is advanced as this plan places things, so the
@@ -293,7 +345,7 @@ export function planAutopilot(input: {
       for (const pl of placements) {
         const slotMs = Date.parse(input.wallClockToUtc(pl.dateKey, pl.minute, rule.timezone))
         const wantMarket = order.length ? order[placements.indexOf(pl) % order.length] : null
-        const marketOf = (k: string) => postsByProperty.get(k)?.[0]?.market ?? null
+        const marketOf = (k: string) => rulePostsByProperty.get(k)?.[0]?.market ?? null
 
         const fresh = orderedProps.filter((k) => !lastPosted.has(k))
         let key: string | undefined
@@ -303,7 +355,7 @@ export function planAutopilot(input: {
         if (fresh.length) {
           key = wantMarket ? fresh.find((k) => marketOf(k) === wantMarket) : fresh[0]
           if (!key && wantMarket) {
-            fallbackReason = pool.some((p) => p.market === wantMarket) ? "market_inventory_already_used" : "no_eligible_inventory_in_market"
+            fallbackReason = rulePool.some((p) => p.market === wantMarket) ? "market_inventory_already_used" : "no_eligible_inventory_in_market"
             key = fresh[0]
           }
         } else {
@@ -314,7 +366,7 @@ export function planAutopilot(input: {
           if (legal.length === 0) { unfilledSlots++; continue }
           key = wantMarket ? legal.find((k) => marketOf(k) === wantMarket) : legal[0]
           if (!key) {
-            if (wantMarket) fallbackReason = pool.some((p) => p.market === wantMarket) ? "market_inventory_already_used" : "no_eligible_inventory_in_market"
+            if (wantMarket) fallbackReason = rulePool.some((p) => p.market === wantMarket) ? "market_inventory_already_used" : "no_eligible_inventory_in_market"
             key = legal[0]
           }
           recycled = true
@@ -322,10 +374,22 @@ export function planAutopilot(input: {
         if (!key) { unfilledSlots++; continue }
 
         // CREATIVE CHOICE: prefer a depiction of this property the connection has not used yet.
-        const variants = postsByProperty.get(key) ?? []
+        const variants = rulePostsByProperty.get(key) ?? []
         const used = usedCreatives.get(key) ?? new Set<string>()
         const pick = variants.find((v) => !used.has(v.id)) ?? variants[0]
         if (!pick) { unfilledSlots++; continue }
+
+        // THE INVARIANT, ASSERTED RATHER THAN ASSUMED. Filtering the pool above makes this
+        // unreachable today — `pick` can only have come out of rulePool. It is checked anyway
+        // because "a restricted destination never carries another market" is the property this
+        // feature exists to provide, and a property nobody can observe is one nobody notices
+        // breaking. The slot is left unfilled and the count is reported; it must always be 0.
+        if (!isMarketAllowed(allowed, pick.market)) {
+          marketRestrictionViolations++
+          unfilledSlots++
+          continue
+        }
+
         used.add(pick.id); usedCreatives.set(key, used)
 
         const prevMs = lastPosted.get(key) ?? null
@@ -335,7 +399,7 @@ export function planAutopilot(input: {
         if (recycled) {
           recycledPlacements++; recycledPropertyKeys.add(key)
           if (!reuseRecorded) {
-            reusePoints.push({ connectionId: rule.connectionId, dateKey: pl.dateKey, minute: pl.minute, uniqueSourcesExhausted: postsByProperty.size })
+            reusePoints.push({ connectionId: rule.connectionId, dateKey: pl.dateKey, minute: pl.minute, uniqueSourcesExhausted: rulePostsByProperty.size })
             reuseRecorded = true
           }
         } else { freshPlacements++; lastFreshDay = pl.dateKey }
@@ -378,6 +442,7 @@ export function planAutopilot(input: {
   if (unfilledSlots > 0) notes.push(`${unfilledSlots} slot(s) left unfilled: every property was still inside its ${cooldownDays}-day cooldown. The queue ends rather than repeating too soon.`)
   if (recycledPlacements > 0) notes.push(`Fresh inventory runs out after ${freshRunwayDays} day(s); ${recycledPlacements} placement(s) recycle ${recycledPropertyKeys.size} propert${recycledPropertyKeys.size === 1 ? "y" : "ies"}, the longest-unused first.`)
   if (cooldownViolations > 0) notes.push(`BUG: ${cooldownViolations} placement(s) violate the ${cooldownDays}-day cooldown.`)
+  if (marketRestrictionViolations > 0) notes.push(`BUG: ${marketRestrictionViolations} placement(s) were blocked by a destination's market restriction AFTER selection — the pool filter should have made that impossible.`)
   if (marketFallbacks.length > 0) notes.push(`${marketFallbacks.length} slot(s) fell forward to another market.`)
 
   return {
@@ -388,7 +453,7 @@ export function planAutopilot(input: {
       freshPropertiesAvailable: distinctProperties, freshPlacements, recycledPlacements,
       recycledProperties: recycledPropertyKeys.size, daysFillable, freshRunwayDays,
       firstRecycleAt: firstRecycled ? { dateKey: firstRecycled.dateKey, minute: firstRecycled.minute, propertyName: firstRecycled.propertyName } : null,
-      cooldownViolations, cooldownDays, marketFallbacks: marketFallbacks.length,
+      cooldownViolations, marketRestrictionViolations, cooldownDays, marketFallbacks: marketFallbacks.length,
       unfilledSlots, collisions: collisions.length, byPlatform: byPlatformStats,
     },
     notes,

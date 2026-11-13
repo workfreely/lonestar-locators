@@ -398,6 +398,13 @@ console.log("\nBOTH PLATFORMS GET THE SAME FIVE, AND THE SPACING SURVIVES:")
 console.log("\nWHAT THIS RELEASE DID NOT TOUCH:")
 {
   const BASELINE = "bf0070f"
+  // The END of this release, not the working tree. This guard's claim is "between bf0070f and the
+  // Military Special release, exactly these files changed" — a claim about a pair of commits, and
+  // therefore permanently checkable. Diffing against the working tree made it a claim about
+  // whatever is checked out, so every LATER release broke it and had to widen the allow-list with
+  // files that have nothing to do with Military Special. Pinning both ends keeps the original
+  // claim intact and stops this file needing an edit per release.
+  const RELEASE = "4dcc56b"
   const has = (() => {
     try { execSync(`git cat-file -e ${BASELINE}^{commit}`, { stdio: "ignore" }); return true } catch { return false }
   })()
@@ -406,10 +413,7 @@ console.log("\nWHAT THIS RELEASE DID NOT TOUCH:")
   } else {
     const lines = (cmd: string) =>
       execSync(cmd, { encoding: "utf8" }).trim().split("\n").map((l) => l.trim()).filter(Boolean)
-    const changed = [...new Set([
-      ...lines(`git diff --name-only ${BASELINE} -- . ':!next-env.d.ts'`),
-      ...lines("git ls-files --others --exclude-standard"),
-    ])].sort()
+    const changed = lines(`git diff --name-only ${BASELINE} ${RELEASE} -- . ':!next-env.d.ts'`).sort()
     const APPROVED = [
       "lib/social/composePost.ts",                  // registry, order, label, caption, overlay copy
       "lib/social/overlaySpec.ts",                  // the layout family
@@ -491,7 +495,7 @@ console.log("\nWHAT THIS RELEASE DID NOT TOUCH:")
       // changeTemplate duplicated from syncGenerated — which were the defect itself.
       ["components/crm/social/PostEditor.tsx", 7],
     ] as const) {
-      const removed = lines(`git diff --unified=0 ${BASELINE} -- ${f}`)
+      const removed = lines(`git diff --unified=0 ${BASELINE} ${RELEASE} -- ${f}`)
         .filter((l) => l.startsWith("-") && !l.startsWith("---"))
       ok(`${f} removes at most the ${allowed} line(s) it replaces`, removed.length <= allowed)
     }

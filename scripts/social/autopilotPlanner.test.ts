@@ -20,6 +20,10 @@ const A = "aaaa-1111", B = "bbbb-2222"
 const rule = (connectionId: string, over: Partial<AutopilotRule> = {}): AutopilotRule => ({
   connectionId, platform: "instagram", enabled: true, timezone: "America/Chicago", dailyTimes: [450, 1170],
   postsPerDay: 2, marketWeights: { Dallas: 3, "San Antonio": 3, Houston: 1 },
+  // Unrestricted by default, which is what every destination that predates the market restriction
+  // carries. The restricted cases state the list explicitly, so no assertion below depends on a
+  // default that could change.
+  allowedMarkets: null,
   marketRotationSeed: null, staggerOffsetMinutes: 0, startIndex: null, ...over,
 })
 

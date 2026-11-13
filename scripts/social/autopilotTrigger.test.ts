@@ -36,7 +36,7 @@ const APPROVED = "2026-10-01T00:00:00Z"
 const CONN = "conn-1"
 const rule = (over: Partial<AutopilotRule> = {}): AutopilotRule => ({
   connectionId: CONN, platform: "instagram", enabled: true, timezone: DEFAULT_TIMEZONE,
-  dailyTimes: BASELINE_DAILY_TIMES, postsPerDay: 2, marketWeights: {}, marketRotationSeed: null,
+  dailyTimes: BASELINE_DAILY_TIMES, postsPerDay: 2, marketWeights: {}, allowedMarkets: null, marketRotationSeed: null,
   staggerOffsetMinutes: 0, startIndex: 0, ...over,
 })
 /** `place` is the RAW place_id — propertyKeyOf adds the "place:" prefix itself. */

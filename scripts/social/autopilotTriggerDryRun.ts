@@ -15,6 +15,7 @@
 //
 // Run: npx tsx --env-file=.env.local scripts/social/autopilotTriggerDryRun.ts
 import { supabaseAdmin } from "../../lib/supabase/admin"
+import { parseMarketRestriction } from "@/lib/social/marketRestriction"
 import { runAutopilotPlan, COOLDOWN_DAYS, MAX_PLAN_DAYS } from "../../lib/social/autopilotPlanRun"
 import { buildAutopilotOccupancy } from "../../lib/social/autopilotOccupancy"
 import { BASELINE_DAILY_TIMES, effectiveDailyTimes } from "../../lib/social/autopilotDestination"
@@ -180,6 +181,10 @@ async function main() {
       const rule = {
         connectionId: cid, platform: "instagram", enabled: true, timezone: DEFAULT_TIMEZONE,
         dailyTimes: BASELINE_DAILY_TIMES, postsPerDay: 2, marketWeights: {},
+        // The destination's REAL restriction, read off the row it came from, so this dry run
+        // reports what the live planner would do rather than an unrestricted approximation. A row
+        // without the column reads null, which is unrestricted.
+        allowedMarkets: parseMarketRestriction((igConn as Record<string, unknown>).market_restriction),
         marketRotationSeed: null, staggerOffsetMinutes: staggerOf(igConn as Record<string, unknown>), startIndex: null,
       }
       const withOcc = planAutopilot({

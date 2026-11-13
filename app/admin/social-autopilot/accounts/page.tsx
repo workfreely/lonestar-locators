@@ -11,6 +11,7 @@ import { accountAutomationGate } from "@/lib/social/commentSafety"
 import { INSTAGRAM_COMMENTS_SCOPE } from "@/lib/social/commentScope"
 import { publishingCapability, autoReplyCapability, actionNeedsAttention, type AutoReplyAttention } from "@/lib/social/accountCapabilities"
 import { dmGate } from "@/lib/social/commentSendPolicy"
+import { parseMarketRestriction } from "@/lib/social/marketRestriction"
 
 // Social Autopilot → Accounts. Manages N Instagram Publishing Destinations for the current
 // platform-admin owner (was single-connection). Platform-admin gated. Tokens live in Vault and are
@@ -32,7 +33,10 @@ export default async function SocialAutopilotAccountsPage({ searchParams }: { se
     // `scopes` joins the existing safe display fields: it is the granted permission list, which is
     // what Auto Reply's status is derived from. Still NEVER token_secret_id / external_account_id /
     // owner_user_id.
-    .select("id, username, status, label, posting_paused, posts_per_day, token_expires_at, created_at, agent_user_id, scopes")
+    // `market_restriction` joins the safe display fields: it is this destination's permitted
+    // market list (NULL = every market), which the operator has to be able to SEE — a Dallas-only
+    // account that quietly stopped posting looks identical to a broken one otherwise.
+    .select("id, username, status, label, posting_paused, posts_per_day, token_expires_at, created_at, agent_user_id, scopes, market_restriction")
     .eq("provider", "instagram")
     .order("created_at", { ascending: true })
 
@@ -40,7 +44,7 @@ export default async function SocialAutopilotAccountsPage({ searchParams }: { se
   // token_secret_id / external_account_id (open_id) / owner_user_id.
   const { data: ttRow } = await supabase
     .from("social_connections")
-    .select("username, status, token_expires_at, created_at, avatar_url")
+    .select("username, status, token_expires_at, created_at, avatar_url, market_restriction")
     .eq("provider", "tiktok")
     .maybeSingle()
 
@@ -70,6 +74,7 @@ export default async function SocialAutopilotAccountsPage({ searchParams }: { se
         ownerPhotoUrl,
         expired: !!ttRow.token_expires_at && new Date(ttRow.token_expires_at).getTime() < Date.now(),
         addedAt: ttRow.created_at,
+        marketRestriction: parseMarketRestriction(ttRow.market_restriction),
       }
     : null
 
@@ -86,7 +91,7 @@ export default async function SocialAutopilotAccountsPage({ searchParams }: { se
 
   // Resolve the selected-agent display fields (photo + name) for every referenced agent, via the
   // admin-gated definer RPC — profiles' own-profile-only RLS blocks a direct cross-user read.
-  type ConnRow = { id: string; username: string | null; status: string; label: string | null; posting_paused: boolean | null; posts_per_day: number | null; token_expires_at: string | null; created_at: string; agent_user_id: string | null; scopes: string[] | null }
+  type ConnRow = { id: string; username: string | null; status: string; label: string | null; posting_paused: boolean | null; posts_per_day: number | null; token_expires_at: string | null; created_at: string; agent_user_id: string | null; scopes: string[] | null; market_restriction: string[] | null }
   type InviteRow = { id: string; label: string | null; created_at: string; expires_at: string; agent_user_id: string | null }
   const conns = (connRows ?? []) as ConnRow[]
   const invites = (inviteRows ?? []) as InviteRow[]
@@ -214,6 +219,10 @@ export default async function SocialAutopilotAccountsPage({ searchParams }: { se
       status: row.status,
       paused: !!row.posting_paused,
       postsPerDay: row.posts_per_day,
+      // Normalised through the SAME helper the planner and both publish workers use, so the chip
+      // the operator reads is derived from the same value those three consult — not a second
+      // interpretation of the column that could disagree with them.
+      marketRestriction: parseMarketRestriction(row.market_restriction),
       expired,
       addedAt: row.created_at,
       agentName: agent?.name ?? null,

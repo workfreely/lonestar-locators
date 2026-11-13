@@ -25,6 +25,10 @@ export type Destination = {
   status: string
   paused: boolean
   postsPerDay: number | null
+  /** The markets this destination may publish — null = every market. Normalised server-side
+   *  through lib/social/marketRestriction, the same helper the planner and both publish workers
+   *  consult, so this chip cannot describe a different rule than the one being enforced. */
+  marketRestriction: string[] | null
   expired: boolean
   addedAt: string
   agentName: string | null // selected Locator Beast agent (display identity)
@@ -68,6 +72,30 @@ export type TikTokConnection = {
   ownerPhotoUrl?: string | null
   expired: boolean
   addedAt: string | null
+  /** Same meaning as the Instagram row's — the restriction is a property of the DESTINATION, not
+   *  of the platform, so both rows read the same column through the same helper. */
+  marketRestriction?: string[] | null
+}
+
+/**
+ * The market-restriction chip. ONE renderer for both platforms, because the restriction is a
+ * property of the destination rather than of Instagram or TikTok — two copies of this is how the
+ * two rows come to describe the same column differently.
+ *
+ * Rendered with a border and in amber rather than as muted grey text: it is a CONSTRAINT, and an
+ * operator looking for why an account posted nothing yesterday needs to see it at a glance. Absent
+ * entirely when unrestricted, so an unrestricted account's row is unchanged.
+ */
+function marketChip(markets: string[] | null | undefined) {
+  if (!markets || markets.length === 0) return null
+  return (
+    <span
+      className="text-[11px] font-semibold text-amber-700 dark:text-amber-400 rounded-full border border-amber-300 dark:border-amber-700/60 px-2 py-0.5"
+      title={`This destination may only publish ${markets.join(", ")} content. When no ${markets.join(" / ")} video is available its slot is left empty — another market is never substituted.`}
+    >
+      {markets.join(", ")} only
+    </span>
+  )
 }
 
 function fmtDate(iso: string): string {
@@ -414,11 +442,18 @@ export default function PublishingDestinations({
                         <PlatformIcon platform="instagram" />
                         {!d.agentName && d.label && <span className="text-[11.5px] text-[var(--crm-text-secondary)] rounded-full border border-[var(--crm-border)] px-2 py-0.5">{d.label}</span>}
                         {statusPill(d)}
-                        {d.postsPerDay != null && (
-                          <span className="text-[11px] text-[var(--crm-text-muted)]" title="Scheduling automation is coming later — this is a saved preference only.">
-                            {d.postsPerDay} posts/day · scheduling coming soon
-                          </span>
-                        )}
+                        {/* THE CADENCE THE SCHEDULER ACTUALLY USES. This line used to read
+                            "scheduling coming soon · saved preference only", which stopped being
+                            true when the autopilot plan cron went live: computeAutopilotPlan reads
+                            posts_per_day per connection and honours it. It also only rendered when
+                            the column was set, so the live accounts — which are both null, i.e. on
+                            the default — showed no cadence at all, and there was nowhere to confirm
+                            that an account asked to post twice a day really does. It now states
+                            the EFFECTIVE value and says when that comes from the default. */}
+                        <span className="text-[11px] text-[var(--crm-text-muted)]" title={d.postsPerDay == null ? "No per-account cadence set, so this destination uses the Social Beast baseline: 07:30 and 19:30 local, offset by its own stagger." : "Set for this destination. The autopilot plan honours it per account."}>
+                          {d.postsPerDay ?? 2} posts/day{d.postsPerDay == null ? " (default)" : ""}
+                        </span>
+                        {marketChip(d.marketRestriction)}
                       </div>
                       <div className="text-[11.5px] text-[var(--crm-text-muted)] mt-0.5">
                         {d.agentName && <span className="text-[var(--crm-text-secondary)]">@{d.username ?? "instagram"} · </span>}
@@ -525,6 +560,7 @@ export default function PublishingDestinations({
                       ) : (
                         <span className="inline-flex items-center gap-1.5 text-[11.5px] font-semibold text-emerald-600 dark:text-emerald-400">{dot("bg-emerald-500")} Connected</span>
                       )}
+                      {marketChip(tiktok.marketRestriction)}
                     </div>
                     <div className="text-[11.5px] text-[var(--crm-text-muted)] mt-0.5">
                       {tiktok.ownerName && tiktok.username && <span className="text-[var(--crm-text-secondary)]">{tiktok.username} · </span>}

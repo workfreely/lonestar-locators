@@ -16,6 +16,7 @@ import { ELIGIBLE_POOL_FILTER, ELIGIBLE_POOL_NOT_NULL, type EligibilityInput } f
 import { applyAutopilotPlan, supabaseClaimExecutor, DEFAULT_WRITE_MODE, type WriteMode, type WriteResult } from "@/lib/social/autopilotWrite"
 import { planAutopilot, type AutopilotPlan, type AutopilotRule, type PoolPost } from "@/lib/social/autopilotPlanner"
 import { loadPostingHistory } from "@/lib/social/postingHistory"
+import { parseMarketRestriction } from "@/lib/social/marketRestriction"
 import { BASELINE_DAILY_TIMES } from "@/lib/social/autopilotDestination"
 import { buildAutopilotOccupancy } from "@/lib/social/autopilotOccupancy"
 import { isPlannableConnection } from "@/lib/social/connectionHealth"
@@ -69,7 +70,7 @@ export function toPoolPost(r: Record<string, unknown>): PoolPost {
 export async function computeAutopilotPlan(now: Date = new Date()): Promise<AutopilotPlan> {
   const { data: conns } = await supabaseAdmin
     .from("social_connections")
-    .select("id, provider, status, posting_paused, posts_per_day, stagger_offset_minutes, token_expires_at")
+    .select("id, provider, status, posting_paused, posts_per_day, stagger_offset_minutes, token_expires_at, market_restriction")
   const rules: AutopilotRule[] = (conns ?? []).map((c) => ({
     connectionId: String(c.id),
     platform: String(c.provider ?? "instagram"),
@@ -83,6 +84,12 @@ export async function computeAutopilotPlan(now: Date = new Date()): Promise<Auto
     dailyTimes: BASELINE_DAILY_TIMES,
     postsPerDay: typeof c.posts_per_day === "number" && c.posts_per_day > 0 ? c.posts_per_day : BASELINE_DAILY_TIMES.length,
     marketWeights: {},
+    // THE DESTINATION'S OWN MARKET RESTRICTION, straight off its row. NULL stays null, which the
+    // planner reads as unrestricted — so every account that predates the column keeps drawing
+    // from every market. Read here rather than defaulted, because a default is how a restriction
+    // gets lost: the planner requires this field, so a future rule built without it fails to
+    // compile instead of quietly posting San Antonio to a Dallas-only account.
+    allowedMarkets: parseMarketRestriction((c as { market_restriction?: unknown }).market_restriction),
     marketRotationSeed: null,
     staggerOffsetMinutes: typeof c.stagger_offset_minutes === "number" ? c.stagger_offset_minutes : null,
     startIndex: null,

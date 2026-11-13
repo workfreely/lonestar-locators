@@ -14,6 +14,7 @@ import {
   AUTO_POSTING_FALLBACK, type AutoPostingSettings,
 } from "@/lib/social/autoPosting"
 import { DESTINATIONS, isSocialDestination, destinationFromLegacyPlatform } from "@/lib/social/destinations"
+import { parseMarketRestriction, marketRestrictionViolation } from "@/lib/social/marketRestriction"
 
 /**
  * SOCIAL BEAST — the Instagram due-post worker.
@@ -140,7 +141,7 @@ async function run(req: NextRequest) {
   const now = new Date().toISOString()
   // heldReasons says WHY each held post was held. A bare count cannot distinguish "the agent needs
   // to re-approve" from "the admin withdrew this video", and those need different actions.
-  const result = { reconciled: 0, published: 0, pending: 0, failed: 0, skippedNoRender: 0, skippedNotApproved: 0, claimed: 0, missedWhilePaused: 0, tooLate: 0, skippedDestinationPaused: 0, flaggedForReview: 0, heldForReview: 0, heldReasons: [] as { id: string; reason: string }[] }
+  const result = { reconciled: 0, published: 0, pending: 0, failed: 0, skippedNoRender: 0, skippedNotApproved: 0, claimed: 0, missedWhilePaused: 0, tooLate: 0, skippedDestinationPaused: 0, skippedDestinationUnreadable: 0, blockedByMarketRestriction: 0, flaggedForReview: 0, heldForReview: 0, heldReasons: [] as { id: string; reason: string }[] }
 
   // ── 0) RECONCILE unacknowledged publishes FIRST ────────────────────────────────────────────
   // Rows whose media_publish call was claimed but never acknowledged locally. These are the crash
@@ -164,14 +165,14 @@ async function run(req: NextRequest) {
   // publish a timed-out transcode but can still never republish a possibly-published one.
   const { data: claimedRows } = await supabaseAdmin
     .from("social_posts")
-    .select("id, ig_container_id, connection_id, media_publish_claimed_at")
+    .select("id, ig_container_id, connection_id, media_publish_claimed_at, source:source_content_id(market)")
     .eq("platform", "instagram")
     .not("media_publish_claimed_at", "is", null)
     .is("external_post_id", null)
     .limit(MAX_PER_RUN)
   const { data: strandedRows } = await supabaseAdmin
     .from("social_posts")
-    .select("id, ig_container_id, connection_id, media_publish_claimed_at")
+    .select("id, ig_container_id, connection_id, media_publish_claimed_at, source:source_content_id(market)")
     .eq("platform", "instagram")
     .eq("status", "publishing")
     .is("media_publish_claimed_at", null)
@@ -191,6 +192,22 @@ async function run(req: NextRequest) {
       // and the next run after the account is resumed reconciles it. Nothing publishes either way,
       // and a deferred reconcile cannot become a duplicate.
       if (!dest.ok || !r.ig_container_id) continue
+
+      // THE RESTRICTION APPLIES TO RECOVERY TOO, but only where recovery can PUBLISH. An
+      // unclaimed stranded row provably never reached media_publish, so finalize would complete
+      // it — that is a publish, and it must obey the same restriction as the due loop. A CLAIMED
+      // row is observe-only (reconcileOnly below), and refusing to observe would leave a possibly
+      // -live Reel permanently unreconciled, which is worse than recording what already happened.
+      if (!r.media_publish_claimed_at) {
+        const recSrc = joinedOne((r as Record<string, unknown>).source)
+        const v = marketRestrictionViolation(dest.marketRestriction, (recSrc?.market as string | null) ?? null)
+        if (v) {
+          console.warn("[ig-worker] stranded row refused by market restriction", r.id, v)
+          result.blockedByMarketRestriction++
+          continue
+        }
+      }
+
       const outcome = await finalizeInstagramPublish({
         db: supabaseAdmin,
         postId: r.id as string,
@@ -325,9 +342,35 @@ async function run(req: NextRequest) {
           result.skippedDestinationPaused++
           continue // untouched: status, scheduled_at and claim all unchanged
         }
+        if (dest.kind === "unreadable") {
+          // Same treatment as paused, for a different reason: nothing is claimed and nothing is
+          // failed, so the post publishes normally on the next run once the row reads again.
+          console.warn("[ig-worker]", postId, dest.reason)
+          result.skippedDestinationUnreadable++
+          continue
+        }
         // A fault is worth a claim: moving it out of 'scheduled' is what makes it visible and
         // stops the worker retrying a broken destination every five minutes.
         await fail(postId, dest.reason)
+        result.failed++
+        continue
+      }
+
+      // ── THE DESTINATION'S MARKET RESTRICTION — THE SECOND ENFORCEMENT POINT ───────────────
+      // The planner already filters each destination's pool to its permitted markets, so a
+      // restricted account is never OFFERED another market. This is the independent check at the
+      // other end, and it exists because the planner is not the only thing that can set
+      // connection_id: the editor assigns a destination by hand, the duplicate and autoschedule
+      // routes copy one, and a SQL statement can write one. Those paths never consult the plan.
+      //
+      // Checked BEFORE the claim, like the destination state above, so a refused post keeps its
+      // slot. It is a FAULT rather than a skip: nothing in normal operation can produce it, so a
+      // post that reaches here was assigned to the wrong brand and needs a human to move it.
+      // needs_attention is what makes that visible instead of retried every five minutes.
+      const marketViolation = marketRestrictionViolation(dest.marketRestriction, (rowSrc?.market as string | null) ?? null)
+      if (marketViolation) {
+        await fail(postId, marketViolation)
+        result.blockedByMarketRestriction++
         result.failed++
         continue
       }
@@ -458,9 +501,14 @@ async function readAutoPostingForSoleOwner(): Promise<AutoPostingSettings> {
  * "failure" for every case, including a deliberate pause.
  */
 type DestinationResult =
-  | { ok: true; token: string; externalAccountId: string }
+  | { ok: true; token: string; externalAccountId: string; marketRestriction: string[] | null }
   /** The operator paused this account on purpose. Not a fault. */
   | { ok: false; kind: "paused" }
+  /** The destination's own row could not be read, so its market restriction is UNKNOWN. Not a
+   *  fault and not a pause: the post is left exactly as it is and retried next run. Publishing on
+   *  an unknown restriction would be the one failure this guard exists to prevent, and marking the
+   *  post needs_attention over a transient read would burn a slot for a database hiccup. */
+  | { ok: false; kind: "unreadable"; reason: string }
   /** Disconnected, missing, or an unusable token — a real problem that must be surfaced. */
   | { ok: false; kind: "fault"; reason: string }
 
@@ -492,7 +540,28 @@ async function resolveDestination(connectionId: string | null): Promise<Destinat
   if (!d.token || !d.external_account_id) {
     return { ok: false, kind: "fault", reason: "publishing destination is missing its Instagram credentials" }
   }
-  return { ok: true, token: d.token, externalAccountId: d.external_account_id }
+
+  // ── THE DESTINATION'S MARKET RESTRICTION ───────────────────────────────────────────────────
+  // Read from the connection ROW, not from the token RPC. sa_get_instagram_token_by_connection is
+  // part of the working Instagram integration and its job is credentials; widening it would mean
+  // editing the function the live account publishes through. One id-scoped select is a smaller
+  // change than that, and it reads the CURRENT value rather than one a plan captured days ago.
+  //
+  // FAIL CLOSED on an error, but non-destructively: "unreadable" leaves the post untouched and
+  // still due. A null column is not an error — it is the unrestricted default every pre-existing
+  // destination carries.
+  const { data: conn, error: connErr } = await supabaseAdmin
+    .from("social_connections")
+    .select("market_restriction")
+    .eq("id", connectionId)
+    .maybeSingle()
+  if (connErr) {
+    return { ok: false, kind: "unreadable", reason: `could not read destination market restriction: ${connErr.message.slice(0, 160)}` }
+  }
+  return {
+    ok: true, token: d.token, externalAccountId: d.external_account_id,
+    marketRestriction: parseMarketRestriction((conn as { market_restriction?: unknown } | null)?.market_restriction),
+  }
 }
 
 /** Record a failure on ONE post. needs_attention keeps it visible and recoverable rather than
