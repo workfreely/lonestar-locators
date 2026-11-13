@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react"
 import AppHeader from "@/components/crm/AppHeader"
 import BackToDashboard from "@/components/crm/BackToDashboard"
+import type { RosterAgent } from "@/lib/social/agentRoster"
 import SocialAutopilotNav from "@/components/crm/social/SocialAutopilotNav"
 
 // Social Beast Focus Mode — a workspace-level presentation state, modeled on the CRM Focus Mode
@@ -18,7 +19,15 @@ import SocialAutopilotNav from "@/components/crm/social/SocialAutopilotNav"
 // the Social Beast nav.
 const FOCUS_KEY = "lb-social-focus"
 
-export default function SocialAutopilotShell({ children }: { children: React.ReactNode }) {
+export default function SocialAutopilotShell({
+  children,
+  // Read in the persistent layout and passed straight through; the shell owns no selector state,
+  // because the selection lives in the URL.
+  roster = [],
+}: {
+  children: React.ReactNode
+  roster?: RosterAgent[]
+}) {
   const [focus, setFocusState] = useState(false)
 
   // Restore from sessionStorage on mount so a refresh on any Social Beast tab stays in Focus.
@@ -65,7 +74,7 @@ export default function SocialAutopilotShell({ children }: { children: React.Rea
           the reclaimed viewport; the Ask-Beast clearance and side padding are preserved. */}
       <div className={"beast-ai-clearance flex-1 overflow-y-auto " + (focus ? "px-5 pt-3 pb-5" : "p-5")}>
         <div className={"mx-auto " + (focus ? "max-w-[1600px]" : "max-w-[1200px]")}>
-          <SocialAutopilotNav focus={focus} onToggleFocus={() => setFocus(!focus)} />
+          <SocialAutopilotNav focus={focus} onToggleFocus={() => setFocus(!focus)} roster={roster} />
           <div className="mt-6">{children}</div>
         </div>
       </div>

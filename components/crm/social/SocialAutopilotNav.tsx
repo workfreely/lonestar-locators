@@ -1,7 +1,9 @@
 "use client"
 
 import Link from "next/link"
-import { usePathname } from "next/navigation"
+import { usePathname, useSearchParams } from "next/navigation"
+import AgentSelector from "@/components/crm/social/AgentSelector"
+import type { RosterAgent } from "@/lib/social/agentRoster"
 
 // Social Autopilot internal header + tab bar. Rendered by the shared Social Autopilot
 // layout so it persists across the sections. These tabs are INTERNAL to Social
@@ -24,7 +26,10 @@ const TABS: { label: string; href: string }[] = [
 export default function SocialAutopilotNav({
   focus = false,
   onToggleFocus,
+  roster = [],
 }: {
+  /** Agents with Social Beast work. Empty hides the selector entirely. */
+  roster?: RosterAgent[]
   // Focus is a workspace-level presentation mode owned by SocialAutopilotShell. The control only
   // renders when `onToggleFocus` is supplied; the CRM board's Focus treatment is reused here (the
   // ⛶ glyph + "Focus" / "Exit Focus" label + a restrained pill) but with theme-aware --crm-* tokens.
@@ -32,6 +37,12 @@ export default function SocialAutopilotNav({
   onToggleFocus?: () => void
 } = {}) {
   const pathname = usePathname() || BASE
+  const params = useSearchParams()
+  // The tab links CARRY the current selection, so switching section keeps the agent in view
+  // instead of silently resetting to All. Tabs that ignore `agent` are unaffected by its presence.
+  const agent = params.get("agent")
+  const withAgent = (href: string) => (agent ? `${href}?agent=${encodeURIComponent(agent)}` : href)
+  const selector = roster.length > 0 ? <AgentSelector roster={roster} /> : null
 
   const focusControl = onToggleFocus ? (
     <button
@@ -66,7 +77,7 @@ export default function SocialAutopilotNav({
       <div className="flex items-center justify-between gap-2.5 lg:block lg:self-center lg:pb-2">
         <h1 className="m-0 whitespace-nowrap text-left text-[20px] font-bold leading-none text-[var(--crm-text-primary)]">Social Beast</h1>
         {/* Mobile placement: right of the title (the lg grid uses the dedicated right column below). */}
-        <div className="lg:hidden">{focusControl}</div>
+        <div className="flex items-center gap-2 lg:hidden">{selector}{focusControl}</div>
       </div>
 
       <nav className="mt-4 flex items-center gap-1 border-b border-[var(--crm-border)] lg:mt-0 lg:border-b-0 lg:justify-self-center">
@@ -75,7 +86,7 @@ export default function SocialAutopilotNav({
           return (
             <Link
               key={t.href}
-              href={t.href}
+              href={withAgent(t.href)}
               className={
                 "relative px-3.5 py-2 text-[13px] font-semibold transition-colors -mb-px border-b-2 " +
                 (active
@@ -90,7 +101,12 @@ export default function SocialAutopilotNav({
       </nav>
 
       {/* Desktop placement: the balancing right column of the lg grid, aligned to the far right. */}
-      {focusControl && <div className="hidden lg:flex justify-self-end self-center pb-2">{focusControl}</div>}
+      {(focusControl || selector) && (
+        <div className="hidden lg:flex items-center gap-2 justify-self-end self-center pb-2">
+          {selector}
+          {focusControl}
+        </div>
+      )}
     </div>
   )
 }

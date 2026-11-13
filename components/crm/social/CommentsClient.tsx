@@ -218,6 +218,7 @@ export default function CommentsClient({
   accounts, rules, rulesArePreview, comments, globalEnabled, globalUnreadable = false, sendingEnabled = false,
   accountEnabled = false, publicRepliesEnabled = false, maxCommentAgeMinutes = null,
   accountSettingsUnreadable = false, dmEnabled = false,
+  instagramChoices = [], selectedConnectionId = null, needsAccountChoice = false,
 }: {
   accounts: AccountRow[]
   rules: RuleRow[]
@@ -238,6 +239,13 @@ export default function CommentsClient({
   maxCommentAgeMinutes?: number | null
   /** The per-account settings could not be READ — distinct from their being off. */
   accountSettingsUnreadable?: boolean
+  /** The Instagram destinations this screen could be about, after any agent filter. */
+  instagramChoices?: { id: string; username: string | null }[]
+  /** The one it IS about, or null when a choice is outstanding. */
+  selectedConnectionId?: string | null
+  /** Several candidates and none chosen. The settings below describe no account until one is
+   *  picked, so they must not be rendered as though they describe all of them. */
+  needsAccountChoice?: boolean
   /** SOCIAL_COMMENT_DM_ENABLED. Private replies are paused independently of public ones. */
   dmEnabled?: boolean
 }) {
@@ -258,7 +266,11 @@ export default function CommentsClient({
     globalEnabled,
     globalUnreadable,
     accountEnabled,
-    accountSettingsUnreadable,
+    // An OUTSTANDING CHOICE is treated exactly like unreadable settings, and for the same reason
+    // this screen was corrected for once already: with two accounts and none picked, these
+    // settings describe nothing, and "Automation off" would be a confident claim about an account
+    // the operator has not yet named. "Unknown" is the honest state until they pick one.
+    accountSettingsUnreadable: accountSettingsUnreadable || needsAccountChoice,
     hasCommentsScope: (ig?.scopes ?? []).includes("instagram_business_manage_comments"),
     sendingEnabled,
   })
@@ -295,8 +307,45 @@ export default function CommentsClient({
     </button>
   )
 
+  // Which Instagram account these settings describe. Rendered whenever there is more than one
+  // candidate, because with two accounts "Automation on" is meaningless until the screen says on
+  // WHICH. A link rather than a control: it changes a query string and nothing else.
+  const accountBar =
+    instagramChoices.length > 1 ? (
+      <div className="mb-4 rounded-xl border border-[var(--crm-border)] bg-[var(--crm-panel)] px-4 py-3">
+        <div className="text-[11px] uppercase tracking-wide text-[var(--crm-text-muted)]">Instagram account</div>
+        <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
+          {instagramChoices.map((c) => {
+            const on = c.id === selectedConnectionId
+            return (
+              <a
+                key={c.id}
+                href={`?connection=${encodeURIComponent(c.id)}`}
+                aria-current={on ? "true" : undefined}
+                className={
+                  "rounded-full border px-3 py-1 text-[12.5px] font-semibold transition-colors " +
+                  (on
+                    ? "border-[var(--crm-text-primary)] bg-[var(--crm-card)] text-[var(--crm-text-primary)]"
+                    : "border-[var(--crm-border)] text-[var(--crm-text-secondary)] hover:text-[var(--crm-text-primary)]")
+                }
+              >
+                @{c.username ?? "instagram"}
+              </a>
+            )
+          })}
+        </div>
+        {needsAccountChoice && (
+          <p className="mt-2 mb-0 text-[12px] text-[var(--crm-text-secondary)]">
+            You have more than one Instagram account connected. Choose one — these settings belong to a
+            single account, and nothing is shown until you say which.
+          </p>
+        )}
+      </div>
+    ) : null
+
   return (
     <div>
+      {accountBar}
       {/* The state is shown as a small persistent status, not a banner. It stays truthful without
           explaining itself: the Automation view carries the detail. */}
       <div className="flex items-center justify-between gap-3 flex-wrap mb-4">

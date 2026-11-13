@@ -112,7 +112,19 @@ console.log("\nthe Comments page is wired to the picker, not to .find():")
 const page = read("app/admin/social-autopilot/comments/page.tsx")
 const pageCode = code(page)
 ok("the stripper works (this file's own prose is gone)", !pageCode.includes("DETERMINISTIC, and chosen by permission"))
-ok("pickCommentsConnection is called", /pickCommentsConnection\(connections\)/.test(pageCode))
+// The picker is still the only thing allowed to resolve the account — but it is no longer handed
+// the WHOLE connection list. With two Instagram destinations, "comments scope first, then oldest"
+// is a guess dressed as a rule, and the screen would describe one account while appearing to
+// describe the owner's comment settings. It is now called only on a list that a filter or an
+// explicit ?connection= has already narrowed, so it decides only when there is nothing to decide.
+ok("pickCommentsConnection is still the resolver", /pickCommentsConnection\(/.test(pageCode))
+ok("…and is NOT handed the unfiltered connection list",
+  !/pickCommentsConnection\(connections\)/.test(pageCode),
+  "the picker is choosing among every Instagram account again")
+ok("…and only runs when exactly one candidate remains",
+  /igChoices\.length === 1 \? pickCommentsConnection\(igChoices\)/.test(pageCode))
+ok("several candidates and no choice is an explicit state, not a silent pick",
+  /needsAccountChoice/.test(pageCode))
 ok("the old first-match lookup is gone",
   !/connections\.find\s*\(\s*\([a-z]\)\s*=>\s*\1?\.?[a-z]*\.provider\s*===\s*["']instagram["']/.test(pageCode),
   "a .find() on provider is back")

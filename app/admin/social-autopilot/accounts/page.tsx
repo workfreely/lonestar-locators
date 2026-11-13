@@ -2,6 +2,7 @@ export const dynamic = "force-dynamic"
 
 import { ensurePlatformAdminPage } from "@/lib/auth/ensurePlatformAdminPage"
 import { createClient } from "@/lib/supabase/server"
+import { loadAgentRoster, connectionIdsFor, resolveSelection } from "@/lib/social/agentRoster"
 import { instagramConfigured } from "@/lib/social/instagram"
 import { tiktokConfigured } from "@/lib/social/tiktok"
 import PublishingDestinations, { type Destination, type PendingInvite, type TikTokConnection } from "@/components/crm/social/PublishingDestinations"
@@ -210,6 +211,18 @@ export default async function SocialAutopilotAccountsPage({ searchParams }: { se
     }
   }
 
+  // ── AGENT FILTER ──────────────────────────────────────────────────────────────────────────
+  // Presentation only, applied AFTER every row has been built, so the filter cannot change what a
+  // row says about itself — only whether it is on screen. `null` means no selection; an empty
+  // array is a real selection that holds nothing and must hide everything rather than show all.
+  const roster = await loadAgentRoster(supabase, ownerName)
+  // resolveSelection, not the raw parameter: an ?agent= that names nobody must leave the page
+  // unfiltered AND unlabelled, rather than showing every account under a banner claiming it is
+  // showing one agent.
+  const { id: selectedAgent, name: selectedName } = resolveSelection(roster, typeof sp.agent === "string" ? sp.agent : null)
+  const visibleIds = connectionIdsFor(roster, selectedAgent)
+  const visible = (id: string) => visibleIds === null || visibleIds.includes(id)
+
   const destinations: Destination[] = conns.map((row) => {
     const agent = agentOf(row.agent_user_id)
     const expired = !!row.token_expires_at && new Date(row.token_expires_at).getTime() < Date.now()
@@ -307,12 +320,23 @@ export default async function SocialAutopilotAccountsPage({ searchParams }: { se
         <AutoPostingControl />
       </div>
 
+      {selectedAgent && (
+        <div className="mb-3 flex items-center gap-2 rounded-lg border border-[var(--crm-border)] bg-[var(--crm-panel)] px-4 py-2 text-[12.5px] text-[var(--crm-text-secondary)]">
+          <span>
+            Showing <strong className="text-[var(--crm-text-primary)]">{selectedName ?? "one agent"}</strong> only.
+          </span>
+          <a href="/admin/social-autopilot/accounts" className="font-semibold text-[var(--crm-text-primary)] underline">
+            Show all accounts
+          </a>
+        </div>
+      )}
+
       <PublishingDestinations
         configured={configured}
-        destinations={destinations}
-        pendingInvites={pendingInvites}
+        destinations={destinations.filter((d) => visible(d.id))}
+        pendingInvites={pendingInvites.filter((i) => !selectedAgent || i.agentUserId === selectedAgent)}
         tiktokConfigured={ttConfigured}
-        tiktoks={tiktoks}
+        tiktoks={tiktoks.filter((t) => visible(t.id))}
       />
     </div>
   )

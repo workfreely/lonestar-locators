@@ -4,6 +4,7 @@ import { ensurePlatformAdminPage } from "@/lib/auth/ensurePlatformAdminPage"
 import { createClient } from "@/lib/supabase/server"
 import CommentsClient, { type CommentRow, type RuleRow, type AccountRow } from "@/components/crm/social/CommentsClient"
 import { pickCommentsConnection } from "@/lib/social/commentsAccount"
+import { loadAgentRoster, connectionIdsFor, resolveSelection } from "@/lib/social/agentRoster"
 import { COMMENT_KEYWORDS } from "@/lib/social/commentKeywords"
 import { sendGate, dmGate } from "@/lib/social/commentSendPolicy"
 
@@ -32,7 +33,12 @@ import { sendGate, dmGate } from "@/lib/social/commentSendPolicy"
 // general — a page that cannot read its own state must show nothing rather than guess. What
 // changed is that an unreadable SETTING is no longer silently reported as "off": see the
 // globalEnabled read below, which distinguishes "off" from "unknown" and fails closed on both.
-export default async function CommentsPage() {
+export default async function CommentsPage({
+  searchParams,
+}: {
+  searchParams: Promise<Record<string, string | string[] | undefined>>
+}) {
+  const sp = await searchParams
   await ensurePlatformAdminPage()
   const supabase = await createClient()
 
@@ -95,10 +101,33 @@ export default async function CommentsPage() {
   // Keyed on the Instagram connection, because these settings are per-account. Unreadable is kept
   // DISTINCT from off for the same reason as the global switch: "we do not know" must not render
   // as a confident "Off".
-  // DETERMINISTIC, and chosen by permission rather than by position — see pickCommentsConnection.
-  // The previous `.find()` over a list ordered by `provider` alone was unordered among Instagram
-  // rows, so a second Instagram destination could have silently taken this screen over.
-  const igConnectionId = pickCommentsConnection(connections)?.id ?? null
+  // ── WHICH INSTAGRAM ACCOUNT THIS SCREEN IS ABOUT ──────────────────────────────────────────
+  // pickCommentsConnection is deterministic — comments-scope first, then oldest — which was the
+  // right answer while exactly one Instagram account could exist. With two it is a GUESS wearing
+  // a rule's clothes: the screen would read as the whole account's comment settings while in fact
+  // describing one of them, and the operator would have no way to tell which.
+  //
+  // So it is only allowed to decide when there is nothing to decide. The order is:
+  //   1. ?connection=<id>, when it names one of this admin's Instagram rows — an explicit choice.
+  //   2. the agent filter, when it narrows the Instagram rows to exactly one.
+  //   3. the single Instagram row, when that is all there is.
+  //   4. NOTHING. Multiple candidates and no choice renders a chooser instead of settings.
+  // pickCommentsConnection is kept for (3) so the one-account case resolves exactly as before.
+  const igAll = connections.filter((c) => (c.provider ?? "") === "instagram")
+  const roster = await loadAgentRoster(supabase)
+  const { id: agentParam } = resolveSelection(roster, typeof sp.agent === "string" ? sp.agent : null)
+  const agentConnIds = connectionIdsFor(roster, agentParam)
+  const igForAgent = agentConnIds === null ? igAll : igAll.filter((c) => agentConnIds.includes(c.id))
+
+  const requested = typeof sp.connection === "string" ? sp.connection : null
+  const explicit = requested ? igForAgent.find((c) => c.id === requested) ?? null : null
+
+  const igChoices = igForAgent
+  const igConnectionId =
+    explicit?.id ?? (igChoices.length === 1 ? pickCommentsConnection(igChoices)?.id ?? null : null)
+  // True only when a real choice is outstanding — several accounts and none picked. Distinct from
+  // "no Instagram account at all", which is not a choice and must not render a chooser.
+  const needsAccountChoice = !igConnectionId && igChoices.length > 1
   let publicRepliesEnabled = false
   let accountEnabled = false
   let maxCommentAgeMinutes: number | null = null
@@ -176,6 +205,9 @@ export default async function CommentsPage() {
       publicRepliesEnabled={publicRepliesEnabled}
       maxCommentAgeMinutes={maxCommentAgeMinutes}
       accountSettingsUnreadable={accountSettingsUnreadable}
+      instagramChoices={igChoices.map((c) => ({ id: c.id, username: c.username ?? null }))}
+      selectedConnectionId={igConnectionId}
+      needsAccountChoice={needsAccountChoice}
     />
   )
 }

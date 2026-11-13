@@ -1,5 +1,7 @@
 import { ensurePlatformAdminPage } from "@/lib/auth/ensurePlatformAdminPage"
 import SocialAutopilotShell from "@/components/crm/social/SocialAutopilotShell"
+import { createClient } from "@/lib/supabase/server"
+import { loadAgentRoster } from "@/lib/social/agentRoster"
 
 // Shared Social Autopilot shell — identical page structure to the other authenticated
 // Locator Beast pages (the shared AppHeader with the shared BackToDashboard pill, over the
@@ -11,5 +13,16 @@ import SocialAutopilotShell from "@/components/crm/social/SocialAutopilotShell"
 export default async function SocialAutopilotLayout({ children }: { children: React.ReactNode }) {
   await ensurePlatformAdminPage()
 
-  return <SocialAutopilotShell>{children}</SocialAutopilotShell>
+  // The agent roster is read HERE, in the persistent layout, so the selector is present on every
+  // Social Beast section and keeps its options across a tab change. Read-only (two selects and
+  // one RPC through the RLS-scoped client), and a failure degrades to no selector rather than a
+  // broken page — the sections themselves do not depend on it.
+  let roster: Awaited<ReturnType<typeof loadAgentRoster>> = []
+  try {
+    roster = await loadAgentRoster(await createClient())
+  } catch {
+    roster = []
+  }
+
+  return <SocialAutopilotShell roster={roster}>{children}</SocialAutopilotShell>
 }
