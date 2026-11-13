@@ -535,14 +535,38 @@ export default function PublishingDestinations({
               ))
             )}
           </div>
-          {/* ONLY WHEN THERE IS NOTHING CONNECTED. With an account already in the list this link
-              offered to "connect my own Instagram directly" next to the account that is already
-              connected — redundant, and worse, it reads as an invitation to add a SECOND one. The
-              re-authorization path for an existing account is the Reconnect control on its row,
-              which keeps the same connection id. */}
-          {configured && destinations.length === 0 && (
-            <div className="mt-2">
-              <a href={CONNECT} className="text-[11.5px] font-semibold text-[var(--crm-text-secondary)] hover:text-[var(--crm-text-primary)]">Connect my Instagram account →</a>
+          {/* THIS USED TO BE HIDDEN ONCE ANYTHING WAS CONNECTED, on the grounds that beside an
+              existing account it "reads as an invitation to add a SECOND one". Adding a second one
+              is now the point, and this is the ONLY route to it that carries
+              instagram_business_manage_comments: INSTAGRAM_SCOPES (the invitation flow) does not
+              request that permission and cannot, so an account invited by link can publish but can
+              never auto-reply. Hiding this control did not prevent a mistake, it removed the only
+              correct path.
+              THE HAZARD IT WAS HIDING FROM IS REAL AND IS NOT SOLVED BY HIDING. This flow is also
+              the Reconnect flow: sign in as an account that is ALREADY connected and
+              sa_connect_instagram takes its update branch, rotating that account's token and
+              deleting the superseded Vault secret. Its settings and scopes survive
+              (resolveGrantedScopes refuses a grant that would drop a held permission, and the
+              update omits posting_paused / posts_per_day / stagger / label / agent), but the token
+              does change. So the control says plainly which account to sign in as, rather than
+              being removed and leaving no way to add one. */}
+          {configured && (
+            <div className="mt-3 rounded-xl border border-[var(--crm-border)] bg-[var(--crm-card)] px-3 py-2.5">
+              <div className="flex items-center justify-between gap-3 flex-wrap">
+                <div className="min-w-0">
+                  <div className="text-[12.5px] font-semibold text-[var(--crm-text-primary)]">Connect my Instagram</div>
+                  <p className="mt-0.5 mb-0 text-[11.5px] text-[var(--crm-text-muted)]">
+                    For an account you own. This is the only way to grant comment management, which auto-replies need.
+                  </p>
+                </div>
+                <a href={CONNECT} className={btnPrimary}>Connect My Instagram</a>
+              </div>
+              {destinations.length > 0 && (
+                <p className="mt-2 mb-0 text-[11.5px] text-amber-600 dark:text-amber-400">
+                  Sign in as the account you want to <strong>add</strong>. Signing in as an account that is already
+                  connected re-authorizes it instead — its settings are kept, but its access token is replaced.
+                </p>
+              )}
             </div>
           )}
         </div>
@@ -621,9 +645,31 @@ export default function PublishingDestinations({
               ))
             )}
           </div>
-          {tiktokConfigured && tiktoks.length === 0 && (
-            <div className="mt-2">
-              <a href={TT_CONNECT} className="text-[11.5px] font-semibold text-[var(--crm-text-secondary)] hover:text-[var(--crm-text-primary)]">Connect TikTok directly →</a>
+          {/* Shown whenever TikTok is configured, for the same reason as the Instagram control
+              above: hiding it once one account existed left no way to add a second, and TikTok's
+              connect RPC has always been able to add one — it keys on (owner, provider, open_id),
+              so a different account is a different row with its own Vault secret.
+              The same caveat applies and is stated rather than hidden: this is also the Reconnect
+              path, so signing in as an account that is already connected takes the ON CONFLICT
+              branch and rotates its token. Its pause, cadence, stagger, label, agent and market
+              restriction are all absent from that update, so they survive. */}
+          {tiktokConfigured && (
+            <div className="mt-3 rounded-xl border border-[var(--crm-border)] bg-[var(--crm-card)] px-3 py-2.5">
+              <div className="flex items-center justify-between gap-3 flex-wrap">
+                <div className="min-w-0">
+                  <div className="text-[12.5px] font-semibold text-[var(--crm-text-primary)]">Connect my TikTok</div>
+                  <p className="mt-0.5 mb-0 text-[11.5px] text-[var(--crm-text-muted)]">
+                    For an account you own. Each account connects as its own destination.
+                  </p>
+                </div>
+                <a href={TT_CONNECT} className={btnPrimary}>Connect My TikTok</a>
+              </div>
+              {tiktoks.length > 0 && (
+                <p className="mt-2 mb-0 text-[11.5px] text-amber-600 dark:text-amber-400">
+                  Sign in as the account you want to <strong>add</strong>. Signing in as an account that is already
+                  connected re-authorizes it instead — its settings are kept, but its access token is replaced.
+                </p>
+              )}
             </div>
           )}
         </div>

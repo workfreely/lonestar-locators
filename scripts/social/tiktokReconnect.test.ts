@@ -41,10 +41,18 @@ ok("Reconnect does NOT call disconnect first — it is a plain link, not a handl
   !/Reconnect<\/a>/.test(ttCard.replace(/<a href=\{TT_CONNECT\}[^>]*>Reconnect<\/a>/, "")) 
   && !/tiktokDisconnect[\s\S]{0,120}TT_CONNECT/.test(ttCard))
 ok("the button explains that nothing is disconnected", /title="Re-authorize this TikTok account\. Nothing is disconnected/.test(ttCard))
-// Same claim, against the LIST that replaced the single nullable connection: the direct-connect
-// link appears only when nothing is connected, so it never reads as "add another one here".
-ok("the 'Connect TikTok directly' link is still only for the no-connection case",
-  /\{tiktokConfigured && tiktoks\.length === 0 && \([\s\S]{0,300}?Connect TikTok directly/.test(ui))
+// THE ADD CONTROL IS NOW ALWAYS SHOWN, and that is deliberate. It used to be gated on
+// tiktoks.length === 0 so it could never read as "add another one here" — but adding another one
+// is now supported and intended, and the gate left no way to do it. What replaces the gate is
+// plain text: the control says to sign in as the account you want to ADD, and warns that an
+// already-connected account is re-authorized instead. Asserted here so the warning cannot be
+// dropped while the control stays.
+ok("the add control is no longer gated on having no connections",
+  !/\{tiktokConfigured && tiktoks\.length === 0/.test(ui))
+ok("…and it states which account to sign in as",
+  /Sign in as the account you want to <strong>add<\/strong>/.test(ui))
+ok("…and warns that an already-connected account is re-authorized instead",
+  /re-authorizes it instead[\s\S]{0,120}access token is\s*\n?\s*replaced/.test(ui))
 
 // ── 2. STARTING THE FLOW CHANGES NOTHING ────────────────────────────────────
 console.log("\n2. the connect route only starts OAuth — it cannot disconnect or write:")
@@ -106,18 +114,24 @@ ok("video.upload is still NOT requested", !(TIKTOK_SCOPES as readonly string[]).
 ok("the card invokes no publishing endpoint or handler (its only 'publish' is the section's own label)",
   !/\/api\/[^"']*publish|publishPost|startPublish|TikTokPostConfirm/.test(ttCard))
 {
-  // The connected card is the block between the "no account connected yet" branch and the
-  // subsection's trailing "Connect TikTok directly" link (the NOT-connected branch).
-  const connectedCard = ttCard.slice(ttCard.indexOf("No TikTok account connected yet"), ttCard.indexOf("{tiktokConfigured && tiktoks.length === 0 &&"))
+  // The connected card is the block between the "no account connected yet" branch and the add
+  // control below it. The end marker used to be `{tiktokConfigured && tiktoks.length === 0 &&`;
+  // when that gate was removed, indexOf returned -1, slice(start, -1) swallowed the add control
+  // too, and the "exactly ONE connect link" assertion failed on a correct component. Anchored on
+  // the add control's own heading instead, which is the thing the slice is meant to stop before.
+  const addControlAt = ttCard.indexOf("Connect my TikTok")
+  const connectedCard = ttCard.slice(ttCard.indexOf("No TikTok account connected yet"), addControlAt)
+  ok("the slice stops before the add control", addControlAt > 0 && !connectedCard.includes("Connect My TikTok"))
   ok("the connected card was located", connectedCard.includes("Reconnect") && connectedCard.includes("Disconnect"))
   // THE ORIGINAL CLAIM, which was "exactly one connect link and one destructive control", now that
   // the row also carries Pause/Resume and Rename (the per-account controls the multi-account work
   // added, identical to the ones the Instagram rows have had all along).
   //
-  // The part that MATTERS is unchanged and is what this asserts: ONE connect link in the card — so
-  // Reconnect can never be mistaken for "add another account" — and every button in it drawn from
-  // the known safe set, with no second connect and nothing that publishes.
-  ok("the card still offers exactly ONE connect link",
+  // The part that MATTERS is unchanged and is what this asserts: ONE connect link INSIDE the
+  // connected row — so Reconnect can never be mistaken for "add another account" — and every
+  // button in it drawn from the known safe set. The ADD control is a separate block outside this
+  // card; keeping the row at exactly one link is what keeps the two distinguishable.
+  ok("the connected row still offers exactly ONE connect link",
     (connectedCard.match(/<a href=\{TT_CONNECT\}/g) ?? []).length === 1)
   ok("…and its buttons are only the expected per-account controls", (() => {
     const labels = [...connectedCard.matchAll(/>([A-Za-z ]+)<\/button>/g)].map((m) => m[1].trim())
@@ -128,8 +142,13 @@ ok("the card invokes no publishing endpoint or handler (its only 'publish' is th
   })())
   ok("…exactly one of which is the destructive one",
     (connectedCard.match(/>Disconnect<\/button>/g) ?? []).length === 1)
-  ok("the second TT_CONNECT link is the NOT-connected branch, outside the card",
-    (ttCard.match(/<a href=\{TT_CONNECT\}/g) ?? []).length === 2 && /\{tiktokConfigured && tiktoks\.length === 0 &&[\s\S]{0,300}TT_CONNECT/.test(ttCard))
+  // Two links in the subsection: the row's Reconnect, and the add control below it. The add one
+  // must sit OUTSIDE the connected row, which is what stops it reading as a control on that
+  // account — now asserted by its position rather than by its absence.
+  ok("the second TT_CONNECT link is the add control, outside the connected row",
+    (ttCard.match(/<a href=\{TT_CONNECT\}/g) ?? []).length === 2
+      && !connectedCard.includes("Connect My TikTok")
+      && /Connect my TikTok[\s\S]{0,600}<a href=\{TT_CONNECT\}[^>]*>Connect My TikTok<\/a>/.test(ttCard))
 }
 
 console.log(`\nTikTok reconnect: ${pass} passed, ${fail} failed`)

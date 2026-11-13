@@ -155,19 +155,23 @@ async function run(req: NextRequest) {
   // restriction means, consulted from three layers, so an Instagram guard and a TikTok guard can
   // never disagree about whether "dallas" is Dallas.
   //
-  // Per CONNECTION rather than per owner, deliberately. This worker's TOKEN is still owner-scoped
-  // (sa_get_tiktok_token takes p_owner), which is the pre-existing limitation that has to be
-  // resolved before a second TikTok account can publish — but the restriction is a property of the
-  // DESTINATION, and reading it off the row means this guard is already correct for that second
-  // account the moment its row exists. Cached for the run: MAX_PER_RUN is 3, and the value cannot
+  // Per CONNECTION rather than per owner, deliberately — and the token is now per connection too.
+  // This comment used to say the token was owner-scoped (sa_get_tiktok_token takes p_owner) and
+  // that it "has to be resolved before a second TikTok account can publish". That was true when it
+  // was written; 20261115000003_tiktok_connection_scoped_tokens added
+  // sa_get_tiktok_token_by_connection and this worker reads through
+  // getValidTikTokAccessTokenForConnection, so a second account publishes with its OWN credential.
+  // The owner-scoped entry point survives for the request-time routes and answers null — never a
+  // guess — once two accounts exist. Cached for the run: MAX_PER_RUN is 3, and the value cannot
   // change mid-run in a way we would want to act on.
   const restrictionCache = new Map<string, string[] | null>()
   const destinationRestriction = async (
     connectionId: string | null,
   ): Promise<{ ok: true; restriction: string[] | null } | { ok: false; reason: string }> => {
-    // A TikTok row with no connection id has no destination row to be restricted by. That is the
-    // shape every TikTok post has today, because the token is resolved from the owner rather than
-    // from a connection — so this is "unrestricted", exactly as it behaves now.
+    // A TikTok row with no connection id has no destination row to be restricted by, so this is
+    // "unrestricted". That is still the shape of most TikTok posts, not because of how the token
+    // resolves — it resolves per connection now — but because connection_id is assigned when a
+    // post is scheduled or manually targeted, and an untargeted draft carries none.
     if (!connectionId) return { ok: true, restriction: null }
     if (restrictionCache.has(connectionId)) return { ok: true, restriction: restrictionCache.get(connectionId) ?? null }
     const { data, error } = await supabaseAdmin

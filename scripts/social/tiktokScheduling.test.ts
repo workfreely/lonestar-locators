@@ -178,8 +178,44 @@ console.log("\n=== 8. THE UNRESOLVED REQUIREMENT IS RECORDED, NOT BYPASSED ===")
   ok("…including that no decision means no post", /NO DECISION, NO POST/.test(RAW_WORKER))
   ok("…and that a stale decision stops rather than degrades", /STALE DECISIONS STOP, THEY DO NOT DEGRADE/.test(RAW_WORKER))
   ok("the disclosure sent is the creator's saved choice", /saved\.disclosure !== "none"/.test(WORKER))
-  ok("the worker is not wired into vercel.json",
-    !readFileSync(join(process.cwd(), "vercel.json"), "utf8").includes("social-tiktok-publish"))
+  // THE WORKER IS NOW SCHEDULED, and the assertion is inverted deliberately. It previously
+  // asserted the ABSENCE of a cron entry as the thing keeping TikTok inert — but that was never
+  // what kept it inert, and leaning on it meant the schedule could not be added without this
+  // suite objecting. What actually holds the worker is GATE 2, which returns before any read or
+  // write while SOCIAL_TIKTOK_AUTOPUBLISH_ENABLED is not "true". A scheduled run with that flag
+  // unset costs one request and changes nothing.
+  //
+  // So the schedule is asserted, AND the gate that makes the schedule safe is asserted with it —
+  // the second is the one that matters, and it must never be removed on the grounds that the
+  // first exists.
+  const VERCEL = readFileSync(join(process.cwd(), "vercel.json"), "utf8")
+  ok("the worker IS wired into vercel.json", VERCEL.includes("social-tiktok-publish"))
+  ok("…on the same */5 cadence as the Instagram publisher", (() => {
+    const crons = (JSON.parse(VERCEL) as { crons?: { path: string; schedule: string }[] }).crons ?? []
+    const tt = crons.find((c) => c.path.endsWith("social-tiktok-publish"))
+    const ig = crons.find((c) => c.path.endsWith("social-instagram-publish"))
+    return !!tt && !!ig && tt.schedule === ig.schedule && tt.schedule === "*/5 * * * *"
+  })())
+  ok("…and GATE 2 still returns before any read or write when the flag is unset", (() => {
+    // The first USE of supabaseAdmin, not the first mention: comparing against indexOf found the
+    // import line at the top of the file and reported FAIL on a worker whose gate is correctly
+    // placed. Import lines are excluded before measuring.
+    const lines = RAW_WORKER.split("\n")
+    let offset = 0
+    let firstUse = -1
+    for (const line of lines) {
+      if (!line.trimStart().startsWith("import") && line.includes("supabaseAdmin")) {
+        firstUse = offset + line.indexOf("supabaseAdmin")
+        break
+      }
+      offset += line.length + 1
+    }
+    const gateAt = RAW_WORKER.indexOf("if (!tiktokAutopublishEnabled())")
+    return (
+      /if \(!tiktokAutopublishEnabled\(\)\) \{[\s\S]{0,400}?inert: true/.test(RAW_WORKER)
+      && gateAt > 0 && firstUse > 0 && gateAt < firstUse
+    )
+  })())
 }
 
 console.log(fail === 0 ? `\nALL PASS ✅ (${pass} passed, ${fail} failed)\n` : `\n${pass} passed, ${fail} failed\n`)
