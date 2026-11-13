@@ -22,20 +22,45 @@ type Db = SupabaseClient<any, any, any>
 const PUBLIC_ORIGIN = "https://locatorbeast.com"
 
 /**
- * The connected account's workspace slug — the `{username}` in the branded form link.
+ * A user's workspace slug — the `{username}` in the branded form link.
  *
  * REFUSES RATHER THAN GUESSES. A DM whose link is wrong is worse than no DM: the person clicks,
  * lands nowhere, and the one message we are allowed to send them is spent. With no slug the runner
  * never gets a connection context, so nothing is sent.
  */
-async function workspaceSlug(db: Db, ownerUserId: string): Promise<string | null> {
+async function workspaceSlug(db: Db, userId: string): Promise<string | null> {
   const { data: member } = await db
-    .from("workspace_members").select("workspace_id").eq("user_id", ownerUserId).limit(1).maybeSingle()
+    .from("workspace_members").select("workspace_id").eq("user_id", userId).limit(1).maybeSingle()
   const workspaceId = (member as { workspace_id?: string } | null)?.workspace_id
   if (!workspaceId) return null
   const { data: ws } = await db.from("workspaces").select("slug").eq("id", workspaceId).maybeSingle()
   const slug = (ws as { slug?: string | null } | null)?.slug
   return slug && slug.trim() ? slug.trim() : null
+}
+
+/**
+ * WHOSE LEAD FORM A REPLY FROM THIS CONNECTION LINKS TO.
+ *
+ * THE AGENT, NOT THE OWNER. An invited destination is OWNED by the platform admin who minted the
+ * invitation — that is what sa_consume_destination_invitation does by design — while the person
+ * whose account it is, whose audience is commenting, and whose client the commenter becomes is the
+ * AGENT. Resolving the slug from owner_user_id sent every lead from every agent's Instagram to the
+ * admin's form and the admin's CRM. On a one-agent install the two ids are the same person and the
+ * bug is invisible; the first second agent makes it a data-ownership failure.
+ *
+ * AN UNASSIGNED CONNECTION GETS NOTHING, DELIBERATELY. Falling back to the owner is exactly the
+ * behaviour being removed: it is how a connection nobody claimed would quietly route strangers'
+ * details to the platform administrator. No agent, no link, no reply — the runner receives no
+ * connection context and sends nothing, which is the same fail-closed path a missing slug has
+ * always taken.
+ */
+async function leadFormSlugForConnection(
+  db: Db,
+  conn: { agent_user_id: string | null; owner_user_id: string },
+): Promise<string | null> {
+  const agentId = (conn.agent_user_id ?? "").trim()
+  if (!agentId) return null
+  return workspaceSlug(db, agentId)
 }
 
 export function createCommentStore(db: Db): CommentStore {
@@ -54,14 +79,14 @@ export function createCommentStore(db: Db): CommentStore {
 
       const { data, error } = await db
         .from("social_connections")
-        .select("id, owner_user_id, external_account_id, username, scopes, status")
+        .select("id, owner_user_id, agent_user_id, external_account_id, username, scopes, status")
         .eq("provider", provider)
         .eq("external_account_id", recipient)
         .maybeSingle()
       if (error || !data) return null
 
       const row = data as {
-        id: string; owner_user_id: string; external_account_id: string
+        id: string; owner_user_id: string; agent_user_id: string | null; external_account_id: string
         username: string | null; scopes: string[] | null; status: string | null
       }
       if (row.status !== "connected") return null
@@ -76,7 +101,8 @@ export function createCommentStore(db: Db): CommentStore {
       const accessToken = (tokenRow?.token ?? "").trim()
       if (!accessToken) return null
 
-      const slug = await workspaceSlug(db, row.owner_user_id)
+      // The AGENT's form, never the owner's — see leadFormSlugForConnection.
+      const slug = await leadFormSlugForConnection(db, row)
       if (!slug) return null
 
       return {
