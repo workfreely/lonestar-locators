@@ -32,7 +32,7 @@ export const MAX_PLAN_DAYS = 14
 
 /** One select string, shared by the pool query and the re-read, so the two cannot drift. */
 export const POOL_SELECT =
-  "id, platform, status, render_status, rendered_storage_path, scheduled_at, published_at, external_post_id, connection_id, approved_at, follows_post_id, source_content_id, source:source_content_id(place_id, market, property_name)"
+  "id, platform, destination, status, render_status, rendered_storage_path, scheduled_at, published_at, external_post_id, connection_id, approved_at, follows_post_id, source_content_id, source:source_content_id(place_id, market, property_name)"
 
 /** A joined social_posts row -> the planner's PoolPost. */
 export function toPoolPost(r: Record<string, unknown>): PoolPost {
@@ -52,6 +52,8 @@ export function toPoolPost(r: Record<string, unknown>): PoolPost {
     externalPostId: (r.external_post_id as string | null) ?? null,
     connectionId: (r.connection_id as string | null) ?? null,
     platform: (r.platform as string | null) ?? null,
+    // The surface, which is what decides the post's network now. See providerOf.
+    destination: (r.destination as string | null) ?? null,
     approvedAt: (r.approved_at as string | null) ?? null,
     followsPostId: (r.follows_post_id as string | null) ?? null,
   }
@@ -185,7 +187,7 @@ export async function runAutopilotPlan(input: {
   if (ids.length) {
     const { data, error } = await supabase
       .from("social_posts")
-      .select("id, status, render_status, rendered_storage_path, scheduled_at, published_at, external_post_id, connection_id, platform, approved_at")
+      .select("id, status, render_status, rendered_storage_path, scheduled_at, published_at, external_post_id, connection_id, platform, destination, approved_at")
       .in("id", ids)
     if (error) throw new Error(`load_failed: ${error.message}`)
     for (const r of data ?? []) {
@@ -198,6 +200,7 @@ export async function runAutopilotPlan(input: {
         externalPostId: r.external_post_id as string | null,
         connectionId: r.connection_id as string | null,
         platform: r.platform as string | null,
+        destination: r.destination as string | null,
         approvedAt: r.approved_at as string | null,
       })
     }

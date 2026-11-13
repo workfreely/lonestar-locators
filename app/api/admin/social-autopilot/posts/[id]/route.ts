@@ -13,7 +13,7 @@ import {
 import {
   resolvePresenterClip, clipForRender, effectiveIntroVoiceClipId, type PresenterClipStatus,
 } from "@/lib/social/presenterClipCache"
-import { isSocialDestination } from "@/lib/social/destinations"
+import { DESTINATIONS, isSocialDestination } from "@/lib/social/destinations"
 import { ensureStoryCompanion } from "@/lib/social/storyCompanion"
 import { hasRender, isRenderedReady, type LaneFacts } from "@/lib/social/postLane"
 import { resolveSourcePath } from "@/lib/social/sourcePath"
@@ -286,13 +286,22 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
   // the footage lock and means exactly the same thing here.
   if ("destination" in body && isSocialDestination(body.destination) && !isPublished) {
     patch.destination = body.destination
-    // The legacy `platform` column is deliberately NOT written alongside it. It is a protected
-    // column (owner, source, platform, published_at, render pointers are never patched here), and
-    // it does not need to follow: destinationFromLegacyPlatform is consulted only when destination
-    // is NULL, so once a destination exists every geometry path — renderPost, the TikTok publish
-    // guard, the editor preview — reads the destination and ignores platform entirely. The one
-    // other reader, the stored-hashtag cap, does not affect TikTok, whose hashtags are generated
-    // separately by buildTikTokCaptionPayload rather than taken from the stored set.
+    // ── AND THE PROVIDER FOLLOWS IT ───────────────────────────────────────────────────────────
+    // This used to write `destination` ALONE, on the stated grounds that `platform` is a protected
+    // column and that every GEOMETRY path — renderPost, the TikTok publish guard, the editor
+    // preview — reads the destination once one exists. Both halves were true, and the conclusion
+    // was still wrong, because the planner is not a geometry path: it grouped by `platform`, so a
+    // post pointed at TikTok here stayed in the INSTAGRAM rotation, got assigned to an Instagram
+    // connection, and was then refused by the Instagram worker at its publishability gate and
+    // failed to needs_attention. Six production rows carry that shape, created over a month.
+    //
+    // The planner now derives the network from the destination (autopilotEligibility.providerOf),
+    // which makes the mismatch harmless — and this makes it impossible, so the two columns cannot
+    // drift again and no future reader of `platform` inherits the problem. One fact, one answer.
+    //
+    // Written only when the destination changes, only on an unpublished post (the guard above), and
+    // taken from the destination registry rather than mapped by hand.
+    patch.platform = DESTINATIONS[body.destination].provider
   }
   if ("postName" in body) patch.post_name = str(body.postName, 300)
   if (typeof body.postType === "string" && isValidPostType("instagram", body.postType)) patch.post_type = body.postType

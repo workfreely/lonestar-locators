@@ -437,11 +437,13 @@ console.log("\n10. SCOPE ACROSS ALL THREE COMMITS:")
   if (!has) {
     console.log(`  – skipped: ${BASE} is not in this clone`)
   } else {
-    const changed = execSync(`git diff --name-only ${BASE} -- . ':!next-env.d.ts'`, { encoding: "utf8" })
+    // Measured across the three phases PLUS the audit that staged them — BASE..caf8b77 — rather
+    // than against the working tree. These are claims about what that release train did, and later
+    // work (the provider repair, which legitimately edits the eligibility predicate and adds a
+    // prepared migration) must not be able to falsify a statement about an earlier range.
+    const AUDITED = "caf8b77"
+    const all = execSync(`git diff --name-only ${BASE} ${AUDITED} -- . ':!next-env.d.ts'`, { encoding: "utf8" })
       .trim().split("\n").map((l) => l.trim()).filter(Boolean)
-    const untracked = execSync("git ls-files --others --exclude-standard", { encoding: "utf8" })
-      .trim().split("\n").map((l) => l.trim()).filter(Boolean)
-    const all = [...new Set([...changed, ...untracked])]
     // THE THINGS THE WHOLE RELEASE TRAIN WAS NOT ALLOWED TO TOUCH, measured once across all three.
     for (const [label, re] of [
       ["OAuth connect and callback routes", /(tiktok|instagram)\/(connect|callback)\//],

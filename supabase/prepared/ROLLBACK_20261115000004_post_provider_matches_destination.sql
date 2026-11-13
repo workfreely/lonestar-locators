@@ -1,0 +1,45 @@
+-- ROLLBACK 20261115000004_post_provider_matches_destination.
+--
+-- ⚠ READ THIS FIRST: THERE IS NOTHING TO ROLL BACK TO.
+--
+-- The repair set `platform` to the provider the row's own `destination` already declared. It
+-- recorded the previous values in a TEMPORARY table that died with its transaction, deliberately —
+-- a permanent audit table would have been a new object for a one-column correction. So the old
+-- values are not recoverable from the database, and this file cannot restore them row by row.
+--
+-- THAT IS ALMOST CERTAINLY FINE, and here is why: every row it touched was a post whose platform
+-- said Instagram while its destination said TikTok. The old value was not information, it was the
+-- defect — a post the planner would put in the Instagram rotation and the Instagram worker would
+-- then fail to needs_attention. Restoring it restores that.
+--
+-- ── IF YOU STILL NEED TO UNDO IT ────────────────────────────────────────────────────────────
+-- The six known rows are listed below with their pre-repair values, taken from production on
+-- 2026-11-12 before anything was applied. Uncomment the UPDATE to put them back. It is scoped to
+-- those exact ids, so it cannot touch anything else, and it will not match a row that has since
+-- been published.
+--
+--   dca4e3b8-b911-4764-8ef0-71ce2cd423e4  draft  tiktok_video  was platform=instagram
+--   d047464b-d28d-43cc-91bc-0e12c3ff77bd  draft  tiktok_video  was platform=instagram
+--   94601b2e-5985-45cc-8027-64c5b974038a  draft  tiktok_video  was platform=instagram
+--   67224a57-4231-4dfd-8b8c-fd61bdbf2eb6  draft  tiktok_video  was platform=instagram
+--   87346e25-7724-4637-a54f-b2d4db13a166  ready  tiktok_video  was platform=instagram
+--   533db65b-f02b-463d-b03a-8f8c64178945  draft  tiktok_video  was platform=instagram
+--
+-- update public.social_posts
+--    set platform = 'instagram', updated_at = now()
+--  where id in (
+--    'dca4e3b8-b911-4764-8ef0-71ce2cd423e4', 'd047464b-d28d-43cc-91bc-0e12c3ff77bd',
+--    '94601b2e-5985-45cc-8027-64c5b974038a', '67224a57-4231-4dfd-8b8c-fd61bdbf2eb6',
+--    '87346e25-7724-4637-a54f-b2d4db13a166', '533db65b-f02b-463d-b03a-8f8c64178945')
+--    and destination = 'tiktok_video'
+--    and published_at is null;
+--
+-- ── AND NOTE THE CODE DOES NOT NEED THIS UNDONE ─────────────────────────────────────────────
+-- The planner now derives a post's network from its destination rather than from `platform`, so
+-- rolling the APPLICATION back to a build that groups by `platform` is the only situation in which
+-- these rows' platform value matters again. In that case the values above are the ones that
+-- reproduce the old behaviour — including the defect.
+--
+-- Nothing is executed by this file as written. That is deliberate: a rollback that silently
+-- reintroduces a defect should require someone to uncomment it.
+select 'ROLLBACK_20261115000004 is a no-op as written — see the header' as notice;

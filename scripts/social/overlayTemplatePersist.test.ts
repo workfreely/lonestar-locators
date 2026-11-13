@@ -136,8 +136,28 @@ async function main() {
     }
     ok("the patch starts with ONLY updated_at",
       /const patch: Record<string, unknown> = \{ updated_at: new Date\(\)\.toISOString\(\) \}/.test(route))
-    ok("protected columns are still never patched",
-      !/patch\.(owner_user_id|source_content_id|platform|published_at|rendered_storage_path|render_version)\s*=/.test(route))
+    // `platform` LEFT THIS SET on 2026-11-13, deliberately and narrowly.
+    //
+    // It was protected because nothing should rewrite a post's network behind the operator's back.
+    // What that produced instead: the destination control wrote `destination` alone, so six
+    // production posts ended up pointed at TikTok while still claiming platform='instagram' — and
+    // the planner, which grouped by `platform`, put them in the Instagram rotation where the
+    // Instagram worker then failed them to needs_attention.
+    //
+    // So the column is now written in exactly one place, from the destination registry, in the same
+    // branch as the destination it must agree with. The other five stay protected, and the
+    // assertion below pins the narrowness: the ONLY assignment to patch.platform anywhere in this
+    // route is DESTINATIONS[...].provider.
+    ok("the other protected columns are still never patched",
+      !/patch\.(owner_user_id|source_content_id|published_at|rendered_storage_path|render_version)\s*=/.test(route))
+    {
+      const platformWrites = [...route.matchAll(/patch\.platform\s*=\s*([^\n]+)/g)].map((m) => m[1].trim())
+      ok("platform is written exactly once", platformWrites.length === 1, JSON.stringify(platformWrites))
+      ok("…and only ever as the destination's own registered provider",
+        platformWrites.every((w) => w === "DESTINATIONS[body.destination].provider"), JSON.stringify(platformWrites))
+      ok("…inside the destination branch, so the two cannot be written apart",
+        /patch\.destination = body\.destination[\s\S]{0,1600}patch\.platform = DESTINATIONS/.test(route))
+    }
     ok("pricing/amenities live on social_content and this route never writes them",
       !/patch\.(budget_range|amenities|property_name|market)\s*=/.test(route))
     // REWRITTEN 2026-10-08. This required `renderAffecting = true` beside the template guard —

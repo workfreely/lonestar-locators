@@ -6,6 +6,7 @@
 //
 // The planner NEVER renders. A post that is not already a finished artifact is not eligible —
 // it is reported as missing inventory instead (see planAutopilot).
+import { DESTINATIONS, isSocialDestination, destinationFromLegacyPlatform } from "./destinations"
 
 export type EligibilityInput = {
   /** Set when this post is a companion distribution of another (a Story following its Reel).
@@ -18,7 +19,23 @@ export type EligibilityInput = {
   publishedAt: string | null
   externalPostId: string | null
   connectionId: string | null
+  /**
+   * The legacy column. It is NO LONGER what decides which network a post belongs to — see
+   * providerOf below — and is kept because a row with a NULL destination still has to be placed
+   * somewhere, and because it is what the Instagram worker's own due query filters on.
+   */
   platform: string | null
+  /**
+   * THE SURFACE this post is laid out for, and now the thing that decides its network.
+   *
+   * Six production rows carry destination = 'tiktok_video' with platform = 'instagram': the
+   * editor's destination control writes `destination` and deliberately leaves `platform` alone,
+   * on the stated grounds that every GEOMETRY path reads the destination. True — and the planner
+   * is not a geometry path. It grouped by `platform`, so those rows entered the INSTAGRAM
+   * rotation, where the Instagram worker would then refuse them at its publishability gate and
+   * fail them to needs_attention.
+   */
+  destination?: string | null
   /** EXPLICIT HUMAN APPROVAL. Null means nobody has signed off on this creative. */
   approvedAt?: string | null
 }
@@ -77,13 +94,29 @@ export function ineligibleReason(p: EligibilityInput, platform = "instagram"): I
   // approved_at is the only column a human sets deliberately. Nothing else in this predicate is.
   if (!p.approvedAt) return "not_approved"
 
-  if (p.platform && p.platform !== platform) return "wrong_platform"
+  if (providerOf(p) !== platform) return "wrong_platform"
 
   // A COMPANION STORY IS NOT A ROTATION ENTRY. It is the same property and the same creative as a
   // Reel already in the plan, released 45 minutes after that Reel publishes. Letting it into the
   // pool would consume one of the day's two slots and show a viewer the same building twice.
   if (p.followsPostId) return "follow_up_post"
   return null
+}
+
+/**
+ * WHICH NETWORK THIS POST PUBLISHES TO — one answer, derived from the destination.
+ *
+ * The destination registry already states each surface's provider (DESTINATIONS[d].provider), so
+ * this reads the fact rather than inferring it from a second column that can disagree. A row with
+ * no destination falls back to destinationFromLegacyPlatform, which is exactly how every other
+ * destination-aware path in the codebase treats a legacy row — so nothing about those rows moves.
+ *
+ * The consequence that matters: a post is grouped by where it is GOING, not by a column that was
+ * last written when it was created.
+ */
+export function providerOf(p: Pick<EligibilityInput, "platform" | "destination">): string {
+  const d = isSocialDestination(p.destination) ? p.destination : destinationFromLegacyPlatform(p.platform)
+  return DESTINATIONS[d].provider
 }
 
 export function isEligible(p: EligibilityInput, platform = "instagram"): boolean {

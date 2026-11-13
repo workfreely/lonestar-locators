@@ -111,6 +111,8 @@ console.log("\nTHE PANEL — the choice is made before Creator Info is fetched:"
 console.log("\nRELEASE SCOPE — the selector, the migration test and nothing else:")
 {
   const BASELINE = "caf8b77"
+  // The END of that change, not the working tree — the same pinning every guard before it carries.
+  const RELEASE = "57b018c"
   const has = (() => {
     try { execSync(`git cat-file -e ${BASELINE}^{commit}`, { stdio: "ignore" }); return true } catch { return false }
   })()
@@ -119,10 +121,7 @@ console.log("\nRELEASE SCOPE — the selector, the migration test and nothing el
   } else {
     const lines = (cmd: string) =>
       execSync(cmd, { encoding: "utf8" }).trim().split("\n").map((l) => l.trim()).filter(Boolean)
-    const changed = [...new Set([
-      ...lines(`git diff --name-only ${BASELINE} -- . ':!next-env.d.ts'`),
-      ...lines("git ls-files --others --exclude-standard"),
-    ])].sort()
+    const changed = lines(`git diff --name-only ${BASELINE} ${RELEASE} -- . ':!next-env.d.ts'`).sort()
     const APPROVED = [
       "app/api/integrations/tiktok/publish/route.ts",
       "components/crm/social/TikTokPostConfirm.tsx",
@@ -156,7 +155,7 @@ console.log("\nRELEASE SCOPE — the selector, the migration test and nothing el
       ["scripts/social/releaseIntegrationAudit.test.ts", 6, "the audit-scope diff range and one category pattern"],
       ["scripts/social/tiktokAccountIsolation.test.ts", 2, "the manual route's token-line assertion"],
     ] as const) {
-      const removed = lines(`git diff --unified=0 ${BASELINE} -- ${f}`)
+      const removed = lines(`git diff --unified=0 ${BASELINE} ${RELEASE} -- ${f}`)
         .filter((l) => l.startsWith("-") && !l.startsWith("---"))
       ok(`${f} removes at most the ${allowed} line(s) it replaces (${why})`, removed.length <= allowed,
         `removed ${removed.length}`)
