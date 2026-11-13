@@ -40,13 +40,19 @@ export default async function SocialAutopilotAccountsPage({ searchParams }: { se
     .eq("provider", "instagram")
     .order("created_at", { ascending: true })
 
-  // The admin's single TikTok connection (RLS-scoped). Safe display fields ONLY — never
+  // ALL of the admin's TikTok connections (RLS-scoped). Safe display fields ONLY — never
   // token_secret_id / external_account_id (open_id) / owner_user_id.
-  const { data: ttRow } = await supabase
+  //
+  // THIS WAS .maybeSingle(), AND THAT WAS A HIDING PLACE. With two TikTok rows PostgREST answers
+  // .maybeSingle() with PGRST116 and no data; this page destructures only `data`, so ttRow went
+  // null and the screen rendered "No TikTok account connected yet." — both live accounts gone from
+  // the UI, with "Connect TikTok directly" left as the only visible control. A list, ordered the
+  // same way the Instagram destinations are, so the two sections behave identically.
+  const { data: ttRows } = await supabase
     .from("social_connections")
-    .select("username, status, token_expires_at, created_at, avatar_url, market_restriction")
+    .select("id, username, label, status, posting_paused, token_expires_at, created_at, avatar_url, market_restriction")
     .eq("provider", "tiktok")
-    .maybeSingle()
+    .order("created_at", { ascending: true })
 
   // Owner (this platform admin) display identity — used as the TikTok row's primary name so it
   // matches the Instagram row's "agent name" model. Read-only own-profile fetch (presentation
@@ -66,17 +72,21 @@ export default async function SocialAutopilotAccountsPage({ searchParams }: { se
     }
   }
 
-  const tiktok: TikTokConnection | null = ttRow
-    ? {
-        username: ttRow.username,
-        avatarUrl: ttRow.avatar_url ?? null,
-        ownerName,
-        ownerPhotoUrl,
-        expired: !!ttRow.token_expires_at && new Date(ttRow.token_expires_at).getTime() < Date.now(),
-        addedAt: ttRow.created_at,
-        marketRestriction: parseMarketRestriction(ttRow.market_restriction),
-      }
-    : null
+  type TtRow = { id: string; username: string | null; label: string | null; status: string; posting_paused: boolean | null; token_expires_at: string | null; created_at: string; avatar_url: string | null; market_restriction: string[] | null }
+  const tiktoks: TikTokConnection[] = ((ttRows ?? []) as TtRow[]).map((r) => ({
+    // The connection id addresses the connection-scoped backend actions (pause / resume / label /
+    // disconnect) — the same ones the Instagram rows use. It is never displayed.
+    id: r.id,
+    username: r.username,
+    label: r.label,
+    paused: !!r.posting_paused,
+    avatarUrl: r.avatar_url ?? null,
+    ownerName,
+    ownerPhotoUrl,
+    expired: !!r.token_expires_at && new Date(r.token_expires_at).getTime() < Date.now(),
+    addedAt: r.created_at,
+    marketRestriction: parseMarketRestriction(r.market_restriction),
+  }))
 
   // Active (unused, unrevoked, unexpired) invitations — the safe list; the raw token is NEVER
   // stored or shown again after creation.
@@ -302,7 +312,7 @@ export default async function SocialAutopilotAccountsPage({ searchParams }: { se
         destinations={destinations}
         pendingInvites={pendingInvites}
         tiktokConfigured={ttConfigured}
-        tiktok={tiktok}
+        tiktoks={tiktoks}
       />
     </div>
   )

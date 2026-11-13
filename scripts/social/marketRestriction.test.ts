@@ -446,9 +446,11 @@ console.log("\nSEEING IT — the restriction is on the destination row, for both
   const UI = code(read("components/crm/social/PublishingDestinations.tsx"))
   ok("the page selects the column for Instagram and for TikTok",
     (PAGE.match(/market_restriction/g) ?? []).length >= 4)
+  // Both platforms, through the one helper. The TikTok side reads `r` rather than `ttRow` since it
+  // became a list (Phase 1 of the multi-account work); the claim is the same — the chip is derived
+  // from the same value the planner and both workers consult, not a second interpretation.
   ok("…and normalises it through the same shared helper the enforcement uses",
-    /parseMarketRestriction\(row\.market_restriction\)/.test(PAGE)
-    && /parseMarketRestriction\(ttRow\.market_restriction\)/.test(PAGE))
+    (PAGE.match(/parseMarketRestriction\((?:row|r|ttRow)\.market_restriction\)/g) ?? []).length === 2)
   ok("ONE chip renderer serves both platforms", (UI.match(/marketChip\(/g) ?? []).length === 3)
   ok("…and it says what happens when the market has nothing: the slot is left empty",
     /is left empty/.test(read("components/crm/social/PublishingDestinations.tsx")))
@@ -470,6 +472,13 @@ console.log("\nSEEING IT — the restriction is on the destination row, for both
 console.log("\nRELEASE SCOPE — exactly the approved files, and nothing the brief ruled out:")
 {
   const BASELINE = "4dcc56b"
+  // The END of this release, not the working tree — the same pinning militarySpecial's guard got in
+  // this release, for the same reason. This guard's claim is "between 4dcc56b and the market
+  // -restriction release, exactly these files changed": a claim about a pair of commits, and
+  // therefore permanently checkable. Diffed against the tree it became a claim about whatever is
+  // checked out, so every later release broke it and had to widen an allow-list with files that
+  // have nothing to do with the market restriction.
+  const RELEASE = "beb7c81"
   const has = (() => {
     try { execSync(`git cat-file -e ${BASELINE}^{commit}`, { stdio: "ignore" }); return true } catch { return false }
   })()
@@ -478,10 +487,7 @@ console.log("\nRELEASE SCOPE — exactly the approved files, and nothing the bri
   } else {
     const lines = (cmd: string) =>
       execSync(cmd, { encoding: "utf8" }).trim().split("\n").map((l) => l.trim()).filter(Boolean)
-    const changed = [...new Set([
-      ...lines(`git diff --name-only ${BASELINE} -- . ':!next-env.d.ts' ':!tsconfig.check.json'`),
-      ...lines("git ls-files --others --exclude-standard -- . ':!tsconfig.check.json'"),
-    ])].sort()
+    const changed = lines(`git diff --name-only ${BASELINE} ${RELEASE} -- . ':!next-env.d.ts'`).sort()
     const APPROVED = [
       // The shared definition — the whole point of the brief's "rather than an Instagram-specific
       // solution".
@@ -556,7 +562,7 @@ console.log("\nRELEASE SCOPE — exactly the approved files, and nothing the bri
       // those files are tracked in the release commit now) and the one-line `removed` command.
       ["scripts/social/militarySpecial.test.ts", 5, "the diff range, pinned to its own release"],
     ] as const) {
-      const removed = lines(`git diff --unified=0 ${BASELINE} -- ${f}`)
+      const removed = lines(`git diff --unified=0 ${BASELINE} ${RELEASE} -- ${f}`)
         .filter((l) => l.startsWith("-") && !l.startsWith("---"))
       ok(`${f} removes at most the ${allowed} line(s) it replaces (${why})`, removed.length <= allowed,
         `removed ${removed.length}`)

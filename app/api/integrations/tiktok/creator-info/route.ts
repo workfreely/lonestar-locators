@@ -1,6 +1,6 @@
 export const runtime = "nodejs"
 
-import { NextResponse } from "next/server"
+import { NextResponse, type NextRequest } from "next/server"
 import { requirePlatformAdmin } from "@/lib/auth/requirePlatformAdmin"
 import { getValidTikTokAccessToken } from "@/lib/social/tiktokServer"
 import { fetchTikTokCreatorInfo } from "@/lib/social/tiktokPublish"
@@ -9,12 +9,18 @@ import { fetchTikTokCreatorInfo } from "@/lib/social/tiktokPublish"
 // called by the confirmation UI right before a Direct Post. Platform-admin ONLY. Resolves the token
 // server-side (Vault; refreshed if expired) and returns ONLY non-sensitive creator/capability fields
 // (never the access token). Capabilities are TikTok's live values — the UI must not hard-code them.
-export async function GET() {
+export async function GET(req: NextRequest) {
   const guard = await requirePlatformAdmin()
   if (!guard.ok) return guard.response
   const { userId } = guard
 
-  const tok = await getValidTikTokAccessToken(userId)
+  // OPTIONAL ?connectionId= — which TikTok destination to ask about. The resolver verifies the
+  // connection belongs to this operator before using it, so passing an id cannot borrow another
+  // owner's credential. Omitted, it resolves the operator's sole TikTok account and returns null
+  // when they have more than one: a 409 the UI can act on, rather than the previous behaviour of
+  // answering confidently about an arbitrary account.
+  const connectionId = req.nextUrl.searchParams.get("connectionId")
+  const tok = await getValidTikTokAccessToken(userId, connectionId)
   if (!tok) return NextResponse.json({ error: "not_connected" }, { status: 409 })
 
   try {

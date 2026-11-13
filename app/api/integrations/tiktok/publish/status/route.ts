@@ -13,7 +13,7 @@ export async function POST(req: NextRequest) {
   if (!guard.ok) return guard.response
   const { userId } = guard
 
-  let body: { publishId?: string }
+  let body: { publishId?: string; connectionId?: string }
   try {
     body = await req.json()
   } catch {
@@ -21,7 +21,10 @@ export async function POST(req: NextRequest) {
   }
   if (!body.publishId) return NextResponse.json({ error: "publishId required" }, { status: 400 })
 
-  const tok = await getValidTikTokAccessToken(userId)
+  // A publish_id belongs to the account that created it, so the status must be asked of that same
+  // account. connectionId is optional for compatibility; without it the resolver uses the sole
+  // TikTok account and refuses when there is more than one.
+  const tok = await getValidTikTokAccessToken(userId, body.connectionId ?? null)
   if (!tok) return NextResponse.json({ error: "not_connected" }, { status: 409 })
 
   try {

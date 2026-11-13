@@ -58,10 +58,19 @@ const INVITES = "/api/admin/social-autopilot/destinations/invitations"
 const CONNECT = "/api/admin/social-autopilot/accounts/instagram/connect"
 const COMMENTS_PAGE = "/admin/social-autopilot/comments"
 const TT_CONNECT = "/api/integrations/tiktok/connect"
-const TT_DISCONNECT = "/api/integrations/tiktok/disconnect"
 
-// A single TikTok connection for the current admin (identity/status only — never tokens).
+// ONE TikTok destination for the current admin (identity/status only — never tokens). There may be
+// several: a TikTok connection is a social_connections row exactly as an Instagram one is, so this
+// section renders N rows with the same controls rather than one special case.
 export type TikTokConnection = {
+  /** connection_id — addresses the connection-scoped backend actions; never displayed. */
+  id: string
+  /** Friendly label, set with Rename. The one way to tell two accounts apart at a glance when
+   *  their TikTok display names are similar. */
+  label: string | null
+  /** This destination's OWN pause switch (social_connections.posting_paused), not the owner-wide
+   *  Auto Posting master switch. */
+  paused: boolean
   // The stored TikTok identity (display_name). Shown on the secondary line; NOT a real @handle.
   username: string | null
   // The connected account's real TikTok avatar (persisted via user.info.basic on connect).
@@ -136,19 +145,18 @@ export default function PublishingDestinations({
   destinations,
   pendingInvites,
   tiktokConfigured = false,
-  tiktok = null,
+  tiktoks = [],
 }: {
   configured: boolean
   destinations: Destination[]
   pendingInvites: PendingInvite[]
   /** Whether TikTok OAuth credentials (client key + secret) are present server-side. */
   tiktokConfigured?: boolean
-  /** The admin's TikTok connection, or null when not connected. */
-  tiktok?: TikTokConnection | null
+  /** EVERY TikTok destination the admin has, oldest first. Was a single nullable connection. */
+  tiktoks?: TikTokConnection[]
 }) {
   const router = useRouter()
   const [busyId, setBusyId] = useState<string | null>(null)
-  const [ttBusy, setTtBusy] = useState(false)
   const [renamingId, setRenamingId] = useState<string | null>(null)
   const [renameValue, setRenameValue] = useState("")
 
@@ -197,16 +205,17 @@ export default function PublishingDestinations({
     void manage(d.id, { action: "disconnect" })
   }
 
-  const tiktokDisconnect = async () => {
-    const who = tiktok?.username ? `@${tiktok.username}` : "TikTok"
-    if (!confirm(`Disconnect ${who}? This revokes its TikTok authorization. Nothing in your Library is deleted.`)) return
-    setTtBusy(true)
-    try {
-      const res = await fetch(TT_DISCONNECT, { method: "POST" })
-      if (res.ok) router.refresh()
-    } finally {
-      setTtBusy(false)
-    }
+  // ONE TikTok destination, through the SAME connection-scoped backend the Instagram rows use.
+  //
+  // This used to POST to /api/integrations/tiktok/disconnect, which calls sa_disconnect_tiktok() —
+  // a function that takes no arguments and deleted EVERY TikTok row for the owner while revoking
+  // only one of their Vault secrets. With two accounts connected, disconnecting one removed both.
+  // sa_disconnect_destination(connection_id) already does this correctly for a single destination,
+  // so the row addresses that instead of a new function being written.
+  const tiktokDisconnect = (t: TikTokConnection) => {
+    const who = t.label || (t.username ? `@${t.username}` : "this TikTok account")
+    if (!confirm(`Disconnect ${who}? This revokes its TikTok authorization. Your other accounts are unaffected, and nothing in your Library is deleted.`)) return
+    void manage(t.id, { action: "disconnect" })
   }
 
   const saveRename = async (id: string) => {
@@ -545,46 +554,74 @@ export default function PublishingDestinations({
           <div className="mt-2 space-y-2">
             {!tiktokConfigured ? (
               <div className="text-[12.5px] text-[var(--crm-text-muted)] py-2">TikTok isn&apos;t configured yet.</div>
-            ) : !tiktok ? (
+            ) : tiktoks.length === 0 ? (
               <div className="text-[12.5px] text-[var(--crm-text-muted)] py-2">No TikTok account connected yet.</div>
             ) : (
-              <div className="rounded-xl border border-[var(--crm-border)] bg-[var(--crm-card)] px-3 py-2.5 flex items-center justify-between gap-3 flex-wrap">
+              tiktoks.map((tiktok) => (
+              <div key={tiktok.id} className="rounded-xl border border-[var(--crm-border)] bg-[var(--crm-card)] px-3 py-2.5 flex items-center justify-between gap-3 flex-wrap">
                 <div className="min-w-0 flex items-center gap-2.5">
-                  {avatar(tiktok.ownerName ?? tiktok.username, tiktok.avatarUrl ?? tiktok.ownerPhotoUrl ?? null, 32)}
+                  {avatar(tiktok.label ?? tiktok.username ?? tiktok.ownerName ?? null, tiktok.avatarUrl ?? tiktok.ownerPhotoUrl ?? null, 32)}
                   <div className="min-w-0">
                     <div className="flex items-center gap-2 flex-wrap">
-                      <span className="text-[13.5px] font-semibold text-[var(--crm-text-primary)] truncate">{tiktok.ownerName ?? tiktok.username ?? "TikTok account"}</span>
+                      {/* THE ACCOUNT, not the operator. This line used to lead with the owner's own
+                          name, which was unambiguous while one admin had one TikTok account and
+                          becomes two identical rows the moment they have two. The account's own
+                          label or display name leads now, and the operator moves to the line below
+                          — so Rename is also what disambiguates two similar display names. */}
+                      <span className="text-[13.5px] font-semibold text-[var(--crm-text-primary)] truncate">{tiktok.label || tiktok.username || tiktok.ownerName || "TikTok account"}</span>
                       <PlatformIcon platform="tiktok" />
                       {tiktok.expired ? (
                         <span className="inline-flex items-center gap-1.5 text-[11.5px] font-semibold text-amber-600 dark:text-amber-400">{dot("bg-amber-500")} Reconnect needed</span>
+                      ) : tiktok.paused ? (
+                        /* THIS destination's own pause, not the owner-wide Auto Posting switch. */
+                        <span className="inline-flex items-center gap-1.5 text-[11.5px] font-semibold text-[var(--crm-text-secondary)]">{dot("bg-[var(--crm-text-muted)]")} Paused</span>
                       ) : (
                         <span className="inline-flex items-center gap-1.5 text-[11.5px] font-semibold text-emerald-600 dark:text-emerald-400">{dot("bg-emerald-500")} Connected</span>
                       )}
                       {marketChip(tiktok.marketRestriction)}
                     </div>
                     <div className="text-[11.5px] text-[var(--crm-text-muted)] mt-0.5">
-                      {tiktok.ownerName && tiktok.username && <span className="text-[var(--crm-text-secondary)]">{tiktok.username} · </span>}
-                      Added {tiktok.addedAt ? fmtDate(tiktok.addedAt) : "—"}
+                      {tiktok.label && tiktok.username && <span className="text-[var(--crm-text-secondary)]">{tiktok.username} · </span>}
+                      {tiktok.ownerName && <span>{tiktok.ownerName} · </span>}
+                      Added {tiktok.addedAt ? fmtDate(tiktok.addedAt) : "\u2014"}
                     </div>
                   </div>
+                  {renamingId === tiktok.id && (
+                    <div className="mt-2 flex items-center gap-2">
+                      <input autoFocus className={`${control} max-w-[240px]`} value={renameValue} onChange={(e) => setRenameValue(e.target.value)} placeholder="Friendly label" onKeyDown={(e) => { if (e.key === "Enter") void saveRename(tiktok.id); if (e.key === "Escape") setRenamingId(null) }} />
+                      <button type="button" className={btnPrimary} disabled={busyId === tiktok.id} onClick={() => void saveRename(tiktok.id)}>Save</button>
+                      <button type="button" className={btn} onClick={() => setRenamingId(null)}>Cancel</button>
+                    </div>
+                  )}
                 </div>
-                <div className="flex items-center gap-1.5 flex-wrap">
-                  {/* ALWAYS available, not only once the access token has expired. Re-authorizing
-                      is the ordinary way to repair a connection, prove it still works, or re-grant
-                      after a scope or password change — and gating it on expiry meant the only
-                      visible control on a healthy connection was Disconnect, i.e. the one action
-                      that throws the connection away. It does NOT disconnect first: it opens the
-                      same OAuth flow, and sa_connect_tiktok upserts on
-                      (owner_user_id, provider, external_account_id), so the SAME account lands back
-                      on the SAME row with fresh tokens. If authorization is cancelled or fails, the
-                      callback returns before any write and the existing row is untouched. */}
-                  <a href={TT_CONNECT} className={btn} title="Re-authorize this TikTok account. Nothing is disconnected, and your account and scheduled posts are unaffected — sign in with the SAME TikTok account.">Reconnect</a>
-                  <button type="button" className={btn} disabled={ttBusy} onClick={() => void tiktokDisconnect()}>Disconnect</button>
-                </div>
+                {renamingId !== tiktok.id && (
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    {/* ALWAYS available, not only once the access token has expired. Re-authorizing
+                        is the ordinary way to repair a connection, prove it still works, or re-grant
+                        after a scope or password change — and gating it on expiry meant the only
+                        visible control on a healthy connection was Disconnect, i.e. the one action
+                        that throws the connection away. It does NOT disconnect first: it opens the
+                        same OAuth flow, and sa_connect_tiktok upserts on
+                        (owner_user_id, provider, external_account_id), so the SAME account lands back
+                        on the SAME row with fresh tokens — and it now supersedes only THAT account's
+                        Vault secret, so re-authorizing one account cannot invalidate the other. If
+                        authorization is cancelled or fails, the callback returns before any write and
+                        the existing row is untouched. */}
+                    <a href={TT_CONNECT} className={btn} title="Re-authorize this TikTok account. Nothing is disconnected, your other accounts are unaffected, and your scheduled posts stay put — sign in with the SAME TikTok account.">Reconnect</a>
+                    {tiktok.paused ? (
+                      <button type="button" className={btn} disabled={busyId === tiktok.id} onClick={() => void manage(tiktok.id, { action: "resume" })}>Resume</button>
+                    ) : (
+                      <button type="button" className={btn} disabled={busyId === tiktok.id} onClick={() => void manage(tiktok.id, { action: "pause" })}>Pause</button>
+                    )}
+                    <button type="button" className={btn} disabled={busyId === tiktok.id} onClick={() => { setRenamingId(tiktok.id); setRenameValue(tiktok.label ?? "") }}>Rename</button>
+                    <button type="button" className={btn} disabled={busyId === tiktok.id} onClick={() => tiktokDisconnect(tiktok)}>Disconnect</button>
+                  </div>
+                )}
               </div>
+              ))
             )}
           </div>
-          {tiktokConfigured && !tiktok && (
+          {tiktokConfigured && tiktoks.length === 0 && (
             <div className="mt-2">
               <a href={TT_CONNECT} className="text-[11.5px] font-semibold text-[var(--crm-text-secondary)] hover:text-[var(--crm-text-primary)]">Connect TikTok directly →</a>
             </div>

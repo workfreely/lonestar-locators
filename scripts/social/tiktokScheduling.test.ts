@@ -96,8 +96,12 @@ console.log("\n=== 4. DUPLICATE SAFETY — TWO CLAIMS, BOTH CONDITIONAL ===")
   // A stranded row with no publish id is NOT retried — that is how a duplicate would be born.
   ok("a claimed row with no publish id is failed, never re-posted",
     /claimed for TikTok init but no publish_id recorded/.test(WORKER))
+  // Same claim, and now a stronger one: the status is fetched with THAT ROW'S OWN destination
+  // token. A publish_id belongs to the account that created it, so asking with another account's
+  // token would report nothing or a stranger's post — which is why the worker no longer holds one
+  // token for the whole run.
   ok("a row WITH a publish id is observed via status fetch, never re-posted",
-    /fetchTikTokPostStatus\(token\.accessToken, String\(r\.external_post_id\)\)/.test(WORKER))
+    /fetchTikTokPostStatus\(rowTok\.accessToken, String\(r\.external_post_id\)\)/.test(WORKER))
 }
 
 console.log("\n=== 5. ONLY EXISTING COLUMNS — NO MIGRATION IS REQUIRED ===")

@@ -138,12 +138,24 @@ export function expiryFromExpiresIn(expiresInSeconds: number | undefined): strin
 
 /** Build the JSON token bundle persisted (encrypted) in Vault. Keeps the refresh token +
  *  its expiry alongside the access token so a future server-side refresh has everything it
- *  needs; the access-token expiry is ALSO stored in the row's token_expires_at column. */
-export function buildTokenBundle(t: TikTokTokenResponse): string {
+ *  needs; the access-token expiry is ALSO stored in the row's token_expires_at column.
+ *
+ *  `previous` is the bundle being REPLACED, supplied only by the refresh path. TikTok normally
+ *  returns a rotated refresh_token, but the response type allows it to be absent — and a bundle
+ *  written without one is a connection that dies silently at the next expiry with no way back
+ *  except re-authorizing. Carrying the previous value forward costs nothing when the new one is
+ *  present (it is used) and saves the connection when it is not. The connect path passes nothing,
+ *  so its behaviour is unchanged: there is no previous bundle to carry. */
+export function buildTokenBundle(
+  t: TikTokTokenResponse,
+  previous?: { refresh_token?: string; refresh_expires_at?: string } | null,
+): string {
   return JSON.stringify({
     access_token: t.access_token,
-    refresh_token: t.refresh_token,
-    refresh_expires_at: expiryFromExpiresIn(t.refresh_expires_in),
+    refresh_token: t.refresh_token ?? previous?.refresh_token,
+    refresh_expires_at: typeof t.refresh_expires_in === "number" && t.refresh_expires_in > 0
+      ? expiryFromExpiresIn(t.refresh_expires_in)
+      : previous?.refresh_expires_at ?? expiryFromExpiresIn(t.refresh_expires_in),
   })
 }
 

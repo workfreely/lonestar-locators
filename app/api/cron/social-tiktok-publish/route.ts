@@ -13,7 +13,7 @@ import { tiktokAutopublishEnabled } from "@/lib/social/tiktokGate"
 import {
   readSavedSettings, validateAgainstCreatorInfo, interactionsToDisableFlags, disclosureToToggles,
 } from "@/lib/social/tiktokPublishSettings"
-import { getValidTikTokAccessToken } from "@/lib/social/tiktokServer"
+import { getValidTikTokAccessTokenForConnection, type TikTokConnectionToken } from "@/lib/social/tiktokServer"
 import { buildTikTokCaptionPayload, isOverlayTemplate } from "@/lib/social/composePost"
 import {
   fetchTikTokCreatorInfo,
@@ -145,6 +145,7 @@ async function run(req: NextRequest) {
     missingSettings: 0, settingsNoLongerValid: 0,
     notPublishableDestination: 0,
     blockedByMarketRestriction: 0, skippedDestinationUnreadable: 0,
+    noDestinationToken: 0, destinationTokenUnusable: 0,
     heldReasons: [] as { id: string; reason: string }[],
   }
 
@@ -181,8 +182,40 @@ async function run(req: NextRequest) {
     return { ok: true, restriction: parsed }
   }
 
-  const token = await getValidTikTokAccessToken(owner)
-  if (!token) {
+  // ── THE TOKEN BELONGS TO THE DESTINATION, NOT TO THE OWNER ────────────────────────────────
+  // This used to resolve ONE token for the owner, before the loop, and use it for every row. With
+  // two TikTok destinations under one owner that token named no particular account: the RPC behind
+  // it ended in an unordered `limit 1`, so the worker would have published one brand's video from
+  // whichever account the database happened to return. Nothing downstream could detect it — the
+  // upload succeeds, TikTok reports PUBLISH_COMPLETE, and the video is simply on the wrong account.
+  //
+  // Resolved per ROW from its own connection_id instead, and memoised for the run so N posts to one
+  // destination still cost one resolution (and at most one refresh). Mirrors what the Instagram
+  // worker has always done through resolveDestination.
+  //
+  // The connection row's posting_paused comes back with the token and is deliberately NOT acted on
+  // here: per-destination pause enforcement in the workers is Phase 2. Planning already excludes a
+  // paused destination (computeAutopilotPlan's `enabled`), so nothing new reaches this worker
+  // because of that.
+  const tokenCache = new Map<string, TikTokConnectionToken | null>()
+  const tokenFor = async (connectionId: string | null): Promise<TikTokConnectionToken | null> => {
+    // No destination on the row means there is no credential to choose. The owner-level fallback
+    // this replaced is exactly the ambiguity being removed, so a null connection is refused rather
+    // than guessed at.
+    if (!connectionId) return null
+    if (tokenCache.has(connectionId)) return tokenCache.get(connectionId) ?? null
+    const tok = await getValidTikTokAccessTokenForConnection(connectionId)
+    tokenCache.set(connectionId, tok)
+    return tok
+  }
+
+  // The worker is still inert when no TikTok destination exists at all — the same early return as
+  // before, asked of the table rather than of one resolved token.
+  const { count: ttConnections } = await supabaseAdmin
+    .from("social_connections")
+    .select("id", { count: "exact", head: true })
+    .eq("provider", "tiktok")
+  if (!ttConnections) {
     return NextResponse.json({ ok: true, inert: true, reason: "tiktok not connected", ...result })
   }
 
@@ -209,14 +242,19 @@ async function run(req: NextRequest) {
   // is the handle, and Status Fetch is a read.
   const { data: pendingRows } = await supabaseAdmin
     .from("social_posts")
-    .select("id, external_post_id")
+    .select("id, external_post_id, connection_id")
     .eq("destination", "tiktok_video")
     .eq("status", "publishing")
     .not("external_post_id", "is", null)
     .limit(MAX_PER_RUN)
   for (const r of (pendingRows ?? []) as Row[]) {
     try {
-      const status = await fetchTikTokPostStatus(token.accessToken, String(r.external_post_id))
+      // THIS ROW'S destination. A publish_id belongs to the account that created it, so asking
+      // with another account's token is not merely wrong, it would report a stranger's post or
+      // nothing at all. Unresolvable → left pending for the next run, never guessed at.
+      const rowTok = await tokenFor((r.connection_id as string | null) ?? null)
+      if (!rowTok) { result.pending++; continue }
+      const status = await fetchTikTokPostStatus(rowTok.accessToken, String(r.external_post_id))
       if (status.status === "PUBLISH_COMPLETE") {
         await supabaseAdmin.from("social_posts").update({
           status: "published",
@@ -325,6 +363,34 @@ async function run(req: NextRequest) {
         continue
       }
 
+      // ── THIS POST'S OWN DESTINATION TOKEN, RESOLVED BEFORE THE CLAIM ────────────────────
+      // Every TikTok call below — Creator Info, init, upload, status — speaks as the account this
+      // post was actually scheduled to, never as "the owner's TikTok account".
+      //
+      // BEFORE the claim, for the reason the Instagram worker gives at the same point: a claim
+      // moves the row out of 'scheduled', and needs_attention has no route back to publishable, so
+      // claiming first would let a condition the post can recover from burn its slot. The two
+      // outcomes are therefore kept apart, exactly as resolveDestination keeps paused apart from
+      // fault:
+      //
+      //   no connection_id   a real configuration error — nothing can choose an account for it, so
+      //                      it is FAILED with a reason naming what to do. A human reassigns it.
+      //   no usable token    disconnected, or a refresh that did not come back. The post is left
+      //                      EXACTLY as it is — still scheduled, still due, nothing claimed — and
+      //                      publishes on the next run once the account is reconnected. A transient
+      //                      refresh hiccup must not permanently sideline an approved post.
+      const postTok = await tokenFor((row.connection_id as string | null) ?? null)
+      if (!postTok) {
+        if (!row.connection_id) {
+          await markFailed(postId, "this post has no TikTok publishing destination selected — assign one and re-approve")
+          result.noDestinationToken++
+        } else {
+          console.warn("[tiktok-worker]", postId, "destination has no usable token — left scheduled")
+          result.destinationTokenUnusable++
+        }
+        continue
+      }
+
       // ── CLAIM 1 — before anything external happens ────────────────────────────────────────
       const { data: claimed } = await supabaseAdmin
         .from("social_posts")
@@ -348,7 +414,7 @@ async function run(req: NextRequest) {
       }
 
       // Creator Info immediately before the post, as the guidelines require.
-      const info = await fetchTikTokCreatorInfo(token.accessToken)
+      const info = await fetchTikTokCreatorInfo(postTok.accessToken)
 
       // RE-VALIDATE, DO NOT CLAMP. resolveDirectPostSelection silently narrows a requested
       // interaction to what the creator currently allows — correct for a human looking at a
@@ -413,7 +479,7 @@ async function run(req: NextRequest) {
         .select("id")
       if (!claimed2 || claimed2.length === 0) continue
 
-      const { publishId, uploadUrl } = await initTikTokDirectPost(token.accessToken, {
+      const { publishId, uploadUrl } = await initTikTokDirectPost(postTok.accessToken, {
         title,
         privacyLevel: selection.privacyLevel,
         disableComment: selection.disableComment,
@@ -434,7 +500,7 @@ async function run(req: NextRequest) {
         .eq("id", postId)
 
       await uploadTikTokVideoSingleChunk(uploadUrl, bytes)
-      const status = await fetchTikTokPostStatus(token.accessToken, publishId)
+      const status = await fetchTikTokPostStatus(postTok.accessToken, publishId)
       if (status.status === "PUBLISH_COMPLETE") {
         await supabaseAdmin.from("social_posts").update({
           status: "published",

@@ -65,7 +65,7 @@ export async function POST(req: NextRequest) {
   // Reuse an existing, currently-rendered Social Beast post's video + caption (RLS owner-scoped).
   const { data: post } = await supabase
     .from("social_posts")
-    .select("id, destination, platform, render_status, rendered_storage_path, caption, hashtags, social_special, source_content_id, overlay_template, source:source_content_id(market, property_type, special, budget_range, amenities)")
+    .select("id, destination, platform, connection_id, render_status, rendered_storage_path, caption, hashtags, social_special, source_content_id, overlay_template, source:source_content_id(market, property_type, special, budget_range, amenities)")
     .eq("id", body.postId)
     .maybeSingle()
   if (!post) return NextResponse.json({ error: "not_found" }, { status: 404 })
@@ -100,7 +100,13 @@ export async function POST(req: NextRequest) {
   }
 
   // Token (Vault; refreshed if expired) — server-only, never returned to the client.
-  const tok = await getValidTikTokAccessToken(userId)
+  //
+  // THE POST'S OWN DESTINATION, when it has one. A post carrying connection_id was scheduled or
+  // assigned to a specific TikTok account, and that is the account it must publish as; falling back
+  // to "the owner's TikTok token" with two accounts connected is how a Locator Beast video goes out
+  // on Real Estate Pro. With no connection_id the resolver uses the owner's sole TikTok account and
+  // returns null when that is ambiguous, so this route refuses rather than picking.
+  const tok = await getValidTikTokAccessToken(userId, (p as { connection_id?: string | null }).connection_id ?? null)
   if (!tok) return NextResponse.json({ error: "not_connected" }, { status: 409 })
 
   try {

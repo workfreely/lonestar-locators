@@ -32,15 +32,19 @@ ok("the TikTok card was located", ttCard.length > 500)
 ok("Reconnect is NOT gated on expiry any more", !/\{tiktok\.expired && <a href=\{TT_CONNECT\}/.test(ttCard))
 ok("Reconnect renders unconditionally, pointing at the connect endpoint",
   /<a href=\{TT_CONNECT\}[^>]*>Reconnect<\/a>/.test(ttCard))
-ok("Disconnect is still offered beside it", /onClick=\{\(\) => void tiktokDisconnect\(\)\}>Disconnect<\/button>/.test(ttCard))
+// Takes the destination it is disconnecting now that the section renders N accounts — the handler
+// is per row, and the connection-scoped backend is what makes "one account, never both" true.
+ok("Disconnect is still offered beside it", /onClick=\{\(\) => tiktokDisconnect\(tiktok\)\}>Disconnect<\/button>/.test(ttCard))
 ok("the Connected / Reconnect-needed STATUS is still driven by expiry (unchanged)",
   /tiktok\.expired \? \([\s\S]{0,400}?Reconnect needed[\s\S]{0,400}?\) : \([\s\S]{0,300}?Connected/.test(ttCard))
 ok("Reconnect does NOT call disconnect first — it is a plain link, not a handler",
   !/Reconnect<\/a>/.test(ttCard.replace(/<a href=\{TT_CONNECT\}[^>]*>Reconnect<\/a>/, "")) 
   && !/tiktokDisconnect[\s\S]{0,120}TT_CONNECT/.test(ttCard))
 ok("the button explains that nothing is disconnected", /title="Re-authorize this TikTok account\. Nothing is disconnected/.test(ttCard))
+// Same claim, against the LIST that replaced the single nullable connection: the direct-connect
+// link appears only when nothing is connected, so it never reads as "add another one here".
 ok("the 'Connect TikTok directly' link is still only for the no-connection case",
-  /\{tiktokConfigured && !tiktok && \([\s\S]{0,300}?Connect TikTok directly/.test(ui))
+  /\{tiktokConfigured && tiktoks\.length === 0 && \([\s\S]{0,300}?Connect TikTok directly/.test(ui))
 
 // ── 2. STARTING THE FLOW CHANGES NOTHING ────────────────────────────────────
 console.log("\n2. the connect route only starts OAuth — it cannot disconnect or write:")
@@ -104,13 +108,28 @@ ok("the card invokes no publishing endpoint or handler (its only 'publish' is th
 {
   // The connected card is the block between the "no account connected yet" branch and the
   // subsection's trailing "Connect TikTok directly" link (the NOT-connected branch).
-  const connectedCard = ttCard.slice(ttCard.indexOf("No TikTok account connected yet"), ttCard.indexOf("{tiktokConfigured && !tiktok &&"))
+  const connectedCard = ttCard.slice(ttCard.indexOf("No TikTok account connected yet"), ttCard.indexOf("{tiktokConfigured && tiktoks.length === 0 &&"))
   ok("the connected card was located", connectedCard.includes("Reconnect") && connectedCard.includes("Disconnect"))
-  ok("its only controls are ONE Reconnect and ONE Disconnect",
-    (connectedCard.match(/<a href=\{TT_CONNECT\}/g) ?? []).length === 1
-    && (connectedCard.match(/<button type="button"/g) ?? []).length === 1)
+  // THE ORIGINAL CLAIM, which was "exactly one connect link and one destructive control", now that
+  // the row also carries Pause/Resume and Rename (the per-account controls the multi-account work
+  // added, identical to the ones the Instagram rows have had all along).
+  //
+  // The part that MATTERS is unchanged and is what this asserts: ONE connect link in the card — so
+  // Reconnect can never be mistaken for "add another account" — and every button in it drawn from
+  // the known safe set, with no second connect and nothing that publishes.
+  ok("the card still offers exactly ONE connect link",
+    (connectedCard.match(/<a href=\{TT_CONNECT\}/g) ?? []).length === 1)
+  ok("…and its buttons are only the expected per-account controls", (() => {
+    const labels = [...connectedCard.matchAll(/>([A-Za-z ]+)<\/button>/g)].map((m) => m[1].trim())
+    // Resume/Pause and Rename are the per-account controls; Save/Cancel belong to the inline
+    // rename field. Nothing here connects, publishes, or acts on another account.
+    const allowed = new Set(["Resume", "Pause", "Rename", "Disconnect", "Save", "Cancel"])
+    return labels.length === 6 && labels.every((l) => allowed.has(l))
+  })())
+  ok("…exactly one of which is the destructive one",
+    (connectedCard.match(/>Disconnect<\/button>/g) ?? []).length === 1)
   ok("the second TT_CONNECT link is the NOT-connected branch, outside the card",
-    (ttCard.match(/<a href=\{TT_CONNECT\}/g) ?? []).length === 2 && /\{tiktokConfigured && !tiktok &&[\s\S]{0,300}TT_CONNECT/.test(ttCard))
+    (ttCard.match(/<a href=\{TT_CONNECT\}/g) ?? []).length === 2 && /\{tiktokConfigured && tiktoks\.length === 0 &&[\s\S]{0,300}TT_CONNECT/.test(ttCard))
 }
 
 console.log(`\nTikTok reconnect: ${pass} passed, ${fail} failed`)
