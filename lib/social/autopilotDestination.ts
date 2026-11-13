@@ -17,8 +17,20 @@ export function fnv1a(s: string): number {
 /** 7:30 AM and 7:30 PM, as minutes from local midnight. The baseline BEFORE any stagger. */
 export const BASELINE_DAILY_TIMES = [7 * 60 + 30, 19 * 60 + 30] as const
 
-/** Derived offsets span 1..30 minutes. */
-export const STAGGER_SPREAD_MINUTES = 30
+/**
+ * Derived offsets span 1..5 minutes.
+ *
+ * WAS 30. A destination asked to post at 7:30 and 19:30 is asked for THOSE windows, and a derived
+ * offset of 29 minutes put it at 07:59 — inside the approved morning window, so nothing refused it,
+ * but not the time anyone chose. Five minutes is enough to keep two accounts off the same instant
+ * while leaving the schedule recognisably 7:3x / 19:3x.
+ *
+ * THIS CHANGES NOTHING THAT IS CONNECTED TODAY. Both live destinations carry an EXPLICIT
+ * stagger_offset_minutes = 0, and an explicit value always wins (see staggerOffsetMinutes), so
+ * Real Estate Pro stays pinned to the baseline exactly as before. Only a destination whose column
+ * is NULL derives an offset, and the only such destinations are ones not yet connected.
+ */
+export const STAGGER_SPREAD_MINUTES = 5
 
 /**
  * Minutes to add to every baseline time for this connected account.
@@ -27,7 +39,7 @@ export const STAGGER_SPREAD_MINUTES = 30
  * mechanical, and it bunches every account's upload into one moment.
  *
  * SEMANTICS of social_connections.stagger_offset_minutes:
- *   null  → DERIVED, 1..30, stable for the life of the connection
+ *   null  → DERIVED, 1..STAGGER_SPREAD_MINUTES, stable for the life of the connection
  *   0     → exactly the baseline (7:30 / 19:30). The explicit "primary account" case.
  *   1..n  → that many minutes after the baseline
  *
@@ -45,6 +57,56 @@ export function staggerOffsetMinutes(connectionId: string, explicit: number | nu
     return Math.max(0, Math.trunc(explicit))
   }
   return 1 + (fnv1a(connectionId) % STAGGER_SPREAD_MINUTES)
+}
+
+/**
+ * THE TIMES A DESTINATION POSTS AT, DERIVED FROM ITS OWN posts_per_day.
+ *
+ * ── WHY THIS EXISTS: posts_per_day DID NOT MEAN POSTS PER DAY ───────────────────────────────
+ * The number of posts a destination gets in a day is `dailyTimes.length` — the planner places one
+ * occurrence per configured time per day. `posts_per_day` was never wired to that. It was used only
+ * as `maxOccurrences = maxDays * postsPerDay`, a cap on the TOTAL across the whole horizon, and it
+ * was taken as the MINIMUM across every destination on a platform. So:
+ *
+ *   posts_per_day = 2   2 a day, because the baseline happens to have two times      (correct)
+ *   posts_per_day = 1   still 2 a day, for HALF the horizon, then nothing            (wrong)
+ *   posts_per_day = 3   still 2 a day — there is no third time to place one at       (wrong)
+ *
+ * and one destination set to 1 halved every other destination's queue on that platform.
+ *
+ * This makes the column mean what it says: the first N approved times, so N is how many posts that
+ * destination gets on a calendar day. The planner additionally enforces N as a hard per-day ceiling,
+ * because a placement bumped forward off a full day could otherwise land on a day already at N.
+ *
+ * ── WHAT IT CANNOT DO ───────────────────────────────────────────────────────────────────────
+ * It cannot invent a window. The baseline carries two approved times, so a destination asking for
+ * three is given two and the planner reports the shortfall rather than inventing a 3rd timestamp
+ * inside an approved window nobody chose. More than two a day needs a per-destination times column,
+ * which is a schema change and is not this.
+ *
+ * NULL / absent / non-positive ⇒ the whole baseline, which is today's behaviour for every existing
+ * destination (both live rows have posts_per_day = NULL).
+ */
+export function dailyTimesForPostsPerDay(
+  postsPerDay: number | null | undefined,
+  baseline: readonly number[] = BASELINE_DAILY_TIMES,
+): readonly number[] {
+  if (typeof postsPerDay !== "number" || !Number.isFinite(postsPerDay) || postsPerDay <= 0) return baseline
+  const n = Math.min(Math.trunc(postsPerDay), baseline.length)
+  return baseline.slice(0, n)
+}
+
+/** How many posts a day this destination actually gets, and whether that is fewer than it asked
+ *  for. Returned together so a caller reports the shortfall instead of discovering it. */
+export function destinationCadence(
+  postsPerDay: number | null | undefined,
+  baseline: readonly number[] = BASELINE_DAILY_TIMES,
+): { times: readonly number[]; perDay: number; requested: number; capped: boolean } {
+  const times = dailyTimesForPostsPerDay(postsPerDay, baseline)
+  const requested = typeof postsPerDay === "number" && Number.isFinite(postsPerDay) && postsPerDay > 0
+    ? Math.trunc(postsPerDay)
+    : baseline.length
+  return { times, perDay: times.length, requested, capped: requested > times.length }
 }
 
 /**

@@ -186,6 +186,10 @@ export type AutopilotPlan = {
      *  is the number a dry run reads to prove the restriction held, rather than inferring it from
      *  the absence of something in the plan. */
     marketRestrictionViolations: number
+    /** Placements dropped because their destination had already reached its posts_per_day on that
+     *  calendar day. Not an error: it is the limit doing its job, usually on an occurrence that
+     *  was bumped forward onto an already-full day. */
+    dailyCapSkips: number
     cooldownDays: number
     marketFallbacks: number
     /** Slots the cap asked for that could not be filled because everything was inside cooldown. */
@@ -258,6 +262,7 @@ export function planAutopilot(input: {
   const collisions: RotationCollision[] = []
   const byPlatformStats: AutopilotPlan["inventory"]["byPlatform"] = []
   let unfilledSlots = 0, requiredPoolSize = 0, cooldownViolations = 0, marketRestrictionViolations = 0
+  let dailyCapSkips = 0
   let freshPlacements = 0, recycledPlacements = 0
   const recycledPropertyKeys = new Set<string>()
   const usableSomewhere = new Set<string>()
@@ -273,11 +278,20 @@ export function planAutopilot(input: {
     }
     if (pool.length === 0) notes.push(`No eligible ${platform} inventory: nothing rendered, unscheduled and unassigned for that network.`)
 
-    const postsPerDay = Math.max(1, Math.min(...groupRules.map((r) => r.postsPerDay), 3) || 1)
+    // ── EACH DESTINATION'S OWN CADENCE ────────────────────────────────────────────────────
+    // This was `Math.min(...groupRules.map((r) => r.postsPerDay), 3)` — ONE number for the whole
+    // platform, taken as the minimum. Setting @locatorbeast to 1 a day therefore halved
+    // @realestatepro_tx's queue, which is the cross-destination coupling that had to go. The rate
+    // now travels with the rule, and planRotation consumes each connection at ITS OWN rate rather
+    // than assuming a shared one.
     const dayKeys = dayKeysFrom(input.startDateKey, maxDays)
+    const rateOf = (r: AutopilotRule) => Math.max(1, Math.trunc(r.postsPerDay) || 1)
     const rotation = planRotation({
-      connections: groupRules.map((r) => ({ connectionId: r.connectionId, startIndex: r.startIndex })),
-      poolSize: pool.length, postsPerDay, dayKeys: dayKeys.slice(0, 7),
+      connections: groupRules.map((r) => ({
+        connectionId: r.connectionId, startIndex: r.startIndex, postsPerDay: rateOf(r),
+      })),
+      poolSize: pool.length, postsPerDay: Math.max(...groupRules.map(rateOf), 1),
+      dayKeys: dayKeys.slice(0, 7),
     })
     collisions.push(...rotation.collisions)
     requiredPoolSize += rotation.requiredPoolSize
@@ -320,12 +334,23 @@ export function planAutopilot(input: {
         }
       }
 
+      // THIS destination's cadence, not the platform's. `rule.dailyTimes` already carries the
+      // times its own posts_per_day selected (see dailyTimesForPostsPerDay), and the SAME value is
+      // what the occupancy builder was given — so the minute marked spent is the minute this tries
+      // to fill, which is the invariant autopilotOccupancy's header asks callers to keep.
+      const rulePostsPerDay = rateOf(rule)
       const times = effectiveDailyTimes(rule.connectionId, rule.staggerOffsetMinutes, rule.dailyTimes)
       const placements: Placement[] = planDailyTimes({
         intervalDays: 1, dailyTimes: times, days: dayKeys,
         occupancy: input.occupancyByConnection?.get(rule.connectionId) ?? new Map(),
-        maxOccurrences: maxDays * postsPerDay,
+        maxOccurrences: maxDays * rulePostsPerDay,
       })
+      // THE HARD PER-CALENDAR-DAY CEILING. Deriving the times is not enough on its own: when a
+      // day's minute is already occupied, planDailyTimes BUMPS the occurrence to the next day, so
+      // a day can receive its own placements plus a bumped one and exceed the limit. Counting per
+      // dateKey is what makes "at most N posts on a calendar day for this destination" true
+      // whatever the bumping does.
+      const placedOnDay = new Map<string, number>()
       const start = rotation.startIndices.get(rule.connectionId) ?? 0
       const orderedProps = rotatePool([...rulePostsByProperty.keys()], start)
       const marketsPresent = rulePool.map((p) => p.market ?? "").filter(Boolean)
@@ -343,6 +368,10 @@ export function planAutopilot(input: {
       let lastFilledDay: string | null = null, lastFreshDay: string | null = null
 
       for (const pl of placements) {
+        if ((placedOnDay.get(pl.dateKey) ?? 0) >= rulePostsPerDay) {
+          dailyCapSkips++
+          continue
+        }
         const slotMs = Date.parse(input.wallClockToUtc(pl.dateKey, pl.minute, rule.timezone))
         const wantMarket = order.length ? order[placements.indexOf(pl) % order.length] : null
         const marketOf = (k: string) => rulePostsByProperty.get(k)?.[0]?.market ?? null
@@ -408,6 +437,7 @@ export function planAutopilot(input: {
           marketFallbacks.push({ connectionId: rule.connectionId, dateKey: pl.dateKey, minute: pl.minute, requestedMarket: wantMarket, selectedMarket: pick.market, reason: fallbackReason })
         }
         lastPosted.set(key, slotMs)
+        placedOnDay.set(pl.dateKey, (placedOnDay.get(pl.dateKey) ?? 0) + 1)
         lastFilledDay = pl.dateKey
         planned.push({
           postId: pick.id, sourceContentId: pick.sourceContentId, connectionId: rule.connectionId,
@@ -442,6 +472,7 @@ export function planAutopilot(input: {
   if (unfilledSlots > 0) notes.push(`${unfilledSlots} slot(s) left unfilled: every property was still inside its ${cooldownDays}-day cooldown. The queue ends rather than repeating too soon.`)
   if (recycledPlacements > 0) notes.push(`Fresh inventory runs out after ${freshRunwayDays} day(s); ${recycledPlacements} placement(s) recycle ${recycledPropertyKeys.size} propert${recycledPropertyKeys.size === 1 ? "y" : "ies"}, the longest-unused first.`)
   if (cooldownViolations > 0) notes.push(`BUG: ${cooldownViolations} placement(s) violate the ${cooldownDays}-day cooldown.`)
+  if (dailyCapSkips > 0) notes.push(`${dailyCapSkips} placement(s) dropped at a destination's daily limit — a bumped occurrence landed on a day already at its posts_per_day.`)
   if (marketRestrictionViolations > 0) notes.push(`BUG: ${marketRestrictionViolations} placement(s) were blocked by a destination's market restriction AFTER selection — the pool filter should have made that impossible.`)
   if (marketFallbacks.length > 0) notes.push(`${marketFallbacks.length} slot(s) fell forward to another market.`)
 
@@ -453,7 +484,8 @@ export function planAutopilot(input: {
       freshPropertiesAvailable: distinctProperties, freshPlacements, recycledPlacements,
       recycledProperties: recycledPropertyKeys.size, daysFillable, freshRunwayDays,
       firstRecycleAt: firstRecycled ? { dateKey: firstRecycled.dateKey, minute: firstRecycled.minute, propertyName: firstRecycled.propertyName } : null,
-      cooldownViolations, marketRestrictionViolations, cooldownDays, marketFallbacks: marketFallbacks.length,
+      cooldownViolations, marketRestrictionViolations, dailyCapSkips, cooldownDays,
+      marketFallbacks: marketFallbacks.length,
       unfilledSlots, collisions: collisions.length, byPlatform: byPlatformStats,
     },
     notes,

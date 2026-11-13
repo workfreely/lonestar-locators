@@ -20,7 +20,7 @@
 import { supabaseAdmin } from "../../lib/supabase/admin"
 import { parseMarketRestriction, marketRestrictionLabel } from "@/lib/social/marketRestriction"
 import { planAutopilot, type AutopilotRule, type PoolPost } from "../../lib/social/autopilotPlanner"
-import { BASELINE_DAILY_TIMES, effectiveDailyTimes } from "../../lib/social/autopilotDestination"
+import { BASELINE_DAILY_TIMES, effectiveDailyTimes, dailyTimesForPostsPerDay } from "../../lib/social/autopilotDestination"
 import { isPlannableConnection } from "../../lib/social/connectionHealth"
 import { COOLDOWN_DAYS, MAX_PLAN_DAYS } from "../../lib/social/autopilotPlanRun"
 import { DEFAULT_TIMEZONE, wallClockToUtcISO } from "../../lib/social/recurrence"
@@ -86,7 +86,10 @@ async function main() {
     enabled: isPlannableConnection(c as { status?: string | null; token_expires_at?: string | null }, now)
       && c.posting_paused !== true,
     timezone: DEFAULT_TIMEZONE,
-    dailyTimes: BASELINE_DAILY_TIMES,
+    // Derived from this destination's OWN posts_per_day, exactly as computeAutopilotPlan does, so
+    // the dry run reports the schedule the live planner would produce rather than assuming the
+    // whole baseline for everyone.
+    dailyTimes: dailyTimesForPostsPerDay(typeof c.posts_per_day === "number" ? c.posts_per_day : null),
     postsPerDay: typeof c.posts_per_day === "number" && c.posts_per_day > 0 ? c.posts_per_day : BASELINE_DAILY_TIMES.length,
     marketWeights: {},
     allowedMarkets: parseMarketRestriction(c.market_restriction),
@@ -102,15 +105,17 @@ async function main() {
   const SIMULATED: AutopilotRule[] = [
     {
       connectionId: "SIMULATED:locatorbeast-instagram", platform: "instagram", enabled: true,
-      timezone: DEFAULT_TIMEZONE, dailyTimes: BASELINE_DAILY_TIMES, postsPerDay: 2,
+      timezone: DEFAULT_TIMEZONE, dailyTimes: dailyTimesForPostsPerDay(2), postsPerDay: 2,
       marketWeights: {}, allowedMarkets: ["Dallas"], marketRotationSeed: null,
-      staggerOffsetMinutes: 11, startIndex: null,
+      // NULL, so the derived 1..5 stagger applies — which is what a newly connected destination
+      // will actually carry, and what keeps it inside the 7:30 window.
+      staggerOffsetMinutes: null, startIndex: null,
     },
     {
       connectionId: "SIMULATED:locatorbeast-tiktok", platform: "tiktok", enabled: true,
-      timezone: DEFAULT_TIMEZONE, dailyTimes: BASELINE_DAILY_TIMES, postsPerDay: 2,
+      timezone: DEFAULT_TIMEZONE, dailyTimes: dailyTimesForPostsPerDay(2), postsPerDay: 2,
       marketWeights: {}, allowedMarkets: ["Dallas"], marketRotationSeed: null,
-      staggerOffsetMinutes: 11, startIndex: null,
+      staggerOffsetMinutes: null, startIndex: null,
     },
   ]
 

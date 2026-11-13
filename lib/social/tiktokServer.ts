@@ -164,7 +164,7 @@ export async function getValidTikTokAccessToken(
   ownerId: string,
   connectionId?: string | null,
   client?: TikTokTokenClient,
-): Promise<{ accessToken: string; openId: string | null } | null> {
+): Promise<{ accessToken: string; openId: string | null; postingPaused: boolean } | null> {
   const id = connectionId || (await resolveSoleTikTokConnectionId(ownerId, client))
   if (!id) return null
   const tok = await getValidTikTokAccessTokenForConnection(id, client)
@@ -172,5 +172,8 @@ export async function getValidTikTokAccessToken(
   // Ownership, asserted rather than assumed. Only meaningful for an id that arrived from a caller;
   // a resolved one is already the owner's by construction, and checking both costs one comparison.
   if (!connectionBelongsToOwner(tok.ownerUserId, ownerId)) return null
-  return { accessToken: tok.accessToken, openId: tok.openId }
+  // postingPaused travels with the token so a caller can honour the destination's own pause switch
+  // without a second query that could disagree with this one. Returning it does not enforce it —
+  // a read of the account is not a publish, and only the paths that publish check it.
+  return { accessToken: tok.accessToken, openId: tok.openId, postingPaused: tok.postingPaused }
 }

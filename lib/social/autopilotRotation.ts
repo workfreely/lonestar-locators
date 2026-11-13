@@ -25,6 +25,19 @@ export type ConnectionSlot = {
   connectionId: string
   /** Explicit pin, e.g. the primary account at 0. Null ⇒ placed automatically. */
   startIndex?: number | null
+  /**
+   * How many pool entries THIS connection consumes per day. Absent ⇒ the input's shared
+   * postsPerDay, which is what every caller passed before destinations had independent cadences.
+   *
+   * The header above states the property this model rests on: "every account consumes at the same
+   * rate, so the distance between two accounts' positions NEVER changes", which is what let
+   * collisions be decided up front from the start indices alone. Independent cadences break that
+   * closed form — a slower account's gap drifts. The simulation below is therefore the authority
+   * now rather than the algebra: it walks each connection day by day at its OWN rate and records
+   * what it actually takes, so collisions stay exact instead of inferred from an assumption that no
+   * longer holds. requiredPoolSize becomes a SUM of the rates rather than a product.
+   */
+  postsPerDay?: number | null
 }
 
 /**
@@ -104,9 +117,16 @@ export function planRotation(input: {
   dayKeys: readonly string[]
 }): RotationPlan {
   const { poolSize, dayKeys } = input
-  const postsPerDay = Math.max(1, Math.trunc(input.postsPerDay) || 1)
+  const sharedRate = Math.max(1, Math.trunc(input.postsPerDay) || 1)
+  /** This connection's own rate, falling back to the shared one. */
+  const rateOf = (c: ConnectionSlot) =>
+    typeof c.postsPerDay === "number" && Number.isFinite(c.postsPerDay) && c.postsPerDay > 0
+      ? Math.trunc(c.postsPerDay)
+      : sharedRate
   const startIndices = assignStartIndices(input.connections, poolSize)
-  const requiredPoolSize = postsPerDay * input.connections.length
+  // A SUM, not a product: with independent cadences the pool has to carry what the accounts
+  // actually consume in a day, which is no longer one rate times the account count.
+  const requiredPoolSize = input.connections.reduce((n, c) => n + rateOf(c), 0)
 
   const assignments = new Map<string, number[]>()
   // dateKey -> poolIndex -> connections taking it
@@ -115,10 +135,15 @@ export function planRotation(input: {
   for (const c of input.connections) {
     const start = startIndices.get(c.connectionId)
     if (start === undefined || poolSize <= 0) { assignments.set(c.connectionId, []); continue }
+    const rate = rateOf(c)
     const taken: number[] = []
-    dayKeys.forEach((dk, d) => {
-      for (let s = 0; s < postsPerDay; s++) {
-        const idx = (start + d * postsPerDay + s) % poolSize
+    // `consumed` accumulates THIS connection's own take, so a day's starting offset is where it
+    // actually got to rather than `d * sharedRate`.
+    let consumed = 0
+    dayKeys.forEach((dk) => {
+      for (let s = 0; s < rate; s++) {
+        const idx = (start + consumed) % poolSize
+        consumed++
         taken.push(idx)
         const m = perDate.get(dk) ?? new Map<number, string[]>()
         m.set(idx, [...(m.get(idx) ?? []), c.connectionId])

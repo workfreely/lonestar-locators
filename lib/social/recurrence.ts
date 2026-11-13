@@ -259,21 +259,61 @@ export function dayKeysFrom(startKey: string, countDays: number): string[] {
   return out
 }
 
-/** Convert a wall-clock (dateKey + minute-of-day) in `tz` to the correct UTC instant (ISO). DST-safe. */
+/**
+ * Convert a wall-clock (dateKey + minute-of-day) in `tz` to the correct UTC instant (ISO).
+ *
+ * ── THIS WAS WRONG ON EVERY SPRING-FORWARD DAY ──────────────────────────────────────────────
+ * The old implementation estimated the zone offset ONCE, at the wrong instant. It took the
+ * requested wall clock as if it were UTC, asked the zone what local time that instant was, and
+ * used the difference as the offset. On an ordinary day the offset is the same at both instants, so
+ * nobody noticed. On the day the clocks go forward it is not:
+ *
+ *   wanted   2026-03-08 07:30 America/Chicago
+ *   probe    2026-03-08T07:30Z is 01:30 CST locally — BEFORE the 02:00 switch, so offset -6
+ *   result   13:30Z … which is 08:30 CDT. An hour late, silently, once a year.
+ *
+ * Verified against this repo's own helpers before the fix: 2026-03-08 and 2027-03-14 both read back
+ * as 08:30, and the UTC gap from the previous day's 07:30 came out as 24 hours when a spring-forward
+ * day must be 23.
+ *
+ * Nothing refused the wrong value — 08:30 is still inside the approved morning window and 20:30
+ * inside the evening one — so the visible effect was a post an hour late. The quieter effect is
+ * worse: autopilotOccupancy marks a slot spent by reading the LOCAL minute back off the stored
+ * instant, so it would have recorded 08:30 as taken while the next planner run still believed
+ * 07:30 was free, and placed a second post on the same day.
+ *
+ * ── THE FIX: PROBE AT THE ANSWER, NOT AT THE GUESS ──────────────────────────────────────────
+ * Take the offset once to get a candidate instant, then take it AGAIN at that candidate and
+ * recompute. One extra pass, and it converges: the second probe is inside the same offset period as
+ * the true answer for every wall-clock time that exists.
+ *
+ * A time inside the spring-forward GAP (02:00–02:59 local, which does not exist) has no correct
+ * answer. It resolves deterministically rather than throwing, and the approved windows never reach
+ * it — the earliest is 07:00.
+ */
 export function wallClockToUtcISO(dateKey: string, minute: number, tz: string = DEFAULT_TIMEZONE): string {
   const [y, mo, d] = dateKey.split("-").map(Number)
   const h = Math.floor(minute / 60)
   const mi = minute % 60
-  const asUTC = Date.UTC(y, mo - 1, d, h, mi, 0)
-  const p = Object.fromEntries(
-    new Intl.DateTimeFormat("en-US", { timeZone: tz, hour12: false, year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", second: "2-digit" })
-      .formatToParts(asUTC)
-      .map((x) => [x.type, x.value]),
-  )
-  let hour = Number(p.hour)
-  if (hour === 24) hour = 0 // some engines format midnight as 24
-  const asTz = Date.UTC(Number(p.year), Number(p.month) - 1, Number(p.day), hour, Number(p.minute), Number(p.second))
-  return new Date(asUTC - (asTz - asUTC)).toISOString()
+  const wanted = Date.UTC(y, mo - 1, d, h, mi, 0)
+
+  /** The zone's offset from UTC, in ms, AT a given instant. */
+  const offsetAt = (instant: number): number => {
+    const p = Object.fromEntries(
+      new Intl.DateTimeFormat("en-US", { timeZone: tz, hour12: false, year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", second: "2-digit" })
+        .formatToParts(instant)
+        .map((x) => [x.type, x.value]),
+    )
+    let hour = Number(p.hour)
+    if (hour === 24) hour = 0 // some engines format midnight as 24
+    const asTz = Date.UTC(Number(p.year), Number(p.month) - 1, Number(p.day), hour, Number(p.minute), Number(p.second))
+    return asTz - instant
+  }
+
+  // First pass gets us into the right day; the second re-reads the offset where the answer actually
+  // lands, which is the only place it is guaranteed to be the right one.
+  const candidate = wanted - offsetAt(wanted)
+  return new Date(wanted - offsetAt(candidate)).toISOString()
 }
 
 /** Effective first-horizon length (days) to generate on save. Rolling — capped at DEFAULT_HORIZON_DAYS

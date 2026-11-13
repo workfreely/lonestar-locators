@@ -141,7 +141,7 @@ async function run(req: NextRequest) {
   const now = new Date().toISOString()
   // heldReasons says WHY each held post was held. A bare count cannot distinguish "the agent needs
   // to re-approve" from "the admin withdrew this video", and those need different actions.
-  const result = { reconciled: 0, published: 0, pending: 0, failed: 0, skippedNoRender: 0, skippedNotApproved: 0, claimed: 0, missedWhilePaused: 0, tooLate: 0, skippedDestinationPaused: 0, skippedDestinationUnreadable: 0, blockedByMarketRestriction: 0, flaggedForReview: 0, heldForReview: 0, heldReasons: [] as { id: string; reason: string }[] }
+  const result = { reconciled: 0, published: 0, pending: 0, failed: 0, skippedNoRender: 0, skippedNotApproved: 0, claimed: 0, missedWhilePaused: 0, tooLate: 0, skippedDestinationPaused: 0, reconcileSkippedPaused: 0, skippedDestinationUnreadable: 0, blockedByMarketRestriction: 0, flaggedForReview: 0, heldForReview: 0, heldReasons: [] as { id: string; reason: string }[] }
 
   // ── 0) RECONCILE unacknowledged publishes FIRST ────────────────────────────────────────────
   // Rows whose media_publish call was claimed but never acknowledged locally. These are the crash
@@ -191,7 +191,16 @@ async function run(req: NextRequest) {
       // DEFERS reconciliation rather than losing it: the row keeps its claim and its container id,
       // and the next run after the account is resumed reconciles it. Nothing publishes either way,
       // and a deferred reconcile cannot become a duplicate.
-      if (!dest.ok || !r.ig_container_id) continue
+      //
+      // THE PAUSE IS COUNTED rather than silently skipped. This path can COMPLETE a publish — an
+      // unclaimed stranded row provably never reached media_publish, so finalize would finish it —
+      // which makes it a publishing path, and a publishing path that a pause stops must be able to
+      // say so. A guarantee nobody can observe is one nobody notices breaking.
+      if (!dest.ok) {
+        if (dest.kind === "paused") result.reconcileSkippedPaused++
+        continue
+      }
+      if (!r.ig_container_id) continue
 
       // THE RESTRICTION APPLIES TO RECOVERY TOO, but only where recovery can PUBLISH. An
       // unclaimed stranded row provably never reached media_publish, so finalize would complete

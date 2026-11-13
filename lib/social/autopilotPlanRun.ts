@@ -17,7 +17,7 @@ import { applyAutopilotPlan, supabaseClaimExecutor, DEFAULT_WRITE_MODE, type Wri
 import { planAutopilot, type AutopilotPlan, type AutopilotRule, type PoolPost } from "@/lib/social/autopilotPlanner"
 import { loadPostingHistory } from "@/lib/social/postingHistory"
 import { parseMarketRestriction } from "@/lib/social/marketRestriction"
-import { BASELINE_DAILY_TIMES } from "@/lib/social/autopilotDestination"
+import { BASELINE_DAILY_TIMES, dailyTimesForPostsPerDay } from "@/lib/social/autopilotDestination"
 import { buildAutopilotOccupancy } from "@/lib/social/autopilotOccupancy"
 import { isPlannableConnection } from "@/lib/social/connectionHealth"
 import { wallClockToUtcISO, DEFAULT_TIMEZONE } from "@/lib/social/recurrence"
@@ -81,7 +81,18 @@ export async function computeAutopilotPlan(now: Date = new Date()): Promise<Auto
     enabled: isPlannableConnection(c as { status?: string | null; token_expires_at?: string | null }, now)
       && c.posting_paused !== true,
     timezone: DEFAULT_TIMEZONE,
-    dailyTimes: BASELINE_DAILY_TIMES,
+    // THIS DESTINATION'S OWN TIMES, from its own posts_per_day. Previously every rule got the whole
+    // baseline and posts_per_day only capped the horizon total, so the column could not express "one
+    // a day" at all. NULL — which is what both live rows carry — yields the full baseline, so their
+    // schedules are byte-identical to before: 07:30 and 19:30, plus their own (explicit, zero)
+    // stagger.
+    //
+    // The SAME value is handed to buildAutopilotOccupancy below. That is load-bearing: the
+    // occupancy builder marks today's elapsed times as spent, and if it computed them from a
+    // different baseline than the planner fills, the minute marked spent would not be the minute
+    // the planner tries to use — which is exactly the duplicate-scheduling hazard its header warns
+    // about.
+    dailyTimes: dailyTimesForPostsPerDay(typeof c.posts_per_day === "number" ? c.posts_per_day : null),
     postsPerDay: typeof c.posts_per_day === "number" && c.posts_per_day > 0 ? c.posts_per_day : BASELINE_DAILY_TIMES.length,
     marketWeights: {},
     // THE DESTINATION'S OWN MARKET RESTRICTION, straight off its row. NULL stays null, which the

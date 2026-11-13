@@ -108,6 +108,13 @@ export async function POST(req: NextRequest) {
   // returns null when that is ambiguous, so this route refuses rather than picking.
   const tok = await getValidTikTokAccessToken(userId, (p as { connection_id?: string | null }).connection_id ?? null)
   if (!tok) return NextResponse.json({ error: "not_connected" }, { status: 409 })
+  // THE DESTINATION'S OWN PAUSE SWITCH, honoured on the manual path too. The Instagram manual
+  // publish route has always refused a paused destination with the same 409 shape; TikTok's never
+  // looked, so pausing a TikTok account stopped the worker (once Phase 2 wired it) and left this
+  // button able to publish anyway. A pause that one button ignores is not a pause.
+  if (tok.postingPaused) {
+    return NextResponse.json({ error: "destination_unavailable", reason: "paused" }, { status: 409 })
+  }
 
   try {
     // Creator Info now (required immediately before the post) → validate the selection against it.

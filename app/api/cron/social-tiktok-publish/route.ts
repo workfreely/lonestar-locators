@@ -146,6 +146,7 @@ async function run(req: NextRequest) {
     notPublishableDestination: 0,
     blockedByMarketRestriction: 0, skippedDestinationUnreadable: 0,
     noDestinationToken: 0, destinationTokenUnusable: 0,
+    skippedDestinationPaused: 0, reconcileSkippedPaused: 0,
     heldReasons: [] as { id: string; reason: string }[],
   }
 
@@ -193,10 +194,10 @@ async function run(req: NextRequest) {
   // destination still cost one resolution (and at most one refresh). Mirrors what the Instagram
   // worker has always done through resolveDestination.
   //
-  // The connection row's posting_paused comes back with the token and is deliberately NOT acted on
-  // here: per-destination pause enforcement in the workers is Phase 2. Planning already excludes a
-  // paused destination (computeAutopilotPlan's `enabled`), so nothing new reaches this worker
-  // because of that.
+  // The connection row's posting_paused comes back with the token, and it IS acted on — see the
+  // due loop and the stranded sweep below. Planning already excludes a paused destination
+  // (computeAutopilotPlan's `enabled`), so a pause keeps NEW posts off its queue; these guards are
+  // what stop the posts ALREADY on it from going out, which planning cannot reach.
   const tokenCache = new Map<string, TikTokConnectionToken | null>()
   const tokenFor = async (connectionId: string | null): Promise<TikTokConnectionToken | null> => {
     // No destination on the row means there is no credential to choose. The owner-level fallback
@@ -226,7 +227,7 @@ async function run(req: NextRequest) {
   // on. Re-posting here is exactly how a duplicate would be created.
   const { data: strandedRows } = await supabaseAdmin
     .from("social_posts")
-    .select("id, media_publish_claimed_at, updated_at")
+    .select("id, media_publish_claimed_at, updated_at, connection_id")
     .eq("destination", "tiktok_video")
     .eq("status", "publishing")
     .not("media_publish_claimed_at", "is", null)
@@ -234,12 +235,29 @@ async function run(req: NextRequest) {
     .order("updated_at", { ascending: true })
     .limit(MAX_PER_RUN)
   for (const r of (strandedRows ?? []) as Row[]) {
+    // A PAUSED DESTINATION'S ROW IS DEFERRED, NOT FAILED. This sweep cannot publish — it has no
+    // publish_id to act on — but it does move the row to needs_attention, which is terminal for
+    // automation. Doing that to an account the operator has deliberately paused would turn a pause
+    // into a cleared queue. The row keeps its claim and is swept on the first run after a resume,
+    // which is also when the operator can act on it. Same choice the Instagram worker makes when a
+    // paused account meets its reconcile sweep.
+    const strandedTok = await tokenFor((r.connection_id as string | null) ?? null)
+    if (strandedTok?.postingPaused) {
+      result.reconcileSkippedPaused++
+      continue
+    }
     await markFailed(String(r.id), "claimed for TikTok init but no publish_id recorded — needs manual check in TikTok before retrying")
     result.reconciled++
   }
 
   // Rows that DID get a publish id but never completed. These are safe to observe: the publish_id
   // is the handle, and Status Fetch is a read.
+  //
+  // A PAUSE DOES NOT APPLY HERE, deliberately. This path cannot initiate a publish — the post was
+  // already handed to TikTok and exists there — so all it does is record what happened. Refusing to
+  // record it because the account was paused afterwards would leave a live video showing as
+  // 'publishing' for ever, which is worse than the pause being briefly inconsistent with reality.
+  // The pause stops NEW publishing, which is the due loop and the stranded sweep above.
   const { data: pendingRows } = await supabaseAdmin
     .from("social_posts")
     .select("id, external_post_id, connection_id")
@@ -388,6 +406,21 @@ async function run(req: NextRequest) {
           console.warn("[tiktok-worker]", postId, "destination has no usable token — left scheduled")
           result.destinationTokenUnusable++
         }
+        continue
+      }
+
+      // ── THIS DESTINATION'S OWN PAUSE SWITCH ─────────────────────────────────────────────
+      // posting_paused is per DESTINATION; Auto Posting (gate 3 above) is per OWNER. Pausing
+      // @locatorbeast must stop @locatorbeast and nothing else, and the owner-wide switch cannot
+      // express that. Read off the same row as the token, so there is no second query to disagree.
+      //
+      // Treated exactly as the Instagram worker treats it, and for the same reason: a pause is the
+      // operator's deliberate choice, not a fault, so the post is left EXACTLY as it is — still
+      // scheduled, still due, nothing claimed, no slot burned — and publishes the moment the
+      // account is resumed. Checked BEFORE the claim, because a claim moves the row out of
+      // 'scheduled' and needs_attention has no route back to publishable.
+      if (postTok.postingPaused) {
+        result.skippedDestinationPaused++
         continue
       }
 

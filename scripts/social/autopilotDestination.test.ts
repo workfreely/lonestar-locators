@@ -18,7 +18,7 @@ ok("baseline is 07:30 and 19:30", BASELINE_DAILY_TIMES[0] === 450 && BASELINE_DA
 ok("an explicit 0 means EXACTLY the baseline (the primary account)", effectiveDailyTimes(A, 0).join(",") === "450,1170")
 ok("…which is 07:30 / 19:30", effectiveDailyTimes(A, 0).map(hhmm).join(" / ") === "07:30 / 19:30")
 
-console.log("\nderived stagger — positive, never zero, within 30:")
+console.log(`\nderived stagger — positive, never zero, within ${STAGGER_SPREAD_MINUTES}:`)
 for (const id of [A, B, C]) {
   const off = staggerOffsetMinutes(id, null)
   ok(`${id.slice(0, 8)} → +${off} (${effectiveDailyTimes(id, null).map(hhmm).join(" / ")})`, off >= 1 && off <= STAGGER_SPREAD_MINUTES)
@@ -27,9 +27,17 @@ for (const id of [A, B, C]) {
 // account occupies. Checked across many ids, not just the three above.
 {
   const offs = Array.from({ length: 500 }, (_, i) => staggerOffsetMinutes(`conn-${i}-${i * 7919}`, null))
-  ok("500 ids: every derived offset is 1..30", offs.every((o) => o >= 1 && o <= 30))
+  // Driven by the constant rather than a literal, so the CLAIM — a derived offset is positive,
+  // never zero, and never outside the spread — survives the spread being narrowed. It was 30; it
+  // is 5, so a destination asked for the 7:30 window lands in it rather than up to 29 minutes past.
+  ok(`500 ids: every derived offset is 1..${STAGGER_SPREAD_MINUTES}`,
+    offs.every((o) => o >= 1 && o <= STAGGER_SPREAD_MINUTES))
   ok("500 ids: NONE is 0, so none can collide with a baseline-pinned account", offs.every((o) => o !== 0))
-  ok("500 ids: the spread is actually used (not all one value)", new Set(offs).size > 20, String(new Set(offs).size))
+  // The CLAIM is that the hash distributes rather than parking every account on one minute. With a
+  // narrower spread "> 20 distinct values" cannot express that, so it is stated as the stronger and
+  // spread-independent thing: EVERY offset in the range is used.
+  ok(`500 ids: the spread is actually used — all ${STAGGER_SPREAD_MINUTES} offsets appear`,
+    new Set(offs).size === STAGGER_SPREAD_MINUTES, String(new Set(offs).size))
   ok("500 ids: every offset is storable in stagger_offset_minutes (0..1440)", offs.every((o) => o >= 0 && o <= 1440))
 }
 

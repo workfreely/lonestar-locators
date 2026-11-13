@@ -354,13 +354,14 @@ console.log("\nPAUSE — per destination, through the connection-scoped RPCs:")
   ok("the row offers Pause when running", /action: "pause"/.test(UI))
   ok("…and Resume when paused", /action: "resume"/.test(UI))
   ok("the paused state is shown as its own pill, distinct from Connected", /Paused</.test(UI))
-  // HONEST ABOUT THE PHASING: enforcing posting_paused inside the publish workers is Phase 2. What
-  // is true today is that PLANNING already excludes a paused destination, so pausing one keeps new
-  // posts off its queue.
-  ok("planning already excludes a paused destination",
+  ok("planning excludes a paused destination, so a pause keeps NEW posts off its queue",
     /c\.posting_paused !== true/.test(code(read("lib/social/autopilotPlanRun.ts"))))
-  ok("the TikTok worker does NOT yet enforce it — Phase 2, stated rather than implied",
-    !/posting_paused/.test(WORKER) && /Phase 2/.test(read("app/api/cron/social-tiktok-publish/route.ts")))
+  // This read "the TikTok worker does NOT yet enforce it — Phase 2" while Phase 1 was the tip. That
+  // was a statement about a moment rather than an invariant, and Phase 2 made it false by doing the
+  // work. Replaced by the property Phase 2 established: the worker stops the posts already on a
+  // paused destination's queue, which planning cannot reach. Phase 2's own suite owns the detail.
+  ok("…and the TikTok worker now stops the posts already queued to a paused one",
+    /postTok\.postingPaused/.test(WORKER) && /skippedDestinationPaused/.test(WORKER))
 }
 
 console.log("\nDISCONNECT — one account, never both:")
@@ -401,6 +402,12 @@ console.log("\nTHE DASHBOARD — N TikTok accounts, not one:")
 console.log("\nRELEASE SCOPE — Phase 1 only:")
 {
   const BASELINE = "beb7c81"
+  // The END of Phase 1, not the working tree. Phase 1's scope claim is "between beb7c81 and the
+  // account-isolation commit, exactly these files changed, and these others did not move at all" —
+  // a claim about a pair of commits, permanently checkable. Diffed against the tree it became a
+  // claim about whatever is checked out, so Phase 2 broke it simply by existing. Same pinning
+  // militarySpecial and marketRestriction already carry.
+  const RELEASE = "abe0b1c"
   const has = (() => {
     try { execSync(`git cat-file -e ${BASELINE}^{commit}`, { stdio: "ignore" }); return true } catch { return false }
   })()
@@ -409,10 +416,7 @@ console.log("\nRELEASE SCOPE — Phase 1 only:")
   } else {
     const lines = (cmd: string) =>
       execSync(cmd, { encoding: "utf8" }).trim().split("\n").map((l) => l.trim()).filter(Boolean)
-    const changed = [...new Set([
-      ...lines(`git diff --name-only ${BASELINE} -- . ':!next-env.d.ts'`),
-      ...lines("git ls-files --others --exclude-standard"),
-    ])].sort()
+    const changed = lines(`git diff --name-only ${BASELINE} ${RELEASE} -- . ':!next-env.d.ts'`).sort()
     const APPROVED = [
       "supabase/migrations/20261115000000_tiktok_connection_scoped_tokens.sql",
       "supabase/migrations/20261115000000_tiktok_connection_scoped_tokens.verify.sql",
@@ -485,7 +489,7 @@ console.log("\nRELEASE SCOPE — Phase 1 only:")
       ["scripts/social/tiktokReconnect.test.ts", 7, "the single-card predicates and the control-count assertion"],
       ["scripts/social/tiktokScheduling.test.ts", 1, "the status fetch's token, now the row's own"],
     ] as const) {
-      const removed = lines(`git diff --unified=0 ${BASELINE} -- ${f}`)
+      const removed = lines(`git diff --unified=0 ${BASELINE} ${RELEASE} -- ${f}`)
         .filter((l) => l.startsWith("-") && !l.startsWith("---"))
       ok(`${f} removes at most the ${allowed} line(s) it replaces (${why})`, removed.length <= allowed,
         `removed ${removed.length}`)
@@ -504,7 +508,8 @@ console.log("\nRELEASE SCOPE — Phase 1 only:")
       "lib/social/postingHistory.ts",
     ]) {
       const before = execSync(`git show ${BASELINE}:${f}`, { encoding: "utf8" })
-      ok(`${f} is byte-identical to ${BASELINE}`, before === read(f))
+      const after = execSync(`git show ${RELEASE}:${f}`, { encoding: "utf8" })
+      ok(`${f} was byte-identical across ${BASELINE}..${RELEASE}`, before === after)
     }
   }
 }
