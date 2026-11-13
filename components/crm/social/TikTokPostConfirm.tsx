@@ -23,6 +23,12 @@ type DryRun = {
   creator: { username: string; nickname: string; avatarUrl: string }
   capabilities: Capabilities
   unaudited: boolean
+  /** Every TikTok destination the operator has, oldest first. One entry while a single account is
+   *  connected, which is why nothing about this panel changes until there are two. */
+  destinations?: { id: string; username: string | null; label: string | null; paused: boolean }[]
+  /** Set when the post already belongs to a destination — then there is nothing to choose, and the
+   *  panel says which rather than offering a contradiction. */
+  assignedConnectionId?: string | null
   title: string
   titleLength: number
   videoSize: number
@@ -138,6 +144,17 @@ export default function TikTokPostConfirm({ postId, open, onClose }: { postId: s
   const [statusBusy, setStatusBusy] = useState(false)
   const [needsRender, setNeedsRender] = useState(false) // post has no current render → offer Render now
   const [rendering, setRendering] = useState(false)
+  // WHICH ACCOUNT. Null means "whatever the server resolves", which with one connected account is
+  // that account — so a single-account operator never sees or sends this.
+  //
+  // Held in a REF as well as state, because `load` is memoised on [postId] and would otherwise
+  // close over the value from the render that created it — the selector would re-run the dry run
+  // with the OLD account (or with null, which a two-account owner resolves to nothing). The ref is
+  // stable, so load always reads the current choice without widening its dependencies. The
+  // component already uses a ref for initialisedFor for the same reason.
+  const [connectionId, setConnectionId] = useState<string | null>(null)
+  const connectionIdRef = useRef<string | null>(null)
+  const chooseConnection = (id: string | null) => { connectionIdRef.current = id; setConnectionId(id) }
 
   const load = useCallback(async () => {
     setLoading(true); setError(null); setData(null); setResult(null); setNeedsRender(false)
@@ -150,7 +167,10 @@ export default function TikTokPostConfirm({ postId, open, onClose }: { postId: s
       const res = await fetch(PUBLISH, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ postId, mode: "dry_run", privacyLevel: "SELF_ONLY" }),
+        // The chosen destination goes in from the first call: Creator Info, the account identity and
+        // the capabilities shown below are all THAT account's, so a selector that only took effect
+        // at post time would show one creator's limits and publish as another.
+        body: JSON.stringify({ postId, mode: "dry_run", privacyLevel: "SELF_ONLY", connectionId: connectionIdRef.current }),
       })
       const json = await res.json().catch(() => null)
       if (!res.ok || !json?.ready) {
@@ -258,6 +278,7 @@ export default function TikTokPostConfirm({ postId, open, onClose }: { postId: s
           postId, mode: "post", privacyLevel: privacy,
           disableComment: !allowComment, disableDuet: !allowDuet, disableStitch: !allowStitch,
           disclosureOn, disclosureYourBrand: yourBrand, disclosureBrandedContent: brandedContent,
+          connectionId,
         }),
       })
       const json = await res.json().catch(() => null)
@@ -280,7 +301,9 @@ export default function TikTokPostConfirm({ postId, open, onClose }: { postId: s
     if (!result) return
     setStatusBusy(true)
     try {
-      const res = await fetch(STATUS, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ publishId: result.publishId }) })
+      // A publish_id belongs to the account that created it, so the status must be asked of the
+      // same destination the post went to.
+      const res = await fetch(STATUS, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ publishId: result.publishId, connectionId }) })
       const json = await res.json().catch(() => null)
       if (res.ok && json?.status) setResult({ ...result, status: json.status, failReason: json.failReason ?? null })
     } finally {
@@ -323,13 +346,47 @@ export default function TikTokPostConfirm({ postId, open, onClose }: { postId: s
         {data && !result && (
           <div className="mt-3 flex flex-col gap-4">
             {/* Account — full width */}
-            <div className="flex items-center gap-2.5">
+            <div className="flex items-center gap-2.5 flex-wrap">
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img src={data.creator.avatarUrl} alt="" width={32} height={32} className="rounded-full object-cover flex-none" style={{ width: 32, height: 32 }} />
               <div className="min-w-0">
                 <div className="text-[13.5px] font-semibold text-[var(--crm-text-primary)] truncate">{data.creator.nickname}</div>
                 <div className="text-[11.5px] text-[var(--crm-text-muted)] truncate">@{data.creator.username}</div>
               </div>
+
+              {/* ── THE DESTINATION SELECTOR ─────────────────────────────────────────────────
+                  SHOWN ONLY WHEN THERE IS A CHOICE TO MAKE: more than one TikTok destination, and
+                  a post that is not already assigned to one. With a single account — today's
+                  state — this renders nothing at all and the panel is unchanged.
+
+                  Changing it RELOADS, because the creator above, the privacy options and the
+                  interaction capabilities are that account's live Creator Info. A selector that
+                  only took effect on the Post button would show one account's limits and publish
+                  as another. */}
+              {(data.destinations?.length ?? 0) > 1 && !data.assignedConnectionId && (
+                <label className="ml-auto flex items-center gap-2 text-[11.5px] text-[var(--crm-text-muted)]">
+                  <span>Post as</span>
+                  <select
+                    className="text-[12.5px] rounded-lg border border-[var(--crm-border)] bg-[var(--crm-card)] text-[var(--crm-text-primary)] px-2 py-1"
+                    value={connectionId ?? data.destinations![0].id}
+                    disabled={loading || posting}
+                    onChange={(e) => { chooseConnection(e.target.value); void load() }}
+                  >
+                    {data.destinations!.map((d) => (
+                      <option key={d.id} value={d.id}>
+                        {(d.label || d.username || "TikTok account") + (d.paused ? " (paused)" : "")}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              )}
+              {/* Already assigned: state it, rather than offering a choice that would contradict
+                  the row the duplicate index keys on. */}
+              {(data.destinations?.length ?? 0) > 1 && data.assignedConnectionId && (
+                <span className="ml-auto text-[11.5px] text-[var(--crm-text-muted)]">
+                  Assigned to this destination
+                </span>
+              )}
             </div>
 
             {/* Two columns on desktop: Post (caption) | TikTok Settings. Single column on mobile. */}

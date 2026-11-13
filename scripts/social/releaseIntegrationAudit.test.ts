@@ -453,7 +453,10 @@ console.log("\n10. SCOPE ACROSS ALL THREE COMMITS:")
       ["the write path", /autopilotWrite\.ts/],
       ["posting history", /postingHistory/],
       ["the occupancy builder", /autopilotOccupancy/],
-      ["TikTok publishing helpers and gates", /tiktokPublish\.ts|tiktokGate|tiktokPublishSettings|tiktokSibling|manualTikTok/],
+      // Anchored to the lib paths. The bare word `manualTikTok` also matched a TEST file named
+      // after the manual flow, which is a false positive: the claim is about the helper modules.
+      ["TikTok publishing helpers and gates",
+        /lib\/social\/(tiktokPublish|tiktokGate|tiktokPublishSettings|tiktokSibling|manualTikTok)\.ts/],
       ["Quick Match", /lib\/quickMatch\//],
       ["the CRM workspace outside Social Beast", /components\/crm\/(?!social\/)/],
       ["the client-facing pages", /app\/r\/|app\/share|app\/\(site\)/],
@@ -487,11 +490,11 @@ console.log("\n10. SCOPE ACROSS ALL THREE COMMITS:")
     }
     // THIS release's own file set — the audit turn, on top of Phase 2.
     {
-      const auditChanged = [...new Set([
-        ...execSync(`git diff --name-only 1c5ebed -- . ':!next-env.d.ts'`, { encoding: "utf8" })
-          .trim().split("\n").map((l) => l.trim()).filter(Boolean),
-        ...untracked,
-      ])].sort()
+      // Pinned to the audit's OWN commit, like every guard before it: a claim about a pair of
+      // commits stays checkable, while one measured against the working tree breaks on the next
+      // change (the manual destination selector, as it turned out).
+      const auditChanged = execSync(`git diff --name-only 1c5ebed caf8b77 -- . ':!next-env.d.ts'`, { encoding: "utf8" })
+        .trim().split("\n").map((l) => l.trim()).filter(Boolean).sort()
       const AUDIT_APPROVED = [
         // The two prepared migrations, at their new paths, plus the rollbacks the convention wants.
         `${PREPARED}/${MR}.sql`, `${PREPARED}/${MR}.verify.sql`,

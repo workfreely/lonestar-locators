@@ -322,8 +322,15 @@ console.log("\nPUBLISHING IDENTITY — the request-time routes too:")
   const STATUS = code(read("app/api/integrations/tiktok/publish/status/route.ts"))
   const CREATOR = code(read("app/api/integrations/tiktok/creator-info/route.ts"))
   ok("manual publish selects the post's connection_id", /connection_id/.test(PUB))
+  // The CLAIM is unchanged — a manual post publishes as the destination the POST belongs to — and
+  // it is now stronger: the route also takes an explicit pick for an unassigned post (the manual
+  // destination selector) and REFUSES a pick that contradicts an assignment, rather than silently
+  // preferring one. The row's assignment still wins wherever it exists.
   ok("…and resolves the token for THAT destination",
-    /getValidTikTokAccessToken\(userId, \(p as \{ connection_id\?: string \| null \}\)\.connection_id \?\? null\)/.test(PUB))
+    /const assignedConnectionId = \(p as \{ connection_id\?: string \| null \}\)\.connection_id \?\? null/.test(PUB)
+    && /getValidTikTokAccessToken\(userId, assignedConnectionId \?\? chosenConnectionId\)/.test(PUB))
+  ok("…and a pick that contradicts the post's own assignment is refused",
+    /chosenConnectionId !== assignedConnectionId/.test(PUB) && /destination_mismatch/.test(PUB))
   ok("the status check accepts a connectionId", /getValidTikTokAccessToken\(userId, body\.connectionId \?\? null\)/.test(STATUS))
   ok("creator-info accepts a connectionId", /getValidTikTokAccessToken\(userId, connectionId\)/.test(CREATOR))
   ok("…read from the query string", /searchParams\.get\("connectionId"\)/.test(CREATOR))

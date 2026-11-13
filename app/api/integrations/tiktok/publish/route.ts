@@ -51,6 +51,10 @@ export async function POST(req: NextRequest) {
     disclosureYourBrand?: boolean
     disclosureBrandedContent?: boolean
     mode?: "dry_run" | "post"
+    /** WHICH TikTok destination to post as. Only meaningful once the operator has more than one;
+     *  with a single account the resolver finds it either way, so this stays absent and the panel
+     *  behaves exactly as it does today. */
+    connectionId?: string
   }
   try {
     body = await req.json()
@@ -106,7 +110,25 @@ export async function POST(req: NextRequest) {
   // to "the owner's TikTok token" with two accounts connected is how a Locator Beast video goes out
   // on Real Estate Pro. With no connection_id the resolver uses the owner's sole TikTok account and
   // returns null when that is ambiguous, so this route refuses rather than picking.
-  const tok = await getValidTikTokAccessToken(userId, (p as { connection_id?: string | null }).connection_id ?? null)
+  // ── WHICH ACCOUNT THIS POSTS AS ───────────────────────────────────────────────────────────
+  // A post that already carries connection_id was scheduled or assigned to a specific destination,
+  // and THAT is the account it must publish as — the operator's pick cannot be allowed to
+  // contradict it, because connection_id is also what the duplicate index keys on, so publishing
+  // elsewhere would leave the row describing an account the video never reached. A disagreement is
+  // refused rather than silently resolved in either direction.
+  //
+  // With no connection_id — which is the shape every TikTok post has today, because the manual path
+  // resolved the token from the owner — the operator's pick decides, and with a single account
+  // there is nothing to pick and nothing changes.
+  const assignedConnectionId = (p as { connection_id?: string | null }).connection_id ?? null
+  const chosenConnectionId = typeof body.connectionId === "string" && body.connectionId ? body.connectionId : null
+  if (assignedConnectionId && chosenConnectionId && chosenConnectionId !== assignedConnectionId) {
+    return NextResponse.json({
+      error: "destination_mismatch",
+      detail: "This post is already assigned to a different TikTok destination. Reassign the post, or publish it to the destination it belongs to.",
+    }, { status: 409 })
+  }
+  const tok = await getValidTikTokAccessToken(userId, assignedConnectionId ?? chosenConnectionId)
   if (!tok) return NextResponse.json({ error: "not_connected" }, { status: 409 })
   // THE DESTINATION'S OWN PAUSE SWITCH, honoured on the manual path too. The Instagram manual
   // publish route has always refused a paused destination with the same 409 shape; TikTok's never
@@ -119,6 +141,16 @@ export async function POST(req: NextRequest) {
   try {
     // Creator Info now (required immediately before the post) → validate the selection against it.
     const info = await fetchTikTokCreatorInfo(tok.accessToken)
+
+    // The operator's TikTok destinations, for the panel's selector. RLS-scoped through the caller's
+    // client, so this returns only their own, and only safe display fields.
+    const { data: destRows } = await supabase
+      .from("social_connections")
+      .select("id, username, label, posting_paused")
+      .eq("provider", "tiktok")
+      .order("created_at", { ascending: true })
+    const destinations = ((destRows ?? []) as { id: string; username: string | null; label: string | null; posting_paused: boolean | null }[])
+      .map((d) => ({ id: d.id, username: d.username, label: d.label, paused: d.posting_paused === true }))
     const selection = resolveDirectPostSelection(
       info,
       { privacyLevel: requestedPrivacy, disableComment: body.disableComment, disableDuet: body.disableDuet, disableStitch: body.disableStitch },
@@ -178,6 +210,16 @@ export async function POST(req: NextRequest) {
           maxVideoPostDurationSec: info.max_video_post_duration_sec,
         },
         unaudited: UNAUDITED,
+        // ── WHAT THE PANEL NEEDS TO OFFER A CHOICE ──────────────────────────────────────────
+        // Returned from the SAME single dry-run call the panel already makes, because that is how
+        // this component is built — one round trip resolves token, Creator Info, caption and size,
+        // and a separate endpoint for the account list would be a second source of truth about
+        // which destinations exist.
+        //
+        // Safe display fields only: no external_account_id, no token id, no owner id. The panel
+        // shows a selector only when there is more than one and the post is not already assigned.
+        destinations,
+        assignedConnectionId,
         selection,
         disclosure,
         title,
