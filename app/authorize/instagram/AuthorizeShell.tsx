@@ -37,6 +37,7 @@ type State =
   | "store"
   | "no_account"
   | "account_taken"
+  | "already_connected"
   | "not_configured"
 
 /** Which badge a state wears. `platform` is the invitation itself; the rest are outcomes. */
@@ -115,6 +116,13 @@ const COPY: Record<State, { title: string; body: string; tone: Tone }> = {
   account_taken: {
     title: "This Instagram is already connected",
     body: "This Instagram account is already set up elsewhere. If that’s unexpected, let the person who sent you the link know.",
+    tone: "neutral",
+  },
+  already_connected: {
+    // Not an error the recipient caused, and not one they need help with — the account they chose
+    // is simply already set up. It deliberately does not name either account: this page is public.
+    title: "That account is already connected",
+    body: "This Instagram account is already set up for posting, so nothing was changed.\n\nIf you meant to connect a different account, switch accounts in Instagram and open your link again.",
     tone: "neutral",
   },
   not_configured: {

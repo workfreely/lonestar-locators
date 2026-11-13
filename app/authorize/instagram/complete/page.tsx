@@ -16,6 +16,10 @@ const KNOWN = new Set([
   "store",
   "no_account",
   "account_taken",
+  // That Instagram account is already one of this owner's publishing destinations. The invitation
+  // is NOT consumed when this happens — see sa_consume_destination_invitation — so the recipient
+  // can switch accounts and reopen the same link.
+  "already_connected",
   "not_configured",
 ])
 
