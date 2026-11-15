@@ -18,6 +18,7 @@ import { planDailyTimes, dayKeysFrom, type Occupancy, type Placement } from "@/l
 import { effectiveDailyTimes, marketOrderFor } from "@/lib/social/autopilotDestination"
 import { planRotation, rotatePool, type RotationCollision } from "@/lib/social/autopilotRotation"
 import { ineligibleReason, type EligibilityInput, type Ineligible } from "@/lib/social/autopilotEligibility"
+import { renderRefusalFor, type RenderIdentityState } from "@/lib/social/renderAuthorization"
 import { parseMarketRestriction, isMarketAllowed } from "@/lib/social/marketRestriction"
 
 export type PoolPost = EligibilityInput & {
@@ -29,6 +30,12 @@ export type PoolPost = EligibilityInput & {
   placeId: string | null
   market: string | null
   propertyName: string | null
+  /** The identity recorded for this post's artifact, when it has a social_renders row. Absent on
+   *  every render made before Phase B, which the predicate reads as 'unknown'. */
+  identityState?: RenderIdentityState | null
+  identityOwnerUserId?: string | null
+  /** social_content.available_to_agents — the operator's sharing decision for the SOURCE. */
+  availableToAgents?: boolean | null
 }
 
 /**
@@ -59,6 +66,10 @@ export function propertyKeyOf(p: Pick<PoolPost, "placeId" | "propertyName" | "ma
 
 export type AutopilotRule = {
   connectionId: string
+  /** The destination's own identity, straight off social_connections. A null agent means the
+   *  OWNER's account — the live TikTok row's shape — not "no agent". */
+  agentUserId?: string | null
+  ownerUserId?: string | null
   /**
    * THE DESTINATION'S OWN PLATFORM, derived from the connection's provider — never a global.
    *
@@ -320,16 +331,39 @@ export function planAutopilot(input: {
       // accounting as before. An unrestricted rule reuses the group's own map by identity, so it
       // is not merely equivalent to today's behaviour — it is the same object.
       const allowed = parseMarketRestriction(rule.allowedMarkets)
-      const rulePool = allowed ? pool.filter((p) => isMarketAllowed(allowed, p.market)) : pool
+      const marketPool = allowed ? pool.filter((p) => isMarketAllowed(allowed, p.market)) : pool
+
+      // ── CHECKPOINT 1 of 3: WHAT THIS DESTINATION'S AGENT MAY BE OFFERED ──────────────────
+      // Asked here because this is already the place the pool narrows to one destination. A post
+      // the publisher would refuse must never occupy a slot: the slot is the scarce thing, and a
+      // post that fails at 19:30 cannot be replaced before 19:30.
+      //
+      // The result is built so that when NOTHING is refused — every destination today — rulePool
+      // is the very same array object the market filter produced, preserving the identity the
+      // block below relies on. Phase C therefore cannot alter the operator's own planning, by
+      // object identity rather than by argument.
+      const identityRefused = new Set<string>()
+      for (const p of marketPool) {
+        const refusal = renderRefusalFor({
+          render: { identityState: p.identityState ?? null, identityOwnerUserId: p.identityOwnerUserId ?? null },
+          source: { availableToAgents: p.availableToAgents ?? null },
+          destination: { connectionId: rule.connectionId, agent_user_id: rule.agentUserId ?? null, owner_user_id: rule.ownerUserId ?? null },
+        })
+        if (refusal) identityRefused.add(p.id)
+      }
+      if (identityRefused.size > 0) {
+        notes.push(`Destination ${rule.connectionId}: ${identityRefused.size} otherwise-eligible post(s) withheld — not certified free of personal identity, or marked Personal — Only Me.`)
+      }
+      const rulePool = identityRefused.size === 0 ? marketPool : marketPool.filter((p) => !identityRefused.has(p.id))
       let rulePostsByProperty = postsByProperty
-      if (allowed) {
+      if (allowed || identityRefused.size > 0) {
         const m = new Map<string, PoolPost[]>()
         for (const p of rulePool) {
           const k = propertyKeyOf(p)
           m.set(k, [...(m.get(k) ?? []), p])
         }
         rulePostsByProperty = m
-        if (rulePool.length === 0) {
+        if (rulePool.length === 0 && allowed) {
           notes.push(`Destination ${rule.connectionId} is restricted to ${allowed.join(", ")} and has no eligible ${platform} inventory there — every slot is left UNFILLED rather than substituting another market.`)
         }
       }

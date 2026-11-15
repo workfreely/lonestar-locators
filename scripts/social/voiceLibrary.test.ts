@@ -575,7 +575,9 @@ console.log("\nthe normalised derivative is what plays, in the preview and in th
 {
   const RP = read("lib/social/renderPost.ts")
   const VC2 = read("app/api/admin/social-autopilot/voice-clips/route.ts")
-  ok("the renderer selects both paths", /\.select\("storage_path, normalized_storage_path"\)/.test(RP))
+  // Phase C added identity_cleared_at to the same select — whether this clip is a generic read
+  // or the operator's own recognisable voice. Both path columns are still selected.
+  ok("the renderer selects both paths", /\.select\("storage_path, normalized_storage_path, identity_cleared_at"\)/.test(RP))
   ok("…and prefers the derivative", /row\?\.normalized_storage_path \|\| row\?\.storage_path/.test(RP))
   ok("the clips API signs the same file", /r\.normalized_storage_path[\s\S]{0,120}r\.storage_path/.test(VC2))
   ok("…and selects it to be able to", /normalized_storage_path, duration_seconds/.test(VC2))

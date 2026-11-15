@@ -12,6 +12,7 @@ import ffmpegPath from "ffmpeg-static"
 import { renderReel, makeWorkDir, type AudioChoice } from "@/lib/social/renderVideo"
 import { DESTINATIONS, isSocialDestination, destinationFromLegacyPlatform } from "@/lib/social/destinations"
 import { RENDERER_VERSION, renderFingerprint, type RenderSpec } from "@/lib/social/renderSpec"
+import { deriveIdentityState, renderRefusalFor, REFUSAL_MESSAGE } from "@/lib/social/renderAuthorization"
 // ONE overlay font: Libre Baskerville Bold (OFL, wght 700), headline AND detail. The same bytes
 // the browser preview loads via @font-face, so preview and burned-in render measure identically.
 // Moved here verbatim with the render body — not re-pointed, not re-chosen.
@@ -81,13 +82,13 @@ export async function renderPostToStorage(args: {
   const { supabase, id, userId } = args
   const { data: post, error: readErr } = await supabase
     .from("social_posts")
-    .select("id, platform, destination, source_content_id, source_storage_path, overlay_headline, overlay_subheadline, overlay_mode, overlay_template, audio_choice, voice_hook_id, voice_cta_id, render_version, presenter_id, presenter_intro_seconds, presenter_clip_storage_path, presenter_cta_clip_storage_path, presenter_audio_storage_path, presenter_side, presenter_width_px, source:source_content_id(storage_path)")
+    .select("id, platform, destination, source_content_id, source_storage_path, overlay_headline, overlay_subheadline, overlay_mode, overlay_template, audio_choice, voice_hook_id, voice_cta_id, render_version, presenter_id, presenter_intro_seconds, presenter_clip_storage_path, presenter_cta_clip_storage_path, presenter_audio_storage_path, presenter_side, presenter_width_px, connection_id, source:source_content_id(storage_path, available_to_agents, identity_cleared_at), destination_connection:connection_id(agent_user_id, owner_user_id)")
     .eq("id", id)
     .maybeSingle()
   if (readErr) return { ok: false as const, code: "read_failed", message: readErr.message }
   if (!post) return { ok: false as const, code: "not_found", message: "post not found" }
   const p = post as Record<string, unknown>
-  const source = (p.source ?? null) as { storage_path?: string } | null
+  const source = (p.source ?? null) as { storage_path?: string; available_to_agents?: boolean | null; identity_cleared_at?: string | null } | null
   // THE POST'S OWN FOOTAGE WINS, when it has any.
   //
   // social_content carries both the property facts and a source video. A post that needs different
@@ -102,6 +103,30 @@ export async function renderPostToStorage(args: {
   const contentId = p.source_content_id as string | null
   if (!sourcePath || !contentId) return { ok: false as const, code: "missing_source", message: "the post has no source video" }
   if (!ffmpegPath) return { ok: false as const, code: "renderer_unavailable", message: "ffmpeg is not available in this runtime" }
+
+  // ── CHECKPOINT 2 of 3: DO NOT RENDER WHAT MAY NOT BE PUBLISHED ──────────────────────────────
+  // Only what is knowable before ffmpeg runs, and only what can never become acceptable: a
+  // presenter in the composite, a Personal source, or footage nobody has certified. A voice
+  // clip's certification is resolved further down and can still make a render clean, so it is
+  // left to the recorded identity_state and to the publish checkpoint behind it.
+  //
+  // Refusing here saves 70 seconds of ffmpeg and, more importantly, stops an artifact carrying
+  // somebody's face from existing in an agent's library at all.
+  const destinationConn = (p.destination_connection ?? null) as { agent_user_id?: string | null; owner_user_id?: string | null } | null
+  const preflight = renderRefusalFor({
+    render: {
+      identityState: p.presenter_id ? "owned" : source?.identity_cleared_at ? "clean" : "unknown",
+      identityOwnerUserId: p.presenter_id ? userId : null,
+    },
+    source: { availableToAgents: source?.available_to_agents ?? null },
+    destination: { connectionId: (p.connection_id as string | null) ?? null, ...(destinationConn ?? {}) },
+  })
+  if (preflight) {
+    await supabase.from("social_posts").update({
+      render_status: "error", render_error: REFUSAL_MESSAGE[preflight], updated_at: new Date().toISOString(),
+    }).eq("id", id)
+    return { ok: false as const, code: preflight, message: REFUSAL_MESSAGE[preflight] }
+  }
 
   await supabase.from("social_posts").update({ render_status: "rendering", render_error: null, updated_at: new Date().toISOString() }).eq("id", id)
 
@@ -128,11 +153,11 @@ export async function renderPostToStorage(args: {
     // Returns the STORAGE path it chose as well as the local file. The choice between the
     // normalised derivative and the original changes the mix, so it is part of what identifies
     // this render and has to reach the spec — not just the temp filename it landed in.
-    const voiceLocal = async (clipId: string | null, role: "Hook" | "CTA"): Promise<{ storagePath: string; local: string } | null> => {
+    const voiceLocal = async (clipId: string | null, role: "Hook" | "CTA"): Promise<{ storagePath: string; local: string; certified: boolean } | null> => {
       if (!clipId) return null
       const { data: clip } = await supabase.from("social_voice_clips")
-        .select("storage_path, normalized_storage_path").eq("id", clipId).maybeSingle()
-      const row = clip as { storage_path?: string; normalized_storage_path?: string } | null
+        .select("storage_path, normalized_storage_path, identity_cleared_at").eq("id", clipId).maybeSingle()
+      const row = clip as { storage_path?: string; normalized_storage_path?: string; identity_cleared_at?: string | null } | null
       // ── THE NORMALISED DERIVATIVE WHEN THERE IS ONE ──────────────────────────────────────
       // The originals span 8.3 dB (−16.7 to −25.1 LUFS) while the property footage spans 3.3
       // (−15.5 to −18.8), so a quiet recording arrives BELOW the bed it is meant to speak over
@@ -152,7 +177,10 @@ export async function renderPostToStorage(args: {
       const local = path.join(work, `voice-${role.toLowerCase()}.${extOf(clipPath)}`)
       await fs.writeFile(local, Buffer.from(await clipRes.arrayBuffer()))
       localByStorage.set(clipPath, local)
-      return { storagePath: clipPath, local }
+      // CERTIFIED means a person has said this clip does not identify its speaker — a generic or
+      // synthesised read. Uncertified is not "probably fine": it is the state of every clip in
+      // the library today, including the operator's own recordings.
+      return { storagePath: clipPath, local, certified: Boolean(row?.identity_cleared_at) }
     }
     // 'existing' mode draws no overlay, but it is still the locator's post — voice clips apply there too.
     const hookClip = await voiceLocal((p.voice_hook_id as string | null) ?? null, "Hook")
@@ -275,6 +303,22 @@ export async function renderPostToStorage(args: {
     // succeeded; failing it because a bookkeeping row did not land would make this phase a
     // reliability regression in exchange for nothing. On failure render_id stays null and the
     // post is exactly what it would have been before Phase B.
+    // WHOSE IDENTITY IS IN THESE PIXELS. Derived from what actually went in — a presenter, the
+    // certification of each voice clip used, and whether the SOURCE footage has been certified.
+    // Deliberately NOT part of the spec or the fingerprint: certifying a video does not change a
+    // single pixel, and folding it into the hash would invalidate every render the moment
+    // somebody ticked a box.
+    const identity = deriveIdentityState({
+      // THE POST'S presenter_id, not the composited clips. A presenter whose avatar video is
+      // absent still contributes its AUDIO as the hook — the operator's AI voice with no face —
+      // and reading only spec.media.presenter would call that clean. The clone is involved the
+      // moment the post names one.
+      hasPresenter: Boolean(p.presenter_id),
+      voiceClipsCertified: [hookClip, ctaClip].filter((c) => c !== null).map((c) => c!.certified),
+      sourceCertified: Boolean(source?.identity_cleared_at),
+      ownerUserId: userId,
+    })
+
     const renderId = await recordRender(supabase, {
       ownerUserId: userId,
       contentId,
@@ -282,6 +326,7 @@ export async function renderPostToStorage(args: {
       safeAreaId,
       fingerprint,
       spec,
+      identity,
     })
 
     await supabase
@@ -339,9 +384,11 @@ export async function renderPostToStorage(args: {
  */
 async function recordRender(
   supabase: SupabaseLike,
-  r: { ownerUserId: string; contentId: string; storagePath: string; safeAreaId: string; fingerprint: string; spec: RenderSpec },
+  r: {
+    ownerUserId: string; contentId: string; storagePath: string; safeAreaId: string; fingerprint: string; spec: RenderSpec
+    identity: { identityState: string; identityOwnerUserId: string | null }
+  },
 ): Promise<string | null> {
-  const carriesIdentity = Boolean(r.spec.media.presenter || r.spec.media.presenterCta || r.spec.media.hook || r.spec.media.cta)
   try {
     const { data, error } = await supabase
       .from("social_renders")
@@ -354,8 +401,8 @@ async function recordRender(
           fingerprint: r.fingerprint,
           renderer_version: r.spec.rendererVersion,
           spec: r.spec,
-          identity_state: carriesIdentity ? "owned" : "unknown",
-          identity_owner_user_id: carriesIdentity ? r.ownerUserId : null,
+          identity_state: r.identity.identityState,
+          identity_owner_user_id: r.identity.identityOwnerUserId,
         },
         // A re-render writes a new version to a new path, so a conflict here means the same
         // artifact was recorded before — update it rather than erroring on the unique index.

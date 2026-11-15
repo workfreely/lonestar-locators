@@ -32,18 +32,25 @@ export const MAX_PLAN_DAYS = 14
 
 /** One select string, shared by the pool query and the re-read, so the two cannot drift. */
 export const POOL_SELECT =
-  "id, platform, destination, status, render_status, rendered_storage_path, scheduled_at, published_at, external_post_id, connection_id, approved_at, follows_post_id, source_content_id, source:source_content_id(place_id, market, property_name)"
+  "id, platform, destination, status, render_status, rendered_storage_path, scheduled_at, published_at, external_post_id, connection_id, approved_at, follows_post_id, source_content_id, source:source_content_id(place_id, market, property_name, available_to_agents), render:render_id(identity_state, identity_owner_user_id)"
 
 /** A joined social_posts row -> the planner's PoolPost. */
 export function toPoolPost(r: Record<string, unknown>): PoolPost {
   const raw = (r as { source?: unknown }).source
   const src = (Array.isArray(raw) ? raw[0] : raw) as Record<string, unknown> | null | undefined
+  const rawRender = (r as { render?: unknown }).render
+  const ren = (Array.isArray(rawRender) ? rawRender[0] : rawRender) as Record<string, unknown> | null | undefined
   return {
     id: String(r.id),
     sourceContentId: String(r.source_content_id ?? ""),
     placeId: (src?.place_id as string | null) ?? null,
     market: (src?.market as string | null) ?? null,
     propertyName: (src?.property_name as string | null) ?? null,
+    // Phase C. A post with no social_renders row yields null, which the predicate reads as
+    // 'unknown' — fail-closed for an agent, no objection for the owner's own account.
+    identityState: (ren?.identity_state as PoolPost["identityState"]) ?? null,
+    identityOwnerUserId: (ren?.identity_owner_user_id as string | null) ?? null,
+    availableToAgents: (src?.available_to_agents as boolean | null) ?? null,
     status: (r.status as string | null) ?? null,
     renderStatus: (r.render_status as string | null) ?? null,
     renderedStoragePath: (r.rendered_storage_path as string | null) ?? null,
@@ -72,9 +79,13 @@ export function toPoolPost(r: Record<string, unknown>): PoolPost {
 export async function computeAutopilotPlan(now: Date = new Date()): Promise<AutopilotPlan> {
   const { data: conns } = await supabaseAdmin
     .from("social_connections")
-    .select("id, provider, status, posting_paused, posts_per_day, stagger_offset_minutes, token_expires_at, market_restriction")
+    .select("id, provider, status, posting_paused, posts_per_day, stagger_offset_minutes, token_expires_at, market_restriction, agent_user_id, owner_user_id")
   const rules: AutopilotRule[] = (conns ?? []).map((c) => ({
     connectionId: String(c.id),
+    // Carried so the planner can ask whose account this is. A null agent is the OWNER's own
+    // account, which is what the live TikTok row looks like — never "no agent".
+    agentUserId: (c as { agent_user_id?: string | null }).agent_user_id ?? null,
+    ownerUserId: (c as { owner_user_id?: string | null }).owner_user_id ?? null,
     platform: String(c.provider ?? "instagram"),
     // `status` alone is not enough: it is stamped at OAuth time and never revisited, so a row can
     // read "connected" with an access token that expired days ago. isPlannableConnection keeps a

@@ -15,6 +15,7 @@ import {
 } from "@/lib/social/autoPosting"
 import { DESTINATIONS, isSocialDestination, destinationFromLegacyPlatform } from "@/lib/social/destinations"
 import { parseMarketRestriction, marketRestrictionViolation } from "@/lib/social/marketRestriction"
+import { renderRefusalFor, REFUSAL_MESSAGE, type RenderIdentityState } from "@/lib/social/renderAuthorization"
 
 /**
  * SOCIAL BEAST — the Instagram due-post worker.
@@ -141,7 +142,7 @@ async function run(req: NextRequest) {
   const now = new Date().toISOString()
   // heldReasons says WHY each held post was held. A bare count cannot distinguish "the agent needs
   // to re-approve" from "the admin withdrew this video", and those need different actions.
-  const result = { reconciled: 0, published: 0, pending: 0, failed: 0, skippedNoRender: 0, skippedNotApproved: 0, claimed: 0, missedWhilePaused: 0, tooLate: 0, skippedDestinationPaused: 0, reconcileSkippedPaused: 0, skippedDestinationUnreadable: 0, blockedByMarketRestriction: 0, flaggedForReview: 0, heldForReview: 0, heldReasons: [] as { id: string; reason: string }[] }
+  const result = { reconciled: 0, published: 0, pending: 0, failed: 0, skippedNoRender: 0, skippedNotApproved: 0, claimed: 0, missedWhilePaused: 0, tooLate: 0, skippedDestinationPaused: 0, reconcileSkippedPaused: 0, skippedDestinationUnreadable: 0, blockedByMarketRestriction: 0, blockedByIdentity: 0, flaggedForReview: 0, heldForReview: 0, heldReasons: [] as { id: string; reason: string }[] }
 
   // ── 0) RECONCILE unacknowledged publishes FIRST ────────────────────────────────────────────
   // Rows whose media_publish call was claimed but never acknowledged locally. These are the crash
@@ -238,7 +239,7 @@ async function run(req: NextRequest) {
   // ── 1) SELECT due posts ────────────────────────────────────────────────────────────────────
   const { data: due, error: dueErr } = await supabaseAdmin
     .from("social_posts")
-    .select("id, destination, follows_post_id, needs_review_at, needs_review_reason, owner_user_id, connection_id, scheduled_at, approved_at, caption, hashtags, social_special, overlay_template, cover_thumb_offset_ms, cover_storage_path, render_status, rendered_storage_path, render_version, source_content_id, source:source_content_id(market, property_type, special, budget_range, amenities, available_to_agents), destination_connection:connection_id(agent_user_id, owner_user_id)")
+    .select("id, destination, follows_post_id, needs_review_at, needs_review_reason, owner_user_id, connection_id, scheduled_at, approved_at, caption, hashtags, social_special, overlay_template, cover_thumb_offset_ms, cover_storage_path, render_status, rendered_storage_path, render_version, source_content_id, source:source_content_id(market, property_type, special, budget_range, amenities, available_to_agents), destination_connection:connection_id(agent_user_id, owner_user_id), render:render_id(identity_state, identity_owner_user_id)")
     .eq("platform", "instagram")
     .eq("status", "scheduled")
     .lte("scheduled_at", now)
@@ -293,6 +294,9 @@ async function run(req: NextRequest) {
       //   trigger set, because a flag can be cleared and current availability cannot.
       const rowConn = joinedOne((row as Record<string, unknown>).destination_connection)
       const rowSrc = joinedOne((row as Record<string, unknown>).source)
+      // The social_renders row for this artifact. Absent on every render made before Phase B,
+      // which renderRefusalFor reads as 'unknown' — the fail-closed answer for an agent.
+      const rowRender = joinedOne((row as Record<string, unknown>).render)
       const holdDecision = publishHoldDecision({
         isAgentOwned: isAgentOwnedPost(row as { connection_id?: string | null }, rowConn),
         needsReviewAt: row.needs_review_at as string | null,
@@ -380,6 +384,29 @@ async function run(req: NextRequest) {
       if (marketViolation) {
         await fail(postId, marketViolation)
         result.blockedByMarketRestriction++
+        result.failed++
+        continue
+      }
+
+      // ── CHECKPOINT 3 of 3: WHOSE FACE IS IN THIS, AND WHOSE ACCOUNT IS THIS ────────────────
+      // The last thing between an agent's audience and somebody else's identity. Same position
+      // as the market check — BEFORE the claim, so a refused post keeps its slot — and the same
+      // verdict: needs_attention, never a silent skip. A skip would retry this every five
+      // minutes forever and nobody would ever learn the post was unsafe.
+      //
+      // Nothing in normal operation reaches here: the planner refuses the same pairing, so a post
+      // that arrives refused was placed by some other route and a human has to look at it.
+      const identityRefusal = renderRefusalFor({
+        render: {
+          identityState: (rowRender?.identity_state as RenderIdentityState | null) ?? null,
+          identityOwnerUserId: (rowRender?.identity_owner_user_id as string | null) ?? null,
+        },
+        source: { availableToAgents: (rowSrc?.available_to_agents as boolean | null) ?? null },
+        destination: { connectionId: (row.connection_id as string | null) ?? null, ...(rowConn ?? {}) },
+      })
+      if (identityRefusal) {
+        await fail(postId, REFUSAL_MESSAGE[identityRefusal])
+        result.blockedByIdentity++
         result.failed++
         continue
       }

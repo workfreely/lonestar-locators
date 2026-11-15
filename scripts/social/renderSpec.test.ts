@@ -125,16 +125,19 @@ ok("…and never claims identity_state 'clean'",
   renderWrites.every((w) => (w[0].patch as Record<string, unknown>).identity_state !== "clean"),
   "'clean' requires a person certifying the SOURCE footage, which no code can infer")
 
-// 'owned' exactly when the RENDERER composited identity in — presenter, presenter CTA, or a
-// voice clip. Checked against the spec that was recorded alongside it, not against a repeat of
-// the same expression.
-ok("identity_state is 'owned' exactly when the spec carries presenter or voice media",
+// Phase C refined this. 'owned' is no longer "any audio": a CERTIFIED voice clip is a generic
+// read and leaves a render clean. Across these fixtures nothing is certified — no source, no
+// clip — so every render carrying a presenter or any voice media is 'owned' and everything else
+// is 'unknown'. Not one is 'clean', which is the correct state of this library today.
+ok("identity_state is 'owned' wherever identity media is present, 'unknown' otherwise",
   renderWrites.every((w) => {
     const p = w[0].patch as Record<string, unknown>
     const m = (p.spec as { media: Record<string, unknown> }).media
     const carries = Boolean(m.presenter || m.presenterCta || m.hook || m.cta)
     return p.identity_state === (carries ? "owned" : "unknown")
   }))
+ok("…and nothing is 'clean', because nothing in this library is certified",
+  renderWrites.every((w) => (w[0].patch as Record<string, unknown>).identity_state !== "clean"))
 
 const postUpdates = successes.map((x) => ((x.writes ?? []) as Record<string, unknown>[])
   .filter((w) => w.table === "social_posts" && (w.patch as Record<string, unknown>)?.rendered_storage_path))

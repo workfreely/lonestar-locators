@@ -312,8 +312,13 @@ console.log("\nWIRING — computeAutopilotPlan carries each destination's own re
   // REQUIRED, not optional. A rule built without it fails to compile rather than silently reading
   // as unrestricted — which is the only reason this field being forgotten stays cheap to notice.
   ok("AutopilotRule.allowedMarkets is a REQUIRED field", /\n\s*allowedMarkets: readonly string\[\] \| null\n/.test(PLANNER))
+  // Phase C inserted the identity filter beside this one, so the market narrowing now lands in
+  // `marketPool` and `rulePool` is what survives BOTH. The subject is unchanged: the pool is
+  // narrowed per rule, not per platform group, and an unrestricted rule still reuses the group's
+  // own array by identity.
   ok("the planner filters the pool per RULE, not per platform group",
-    /rulePool\s*=\s*allowed\s*\?\s*pool\.filter\(\(p\)\s*=>\s*isMarketAllowed\(allowed, p\.market\)\)\s*:\s*pool/.test(PLANNER))
+    /marketPool\s*=\s*allowed\s*\?\s*pool\.filter\(\(p\)\s*=>\s*isMarketAllowed\(allowed, p\.market\)\)\s*:\s*pool/.test(PLANNER)
+    && /rulePool\s*=\s*identityRefused\.size === 0\s*\?\s*marketPool\s*:/.test(PLANNER))
   // The ordering IS the guarantee: everything that selects reads the restricted map.
   for (const [what, re] of [
     ["the rotation order", /rotatePool\(\[\.\.\.rulePostsByProperty\.keys\(\)\]/],

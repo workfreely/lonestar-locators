@@ -7,6 +7,7 @@ import { shouldHoldForReview, publishHoldEnabled, publishHoldDecision } from "@/
 import { isAgentOwnedPost } from "@/lib/social/agentIdentity"
 import { readAutoPosting, isEligibleAfterResume, isWithinLatenessWindow } from "@/lib/social/autoPosting"
 import { DESTINATIONS, isSocialDestination } from "@/lib/social/destinations"
+import { renderRefusalFor, REFUSAL_MESSAGE, type RenderIdentityState } from "@/lib/social/renderAuthorization"
 import { parseMarketRestriction, marketRestrictionViolation } from "@/lib/social/marketRestriction"
 import { tiktokConfigured, truncateToRunes } from "@/lib/social/tiktok"
 import { tiktokAutopublishEnabled } from "@/lib/social/tiktokGate"
@@ -144,7 +145,7 @@ async function run(req: NextRequest) {
     missedWhilePaused: 0, tooLate: 0, heldForReview: 0, tooLong: 0,
     missingSettings: 0, settingsNoLongerValid: 0,
     notPublishableDestination: 0,
-    blockedByMarketRestriction: 0, skippedDestinationUnreadable: 0,
+    blockedByMarketRestriction: 0, blockedByIdentity: 0, skippedDestinationUnreadable: 0,
     noDestinationToken: 0, destinationTokenUnusable: 0,
     skippedDestinationPaused: 0, reconcileSkippedPaused: 0,
     heldReasons: [] as { id: string; reason: string }[],
@@ -302,7 +303,7 @@ async function run(req: NextRequest) {
   const nowIso = new Date().toISOString()
   const { data: due, error: dueErr } = await supabaseAdmin
     .from("social_posts")
-    .select("id, destination, platform, status, scheduled_at, approved_at, needs_review_at, render_status, rendered_storage_path, caption, hashtags, social_special, source_content_id, overlay_template, connection_id, tiktok_privacy_level, tiktok_allowed_interactions, tiktok_disclosure, source:source_content_id(market, property_type, special, budget_range, amenities, available_to_agents), destination_connection:connection_id(agent_user_id)")
+    .select("id, destination, platform, status, scheduled_at, approved_at, needs_review_at, render_status, rendered_storage_path, caption, hashtags, social_special, source_content_id, overlay_template, connection_id, tiktok_privacy_level, tiktok_allowed_interactions, tiktok_disclosure, source:source_content_id(market, property_type, special, budget_range, amenities, available_to_agents), destination_connection:connection_id(agent_user_id, owner_user_id), render:render_id(identity_state, identity_owner_user_id)")
     .eq("destination", "tiktok_video")
     .eq("status", "scheduled")
     .lte("scheduled_at", nowIso)
@@ -333,6 +334,8 @@ async function run(req: NextRequest) {
 
       const rowConn = joinedOne(row.destination_connection)
       const rowSrc = joinedOne(row.source)
+      // Absent on every pre-Phase-B render, which the predicate reads as 'unknown'.
+      const rowRender = joinedOne((row as Record<string, unknown>).render)
       const holdDecision = publishHoldDecision({
         isAgentOwned: isAgentOwnedPost(row as { connection_id?: string | null }, rowConn),
         needsReviewAt: row.needs_review_at as string | null,
@@ -381,6 +384,26 @@ async function run(req: NextRequest) {
       if (marketViolation) {
         await markFailed(postId, marketViolation)
         result.blockedByMarketRestriction++
+        result.failed++
+        continue
+      }
+
+      // ── CHECKPOINT 3 of 3: WHOSE FACE IS IN THIS, AND WHOSE ACCOUNT IS THIS ──────────────
+      // The same question the Instagram worker asks at the same point, from the same module, so
+      // the two networks cannot disagree about whether a video is safe to publish. Before the
+      // claim, and needs_attention rather than a skip: an unsafe post must stop and be seen, not
+      // be retried every five minutes.
+      const identityRefusal = renderRefusalFor({
+        render: {
+          identityState: (rowRender?.identity_state as RenderIdentityState | null) ?? null,
+          identityOwnerUserId: (rowRender?.identity_owner_user_id as string | null) ?? null,
+        },
+        source: { availableToAgents: (rowSrc?.available_to_agents as boolean | null) ?? null },
+        destination: { connectionId: (row.connection_id as string | null) ?? null, ...(rowConn ?? {}) },
+      })
+      if (identityRefusal) {
+        await markFailed(postId, REFUSAL_MESSAGE[identityRefusal])
+        result.blockedByIdentity++
         result.failed++
         continue
       }
