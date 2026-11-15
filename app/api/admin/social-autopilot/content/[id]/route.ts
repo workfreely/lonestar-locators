@@ -67,6 +67,13 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
   for (const k of EDITABLE) {
     if (k in body) patch[COLUMN[k]] = typeof body[k] === "string" && (body[k] as string).trim() ? (body[k] as string).trim().slice(0, MAX_LEN[k] ?? 5000) : null
   }
+  // PERSONAL — checked means NOT available to agents. Handled explicitly rather than through
+  // EDITABLE, whose loop coerces every value with `typeof body[k] === "string"` and would
+  // therefore store a boolean as null — silently SHARING a video the operator just marked
+  // Personal. Only a real boolean is a decision.
+  if ("personal" in body && typeof body.personal === "boolean") {
+    patch.available_to_agents = !body.personal
+  }
 
   // Prepared PUBLIC post (overlay/caption/hashtags) — SA-only overrides stored inside the
   // existing details jsonb (no schema change). Merged so other details keys are preserved. An

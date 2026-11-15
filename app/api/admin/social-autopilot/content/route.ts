@@ -18,7 +18,7 @@ export async function GET() {
   const { data, error } = await supabase
     .from("social_content")
     .select(
-      "id, storage_path, thumb_storage_path, kind, original_filename, content_type, size_bytes, duration_s, display_name, name_customized, upload_batch_id, batch_seq, property_name, property_type, market, area_neighborhood, special, budget_range, price_label_mode, amenities, tags, notes, place_id, details, created_at, updated_at",
+      "id, storage_path, thumb_storage_path, kind, original_filename, content_type, size_bytes, duration_s, display_name, name_customized, upload_batch_id, batch_seq, property_name, property_type, market, area_neighborhood, special, budget_range, price_label_mode, amenities, tags, notes, place_id, details, available_to_agents, created_at, updated_at",
     )
     .order("created_at", { ascending: false })
   if (error) return NextResponse.json({ error: "list_failed" }, { status: 500 })
@@ -57,6 +57,9 @@ export async function GET() {
         amenities: r.amenities,
         notes: r.notes,
         placeId: r.place_id,
+        // THE PRIVACY CHECKBOX, as the UI states it. Inverted once, here, so the client never
+        // reasons about availability — it only knows whether this video is the operator's own.
+        personal: r.available_to_agents !== true,
         createdAt: r.created_at,
         previewUrl,
         thumbUrl,

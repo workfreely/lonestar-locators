@@ -8,11 +8,12 @@ import { buildSocialDisplayName } from "@/lib/social/displayName"
 // and are reported as failed (never silently "succeeded").
 //
 // GUARANTEES (per SA1.1 spec):
-//  - ONLY market / property_name are writable here. owner_user_id, storage_path and
-//    original_filename can NEVER be touched — bulk reorganization is metadata only, the
-//    underlying private object is never moved/renamed.
-//  - display_name is regenerated ONLY for rows where name_customized=false; a user's
-//    manually-customized name is preserved untouched.
+//  - ONLY market / property_name / available_to_agents are writable here. owner_user_id,
+//    storage_path and original_filename can NEVER be touched — bulk reorganization is metadata
+//    only, the underlying private object is never moved/renamed.
+//  - display_name is regenerated ONLY for rows where name_customized=false AND ONLY when this
+//    call changes a name input; a user's manually-customized name is preserved untouched, and a
+//    privacy-only call never renames anything.
 //  - The response reports ACCURATE per-row outcome — it never claims "15 updated" when
 //    only 12 rows actually updated.
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
@@ -39,7 +40,13 @@ export async function POST(req: NextRequest) {
   // Which allowed fields is this call changing? A key present but blank clears it.
   const changingMarket = "market" in body
   const changingProperty = "propertyName" in body
-  if (!changingMarket && !changingProperty) return NextResponse.json({ error: "no editable fields" }, { status: 400 })
+  // PERSONAL — the operator's privacy choice, stored INVERTED in available_to_agents. A boolean
+  // and nothing else: a missing or non-boolean key is not a decision, so nothing is written for
+  // it. "personal" is never derived from another field.
+  const changingPersonal = "personal" in body && typeof body.personal === "boolean"
+  if (!changingMarket && !changingProperty && !changingPersonal) {
+    return NextResponse.json({ error: "no editable fields" }, { status: 400 })
+  }
 
   const str = (v: unknown, max = 2000) => (typeof v === "string" && v.trim() ? v.trim().slice(0, max) : null)
   const newMarket = changingMarket ? str(body.market) : undefined
@@ -70,9 +77,16 @@ export async function POST(req: NextRequest) {
       patch.property_name = newProperty
       patch.place_id = newPlaceId // canonical id when matched; null clears a stale one
     }
+    // CHECKED = Personal = NOT available to agents. The inversion is written here and in the
+    // single-row PATCH and nowhere else; every reader downstream still asks available_to_agents,
+    // so there is one enforcement column and no second source of truth.
+    if (changingPersonal) patch.available_to_agents = !(body.personal as boolean)
 
-    // Regenerate the system name only when the user hasn't customized it.
-    if (row.name_customized !== true) {
+    // Regenerate the system name only when the user hasn't customized it — AND only when this
+    // call actually changes a name input. Without the second condition a privacy-only call would
+    // rewrite the display name of every selected row as a side effect of a visibility change,
+    // which nobody asked for and which the UI offers no way to undo.
+    if ((changingMarket || changingProperty) && row.name_customized !== true) {
       patch.display_name = buildSocialDisplayName({
         propertyName: changingProperty ? newProperty : (row.property_name as string | null),
         market: changingMarket ? newMarket : (row.market as string | null),

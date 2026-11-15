@@ -61,6 +61,8 @@ type Item = {
   tags: string[]
   notes: string | null
   placeId: string | null
+  /** social_content.available_to_agents, inverted by the API: true = mine only. */
+  personal: boolean
   createdAt: string
   /** social_content.duration_s — null for anything uploaded before it was captured. */
   durationSeconds: number | null
@@ -592,7 +594,7 @@ export default function SocialAutopilotClient() {
   // modal's destructive action is pressed.
   const [confirmDelete, setConfirmDelete] = useState(false)
   const [deleteBusy, setDeleteBusy] = useState(false)
-  const [bulkKind, setBulkKind] = useState<null | "market" | "property">(null)
+  const [bulkKind, setBulkKind] = useState<null | "market" | "property" | "personal">(null)
   const [bulkValue, setBulkValue] = useState("")
   const [bulkPlaceId, setBulkPlaceId] = useState<string | null>(null) // canonical id when a match is picked
   const [bulkMatched, setBulkMatched] = useState(false)
@@ -892,6 +894,29 @@ export default function SocialAutopilotClient() {
   const selectAllVisible = () => setSelected(new Set(visibleRealIds))
   const clearSelection = () => setSelected(new Set())
 
+  /**
+   * ONE video's Personal switch, saved on click.
+   *
+   * The row is corrected locally rather than reloading the library: a reload re-signs every
+   * thumbnail in the grid, which is a great deal of work to confirm one checkbox. A failed save
+   * puts the previous value back and says so, so the box never shows a state the server refused.
+   */
+  const setPersonal = useCallback(async (id: string, personal: boolean) => {
+    setItems((prev) => prev?.map((it) => (it.id === id ? { ...it, personal } : it)) ?? prev)
+    setError(null)
+    try {
+      const res = await fetch(`/api/admin/social-autopilot/content/${encodeURIComponent(id)}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ personal }),
+      })
+      if (!res.ok) throw new Error("save_failed")
+    } catch {
+      setItems((prev) => prev?.map((it) => (it.id === id ? { ...it, personal: !personal } : it)) ?? prev)
+      setError("Couldn't save that change.")
+    }
+  }, [])
+
   // ---- Upload ----------------------------------------------------------------
   const pickFiles = () => {
     setError(null)
@@ -1115,7 +1140,7 @@ export default function SocialAutopilotClient() {
   const uploadErrCount = uploads?.filter((u) => u.status === "error").length ?? 0
 
   // ---- Bulk ------------------------------------------------------------------
-  const openBulk = (kind: "market" | "property") => {
+  const openBulk = (kind: "market" | "property" | "personal") => {
     setBulkKind(kind)
     setBulkValue("")
     setBulkPlaceId(null)
@@ -1131,6 +1156,9 @@ export default function SocialAutopilotClient() {
     try {
       const body: Record<string, unknown> = { ids }
       if (bulkKind === "market") body.market = bulkValue || null
+      // A BOOLEAN, decided from an explicit choice. The modal cannot be applied with no choice
+      // made, so "shared" is never the default meaning of an untouched control.
+      else if (bulkKind === "personal") body.personal = bulkValue === "personal"
       else { body.propertyName = bulkValue || null; body.placeId = bulkMatched ? bulkPlaceId : null }
       const res = await fetch("/api/admin/social-autopilot/content/bulk", {
         method: "POST",
@@ -1416,6 +1444,7 @@ export default function SocialAutopilotClient() {
           <span className="text-[12.5px] font-bold text-[var(--crm-text-primary)]">{selected.size} selected</span>
           <button type="button" className={btn} onClick={() => openBulk("market")}>Change Market</button>
           <button type="button" className={btn} onClick={() => openBulk("property")}>Change Property</button>
+          <button type="button" className={btn} onClick={() => openBulk("personal")}>Personal / Shared</button>
           {/* Opens the confirmation modal only — never deletes on this click. */}
           <button type="button" className={dangerGhostBtn} onClick={() => setConfirmDelete(true)}>Delete Selected</button>
           {!allVisibleSelected && (
@@ -1496,6 +1525,20 @@ export default function SocialAutopilotClient() {
                     {c.propertyName || <span className="text-[var(--crm-text-muted)]">No property</span>}
                     {c.marketLabel ? ` · ${c.marketLabel}` : ""}
                   </div>
+                  {/* PERSONAL. Checked means this video stays in my account and reaches no agent.
+                      It changes nothing about my own publishing — see the hold decision in
+                      lib/social/publishHold.ts, which only consults availability for AGENT posts. */}
+                  {c.raw && (
+                    <label className="mt-1.5 flex items-center gap-1.5 cursor-pointer select-none" title="Keep this video in my account only">
+                      <input
+                        type="checkbox"
+                        className="h-3.5 w-3.5 accent-[var(--crm-text-primary)] cursor-pointer"
+                        checked={c.raw.personal}
+                        onChange={(e) => void setPersonal(c.raw!.id, e.target.checked)}
+                      />
+                      <span className="text-[11px] font-semibold text-[var(--crm-text-secondary)]">Personal — Only Me</span>
+                    </label>
+                  )}
                   {/* RENDERED/READY footer. Same card shell, same typography, same button class as
                       the Working footer below — only the labels and the destination differ. */}
                   {c.post && (
@@ -1739,9 +1782,20 @@ export default function SocialAutopilotClient() {
       {bulkKind && (
         <div className="fixed inset-0 z-[60] bg-black/50 flex items-center justify-center p-4" onClick={() => !bulkBusy && setBulkKind(null)}>
           <div className="w-full max-w-sm rounded-2xl border border-[var(--crm-border)] bg-[var(--crm-panel)] p-4" onClick={(e) => e.stopPropagation()}>
-            <div className="text-[15px] font-bold text-[var(--crm-text-primary)]">{bulkKind === "market" ? "Change Market" : "Change Property"}</div>
-            <div className="text-[11.5px] text-[var(--crm-text-muted)] mt-0.5 mb-3">Applies to {selected.size} selected {selected.size === 1 ? "video" : "videos"}. System-generated names refresh; names you customized stay. Storage and original filenames are untouched.</div>
-            {bulkKind === "market" ? (
+            <div className="text-[15px] font-bold text-[var(--crm-text-primary)]">{bulkKind === "market" ? "Change Market" : bulkKind === "property" ? "Change Property" : "Personal — Only Me"}</div>
+            <div className="text-[11.5px] text-[var(--crm-text-muted)] mt-0.5 mb-3">
+              Applies to {selected.size} selected {selected.size === 1 ? "video" : "videos"}.{" "}
+              {bulkKind === "personal"
+                ? "Nothing is renamed, rescheduled or published by this change, and your own automatic posting is unaffected either way."
+                : "System-generated names refresh; names you customized stay. Storage and original filenames are untouched."}
+            </div>
+            {bulkKind === "personal" ? (
+              <select className={inputCls} value={bulkValue} onChange={(e) => setBulkValue(e.target.value)}>
+                <option value="">Choose…</option>
+                <option value="personal">Personal — Only Me</option>
+                <option value="shared">Shared with eligible agents</option>
+              </select>
+            ) : bulkKind === "market" ? (
               <select className={inputCls} value={bulkValue} onChange={(e) => setBulkValue(e.target.value)}>
                 <option value="">Select market…</option>
                 {SOCIAL_MARKETS.map((m) => (
@@ -1764,7 +1818,7 @@ export default function SocialAutopilotClient() {
               </>
             )}
             <div className="flex gap-2 mt-4">
-              <button type="button" className={primaryBtn} disabled={bulkBusy || (bulkKind === "market" ? !bulkValue : !bulkValue.trim())} onClick={() => void applyBulk()}>
+              <button type="button" className={primaryBtn} disabled={bulkBusy || (bulkKind === "property" ? !bulkValue.trim() : !bulkValue)} onClick={() => void applyBulk()}>
                 {bulkBusy ? "Applying…" : "Apply"}
               </button>
               <button type="button" className={btn} disabled={bulkBusy} onClick={() => setBulkKind(null)}>Cancel</button>
