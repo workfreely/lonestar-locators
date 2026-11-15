@@ -54,18 +54,100 @@ try {
 const golden = JSON.parse(read("scripts/social/fixtures/renderArgs.golden.json")) as Record<string, unknown>[]
 ok("every fixture still runs", after.length === golden.length, `golden ${golden.length}, now ${after.length}`)
 
-const differing: string[] = []
+// ── WHAT THE GOLDEN FILE IS, AND WHAT IT IS ALLOWED TO DRIFT ON ───────────────────────────────
+// The golden file records the PRE-PHASE-A renderer. It is deliberately NOT regenerated when a
+// later phase adds behaviour, because regenerating it would quietly discard the only independent
+// record of what Social Beast used to render.
+//
+// renderReel's arguments and the storage paths signed must stay IDENTICAL forever — they are
+// what determine the video. Database writes are allowed to grow, but only in ways named here:
+// each addition has to be declared, so an unintended write fails this test rather than passing
+// under a blanket exemption.
+const ALLOWED_NEW_WRITES = ["social_renders"] // Phase B: the artifact is recorded as a row
+const ALLOWED_NEW_POST_COLUMNS = ["render_id"] // Phase B: the post points at that row
+
+const argDiffs: string[] = []
+const signedDiffs: string[] = []
+const resultDiffs: string[] = []
+const writeDiffs: string[] = []
+
 for (let i = 0; i < golden.length; i++) {
   const a = golden[i]
   const b = JSON.parse(JSON.stringify(after[i])) as Record<string, unknown>
+
+  if (JSON.stringify(a.renderReel) !== JSON.stringify(b.renderReel)) argDiffs.push(String(a.why))
+  if (JSON.stringify(a.signed) !== JSON.stringify(b.signed)) signedDiffs.push(String(a.why))
+
   // fingerprint is NEW on the success result and has no counterpart in the golden capture.
   const r = b.result as Record<string, unknown> | null
   if (r && "fingerprint" in r) delete r.fingerprint
-  if (JSON.stringify(a) !== JSON.stringify(b)) differing.push(String(a.why))
+  if (JSON.stringify(a.result) !== JSON.stringify(b.result)) resultDiffs.push(String(a.why))
+
+  // Writes: every golden write must still be present and unchanged apart from the declared new
+  // columns, and any extra write must be to a declared table.
+  const goldW = (a.writes ?? []) as Record<string, unknown>[]
+  const newW = (b.writes ?? []) as Record<string, unknown>[]
+  const extra = newW.filter((w) => !ALLOWED_NEW_WRITES.includes(String(w.table)))
+  if (extra.length !== goldW.length) { writeDiffs.push(`${a.why}: write count`); continue }
+  for (let j = 0; j < goldW.length; j++) {
+    const gp = { ...(goldW[j].patch as Record<string, unknown> ?? {}) }
+    const np = { ...(extra[j].patch as Record<string, unknown> ?? {}) }
+    for (const c of ALLOWED_NEW_POST_COLUMNS) delete np[c]
+    if (goldW[j].table !== extra[j].table || goldW[j].op !== extra[j].op
+      || JSON.stringify(goldW[j].eq) !== JSON.stringify(extra[j].eq)
+      || JSON.stringify(gp) !== JSON.stringify(np)) { writeDiffs.push(`${a.why}: write ${j}`); break }
+  }
 }
-ok("renderReel arguments, signed paths, writes and results are identical",
-  differing.length === 0,
-  differing.length ? `${differing.length} differ: ${differing.slice(0, 5).join(", ")}` : "")
+
+ok("renderReel arguments are IDENTICAL to the pre-Phase-A renderer",
+  argDiffs.length === 0, argDiffs.length ? `${argDiffs.length} differ: ${argDiffs.slice(0, 5).join(", ")}` : "")
+ok("the storage paths signed, and their order, are identical",
+  signedDiffs.length === 0, signedDiffs.slice(0, 5).join(", "))
+ok("the returned result is identical apart from the new fingerprint",
+  resultDiffs.length === 0, resultDiffs.slice(0, 5).join(", "))
+ok("every pre-existing database write is unchanged apart from declared new columns",
+  writeDiffs.length === 0, writeDiffs.slice(0, 5).join(", "))
+
+// The additions themselves, asserted rather than merely tolerated.
+const successes = after.filter((x) => (x as { result?: { ok?: boolean } }).result?.ok === true) as Record<string, unknown>[]
+const renderWrites = successes.map((x) => ((x.writes ?? []) as Record<string, unknown>[]).filter((w) => w.table === "social_renders"))
+ok("every successful render records exactly one social_renders row",
+  renderWrites.length > 0 && renderWrites.every((w) => w.length === 1),
+  `counts: ${[...new Set(renderWrites.map((w) => w.length))].join(",")}`)
+ok("…as an upsert keyed on storage_path, so a re-record cannot error",
+  renderWrites.every((w) => w[0].op === "upsert" && (w[0].patch as Record<string, unknown>).__onConflict === "storage_path"))
+ok("…carrying the fingerprint, the spec and the renderer version",
+  renderWrites.every((w) => {
+    const p = w[0].patch as Record<string, unknown>
+    return typeof p.fingerprint === "string" && p.spec != null && typeof p.renderer_version === "number"
+  }))
+ok("…and never claims identity_state 'clean'",
+  renderWrites.every((w) => (w[0].patch as Record<string, unknown>).identity_state !== "clean"),
+  "'clean' requires a person certifying the SOURCE footage, which no code can infer")
+
+// 'owned' exactly when the RENDERER composited identity in — presenter, presenter CTA, or a
+// voice clip. Checked against the spec that was recorded alongside it, not against a repeat of
+// the same expression.
+ok("identity_state is 'owned' exactly when the spec carries presenter or voice media",
+  renderWrites.every((w) => {
+    const p = w[0].patch as Record<string, unknown>
+    const m = (p.spec as { media: Record<string, unknown> }).media
+    const carries = Boolean(m.presenter || m.presenterCta || m.hook || m.cta)
+    return p.identity_state === (carries ? "owned" : "unknown")
+  }))
+
+const postUpdates = successes.map((x) => ((x.writes ?? []) as Record<string, unknown>[])
+  .filter((w) => w.table === "social_posts" && (w.patch as Record<string, unknown>)?.rendered_storage_path))
+ok("the post still records rendered_storage_path — the mirror is additive",
+  postUpdates.every((w) => w.length === 1 && typeof (w[0].patch as Record<string, unknown>).rendered_storage_path === "string"))
+ok("…and now also points at the render row",
+  postUpdates.every((w) => "render_id" in (w[0].patch as Record<string, unknown>)))
+
+// A bookkeeping row must never be able to fail a render that produced a real MP4.
+const renderPostSource = code(read("lib/social/renderPost.ts"))
+const recordSrc = renderPostSource.slice(renderPostSource.indexOf("async function recordRender"))
+ok("recordRender swallows its failures", /catch \{\s*return null\s*\}/.test(recordSrc))
+ok("…and returns null rather than throwing on an error result", /if \(error \|\| !data\) return null/.test(recordSrc))
 
 // The golden file is only evidence if it actually covers the hard paths.
 const whys = golden.map((g) => String(g.why))

@@ -52,6 +52,10 @@ export function companionRowFrom(reel: Row, reelId: string): Row {
     post_name: reel.post_name,
     // The SAME artifact. Not a re-render: the two surfaces share geometry.
     rendered_storage_path: reel.rendered_storage_path,
+    // …and the same social_renders row, so the sharing this function has always done is
+    // RECORDED rather than merely happening. The path above remains what every reader uses;
+    // this is the mirror catching up with reality.
+    render_id: reel.render_id ?? null,
     render_status: "ready",
     render_version: reel.render_version,
     source_storage_path: reel.source_storage_path,
@@ -82,7 +86,7 @@ export function companionRowFrom(reel: Row, reelId: string): Row {
  */
 export async function ensureStoryCompanion(client: CompanionClient, reelId: string): Promise<CompanionResult> {
   const { data: reel, error: readErr } = await client.from("social_posts")
-    .select("id, owner_user_id, source_content_id, destination, platform, post_type, post_name, rendered_storage_path, render_status, render_version, source_storage_path, approved_at, follows_post_id, presenter_id, presenter_intro_seconds, presenter_side, presenter_width_px, presenter_clip_storage_path, presenter_audio_storage_path")
+    .select("id, owner_user_id, source_content_id, destination, platform, post_type, post_name, rendered_storage_path, render_id, render_status, render_version, source_storage_path, approved_at, follows_post_id, presenter_id, presenter_intro_seconds, presenter_side, presenter_width_px, presenter_clip_storage_path, presenter_audio_storage_path")
     .eq("id", reelId).maybeSingle()
   if (readErr || !reel) return { created: false, reason: "reel_not_found" }
 

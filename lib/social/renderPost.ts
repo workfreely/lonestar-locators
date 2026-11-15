@@ -267,11 +267,28 @@ export async function renderPostToStorage(args: {
     const up = await supabase.storage.from("social-media").upload(derivativePath, bytes, { contentType: "video/mp4", upsert: true })
     if (up.error) throw new Error(`upload: ${up.error.message}`)
 
+    // ── THE ARTIFACT BECOMES A ROW ──────────────────────────────────────────────────────────
+    // Phase B. A MIRROR, not a replacement: rendered_storage_path below is still what every
+    // publisher, planner and screen reads, and nothing reads render_id yet.
+    //
+    // NON-FATAL BY CONSTRUCTION. A render that produced a real MP4 and wrote it to storage has
+    // succeeded; failing it because a bookkeeping row did not land would make this phase a
+    // reliability regression in exchange for nothing. On failure render_id stays null and the
+    // post is exactly what it would have been before Phase B.
+    const renderId = await recordRender(supabase, {
+      ownerUserId: userId,
+      contentId,
+      storagePath: derivativePath,
+      safeAreaId,
+      fingerprint,
+      spec,
+    })
+
     await supabase
       .from("social_posts")
       // A finished render rebuilds the overlay from the CURRENT source data, which is exactly what a
       // review asks for — so the flag clears itself here rather than needing a second manual step.
-      .update({ render_status: "ready", rendered_storage_path: derivativePath, render_version: nextVersion, render_error: null, needs_review_at: null, needs_review_reason: null, updated_at: new Date().toISOString() })
+      .update({ render_status: "ready", rendered_storage_path: derivativePath, render_version: nextVersion, render_error: null, needs_review_at: null, needs_review_reason: null, render_id: renderId, updated_at: new Date().toISOString() })
       .eq("id", id)
 
     // ── THE READY TRANSITION ────────────────────────────────────────────────────────────────
@@ -300,6 +317,56 @@ export async function renderPostToStorage(args: {
     return { ok: false as const, code: "render_failed", message }
   } finally {
     await fs.rm(work, { recursive: true, force: true }).catch(() => {})
+  }
+}
+
+/**
+ * Record a finished artifact as a social_renders row and return its id, or null.
+ *
+ * ── WHY IT CAN RETURN NULL ────────────────────────────────────────────────────────────────
+ * Every failure here is swallowed on purpose. The artifact exists, it is in storage, and the
+ * post is about to point at it by path exactly as it always has. A row in a table nothing reads
+ * yet is not worth failing a render over, and throwing would send a successful render down the
+ * catch branch and mark it render_status='error' — turning a bookkeeping problem into a lost
+ * video. renderSpec.test.ts asserts this stays non-fatal.
+ *
+ * ── WHY identity_state IS NEVER 'clean' ───────────────────────────────────────────────────
+ * An absent presenter and absent voice clips prove only that the RENDERER added no identity.
+ * They say nothing about whether the operator is on camera in the source footage — measured on
+ * this database, every post built from the operator's own Personal videos has all three fields
+ * null. 'clean' requires a person certifying the source, which arrives in a later phase. Until
+ * then the honest answer is 'unknown'.
+ */
+async function recordRender(
+  supabase: SupabaseLike,
+  r: { ownerUserId: string; contentId: string; storagePath: string; safeAreaId: string; fingerprint: string; spec: RenderSpec },
+): Promise<string | null> {
+  const carriesIdentity = Boolean(r.spec.media.presenter || r.spec.media.presenterCta || r.spec.media.hook || r.spec.media.cta)
+  try {
+    const { data, error } = await supabase
+      .from("social_renders")
+      .upsert(
+        {
+          owner_user_id: r.ownerUserId,
+          source_content_id: r.contentId,
+          storage_path: r.storagePath,
+          safe_area_id: r.safeAreaId,
+          fingerprint: r.fingerprint,
+          renderer_version: r.spec.rendererVersion,
+          spec: r.spec,
+          identity_state: carriesIdentity ? "owned" : "unknown",
+          identity_owner_user_id: carriesIdentity ? r.ownerUserId : null,
+        },
+        // A re-render writes a new version to a new path, so a conflict here means the same
+        // artifact was recorded before — update it rather than erroring on the unique index.
+        { onConflict: "storage_path" },
+      )
+      .select("id")
+      .maybeSingle()
+    if (error || !data) return null
+    return (data as { id: string }).id
+  } catch {
+    return null
   }
 }
 

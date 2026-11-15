@@ -40,6 +40,14 @@ export function makeFakeSupabase(post: FixturePost, writes: Write[], signed: str
         state.patch = patch
         return q
       },
+      // Phase B: the renderer records each artifact as a social_renders row. Terminal on its own
+      // — there is no .eq() after it — so the write is recorded here.
+      upsert: (patch: Record<string, unknown>, opts?: Record<string, unknown>) => {
+        state.op = "upsert"
+        state.patch = patch
+        writes.push({ table, op: "upsert", patch: { ...patch, __onConflict: opts?.onConflict ?? null }, eq: {} })
+        return q
+      },
       eq: (col: string, val: unknown) => {
         state.eq[col] = val
         // An update is terminal on its last .eq() — the renderer never awaits a separate step.
@@ -47,6 +55,10 @@ export function makeFakeSupabase(post: FixturePost, writes: Write[], signed: str
         return q
       },
       maybeSingle: async () => {
+        if (table === "social_renders") {
+          // A stable id, so the captured post update compares across runs.
+          return { data: { id: "00000000-0000-4000-8000-00000000render" }, error: null }
+        }
         if (table === "social_posts") {
           // The join the renderer asks for, assembled the way PostgREST would return it.
           return { data: { ...post, source: post.content_storage_path ? { storage_path: post.content_storage_path } : null }, error: null }
