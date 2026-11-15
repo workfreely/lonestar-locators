@@ -155,6 +155,18 @@ export async function POST(req: NextRequest) {
       // Default overlay mode for this source ('generate' unless flagged 'existing' at upload). New
       // posts inherit it; the Post Editor can override per post.
       overlay_mode: body.overlayMode === "existing" ? "existing" : "generate",
+      // PERSONAL — UNCHECKED BY DEFAULT, written explicitly because the column's own default is
+      // the opposite. A library is overwhelmingly property tours; the handful that feature the
+      // operator are the exception, and an exception is what a checkbox is for. Arriving checked
+      // meant every upload had to be un-marked by hand, which is how 266 videos came to look
+      // deliberately Personal when nobody had chosen that for any of them.
+      //
+      // The COLUMN default stays false on purpose. Only this route — the Social Beast upload the
+      // operator drives — opts a new row into agent eligibility. Any other insert path (a future
+      // worker, an import, a direct statement) still lands restricted, so the unreviewed case
+      // fails closed. Eligibility is not exposure: agent access is a separate switch, and while
+      // it is off this value shows nothing to anyone.
+      available_to_agents: true,
       notes: str(body.notes, 5000),
       place_id: str(body.placeId, 512),
     })

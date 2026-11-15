@@ -121,5 +121,25 @@ ok("…and says why", withdrawn.hold === true && withdrawn.reason === "withdrawn
 ok("agent post, video shared and unflagged → publishes",
   publishHoldDecision({ isAgentOwned: true, availableToAgents: true }, noFlag).hold === false)
 
+// ── 7. A NEW UPLOAD ARRIVES UNCHECKED ─────────────────────────────────────────────────────────
+// The column default is false, which means Personal. The upload route has to say otherwise
+// explicitly, and it has to say it as a literal — a value read off the request body would let a
+// caller decide its own agent eligibility at intake, before the operator has seen the video.
+console.log("\nthe normal upload flow arrives with Personal unchecked:")
+
+const insertBlock = list.slice(list.indexOf(".insert({"), list.indexOf(".select(\"id\")"))
+
+ok("the upload insert sets available_to_agents at all",
+  insertBlock.includes("available_to_agents"),
+  "without it the row takes the column default, which is Personal CHECKED")
+ok("…to the literal true, not a value from the request body",
+  /available_to_agents:\s*true\s*,/.test(insertBlock),
+  "intake must not let the uploader choose its own agent eligibility")
+ok("…and body.personal is not consulted at intake",
+  !insertBlock.includes("body.personal") && !insertBlock.includes("personal"))
+ok("the column default is deliberately NOT relied on here",
+  list.includes("available_to_agents: true"),
+  "every other insert path must still fail closed to restricted")
+
 console.log(`\nPersonal videos: ${pass} passed, ${fail} failed`)
 process.exit(fail ? 1 : 0)
