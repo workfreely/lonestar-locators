@@ -621,7 +621,7 @@ export default function SocialAutopilotClient() {
   // reusable history (what went out, with which template and footage), so hiding them once live
   // would throw away the thing that makes this a library rather than a queue.
   const [renderedPosts, setRenderedPosts] = useState<RenderedPost[]>([])
-  const [tab, setTab] = useState<"working" | "rendered">("working")
+  const [tab, setTab] = useState<"working" | "personal" | "rendered">("working")
   // Per-source lane facts, so Working can drop a property whose every creative is finished.
   const [sourceLane, setSourceLane] = useState<Record<string, DraftFacts[]>>({})
   const [editMenuFor, setEditMenuFor] = useState<string | null>(null) // source id whose picker is open
@@ -854,8 +854,28 @@ export default function SocialAutopilotClient() {
   // because a market chip is still applied from the other tab.
   const workingCount = workingCards.filter((c) => !c.demo).length
 
+  /**
+   * PERSONAL — a VIEW of the same sources, never a second library.
+   *
+   * Built from allCards, not from workingCards, for two reasons. A Personal video that has been
+   * rendered and approved has left Working, and it would silently vanish from a count the
+   * checkbox itself produced. And the tab answers "which videos are mine only?", a question about
+   * the whole library, not about what is mid-edit.
+   *
+   * Nothing is filtered OUT of Working or Rendered by this: a Personal video appears here AND
+   * wherever it already appeared, because the publishing path never consults the tab — it reads
+   * available_to_agents, and for the owner's own connections that value changes nothing.
+   *
+   * Derived from `items`, which setPersonal updates on each click, so the count moves with the
+   * checkbox without a reload.
+   */
+  const personalCards = useMemo(
+    () => allCards.filter((c) => !c.demo && c.raw?.personal === true),
+    [allCards],
+  )
+
   const cards = useMemo(() => {
-    let list = tab === "rendered" ? renderedCards : workingCards
+    let list = tab === "rendered" ? renderedCards : tab === "personal" ? personalCards : workingCards
     if (market !== "All") list = list.filter((c) => c.marketLabel === market)
     const q = search.trim().toLowerCase()
     if (q) list = list.filter((c) => [c.displayName, c.propertyName, c.originalFilename].some((v) => (v ?? "").toLowerCase().includes(q)))
@@ -865,7 +885,7 @@ export default function SocialAutopilotClient() {
     else if (sort === "Property") sorted.sort((a, b) => (a.propertyName ?? "").localeCompare(b.propertyName ?? ""))
     else if (sort === "Market") sorted.sort((a, b) => a.marketLabel.localeCompare(b.marketLabel))
     return sorted
-  }, [workingCards, renderedCards, tab, market, search, sort])
+  }, [workingCards, personalCards, renderedCards, tab, market, search, sort])
 
   // Visible REAL ids (demo never counts toward selection).
   const visibleRealIds = useMemo(() => cards.filter((c) => !c.demo && c.raw).map((c) => c.raw!.id), [cards])
@@ -1371,13 +1391,16 @@ export default function SocialAutopilotClient() {
           "SAMPLE DATA" pill was removed — sample state is still obvious from the per-card
           "Sample" markers on the demo fixtures. */}
       {/* mb-6 (24px) gives extra breathing room before the card grid vs. the tighter mb-3 rows. */}
-      {/* WORKING vs RENDERED / READY.
+      {/* WORKING vs PERSONAL vs RENDERED / READY.
           Its own row above the existing controls, so Search / Market / Sort / Upload keep their
-          current positions exactly. Both tabs feed the SAME card grid below — the tab only picks
-          which array is rendered, so the two can never look like different libraries. */}
+          current positions exactly. All three tabs feed the SAME card grid below — the tab only
+          picks which array is rendered, so they can never look like different libraries. Personal
+          overlaps Working on purpose: it is a filter over the same sources, not a queue of its
+          own, and nothing downstream of the grid knows which tab is open. */}
       <div className="mb-3 flex items-center gap-1.5 flex-wrap" role="tablist" aria-label="Library view">
         {([
           ["working", "Working", workingCount, "Drafts, unrendered, rendering and render errors"],
+          ["personal", "Personal", personalCards.length, "Marked Personal — Only Me. Still in Working and still publishes on your own accounts"],
           ["rendered", "Rendered / Ready", renderedCards.length, "Finished videos — ready, scheduled and published"],
         ] as const).map(([id, label, count, hint]) => (
           <button

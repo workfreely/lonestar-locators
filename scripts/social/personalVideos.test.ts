@@ -141,5 +141,45 @@ ok("the column default is deliberately NOT relied on here",
   list.includes("available_to_agents: true"),
   "every other insert path must still fail closed to restricted")
 
+// ── 8. THE PERSONAL TAB IS A FILTER, NOT A LIBRARY ────────────────────────────────────────────
+// The risk in a third tab is that it becomes a place videos LIVE, rather than a view of where
+// they already are. That would show up as the tab leaking into something other than which array
+// the grid draws — a publish path, a render path, a queue. So the branch is counted.
+console.log("\nthe Personal tab filters the same cards and nothing else:")
+
+ok("the tab union carries personal",
+  /useState<"working"\s*\|\s*"personal"\s*\|\s*"rendered">/.test(client))
+ok("the grid picks personalCards for that tab",
+  /tab === "personal" \? personalCards/.test(client))
+ok("personalCards is derived from allCards, not workingCards",
+  /personalCards = useMemo\(\s*\(\) => allCards\.filter/.test(client),
+  "a Personal video that is rendered and approved has left Working and must still count")
+ok("…and keys off the checkbox's own field",
+  /personalCards = useMemo[\s\S]{0,160}raw\?\.personal === true/.test(client))
+ok("…excluding demo cards",
+  /personalCards = useMemo[\s\S]{0,160}!c\.demo/.test(client))
+ok("the cards memo lists personalCards as a dependency",
+  /\}, \[workingCards, personalCards, renderedCards, tab, market, search, sort\]\)/.test(client),
+  "without it the grid would not refresh when a checkbox is toggled on the Personal tab")
+
+// The count is the live array's length — never a number computed some other way, which is how a
+// tab count starts disagreeing with the grid beneath it.
+ok("the tab count is personalCards.length",
+  /"personal", "Personal", personalCards\.length/.test(client))
+
+// Order: Working | Personal | Rendered / Ready.
+const iWorking = client.indexOf('"working", "Working"')
+const iPersonal = client.indexOf('"personal", "Personal"')
+const iRendered = client.indexOf('"rendered", "Rendered / Ready"')
+ok("Personal sits between Working and Rendered / Ready",
+  iWorking > -1 && iPersonal > iWorking && iRendered > iPersonal)
+
+// THE CONTAINMENT ASSERTION. `tab` may be read to pick the array and to drive the tablist's own
+// markup, and nowhere else. Anything further means the tab has started to mean something.
+const tabReads = (client.match(/\btab === /g) ?? []).length
+ok("tab is read exactly four times — one list choice, three tablist bindings",
+  tabReads === 4,
+  `found ${tabReads}; a new read means the tab affects something other than which cards are drawn`)
+
 console.log(`\nPersonal videos: ${pass} passed, ${fail} failed`)
 process.exit(fail ? 1 : 0)

@@ -81,8 +81,12 @@ ok("the rendered collector runs BEFORE the editable-only skip",
 ok("the published skip is explicitly scoped to the WORKING rollup",
   /p\.status === "published"\) continue \/\/ the WORKING rollup stays editable-only/.test(client))
 
-console.log("\nboth tabs render through the SAME card component — no second card design:")
-ok("one card grid, fed by a tab-selected array", /tab === "rendered" \? renderedCards : workingCards/.test(client))
+console.log("\nevery tab renders through the SAME card component — no second card design:")
+// Updated when the Personal tab was added. The guard's subject is unchanged — ONE grid, fed by
+// an array the tab selects — but it is written as a literal so that a new tab cannot be added
+// without someone restating, here, that it feeds the same grid as the others.
+ok("one card grid, fed by a tab-selected array",
+  /tab === "rendered" \? renderedCards : tab === "personal" \? personalCards : workingCards/.test(client))
 ok("rendered cards build the same Card shape", /const renderedCards: Card\[\]/.test(client))
 ok("there is exactly ONE card grid in the file", (client.match(/key=\{c\.key\}/g) ?? []).length === 1)
 
