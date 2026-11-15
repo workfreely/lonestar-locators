@@ -67,14 +67,22 @@ ok("…even with no destination object at all",
 // ── 2. AN EXTERNAL AGENT RECEIVES ONLY A CERTIFIED CLEAN RENDER ───────────────────────────────
 console.log("\nan agent's account refuses everything that is not certified clean:")
 
-ok("'unknown' → identity_not_certified",
-  renderRefusalFor({ render: { identityState: "unknown", identityOwnerUserId: null }, source: shared, destination: agentIg }) === "identity_not_certified")
-ok("the operator's identity → identity_not_certified",
-  renderRefusalFor({ render: { identityState: "owned", identityOwnerUserId: ADMIN }, source: shared, destination: agentIg }) === "identity_not_certified")
-ok("…even when the identity is the AGENT'S OWN, while uncertified footage is involved",
-  renderRefusalFor({ render: { identityState: "owned", identityOwnerUserId: AGENT }, source: shared, destination: agentIg }) === "identity_not_certified")
+// PHASE D widened this clause, deliberately. Phase C demanded a CERTIFIED source ('clean') and
+// so refused everything; the operator has since chosen the Personal checkbox as that signal, and
+// it is read live two lines above. What remains for an agent is the question this module is
+// named for — whose face is in the pixels — so a render that composited NOBODY is allowed.
+ok("'unknown' on a SHARED source → allowed: nothing was composited",
+  renderRefusalFor({ render: { identityState: "unknown", identityOwnerUserId: null }, source: shared, destination: agentIg }) === null)
+ok("the operator's identity → identity_mismatch, which names the real reason",
+  renderRefusalFor({ render: { identityState: "owned", identityOwnerUserId: ADMIN }, source: shared, destination: agentIg }) === "identity_mismatch")
+ok("…and the AGENT'S OWN identity on their OWN account is allowed",
+  renderRefusalFor({ render: { identityState: "owned", identityOwnerUserId: AGENT }, source: shared, destination: agentIg }) === null)
+// The one case that must still refuse: no record of what went in. recordRender is non-fatal, so
+// an artifact CAN exist with its bookkeeping row missing, and absent is not 'nothing'.
 ok("a missing render row → identity_not_certified",
   renderRefusalFor({ render: null, source: shared, destination: agentIg }) === "identity_not_certified")
+ok("a render row with a NULL identity_state → identity_not_certified",
+  renderRefusalFor({ render: { identityState: null, identityOwnerUserId: null }, source: shared, destination: agentIg }) === "identity_not_certified")
 ok("a Personal source → personal_video, whatever the render says",
   renderRefusalFor({ render: { identityState: "clean", identityOwnerUserId: null }, source: personal, destination: agentIg }) === "personal_video")
 ok("…and Personal is reported BEFORE certification, as the operator's own choice",

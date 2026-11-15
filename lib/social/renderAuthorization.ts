@@ -94,11 +94,31 @@ export function renderRefusalFor(input: {
   if (external) {
     // A Personal video is refused on its own terms, before anything about the render matters.
     // Reported first because it is the operator's own explicit choice and the most useful thing
-    // to tell them.
+    // to tell them. Read LIVE from social_content, so un-sharing a video refuses every render of
+    // it on the next evaluation — no stored state can go stale behind it.
     if (source?.availableToAgents !== true) return "personal_video"
-    // FAIL CLOSED. 'unknown' is not 'probably fine' — it is the state of every render ever made
-    // before certification existed, including every one built from the operator's own footage.
-    if (state !== "clean") return "identity_not_certified"
+
+    // ── NO RECORD OF WHAT WENT IN ⇒ REFUSE ────────────────────────────────────────────────
+    // A missing identity_state is not "nothing was composited", it is "nobody wrote it down".
+    // recordRender is deliberately non-fatal, so a render CAN land with its bookkeeping row
+    // absent; that artifact may be anything and an agent never receives it.
+    // The RAW value, not `state` — that one defaults a missing record to "unknown", which is the
+    // right reading for the owner's own account and exactly the wrong one here.
+    if (!render || render.identityState == null) return "identity_not_certified"
+
+    // ── OTHERWISE THE QUESTION IS WHOSE IDENTITY, NOT WHETHER ─────────────────────────────
+    // Phase C required 'clean' here, which meant a certified SOURCE. The operator has chosen the
+    // Personal checkbox as that signal instead — it is the judgement he already makes, on the
+    // same footage, and the check above reads it live. So what remains for an agent is the
+    // question this module is named for: is anybody's face or voice composited into these
+    // pixels, and if so, is it theirs?
+    //
+    // 'owned' is set at render time from the presenter and the voice clips that actually fed
+    // ffmpeg, and an artifact's contents never change, so this cannot drift as a post is edited.
+    if (state === "owned") {
+      const owner = render?.identityOwnerUserId ?? null
+      if (!owner || owner !== effectiveAgent(destination)) return "identity_mismatch"
+    }
     return null
   }
 
