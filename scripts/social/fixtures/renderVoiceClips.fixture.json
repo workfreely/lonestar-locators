@@ -1,0 +1,312 @@
+[
+ {
+  "id": "015893fe-8cc1-46f1-b841-2b13575d9371",
+  "storage_path": "00000000-0000-4000-8000-000000000001/voice/8f2c5c9a-8a79-4831-812f-e9c450c12d7c.mp3",
+  "normalized_storage_path": null
+ },
+ {
+  "id": "3c9af5bb-e854-48b6-a439-50490c70bd91",
+  "storage_path": "00000000-0000-4000-8000-000000000001/voice/83204663-7ec4-4405-aab0-68c9e807661f.mp3",
+  "normalized_storage_path": null
+ },
+ {
+  "id": "27c0ae2e-fb61-469a-9ab9-8906dbc2712a",
+  "storage_path": "00000000-0000-4000-8000-000000000001/voice/7081b2cd-0981-470c-b449-d43cb6b5303c.mp3",
+  "normalized_storage_path": null
+ },
+ {
+  "id": "9ac0478e-47f5-4ab5-b76e-8f5cbbad87a6",
+  "storage_path": "00000000-0000-4000-8000-000000000001/voice/804437ee-5b43-4664-8fff-8ce0ec0b647b.mp3",
+  "normalized_storage_path": null
+ },
+ {
+  "id": "5125fb07-f543-4b62-a707-fff2bf3795fc",
+  "storage_path": "00000000-0000-4000-8000-000000000001/voice/Apt_Hunting_See_This_DAL.m4a",
+  "normalized_storage_path": "00000000-0000-4000-8000-000000000001/voice/normalized/Apt_Hunting_See_This_DAL.normalized.m4a"
+ },
+ {
+  "id": "56d709da-27f8-474f-8172-a80940c7baaa",
+  "storage_path": "00000000-0000-4000-8000-000000000001/voice/Apt_Hunting_See_This_HOU.m4a",
+  "normalized_storage_path": "00000000-0000-4000-8000-000000000001/voice/normalized/Apt_Hunting_See_This_HOU.normalized.m4a"
+ },
+ {
+  "id": "36022e7a-2e6b-45b4-8461-ba0d3469c003",
+  "storage_path": "00000000-0000-4000-8000-000000000001/voice/Apt_Hunting_See_This_SATX.m4a",
+  "normalized_storage_path": "00000000-0000-4000-8000-000000000001/voice/normalized/Apt_Hunting_See_This_SATX.normalized.m4a"
+ },
+ {
+  "id": "bc708203-2c4d-4e30-a2ef-e07ec139f6d7",
+  "storage_path": "00000000-0000-4000-8000-000000000001/voice/Best deals in San Antonio.m4a",
+  "normalized_storage_path": "00000000-0000-4000-8000-000000000001/voice/normalized/Best deals in San Antonio.normalized.m4a"
+ },
+ {
+  "id": "25df4372-61f4-4168-99f1-7059ee631a39",
+  "storage_path": "00000000-0000-4000-8000-000000000001/voice/DAL_Best_Apt_Deals_Right_Now.m4a",
+  "normalized_storage_path": "00000000-0000-4000-8000-000000000001/voice/normalized/DAL_Best_Apt_Deals_Right_Now.normalized.m4a"
+ },
+ {
+  "id": "43c0fa27-015a-45ad-9448-9802d392886d",
+  "storage_path": "00000000-0000-4000-8000-000000000001/voice/DAL_Looking_For_Luxury_Apt_List.m4a",
+  "normalized_storage_path": "00000000-0000-4000-8000-000000000001/voice/normalized/DAL_Looking_For_Luxury_Apt_List.normalized.m4a"
+ },
+ {
+  "id": "b5cf6252-b064-401a-9b1c-a2882073df64",
+  "storage_path": "00000000-0000-4000-8000-000000000001/voice/Help_Client_Amazing_Deal.m4a",
+  "normalized_storage_path": "00000000-0000-4000-8000-000000000001/voice/normalized/Help_Client_Amazing_Deal.normalized.m4a"
+ },
+ {
+  "id": "702f2390-48ba-4a73-bf08-cb4fa04d9352",
+  "storage_path": "00000000-0000-4000-8000-000000000001/voice/High_Rise_Fortune_Check_OUT.m4a",
+  "normalized_storage_path": "00000000-0000-4000-8000-000000000001/voice/normalized/High_Rise_Fortune_Check_OUT.normalized.m4a"
+ },
+ {
+  "id": "af1ce188-85a9-4b68-ac95-8e108f053a64",
+  "storage_path": "00000000-0000-4000-8000-000000000001/voice/HOU_Best_Apt_Deals_Right_Now..m4a",
+  "normalized_storage_path": "00000000-0000-4000-8000-000000000001/voice/normalized/HOU_Best_Apt_Deals_Right_Now..normalized.m4a"
+ },
+ {
+  "id": "0a92689a-a139-4f75-b0b9-8e01f7f3283e",
+  "storage_path": "00000000-0000-4000-8000-000000000001/voice/HOU_Looking_For_Luxury_Apt_List..m4a",
+  "normalized_storage_path": "00000000-0000-4000-8000-000000000001/voice/normalized/HOU_Looking_For_Luxury_Apt_List..normalized.m4a"
+ },
+ {
+  "id": "dd7ee95e-56f3-4614-a333-14bb516aef90",
+  "storage_path": "00000000-0000-4000-8000-000000000001/voice/Looking_For_Industrial_Loft_This_For_You.m4a",
+  "normalized_storage_path": "00000000-0000-4000-8000-000000000001/voice/normalized/Looking_For_Industrial_Loft_This_For_You.normalized.m4a"
+ },
+ {
+  "id": "bed68324-417e-4d0b-a12a-2dba7d46e9ff",
+  "storage_path": "00000000-0000-4000-8000-000000000001/voice/Looking_For_Townhome_This_For_You.m4a",
+  "normalized_storage_path": "00000000-0000-4000-8000-000000000001/voice/normalized/Looking_For_Townhome_This_For_You.normalized.m4a"
+ },
+ {
+  "id": "66b1e5d2-1398-44e9-8904-abb63de1c854",
+  "storage_path": "00000000-0000-4000-8000-000000000001/voice/Moving_DAL_List_Tour.m4a",
+  "normalized_storage_path": "00000000-0000-4000-8000-000000000001/voice/normalized/Moving_DAL_List_Tour.normalized.m4a"
+ },
+ {
+  "id": "ac9dced7-d696-491b-9ded-1209381de303",
+  "storage_path": "00000000-0000-4000-8000-000000000001/voice/Moving_HOU_List_Tour.m4a",
+  "normalized_storage_path": "00000000-0000-4000-8000-000000000001/voice/normalized/Moving_HOU_List_Tour.normalized.m4a"
+ },
+ {
+  "id": "b8201448-193d-48a6-a845-839fb0c87e3e",
+  "storage_path": "00000000-0000-4000-8000-000000000001/voice/Moving_SATX_List_Tour.m4a",
+  "normalized_storage_path": "00000000-0000-4000-8000-000000000001/voice/normalized/Moving_SATX_List_Tour.normalized.m4a"
+ },
+ {
+  "id": "602af9e9-2c61-4d93-8802-d4e1b1198b18",
+  "storage_path": "00000000-0000-4000-8000-000000000001/voice/SATX_Best_Apt_Deals_Right_Now..m4a",
+  "normalized_storage_path": "00000000-0000-4000-8000-000000000001/voice/normalized/SATX_Best_Apt_Deals_Right_Now..normalized.m4a"
+ },
+ {
+  "id": "e04572dd-1628-4a86-a048-1f669fda801f",
+  "storage_path": "00000000-0000-4000-8000-000000000001/voice/SATX_Looking_For_Luxury_Apt_List..m4a",
+  "normalized_storage_path": "00000000-0000-4000-8000-000000000001/voice/normalized/SATX_Looking_For_Luxury_Apt_List..normalized.m4a"
+ },
+ {
+  "id": "003792ed-9389-4ec2-bb63-c8ada24508bd",
+  "storage_path": "00000000-0000-4000-8000-000000000001/voice/CTA_Apartment_Budget.m4a",
+  "normalized_storage_path": "00000000-0000-4000-8000-000000000001/voice/normalized/CTA_Apartment_Budget.normalized.m4a"
+ },
+ {
+  "id": "6cd7d42c-a141-40b5-978e-453f2b337e26",
+  "storage_path": "00000000-0000-4000-8000-000000000001/voice/CTA_Apartment_ExJealous.m4a",
+  "normalized_storage_path": "00000000-0000-4000-8000-000000000001/voice/normalized/CTA_Apartment_ExJealous.normalized.m4a"
+ },
+ {
+  "id": "516b644f-0aba-4207-866e-fc79bca9d0ad",
+  "storage_path": "00000000-0000-4000-8000-000000000001/voice/CTA_HighRise_AmazingView.m4a",
+  "normalized_storage_path": "00000000-0000-4000-8000-000000000001/voice/normalized/CTA_HighRise_AmazingView.normalized.m4a"
+ },
+ {
+  "id": "e7b497b8-b48a-4974-bc25-ebe1993b4819",
+  "storage_path": "00000000-0000-4000-8000-000000000001/voice/CTA_HighRise_FloorToCeilingWindows.m4a",
+  "normalized_storage_path": "00000000-0000-4000-8000-000000000001/voice/normalized/CTA_HighRise_FloorToCeilingWindows.normalized.m4a"
+ },
+ {
+  "id": "707a3f8b-bc68-4fad-9076-29d1f2a97c5a",
+  "storage_path": "00000000-0000-4000-8000-000000000001/voice/CTA_Industrial_Loft_Budget.m4a",
+  "normalized_storage_path": "00000000-0000-4000-8000-000000000001/voice/normalized/CTA_Industrial_Loft_Budget.normalized.m4a"
+ },
+ {
+  "id": "8114c415-feea-4fcf-a392-d1e776fc3bb5",
+  "storage_path": "00000000-0000-4000-8000-000000000001/voice/CTA_Penthouse_AmazingView.m4a",
+  "normalized_storage_path": "00000000-0000-4000-8000-000000000001/voice/normalized/CTA_Penthouse_AmazingView.normalized.m4a"
+ },
+ {
+  "id": "a7e2a172-b894-4ff5-ac08-0b384e9fd9a0",
+  "storage_path": "00000000-0000-4000-8000-000000000001/voice/CTA_Penthouse_FloorToCeilingWindows.m4a",
+  "normalized_storage_path": "00000000-0000-4000-8000-000000000001/voice/normalized/CTA_Penthouse_FloorToCeilingWindows.normalized.m4a"
+ },
+ {
+  "id": "653b2d3c-adf4-434a-bfa4-ed8f2575cd76",
+  "storage_path": "00000000-0000-4000-8000-000000000001/voice/CTA_Townhome_Bugdet.m4a",
+  "normalized_storage_path": "00000000-0000-4000-8000-000000000001/voice/normalized/CTA_Townhome_Bugdet.normalized.m4a"
+ },
+ {
+  "id": "24522ef3-d580-4b67-af92-28f3e37532ad",
+  "storage_path": "00000000-0000-4000-8000-000000000001/voice/DAL_$1000_Gets_You.m4a",
+  "normalized_storage_path": "00000000-0000-4000-8000-000000000001/voice/normalized/DAL_$1000_Gets_You.normalized.m4a"
+ },
+ {
+  "id": "909451a0-4602-44a9-bc62-662e2df962b9",
+  "storage_path": "00000000-0000-4000-8000-000000000001/voice/DAL_$10K_Gets_You.m4a",
+  "normalized_storage_path": "00000000-0000-4000-8000-000000000001/voice/normalized/DAL_$10K_Gets_You.normalized.m4a"
+ },
+ {
+  "id": "d6de9fcb-7820-4ccb-8030-ab0dc39c34bf",
+  "storage_path": "00000000-0000-4000-8000-000000000001/voice/DAL_$1200_Gets_You.m4a",
+  "normalized_storage_path": "00000000-0000-4000-8000-000000000001/voice/normalized/DAL_$1200_Gets_You.normalized.m4a"
+ },
+ {
+  "id": "de15883c-0856-47d4-802b-9e4c6a37820b",
+  "storage_path": "00000000-0000-4000-8000-000000000001/voice/DAL_$1300_Gets_You.m4a",
+  "normalized_storage_path": "00000000-0000-4000-8000-000000000001/voice/normalized/DAL_$1300_Gets_You.normalized.m4a"
+ },
+ {
+  "id": "128bf878-6b65-4b2b-902a-0bcd725b49c6",
+  "storage_path": "00000000-0000-4000-8000-000000000001/voice/DAL_$1500_Gets_You.m4a",
+  "normalized_storage_path": "00000000-0000-4000-8000-000000000001/voice/normalized/DAL_$1500_Gets_You.normalized.m4a"
+ },
+ {
+  "id": "5d4c3056-f1bf-4752-8ed9-9a564e5770f5",
+  "storage_path": "00000000-0000-4000-8000-000000000001/voice/DAL_$15K_Gets_You.m4a",
+  "normalized_storage_path": "00000000-0000-4000-8000-000000000001/voice/normalized/DAL_$15K_Gets_You.normalized.m4a"
+ },
+ {
+  "id": "80b8d38e-370d-42aa-954b-800f7a63d20b",
+  "storage_path": "00000000-0000-4000-8000-000000000001/voice/DAL_$2000_Gets_You.m4a",
+  "normalized_storage_path": "00000000-0000-4000-8000-000000000001/voice/normalized/DAL_$2000_Gets_You.normalized.m4a"
+ },
+ {
+  "id": "52916e39-2538-43d3-86b2-404addf9715c",
+  "storage_path": "00000000-0000-4000-8000-000000000001/voice/DAL_$20K_Gets_You.m4a",
+  "normalized_storage_path": "00000000-0000-4000-8000-000000000001/voice/normalized/DAL_$20K_Gets_You.normalized.m4a"
+ },
+ {
+  "id": "f2248e6e-46b5-4832-bb94-b79bb39a9077",
+  "storage_path": "00000000-0000-4000-8000-000000000001/voice/DAL_$2500_Gets_You.m4a",
+  "normalized_storage_path": "00000000-0000-4000-8000-000000000001/voice/normalized/DAL_$2500_Gets_You.normalized.m4a"
+ },
+ {
+  "id": "7926f295-c3b5-4a8f-b479-b13f8e6e752c",
+  "storage_path": "00000000-0000-4000-8000-000000000001/voice/DAL_$3000_Gets_You.m4a",
+  "normalized_storage_path": "00000000-0000-4000-8000-000000000001/voice/normalized/DAL_$3000_Gets_You.normalized.m4a"
+ },
+ {
+  "id": "9f88267f-13fb-4423-985f-4f2087c2f820",
+  "storage_path": "00000000-0000-4000-8000-000000000001/voice/DAL_What_1800_Gets_You.m4a",
+  "normalized_storage_path": "00000000-0000-4000-8000-000000000001/voice/normalized/DAL_What_1800_Gets_You.normalized.m4a"
+ },
+ {
+  "id": "f6c771c1-389c-44c5-8858-c563d962fcc0",
+  "storage_path": "00000000-0000-4000-8000-000000000001/voice/DAL_What_25K_Gets_You.m4a",
+  "normalized_storage_path": "00000000-0000-4000-8000-000000000001/voice/normalized/DAL_What_25K_Gets_You.normalized.m4a"
+ },
+ {
+  "id": "d8c36b17-5885-4a99-81d1-2f8dc3d62f80",
+  "storage_path": "00000000-0000-4000-8000-000000000001/voice/HOU_What_11K_Gets_You.m4a",
+  "normalized_storage_path": "00000000-0000-4000-8000-000000000001/voice/normalized/HOU_What_11K_Gets_You.normalized.m4a"
+ },
+ {
+  "id": "6c143ae7-bf2e-46e3-b5f9-2b29fc7bbfb7",
+  "storage_path": "00000000-0000-4000-8000-000000000001/voice/HOU_What_12K_Gets_You.m4a",
+  "normalized_storage_path": "00000000-0000-4000-8000-000000000001/voice/normalized/HOU_What_12K_Gets_You.normalized.m4a"
+ },
+ {
+  "id": "daabb0ae-f499-454f-ac81-4faea9b24b47",
+  "storage_path": "00000000-0000-4000-8000-000000000001/voice/HOU_What_1800_Gets_You.m4a",
+  "normalized_storage_path": "00000000-0000-4000-8000-000000000001/voice/normalized/HOU_What_1800_Gets_You.normalized.m4a"
+ },
+ {
+  "id": "a15732d5-8fe3-498b-92f0-138394715389",
+  "storage_path": "00000000-0000-4000-8000-000000000001/voice/HOU_What_20K_Gets_You.m4a",
+  "normalized_storage_path": "00000000-0000-4000-8000-000000000001/voice/normalized/HOU_What_20K_Gets_You.normalized.m4a"
+ },
+ {
+  "id": "9724770c-e59c-4552-a042-91aa363121a9",
+  "storage_path": "00000000-0000-4000-8000-000000000001/voice/HOU_What_6K_Gets_You.m4a",
+  "normalized_storage_path": "00000000-0000-4000-8000-000000000001/voice/normalized/HOU_What_6K_Gets_You.normalized.m4a"
+ },
+ {
+  "id": "05d24e34-0ab4-41be-9870-eace44571042",
+  "storage_path": "00000000-0000-4000-8000-000000000001/voice/HOU_What_7K_Gets_You.m4a",
+  "normalized_storage_path": "00000000-0000-4000-8000-000000000001/voice/normalized/HOU_What_7K_Gets_You.normalized.m4a"
+ },
+ {
+  "id": "74b8f68b-0390-4aed-801f-55d8c6395ad7",
+  "storage_path": "00000000-0000-4000-8000-000000000001/voice/SATX_$1000_Gets_You.m4a",
+  "normalized_storage_path": "00000000-0000-4000-8000-000000000001/voice/normalized/SATX_$1000_Gets_You.normalized.m4a"
+ },
+ {
+  "id": "3cc85c58-2426-49bc-b144-885b6cb4e4ba",
+  "storage_path": "00000000-0000-4000-8000-000000000001/voice/SATX_$2000_Gets_You.m4a",
+  "normalized_storage_path": "00000000-0000-4000-8000-000000000001/voice/normalized/SATX_$2000_Gets_You.normalized.m4a"
+ },
+ {
+  "id": "8c3dc5a0-e3d6-49b0-8750-82670e521082",
+  "storage_path": "00000000-0000-4000-8000-000000000001/voice/SATX_$2500_Gets_You.m4a",
+  "normalized_storage_path": "00000000-0000-4000-8000-000000000001/voice/normalized/SATX_$2500_Gets_You.normalized.m4a"
+ },
+ {
+  "id": "85b72525-ac96-4612-aa44-e369ff3d2530",
+  "storage_path": "00000000-0000-4000-8000-000000000001/voice/SATX_What_10K_Gets_You.m4a",
+  "normalized_storage_path": "00000000-0000-4000-8000-000000000001/voice/normalized/SATX_What_10K_Gets_You.normalized.m4a"
+ },
+ {
+  "id": "4ca1bee3-a4d3-4913-bc83-6d5d22ae408b",
+  "storage_path": "00000000-0000-4000-8000-000000000001/voice/SATX_What_1100_Gets_You.m4a",
+  "normalized_storage_path": "00000000-0000-4000-8000-000000000001/voice/normalized/SATX_What_1100_Gets_You.normalized.m4a"
+ },
+ {
+  "id": "a6385a50-d8ea-4470-b00b-0191550a9041",
+  "storage_path": "00000000-0000-4000-8000-000000000001/voice/SATX_What_1300_Gets_You.m4a",
+  "normalized_storage_path": "00000000-0000-4000-8000-000000000001/voice/normalized/SATX_What_1300_Gets_You.normalized.m4a"
+ },
+ {
+  "id": "ba8eee8d-1021-4313-af26-c7f50da34787",
+  "storage_path": "00000000-0000-4000-8000-000000000001/voice/SATX_What_1400_Gets_You.m4a",
+  "normalized_storage_path": "00000000-0000-4000-8000-000000000001/voice/normalized/SATX_What_1400_Gets_You.normalized.m4a"
+ },
+ {
+  "id": "bec95097-243e-4046-817d-d1253bf076a7",
+  "storage_path": "00000000-0000-4000-8000-000000000001/voice/SATX_What_1500_Gets_You.m4a",
+  "normalized_storage_path": "00000000-0000-4000-8000-000000000001/voice/normalized/SATX_What_1500_Gets_You.normalized.m4a"
+ },
+ {
+  "id": "8019db04-d85b-4100-bb31-067d0dea1c8d",
+  "storage_path": "00000000-0000-4000-8000-000000000001/voice/SATX_What_15K_Gets_You.m4a",
+  "normalized_storage_path": "00000000-0000-4000-8000-000000000001/voice/normalized/SATX_What_15K_Gets_You.normalized.m4a"
+ },
+ {
+  "id": "11773654-bee0-4b3a-b25f-f0a99377f990",
+  "storage_path": "00000000-0000-4000-8000-000000000001/voice/SATX_What_1800_Gets_You.m4a",
+  "normalized_storage_path": "00000000-0000-4000-8000-000000000001/voice/normalized/SATX_What_1800_Gets_You.normalized.m4a"
+ },
+ {
+  "id": "d03d85b4-aefe-448b-ade8-dc055682d770",
+  "storage_path": "00000000-0000-4000-8000-000000000001/voice/Client_Got_4_Weeks_Free_Plus_Movers.m4a",
+  "normalized_storage_path": "00000000-0000-4000-8000-000000000001/voice/normalized/Client_Got_4_Weeks_Free_Plus_Movers.normalized.m4a"
+ },
+ {
+  "id": "842b3cff-5ef0-470f-9b24-b749f8933519",
+  "storage_path": "00000000-0000-4000-8000-000000000001/voice/Client_Got_6_Weeks_Free_Plus_Movers.m4a",
+  "normalized_storage_path": "00000000-0000-4000-8000-000000000001/voice/normalized/Client_Got_6_Weeks_Free_Plus_Movers.normalized.m4a"
+ },
+ {
+  "id": "2dcc770c-ca76-4420-b914-17d618821f07",
+  "storage_path": "00000000-0000-4000-8000-000000000001/voice/Client_Got_8_Weeks_Free_Plus_Movers.m4a",
+  "normalized_storage_path": "00000000-0000-4000-8000-000000000001/voice/normalized/Client_Got_8_Weeks_Free_Plus_Movers.normalized.m4a"
+ },
+ {
+  "id": "3125998e-2b73-4c0c-90c0-89cd91e0eeb3",
+  "storage_path": "00000000-0000-4000-8000-000000000001/voice/One_Client_Got_8_Weeks_Free.m4a",
+  "normalized_storage_path": "00000000-0000-4000-8000-000000000001/voice/normalized/One_Client_Got_8_Weeks_Free.normalized.m4a"
+ },
+ {
+  "id": "9b5792e6-f62c-42da-b127-7a2c82a06730",
+  "storage_path": "00000000-0000-4000-8000-000000000001/voice/One_Client_Got_4_Weeks_Free.m4a",
+  "normalized_storage_path": "00000000-0000-4000-8000-000000000001/voice/normalized/One_Client_Got_4_Weeks_Free.normalized.m4a"
+ }
+]

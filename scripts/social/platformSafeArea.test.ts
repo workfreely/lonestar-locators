@@ -139,8 +139,11 @@ console.log("\nTHE OVERLAY IS PRESENTATIONAL ONLY:")
   // passes the DESTINATION's safe-area id, because an Instagram Reel and an Instagram Story share a
   // platform but not a safe area — passing "instagram" for both would fit a Story headline into the
   // Reel box. For a Reel the resolved id is still "instagram", so Reel output is unchanged.
+  // Phase A: the safe-area id travels in the spec and renderFromSpec passes it as the layout
+  // engine's `platform`. Both halves asserted, so neither can drift to the bare provider.
   ok("…and the render passes the DESTINATION's safe-area id, not the bare platform",
-    /platform: safeAreaId/.test(read("lib/social/renderPost.ts")))
+    /safeAreaId,/.test(read("lib/social/renderPost.ts"))
+    && /platform:\s*spec\.safeAreaId/.test(read("lib/social/renderPost.ts")))
   ok("…which it resolves from the post's destination",
     /const safeAreaId = DESTINATIONS\[destination\]\.safeAreaId/.test(read("lib/social/renderPost.ts")))
   ok("…and a Reel still resolves to the unchanged 'instagram' geometry",

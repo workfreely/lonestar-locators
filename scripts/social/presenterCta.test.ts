@@ -206,8 +206,11 @@ console.log("\n7. the renderer reads the voice windows rather than computing its
     !/-map",\s*"[1-9]\d*:a/.test(rv))
 
   const rp = strip(read("lib/social/renderPost.ts"))
+  // Phase A: the spec names both avatars by STORAGE path and renderFromSpec resolves them to the
+  // downloaded files. Both halves asserted — carrying a clip and passing it on are separate.
   ok("renderPost supplies both clips to the renderer",
-    /presenterPath:\s*presenterLocal/.test(rp) && /presenterCtaPath:\s*presenterCtaLocal/.test(rp))
+    /presenter:\s*presenterStorage/.test(rp) && /presenterCta:\s*presenterCtaStorage/.test(rp)
+    && /presenterPath:\s*at\(spec\.media\.presenter\)/.test(rp) && /presenterCtaPath:\s*at\(spec\.media\.presenterCta\)/.test(rp))
 }
 
 // ── 8. THE RECOMPUTE RULE, AND THE MATCH KEY ────────────────────────────────────────────────
@@ -265,7 +268,11 @@ console.log("\n8b. the intro avatar is matched to what will actually be heard:")
   // THE SAME RULE THE RENDERER USES. If these two ever disagreed the mismatch would come straight
   // back, so the renderer's own expression is asserted against the rule's behaviour.
   const rp = strip(read("lib/social/renderPost.ts"))
-  ok("renderPost prefers the Hook by the same precedence", /const effectiveHook = hookLocal \?\? presenterAudioLocal/.test(rp))
+  // Same precedence, now expressed over storage paths rather than temp files: an explicitly
+  // chosen Hook still wins over the presenter's own audio, and the operator's selection is never
+  // silently replaced.
+  ok("renderPost prefers the Hook by the same precedence",
+    /const effectiveHook = hookClip\?\.storagePath \?\? presenterAudioStorage/.test(rp))
 
   // NEVER AN UNVERIFIED MOUTH — and the one case that is not a mismatch at all.
   const res = (state: string, verified: boolean) =>

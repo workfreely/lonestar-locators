@@ -1,0 +1,5197 @@
+[
+ {
+  "id": "0569d083-43ff-4201-8f32-f08e1cdcd4ba",
+  "why": "presenter",
+  "result": {
+   "destination": "tiktok_video",
+   "ok": true,
+   "outputPath": "00000000-0000-4000-8000-000000000001/d022713a-6413-47a3-9f05-b32c136aef9d/renders/0569d083-43ff-4201-8f32-f08e1cdcd4ba-2-tiktok.mp4",
+   "platform": "tiktok",
+   "renderVersion": 2,
+   "safeAreaId": "tiktok"
+  },
+  "renderReel": [
+   {
+    "__ffmpeg": true,
+    "audioChoice": "original",
+    "ctaPath": null,
+    "fontPath": "/Users/jaymorris/lb-video-title-mdy/assets/social/fonts/LibreBaskerville-Head.ttf",
+    "headline": "DALLAS APARTMENTS",
+    "hookPath": null,
+    "outputPath": "<WORK>/out.mp4",
+    "platform": "tiktok",
+    "presenterCtaPath": null,
+    "presenterIntroSeconds": 4,
+    "presenterPath": "<WORK>/presenter.webm",
+    "presenterSide": "left",
+    "presenterWidthPx": 400,
+    "sourcePath": "<WORK>/source.mov",
+    "subheadline": "Starting at $1,450/month",
+    "template": "market_type_centered",
+    "workDir": "<WORK>"
+   }
+  ],
+  "signed": [
+   "00000000-0000-4000-8000-000000000001/d022713a-6413-47a3-9f05-b32c136aef9d/source.mov",
+   "00000000-0000-4000-8000-000000000001/presenters/jay-digital-twin-961063437245.webm"
+  ],
+  "writes": [
+   {
+    "eq": {
+     "id": "0569d083-43ff-4201-8f32-f08e1cdcd4ba"
+    },
+    "op": "update",
+    "patch": {
+     "render_error": null,
+     "render_status": "rendering"
+    },
+    "table": "social_posts"
+   },
+   {
+    "eq": {},
+    "op": "upload",
+    "patch": {
+     "contentType": "video/mp4",
+     "path": "00000000-0000-4000-8000-000000000001/d022713a-6413-47a3-9f05-b32c136aef9d/renders/0569d083-43ff-4201-8f32-f08e1cdcd4ba-2-tiktok.mp4",
+     "upsert": true
+    },
+    "table": "storage"
+   },
+   {
+    "eq": {
+     "id": "0569d083-43ff-4201-8f32-f08e1cdcd4ba"
+    },
+    "op": "update",
+    "patch": {
+     "needs_review_at": null,
+     "needs_review_reason": null,
+     "render_error": null,
+     "render_status": "ready",
+     "render_version": 2,
+     "rendered_storage_path": "00000000-0000-4000-8000-000000000001/d022713a-6413-47a3-9f05-b32c136aef9d/renders/0569d083-43ff-4201-8f32-f08e1cdcd4ba-2-tiktok.mp4"
+    },
+    "table": "social_posts"
+   },
+   {
+    "eq": {
+     "id": "0569d083-43ff-4201-8f32-f08e1cdcd4ba"
+    },
+    "op": "update",
+    "patch": {
+     "status": "ready"
+    },
+    "table": "social_posts"
+   },
+   {
+    "eq": {
+     "id": "0569d083-43ff-4201-8f32-f08e1cdcd4ba",
+     "status": "draft"
+    },
+    "op": "update",
+    "patch": {
+     "status": "ready"
+    },
+    "table": "social_posts"
+   }
+  ]
+ },
+ {
+  "id": "29a91c81-b47e-4328-8fb3-c80cf656e087",
+  "why": "presenter",
+  "result": {
+   "destination": "tiktok_video",
+   "ok": true,
+   "outputPath": "00000000-0000-4000-8000-000000000001/d022713a-6413-47a3-9f05-b32c136aef9d/renders/29a91c81-b47e-4328-8fb3-c80cf656e087-2-tiktok.mp4",
+   "platform": "tiktok",
+   "renderVersion": 2,
+   "safeAreaId": "tiktok"
+  },
+  "renderReel": [
+   {
+    "__ffmpeg": true,
+    "audioChoice": "original",
+    "ctaPath": null,
+    "fontPath": "/Users/jaymorris/lb-video-title-mdy/assets/social/fonts/LibreBaskerville-Head.ttf",
+    "headline": "DALLAS APARTMENTS",
+    "hookPath": null,
+    "outputPath": "<WORK>/out.mp4",
+    "platform": "tiktok",
+    "presenterCtaPath": null,
+    "presenterIntroSeconds": 4,
+    "presenterPath": "<WORK>/presenter.webm",
+    "presenterSide": "left",
+    "presenterWidthPx": 400,
+    "sourcePath": "<WORK>/source.mov",
+    "subheadline": "Starting at $1,450/month",
+    "template": "market_type_centered",
+    "workDir": "<WORK>"
+   }
+  ],
+  "signed": [
+   "00000000-0000-4000-8000-000000000001/d022713a-6413-47a3-9f05-b32c136aef9d/source.mov",
+   "00000000-0000-4000-8000-000000000001/presenters/jay-digital-twin-961063437245.webm"
+  ],
+  "writes": [
+   {
+    "eq": {
+     "id": "29a91c81-b47e-4328-8fb3-c80cf656e087"
+    },
+    "op": "update",
+    "patch": {
+     "render_error": null,
+     "render_status": "rendering"
+    },
+    "table": "social_posts"
+   },
+   {
+    "eq": {},
+    "op": "upload",
+    "patch": {
+     "contentType": "video/mp4",
+     "path": "00000000-0000-4000-8000-000000000001/d022713a-6413-47a3-9f05-b32c136aef9d/renders/29a91c81-b47e-4328-8fb3-c80cf656e087-2-tiktok.mp4",
+     "upsert": true
+    },
+    "table": "storage"
+   },
+   {
+    "eq": {
+     "id": "29a91c81-b47e-4328-8fb3-c80cf656e087"
+    },
+    "op": "update",
+    "patch": {
+     "needs_review_at": null,
+     "needs_review_reason": null,
+     "render_error": null,
+     "render_status": "ready",
+     "render_version": 2,
+     "rendered_storage_path": "00000000-0000-4000-8000-000000000001/d022713a-6413-47a3-9f05-b32c136aef9d/renders/29a91c81-b47e-4328-8fb3-c80cf656e087-2-tiktok.mp4"
+    },
+    "table": "social_posts"
+   },
+   {
+    "eq": {
+     "id": "29a91c81-b47e-4328-8fb3-c80cf656e087"
+    },
+    "op": "update",
+    "patch": {
+     "status": "ready"
+    },
+    "table": "social_posts"
+   },
+   {
+    "eq": {
+     "id": "29a91c81-b47e-4328-8fb3-c80cf656e087",
+     "status": "draft"
+    },
+    "op": "update",
+    "patch": {
+     "status": "ready"
+    },
+    "table": "social_posts"
+   }
+  ]
+ },
+ {
+  "id": "bf0b2377-9705-4904-8d58-b9f2cb460708",
+  "why": "presenter",
+  "result": {
+   "destination": "tiktok_video",
+   "ok": true,
+   "outputPath": "00000000-0000-4000-8000-000000000001/d022713a-6413-47a3-9f05-b32c136aef9d/renders/bf0b2377-9705-4904-8d58-b9f2cb460708-2-tiktok.mp4",
+   "platform": "tiktok",
+   "renderVersion": 2,
+   "safeAreaId": "tiktok"
+  },
+  "renderReel": [
+   {
+    "__ffmpeg": true,
+    "audioChoice": "original",
+    "ctaPath": null,
+    "fontPath": "/Users/jaymorris/lb-video-title-mdy/assets/social/fonts/LibreBaskerville-Head.ttf",
+    "headline": "DALLAS APARTMENTS",
+    "hookPath": null,
+    "outputPath": "<WORK>/out.mp4",
+    "platform": "tiktok",
+    "presenterCtaPath": null,
+    "presenterIntroSeconds": 4,
+    "presenterPath": "<WORK>/presenter.webm",
+    "presenterSide": "left",
+    "presenterWidthPx": 400,
+    "sourcePath": "<WORK>/source.mov",
+    "subheadline": "Starting at $1,450/month",
+    "template": "market_type_centered",
+    "workDir": "<WORK>"
+   }
+  ],
+  "signed": [
+   "00000000-0000-4000-8000-000000000001/d022713a-6413-47a3-9f05-b32c136aef9d/source.mov",
+   "00000000-0000-4000-8000-000000000001/presenters/jay-digital-twin-961063437245.webm"
+  ],
+  "writes": [
+   {
+    "eq": {
+     "id": "bf0b2377-9705-4904-8d58-b9f2cb460708"
+    },
+    "op": "update",
+    "patch": {
+     "render_error": null,
+     "render_status": "rendering"
+    },
+    "table": "social_posts"
+   },
+   {
+    "eq": {},
+    "op": "upload",
+    "patch": {
+     "contentType": "video/mp4",
+     "path": "00000000-0000-4000-8000-000000000001/d022713a-6413-47a3-9f05-b32c136aef9d/renders/bf0b2377-9705-4904-8d58-b9f2cb460708-2-tiktok.mp4",
+     "upsert": true
+    },
+    "table": "storage"
+   },
+   {
+    "eq": {
+     "id": "bf0b2377-9705-4904-8d58-b9f2cb460708"
+    },
+    "op": "update",
+    "patch": {
+     "needs_review_at": null,
+     "needs_review_reason": null,
+     "render_error": null,
+     "render_status": "ready",
+     "render_version": 2,
+     "rendered_storage_path": "00000000-0000-4000-8000-000000000001/d022713a-6413-47a3-9f05-b32c136aef9d/renders/bf0b2377-9705-4904-8d58-b9f2cb460708-2-tiktok.mp4"
+    },
+    "table": "social_posts"
+   },
+   {
+    "eq": {
+     "id": "bf0b2377-9705-4904-8d58-b9f2cb460708"
+    },
+    "op": "update",
+    "patch": {
+     "status": "ready"
+    },
+    "table": "social_posts"
+   },
+   {
+    "eq": {
+     "id": "bf0b2377-9705-4904-8d58-b9f2cb460708",
+     "status": "draft"
+    },
+    "op": "update",
+    "patch": {
+     "status": "ready"
+    },
+    "table": "social_posts"
+   }
+  ]
+ },
+ {
+  "id": "1396c1d3-6564-4eca-bb0b-9bd76d180c8d",
+  "why": "presenter",
+  "result": {
+   "destination": "instagram_reel",
+   "ok": true,
+   "outputPath": "00000000-0000-4000-8000-000000000001/d022713a-6413-47a3-9f05-b32c136aef9d/renders/1396c1d3-6564-4eca-bb0b-9bd76d180c8d-2.mp4",
+   "platform": "instagram",
+   "renderVersion": 2,
+   "safeAreaId": "instagram"
+  },
+  "renderReel": [
+   {
+    "__ffmpeg": true,
+    "audioChoice": "original",
+    "ctaPath": null,
+    "fontPath": "/Users/jaymorris/lb-video-title-mdy/assets/social/fonts/LibreBaskerville-Head.ttf",
+    "headline": "DALLAS APARTMENTS",
+    "hookPath": null,
+    "outputPath": "<WORK>/out.mp4",
+    "platform": "instagram",
+    "presenterCtaPath": null,
+    "presenterIntroSeconds": 4,
+    "presenterPath": "<WORK>/presenter.webm",
+    "presenterSide": "left",
+    "presenterWidthPx": 400,
+    "sourcePath": "<WORK>/source.mov",
+    "subheadline": "Starting at $1,450/month",
+    "template": "market_type_centered",
+    "workDir": "<WORK>"
+   }
+  ],
+  "signed": [
+   "00000000-0000-4000-8000-000000000001/d022713a-6413-47a3-9f05-b32c136aef9d/source.mov",
+   "00000000-0000-4000-8000-000000000001/presenters/jay-digital-twin-961063437245.webm"
+  ],
+  "writes": [
+   {
+    "eq": {
+     "id": "1396c1d3-6564-4eca-bb0b-9bd76d180c8d"
+    },
+    "op": "update",
+    "patch": {
+     "render_error": null,
+     "render_status": "rendering"
+    },
+    "table": "social_posts"
+   },
+   {
+    "eq": {},
+    "op": "upload",
+    "patch": {
+     "contentType": "video/mp4",
+     "path": "00000000-0000-4000-8000-000000000001/d022713a-6413-47a3-9f05-b32c136aef9d/renders/1396c1d3-6564-4eca-bb0b-9bd76d180c8d-2.mp4",
+     "upsert": true
+    },
+    "table": "storage"
+   },
+   {
+    "eq": {
+     "id": "1396c1d3-6564-4eca-bb0b-9bd76d180c8d"
+    },
+    "op": "update",
+    "patch": {
+     "needs_review_at": null,
+     "needs_review_reason": null,
+     "render_error": null,
+     "render_status": "ready",
+     "render_version": 2,
+     "rendered_storage_path": "00000000-0000-4000-8000-000000000001/d022713a-6413-47a3-9f05-b32c136aef9d/renders/1396c1d3-6564-4eca-bb0b-9bd76d180c8d-2.mp4"
+    },
+    "table": "social_posts"
+   },
+   {
+    "eq": {
+     "id": "1396c1d3-6564-4eca-bb0b-9bd76d180c8d"
+    },
+    "op": "update",
+    "patch": {
+     "status": "ready"
+    },
+    "table": "social_posts"
+   },
+   {
+    "eq": {
+     "id": "1396c1d3-6564-4eca-bb0b-9bd76d180c8d",
+     "status": "draft"
+    },
+    "op": "update",
+    "patch": {
+     "status": "ready"
+    },
+    "table": "social_posts"
+   }
+  ]
+ },
+ {
+  "id": "2124f9ec-31c6-49dc-adac-fd40d8a36704",
+  "why": "presenter",
+  "result": {
+   "destination": "instagram_reel",
+   "ok": true,
+   "outputPath": "00000000-0000-4000-8000-000000000001/d022713a-6413-47a3-9f05-b32c136aef9d/renders/2124f9ec-31c6-49dc-adac-fd40d8a36704-2.mp4",
+   "platform": "instagram",
+   "renderVersion": 2,
+   "safeAreaId": "instagram"
+  },
+  "renderReel": [
+   {
+    "__ffmpeg": true,
+    "audioChoice": "original",
+    "ctaPath": null,
+    "fontPath": "/Users/jaymorris/lb-video-title-mdy/assets/social/fonts/LibreBaskerville-Head.ttf",
+    "headline": "DALLAS APARTMENTS",
+    "hookPath": null,
+    "outputPath": "<WORK>/out.mp4",
+    "platform": "instagram",
+    "presenterCtaPath": null,
+    "presenterIntroSeconds": 4,
+    "presenterPath": "<WORK>/presenter.webm",
+    "presenterSide": "left",
+    "presenterWidthPx": 400,
+    "sourcePath": "<WORK>/source.mov",
+    "subheadline": "Starting at $1,450/month",
+    "template": "market_type_centered",
+    "workDir": "<WORK>"
+   }
+  ],
+  "signed": [
+   "00000000-0000-4000-8000-000000000001/d022713a-6413-47a3-9f05-b32c136aef9d/source.mov",
+   "00000000-0000-4000-8000-000000000001/presenters/jay-digital-twin-961063437245.webm"
+  ],
+  "writes": [
+   {
+    "eq": {
+     "id": "2124f9ec-31c6-49dc-adac-fd40d8a36704"
+    },
+    "op": "update",
+    "patch": {
+     "render_error": null,
+     "render_status": "rendering"
+    },
+    "table": "social_posts"
+   },
+   {
+    "eq": {},
+    "op": "upload",
+    "patch": {
+     "contentType": "video/mp4",
+     "path": "00000000-0000-4000-8000-000000000001/d022713a-6413-47a3-9f05-b32c136aef9d/renders/2124f9ec-31c6-49dc-adac-fd40d8a36704-2.mp4",
+     "upsert": true
+    },
+    "table": "storage"
+   },
+   {
+    "eq": {
+     "id": "2124f9ec-31c6-49dc-adac-fd40d8a36704"
+    },
+    "op": "update",
+    "patch": {
+     "needs_review_at": null,
+     "needs_review_reason": null,
+     "render_error": null,
+     "render_status": "ready",
+     "render_version": 2,
+     "rendered_storage_path": "00000000-0000-4000-8000-000000000001/d022713a-6413-47a3-9f05-b32c136aef9d/renders/2124f9ec-31c6-49dc-adac-fd40d8a36704-2.mp4"
+    },
+    "table": "social_posts"
+   },
+   {
+    "eq": {
+     "id": "2124f9ec-31c6-49dc-adac-fd40d8a36704"
+    },
+    "op": "update",
+    "patch": {
+     "status": "ready"
+    },
+    "table": "social_posts"
+   },
+   {
+    "eq": {
+     "id": "2124f9ec-31c6-49dc-adac-fd40d8a36704",
+     "status": "draft"
+    },
+    "op": "update",
+    "patch": {
+     "status": "ready"
+    },
+    "table": "social_posts"
+   }
+  ]
+ },
+ {
+  "id": "0c6b89c0-05e3-4284-99b0-be83d9aa00ca",
+  "why": "voice_hook+voice_cta",
+  "result": {
+   "destination": "instagram_reel",
+   "ok": true,
+   "outputPath": "00000000-0000-4000-8000-000000000001/adaba294-0192-4852-8f20-8fa86ace8b3d/renders/0c6b89c0-05e3-4284-99b0-be83d9aa00ca-1.mp4",
+   "platform": "instagram",
+   "renderVersion": 1,
+   "safeAreaId": "instagram"
+  },
+  "renderReel": [
+   {
+    "__ffmpeg": true,
+    "audioChoice": "original",
+    "ctaPath": "<WORK>/voice-cta.m4a",
+    "fontPath": "/Users/jaymorris/lb-video-title-mdy/assets/social/fonts/LibreBaskerville-Head.ttf",
+    "headline": "Would you live here?",
+    "hookPath": "<WORK>/voice-hook.m4a",
+    "outputPath": "<WORK>/out.mp4",
+    "platform": "instagram",
+    "presenterCtaPath": null,
+    "presenterIntroSeconds": null,
+    "presenterPath": null,
+    "presenterSide": null,
+    "presenterWidthPx": null,
+    "sourcePath": "<WORK>/source.mov",
+    "subheadline": "",
+    "template": "would_you_live_here",
+    "workDir": "<WORK>"
+   }
+  ],
+  "signed": [
+   "00000000-0000-4000-8000-000000000001/adaba294-0192-4852-8f20-8fa86ace8b3d/source.mov",
+   "00000000-0000-4000-8000-000000000001/voice/normalized/Help_Client_Amazing_Deal.normalized.m4a",
+   "00000000-0000-4000-8000-000000000001/voice/normalized/CTA_Townhome_Bugdet.normalized.m4a"
+  ],
+  "writes": [
+   {
+    "eq": {
+     "id": "0c6b89c0-05e3-4284-99b0-be83d9aa00ca"
+    },
+    "op": "update",
+    "patch": {
+     "render_error": null,
+     "render_status": "rendering"
+    },
+    "table": "social_posts"
+   },
+   {
+    "eq": {},
+    "op": "upload",
+    "patch": {
+     "contentType": "video/mp4",
+     "path": "00000000-0000-4000-8000-000000000001/adaba294-0192-4852-8f20-8fa86ace8b3d/renders/0c6b89c0-05e3-4284-99b0-be83d9aa00ca-1.mp4",
+     "upsert": true
+    },
+    "table": "storage"
+   },
+   {
+    "eq": {
+     "id": "0c6b89c0-05e3-4284-99b0-be83d9aa00ca"
+    },
+    "op": "update",
+    "patch": {
+     "needs_review_at": null,
+     "needs_review_reason": null,
+     "render_error": null,
+     "render_status": "ready",
+     "render_version": 1,
+     "rendered_storage_path": "00000000-0000-4000-8000-000000000001/adaba294-0192-4852-8f20-8fa86ace8b3d/renders/0c6b89c0-05e3-4284-99b0-be83d9aa00ca-1.mp4"
+    },
+    "table": "social_posts"
+   },
+   {
+    "eq": {
+     "id": "0c6b89c0-05e3-4284-99b0-be83d9aa00ca"
+    },
+    "op": "update",
+    "patch": {
+     "status": "ready"
+    },
+    "table": "social_posts"
+   },
+   {
+    "eq": {
+     "id": "0c6b89c0-05e3-4284-99b0-be83d9aa00ca",
+     "status": "draft"
+    },
+    "op": "update",
+    "patch": {
+     "status": "ready"
+    },
+    "table": "social_posts"
+   }
+  ]
+ },
+ {
+  "id": "fa51cfb4-99be-463e-9440-8cc6f0387d58",
+  "why": "post_source_override",
+  "result": {
+   "destination": "instagram_reel",
+   "ok": true,
+   "outputPath": "00000000-0000-4000-8000-000000000001/2dab8c3c-a77b-4dae-8de8-c47f92c38bba/renders/fa51cfb4-99be-463e-9440-8cc6f0387d58-1.mp4",
+   "platform": "instagram",
+   "renderVersion": 1,
+   "safeAreaId": "instagram"
+  },
+  "renderReel": [
+   {
+    "__ffmpeg": true,
+    "audioChoice": "original",
+    "ctaPath": null,
+    "fontPath": "/Users/jaymorris/lb-video-title-mdy/assets/social/fonts/LibreBaskerville-Head.ttf",
+    "headline": "POV: You upgraded your apartment",
+    "hookPath": null,
+    "outputPath": "<WORK>/out.mp4",
+    "platform": "instagram",
+    "presenterCtaPath": null,
+    "presenterIntroSeconds": null,
+    "presenterPath": null,
+    "presenterSide": null,
+    "presenterWidthPx": null,
+    "sourcePath": "<WORK>/source.mov",
+    "subheadline": "Exact unit shown: $1,350/month",
+    "template": "pov_price",
+    "workDir": "<WORK>"
+   }
+  ],
+  "signed": [
+   "00000000-0000-4000-8000-000000000001/2dab8c3c-a77b-4dae-8de8-c47f92c38bba/takes/1792084785508.mov"
+  ],
+  "writes": [
+   {
+    "eq": {
+     "id": "fa51cfb4-99be-463e-9440-8cc6f0387d58"
+    },
+    "op": "update",
+    "patch": {
+     "render_error": null,
+     "render_status": "rendering"
+    },
+    "table": "social_posts"
+   },
+   {
+    "eq": {},
+    "op": "upload",
+    "patch": {
+     "contentType": "video/mp4",
+     "path": "00000000-0000-4000-8000-000000000001/2dab8c3c-a77b-4dae-8de8-c47f92c38bba/renders/fa51cfb4-99be-463e-9440-8cc6f0387d58-1.mp4",
+     "upsert": true
+    },
+    "table": "storage"
+   },
+   {
+    "eq": {
+     "id": "fa51cfb4-99be-463e-9440-8cc6f0387d58"
+    },
+    "op": "update",
+    "patch": {
+     "needs_review_at": null,
+     "needs_review_reason": null,
+     "render_error": null,
+     "render_status": "ready",
+     "render_version": 1,
+     "rendered_storage_path": "00000000-0000-4000-8000-000000000001/2dab8c3c-a77b-4dae-8de8-c47f92c38bba/renders/fa51cfb4-99be-463e-9440-8cc6f0387d58-1.mp4"
+    },
+    "table": "social_posts"
+   },
+   {
+    "eq": {
+     "id": "fa51cfb4-99be-463e-9440-8cc6f0387d58"
+    },
+    "op": "update",
+    "patch": {
+     "status": "ready"
+    },
+    "table": "social_posts"
+   },
+   {
+    "eq": {
+     "id": "fa51cfb4-99be-463e-9440-8cc6f0387d58",
+     "status": "draft"
+    },
+    "op": "update",
+    "patch": {
+     "status": "ready"
+    },
+    "table": "social_posts"
+   }
+  ]
+ },
+ {
+  "id": "7498663b-dbb9-4804-afaa-2fdb4ff0fcd8",
+  "why": "post_source_override",
+  "result": {
+   "destination": "instagram_reel",
+   "ok": true,
+   "outputPath": "00000000-0000-4000-8000-000000000001/2e870337-cb5a-4289-b19e-5b59c0343059/renders/7498663b-dbb9-4804-afaa-2fdb4ff0fcd8-1.mp4",
+   "platform": "instagram",
+   "renderVersion": 1,
+   "safeAreaId": "instagram"
+  },
+  "renderReel": [
+   {
+    "__ffmpeg": true,
+    "audioChoice": "original",
+    "ctaPath": null,
+    "fontPath": "/Users/jaymorris/lb-video-title-mdy/assets/social/fonts/LibreBaskerville-Head.ttf",
+    "headline": "HOUSTON APARTMENTS",
+    "hookPath": null,
+    "outputPath": "<WORK>/out.mp4",
+    "platform": "instagram",
+    "presenterCtaPath": null,
+    "presenterIntroSeconds": null,
+    "presenterPath": null,
+    "presenterSide": null,
+    "presenterWidthPx": null,
+    "sourcePath": "<WORK>/source.mov",
+    "subheadline": "",
+    "template": "market_type",
+    "workDir": "<WORK>"
+   }
+  ],
+  "signed": [
+   "00000000-0000-4000-8000-000000000001/2e870337-cb5a-4289-b19e-5b59c0343059/takes/1794148036765.mov"
+  ],
+  "writes": [
+   {
+    "eq": {
+     "id": "7498663b-dbb9-4804-afaa-2fdb4ff0fcd8"
+    },
+    "op": "update",
+    "patch": {
+     "render_error": null,
+     "render_status": "rendering"
+    },
+    "table": "social_posts"
+   },
+   {
+    "eq": {},
+    "op": "upload",
+    "patch": {
+     "contentType": "video/mp4",
+     "path": "00000000-0000-4000-8000-000000000001/2e870337-cb5a-4289-b19e-5b59c0343059/renders/7498663b-dbb9-4804-afaa-2fdb4ff0fcd8-1.mp4",
+     "upsert": true
+    },
+    "table": "storage"
+   },
+   {
+    "eq": {
+     "id": "7498663b-dbb9-4804-afaa-2fdb4ff0fcd8"
+    },
+    "op": "update",
+    "patch": {
+     "needs_review_at": null,
+     "needs_review_reason": null,
+     "render_error": null,
+     "render_status": "ready",
+     "render_version": 1,
+     "rendered_storage_path": "00000000-0000-4000-8000-000000000001/2e870337-cb5a-4289-b19e-5b59c0343059/renders/7498663b-dbb9-4804-afaa-2fdb4ff0fcd8-1.mp4"
+    },
+    "table": "social_posts"
+   },
+   {
+    "eq": {
+     "id": "7498663b-dbb9-4804-afaa-2fdb4ff0fcd8"
+    },
+    "op": "update",
+    "patch": {
+     "status": "ready"
+    },
+    "table": "social_posts"
+   },
+   {
+    "eq": {
+     "id": "7498663b-dbb9-4804-afaa-2fdb4ff0fcd8",
+     "status": "draft"
+    },
+    "op": "update",
+    "patch": {
+     "status": "ready"
+    },
+    "table": "social_posts"
+   }
+  ]
+ },
+ {
+  "id": "843e0f12-46b2-4652-ad87-5f8fc3ace5a4",
+  "why": "post_source_override",
+  "result": {
+   "destination": "instagram_reel",
+   "ok": true,
+   "outputPath": "00000000-0000-4000-8000-000000000001/2681276a-909a-4810-a024-961eae28de39/renders/843e0f12-46b2-4652-ad87-5f8fc3ace5a4-1.mp4",
+   "platform": "instagram",
+   "renderVersion": 1,
+   "safeAreaId": "instagram"
+  },
+  "renderReel": [
+   {
+    "__ffmpeg": true,
+    "audioChoice": "original",
+    "ctaPath": null,
+    "fontPath": "/Users/jaymorris/lb-video-title-mdy/assets/social/fonts/LibreBaskerville-Head.ttf",
+    "headline": "Would you live here for $999/month?",
+    "hookPath": null,
+    "outputPath": "<WORK>/out.mp4",
+    "platform": "instagram",
+    "presenterCtaPath": null,
+    "presenterIntroSeconds": null,
+    "presenterPath": null,
+    "presenterSide": null,
+    "presenterWidthPx": null,
+    "sourcePath": "<WORK>/source.mov",
+    "subheadline": "",
+    "template": "would_you_live_here",
+    "workDir": "<WORK>"
+   }
+  ],
+  "signed": [
+   "00000000-0000-4000-8000-000000000001/2681276a-909a-4810-a024-961eae28de39/takes/1794619480929.mov"
+  ],
+  "writes": [
+   {
+    "eq": {
+     "id": "843e0f12-46b2-4652-ad87-5f8fc3ace5a4"
+    },
+    "op": "update",
+    "patch": {
+     "render_error": null,
+     "render_status": "rendering"
+    },
+    "table": "social_posts"
+   },
+   {
+    "eq": {},
+    "op": "upload",
+    "patch": {
+     "contentType": "video/mp4",
+     "path": "00000000-0000-4000-8000-000000000001/2681276a-909a-4810-a024-961eae28de39/renders/843e0f12-46b2-4652-ad87-5f8fc3ace5a4-1.mp4",
+     "upsert": true
+    },
+    "table": "storage"
+   },
+   {
+    "eq": {
+     "id": "843e0f12-46b2-4652-ad87-5f8fc3ace5a4"
+    },
+    "op": "update",
+    "patch": {
+     "needs_review_at": null,
+     "needs_review_reason": null,
+     "render_error": null,
+     "render_status": "ready",
+     "render_version": 1,
+     "rendered_storage_path": "00000000-0000-4000-8000-000000000001/2681276a-909a-4810-a024-961eae28de39/renders/843e0f12-46b2-4652-ad87-5f8fc3ace5a4-1.mp4"
+    },
+    "table": "social_posts"
+   },
+   {
+    "eq": {
+     "id": "843e0f12-46b2-4652-ad87-5f8fc3ace5a4"
+    },
+    "op": "update",
+    "patch": {
+     "status": "ready"
+    },
+    "table": "social_posts"
+   },
+   {
+    "eq": {
+     "id": "843e0f12-46b2-4652-ad87-5f8fc3ace5a4",
+     "status": "draft"
+    },
+    "op": "update",
+    "patch": {
+     "status": "ready"
+    },
+    "table": "social_posts"
+   }
+  ]
+ },
+ {
+  "id": "a1d74b4e-513f-4588-9c73-dac48fed927b",
+  "why": "dest:instagram_reel+tpl:wanted_luxury",
+  "result": {
+   "destination": "instagram_reel",
+   "ok": true,
+   "outputPath": "00000000-0000-4000-8000-000000000001/5217cdd9-9f27-4798-8707-135c797e7f9a/renders/a1d74b4e-513f-4588-9c73-dac48fed927b-1.mp4",
+   "platform": "instagram",
+   "renderVersion": 1,
+   "safeAreaId": "instagram"
+  },
+  "renderReel": [
+   {
+    "__ffmpeg": true,
+    "audioChoice": "original",
+    "ctaPath": null,
+    "fontPath": "/Users/jaymorris/lb-video-title-mdy/assets/social/fonts/LibreBaskerville-Head.ttf",
+    "headline": "You wanted luxury. You got it.",
+    "hookPath": null,
+    "outputPath": "<WORK>/out.mp4",
+    "platform": "instagram",
+    "presenterCtaPath": null,
+    "presenterIntroSeconds": null,
+    "presenterPath": null,
+    "presenterSide": null,
+    "presenterWidthPx": null,
+    "sourcePath": "<WORK>/source.mov",
+    "subheadline": "",
+    "template": "wanted_luxury",
+    "workDir": "<WORK>"
+   }
+  ],
+  "signed": [
+   "00000000-0000-4000-8000-000000000001/5217cdd9-9f27-4798-8707-135c797e7f9a/source.mov"
+  ],
+  "writes": [
+   {
+    "eq": {
+     "id": "a1d74b4e-513f-4588-9c73-dac48fed927b"
+    },
+    "op": "update",
+    "patch": {
+     "render_error": null,
+     "render_status": "rendering"
+    },
+    "table": "social_posts"
+   },
+   {
+    "eq": {},
+    "op": "upload",
+    "patch": {
+     "contentType": "video/mp4",
+     "path": "00000000-0000-4000-8000-000000000001/5217cdd9-9f27-4798-8707-135c797e7f9a/renders/a1d74b4e-513f-4588-9c73-dac48fed927b-1.mp4",
+     "upsert": true
+    },
+    "table": "storage"
+   },
+   {
+    "eq": {
+     "id": "a1d74b4e-513f-4588-9c73-dac48fed927b"
+    },
+    "op": "update",
+    "patch": {
+     "needs_review_at": null,
+     "needs_review_reason": null,
+     "render_error": null,
+     "render_status": "ready",
+     "render_version": 1,
+     "rendered_storage_path": "00000000-0000-4000-8000-000000000001/5217cdd9-9f27-4798-8707-135c797e7f9a/renders/a1d74b4e-513f-4588-9c73-dac48fed927b-1.mp4"
+    },
+    "table": "social_posts"
+   },
+   {
+    "eq": {
+     "id": "a1d74b4e-513f-4588-9c73-dac48fed927b"
+    },
+    "op": "update",
+    "patch": {
+     "status": "ready"
+    },
+    "table": "social_posts"
+   },
+   {
+    "eq": {
+     "id": "a1d74b4e-513f-4588-9c73-dac48fed927b",
+     "status": "draft"
+    },
+    "op": "update",
+    "patch": {
+     "status": "ready"
+    },
+    "table": "social_posts"
+   }
+  ]
+ },
+ {
+  "id": "2410a758-a757-4125-8ef2-da85d850ee19",
+  "why": "dest:instagram_story",
+  "result": {
+   "destination": "instagram_story",
+   "ok": true,
+   "outputPath": "00000000-0000-4000-8000-000000000001/496dd5ac-0dfa-4eda-bfd7-9dc8d747efb5/renders/2410a758-a757-4125-8ef2-da85d850ee19-2.mp4",
+   "platform": "instagram",
+   "renderVersion": 2,
+   "safeAreaId": "instagram"
+  },
+  "renderReel": [
+   {
+    "__ffmpeg": true,
+    "audioChoice": "original",
+    "ctaPath": null,
+    "fontPath": "/Users/jaymorris/lb-video-title-mdy/assets/social/fonts/LibreBaskerville-Head.ttf",
+    "headline": "POV: You upgraded your apartment",
+    "hookPath": null,
+    "outputPath": "<WORK>/out.mp4",
+    "platform": "instagram",
+    "presenterCtaPath": null,
+    "presenterIntroSeconds": null,
+    "presenterPath": null,
+    "presenterSide": null,
+    "presenterWidthPx": null,
+    "sourcePath": "<WORK>/source.mov",
+    "subheadline": "Starting at $4,500/month",
+    "template": "pov_price",
+    "workDir": "<WORK>"
+   }
+  ],
+  "signed": [
+   "00000000-0000-4000-8000-000000000001/496dd5ac-0dfa-4eda-bfd7-9dc8d747efb5/source.mov"
+  ],
+  "writes": [
+   {
+    "eq": {
+     "id": "2410a758-a757-4125-8ef2-da85d850ee19"
+    },
+    "op": "update",
+    "patch": {
+     "render_error": null,
+     "render_status": "rendering"
+    },
+    "table": "social_posts"
+   },
+   {
+    "eq": {},
+    "op": "upload",
+    "patch": {
+     "contentType": "video/mp4",
+     "path": "00000000-0000-4000-8000-000000000001/496dd5ac-0dfa-4eda-bfd7-9dc8d747efb5/renders/2410a758-a757-4125-8ef2-da85d850ee19-2.mp4",
+     "upsert": true
+    },
+    "table": "storage"
+   },
+   {
+    "eq": {
+     "id": "2410a758-a757-4125-8ef2-da85d850ee19"
+    },
+    "op": "update",
+    "patch": {
+     "needs_review_at": null,
+     "needs_review_reason": null,
+     "render_error": null,
+     "render_status": "ready",
+     "render_version": 2,
+     "rendered_storage_path": "00000000-0000-4000-8000-000000000001/496dd5ac-0dfa-4eda-bfd7-9dc8d747efb5/renders/2410a758-a757-4125-8ef2-da85d850ee19-2.mp4"
+    },
+    "table": "social_posts"
+   },
+   {
+    "eq": {
+     "id": "2410a758-a757-4125-8ef2-da85d850ee19"
+    },
+    "op": "update",
+    "patch": {
+     "status": "ready"
+    },
+    "table": "social_posts"
+   },
+   {
+    "eq": {
+     "id": "2410a758-a757-4125-8ef2-da85d850ee19",
+     "status": "draft"
+    },
+    "op": "update",
+    "patch": {
+     "status": "ready"
+    },
+    "table": "social_posts"
+   }
+  ]
+ },
+ {
+  "id": "94601b2e-5985-45cc-8027-64c5b974038a",
+  "why": "dest:tiktok_video",
+  "result": {
+   "destination": "tiktok_video",
+   "ok": true,
+   "outputPath": "00000000-0000-4000-8000-000000000001/bd49bf09-4962-49f3-ad65-ba2ecef4ad36/renders/94601b2e-5985-45cc-8027-64c5b974038a-2-tiktok.mp4",
+   "platform": "tiktok",
+   "renderVersion": 2,
+   "safeAreaId": "tiktok"
+  },
+  "renderReel": [
+   {
+    "__ffmpeg": true,
+    "audioChoice": "original",
+    "ctaPath": null,
+    "fontPath": "/Users/jaymorris/lb-video-title-mdy/assets/social/fonts/LibreBaskerville-Head.ttf",
+    "headline": "What life looks like when you upgrade",
+    "hookPath": null,
+    "outputPath": "<WORK>/out.mp4",
+    "platform": "tiktok",
+    "presenterCtaPath": null,
+    "presenterIntroSeconds": null,
+    "presenterPath": null,
+    "presenterSide": null,
+    "presenterWidthPx": null,
+    "sourcePath": "<WORK>/source.mov",
+    "subheadline": "Starting at $1,040/month",
+    "template": "upgrade",
+    "workDir": "<WORK>"
+   }
+  ],
+  "signed": [
+   "00000000-0000-4000-8000-000000000001/bd49bf09-4962-49f3-ad65-ba2ecef4ad36/source.mov"
+  ],
+  "writes": [
+   {
+    "eq": {
+     "id": "94601b2e-5985-45cc-8027-64c5b974038a"
+    },
+    "op": "update",
+    "patch": {
+     "render_error": null,
+     "render_status": "rendering"
+    },
+    "table": "social_posts"
+   },
+   {
+    "eq": {},
+    "op": "upload",
+    "patch": {
+     "contentType": "video/mp4",
+     "path": "00000000-0000-4000-8000-000000000001/bd49bf09-4962-49f3-ad65-ba2ecef4ad36/renders/94601b2e-5985-45cc-8027-64c5b974038a-2-tiktok.mp4",
+     "upsert": true
+    },
+    "table": "storage"
+   },
+   {
+    "eq": {
+     "id": "94601b2e-5985-45cc-8027-64c5b974038a"
+    },
+    "op": "update",
+    "patch": {
+     "needs_review_at": null,
+     "needs_review_reason": null,
+     "render_error": null,
+     "render_status": "ready",
+     "render_version": 2,
+     "rendered_storage_path": "00000000-0000-4000-8000-000000000001/bd49bf09-4962-49f3-ad65-ba2ecef4ad36/renders/94601b2e-5985-45cc-8027-64c5b974038a-2-tiktok.mp4"
+    },
+    "table": "social_posts"
+   },
+   {
+    "eq": {
+     "id": "94601b2e-5985-45cc-8027-64c5b974038a"
+    },
+    "op": "update",
+    "patch": {
+     "status": "ready"
+    },
+    "table": "social_posts"
+   },
+   {
+    "eq": {
+     "id": "94601b2e-5985-45cc-8027-64c5b974038a",
+     "status": "draft"
+    },
+    "op": "update",
+    "patch": {
+     "status": "ready"
+    },
+    "table": "social_posts"
+   }
+  ]
+ },
+ {
+  "id": "0a2ea24c-4347-408f-8157-39d00a21700a",
+  "why": "tpl:would_you_live_here",
+  "result": {
+   "destination": "instagram_reel",
+   "ok": true,
+   "outputPath": "00000000-0000-4000-8000-000000000001/b6fdbe6d-b6f2-4e1c-a2b1-c8fcd3e5a6ce/renders/0a2ea24c-4347-408f-8157-39d00a21700a-1.mp4",
+   "platform": "instagram",
+   "renderVersion": 1,
+   "safeAreaId": "instagram"
+  },
+  "renderReel": [
+   {
+    "__ffmpeg": true,
+    "audioChoice": "original",
+    "ctaPath": null,
+    "fontPath": "/Users/jaymorris/lb-video-title-mdy/assets/social/fonts/LibreBaskerville-Head.ttf",
+    "headline": "Would you live here?",
+    "hookPath": null,
+    "outputPath": "<WORK>/out.mp4",
+    "platform": "instagram",
+    "presenterCtaPath": null,
+    "presenterIntroSeconds": null,
+    "presenterPath": null,
+    "presenterSide": null,
+    "presenterWidthPx": null,
+    "sourcePath": "<WORK>/source.mov",
+    "subheadline": "",
+    "template": "would_you_live_here",
+    "workDir": "<WORK>"
+   }
+  ],
+  "signed": [
+   "00000000-0000-4000-8000-000000000001/b6fdbe6d-b6f2-4e1c-a2b1-c8fcd3e5a6ce/source.mov"
+  ],
+  "writes": [
+   {
+    "eq": {
+     "id": "0a2ea24c-4347-408f-8157-39d00a21700a"
+    },
+    "op": "update",
+    "patch": {
+     "render_error": null,
+     "render_status": "rendering"
+    },
+    "table": "social_posts"
+   },
+   {
+    "eq": {},
+    "op": "upload",
+    "patch": {
+     "contentType": "video/mp4",
+     "path": "00000000-0000-4000-8000-000000000001/b6fdbe6d-b6f2-4e1c-a2b1-c8fcd3e5a6ce/renders/0a2ea24c-4347-408f-8157-39d00a21700a-1.mp4",
+     "upsert": true
+    },
+    "table": "storage"
+   },
+   {
+    "eq": {
+     "id": "0a2ea24c-4347-408f-8157-39d00a21700a"
+    },
+    "op": "update",
+    "patch": {
+     "needs_review_at": null,
+     "needs_review_reason": null,
+     "render_error": null,
+     "render_status": "ready",
+     "render_version": 1,
+     "rendered_storage_path": "00000000-0000-4000-8000-000000000001/b6fdbe6d-b6f2-4e1c-a2b1-c8fcd3e5a6ce/renders/0a2ea24c-4347-408f-8157-39d00a21700a-1.mp4"
+    },
+    "table": "social_posts"
+   },
+   {
+    "eq": {
+     "id": "0a2ea24c-4347-408f-8157-39d00a21700a"
+    },
+    "op": "update",
+    "patch": {
+     "status": "ready"
+    },
+    "table": "social_posts"
+   },
+   {
+    "eq": {
+     "id": "0a2ea24c-4347-408f-8157-39d00a21700a",
+     "status": "draft"
+    },
+    "op": "update",
+    "patch": {
+     "status": "ready"
+    },
+    "table": "social_posts"
+   }
+  ]
+ },
+ {
+  "id": "1a87acdc-26e7-4a59-bc26-a0e0c3d0f103",
+  "why": "tpl:your_sign",
+  "result": {
+   "destination": "instagram_reel",
+   "ok": true,
+   "outputPath": "00000000-0000-4000-8000-000000000001/4e160bae-6ffb-4ef1-a490-c2c54ba4ea8e/renders/1a87acdc-26e7-4a59-bc26-a0e0c3d0f103-1.mp4",
+   "platform": "instagram",
+   "renderVersion": 1,
+   "safeAreaId": "instagram"
+  },
+  "renderReel": [
+   {
+    "__ffmpeg": true,
+    "audioChoice": "original",
+    "ctaPath": null,
+    "fontPath": "/Users/jaymorris/lb-video-title-mdy/assets/social/fonts/LibreBaskerville-Head.ttf",
+    "headline": "Your sign to get that new apartment",
+    "hookPath": null,
+    "outputPath": "<WORK>/out.mp4",
+    "platform": "instagram",
+    "presenterCtaPath": null,
+    "presenterIntroSeconds": null,
+    "presenterPath": null,
+    "presenterSide": null,
+    "presenterWidthPx": null,
+    "sourcePath": "<WORK>/source.mov",
+    "subheadline": "",
+    "template": "your_sign",
+    "workDir": "<WORK>"
+   }
+  ],
+  "signed": [
+   "00000000-0000-4000-8000-000000000001/4e160bae-6ffb-4ef1-a490-c2c54ba4ea8e/source.mov"
+  ],
+  "writes": [
+   {
+    "eq": {
+     "id": "1a87acdc-26e7-4a59-bc26-a0e0c3d0f103"
+    },
+    "op": "update",
+    "patch": {
+     "render_error": null,
+     "render_status": "rendering"
+    },
+    "table": "social_posts"
+   },
+   {
+    "eq": {},
+    "op": "upload",
+    "patch": {
+     "contentType": "video/mp4",
+     "path": "00000000-0000-4000-8000-000000000001/4e160bae-6ffb-4ef1-a490-c2c54ba4ea8e/renders/1a87acdc-26e7-4a59-bc26-a0e0c3d0f103-1.mp4",
+     "upsert": true
+    },
+    "table": "storage"
+   },
+   {
+    "eq": {
+     "id": "1a87acdc-26e7-4a59-bc26-a0e0c3d0f103"
+    },
+    "op": "update",
+    "patch": {
+     "needs_review_at": null,
+     "needs_review_reason": null,
+     "render_error": null,
+     "render_status": "ready",
+     "render_version": 1,
+     "rendered_storage_path": "00000000-0000-4000-8000-000000000001/4e160bae-6ffb-4ef1-a490-c2c54ba4ea8e/renders/1a87acdc-26e7-4a59-bc26-a0e0c3d0f103-1.mp4"
+    },
+    "table": "social_posts"
+   },
+   {
+    "eq": {
+     "id": "1a87acdc-26e7-4a59-bc26-a0e0c3d0f103"
+    },
+    "op": "update",
+    "patch": {
+     "status": "ready"
+    },
+    "table": "social_posts"
+   },
+   {
+    "eq": {
+     "id": "1a87acdc-26e7-4a59-bc26-a0e0c3d0f103",
+     "status": "draft"
+    },
+    "op": "update",
+    "patch": {
+     "status": "ready"
+    },
+    "table": "social_posts"
+   }
+  ]
+ },
+ {
+  "id": "50470b57-4e67-4d42-99f9-8a7566b11f85",
+  "why": "tpl:real_living",
+  "result": {
+   "destination": "instagram_reel",
+   "ok": true,
+   "outputPath": "00000000-0000-4000-8000-000000000001/9a52516d-fa5a-4100-94cd-52fd09ae1dbb/renders/50470b57-4e67-4d42-99f9-8a7566b11f85-1.mp4",
+   "platform": "instagram",
+   "renderVersion": 1,
+   "safeAreaId": "instagram"
+  },
+  "renderReel": [
+   {
+    "__ffmpeg": true,
+    "audioChoice": "original",
+    "ctaPath": null,
+    "fontPath": "/Users/jaymorris/lb-video-title-mdy/assets/social/fonts/LibreBaskerville-Head.ttf",
+    "headline": "This is what real loft living looks like",
+    "hookPath": null,
+    "outputPath": "<WORK>/out.mp4",
+    "platform": "instagram",
+    "presenterCtaPath": null,
+    "presenterIntroSeconds": null,
+    "presenterPath": null,
+    "presenterSide": null,
+    "presenterWidthPx": null,
+    "sourcePath": "<WORK>/source.mov",
+    "subheadline": "",
+    "template": "real_living",
+    "workDir": "<WORK>"
+   }
+  ],
+  "signed": [
+   "00000000-0000-4000-8000-000000000001/9a52516d-fa5a-4100-94cd-52fd09ae1dbb/source.mov"
+  ],
+  "writes": [
+   {
+    "eq": {
+     "id": "50470b57-4e67-4d42-99f9-8a7566b11f85"
+    },
+    "op": "update",
+    "patch": {
+     "render_error": null,
+     "render_status": "rendering"
+    },
+    "table": "social_posts"
+   },
+   {
+    "eq": {},
+    "op": "upload",
+    "patch": {
+     "contentType": "video/mp4",
+     "path": "00000000-0000-4000-8000-000000000001/9a52516d-fa5a-4100-94cd-52fd09ae1dbb/renders/50470b57-4e67-4d42-99f9-8a7566b11f85-1.mp4",
+     "upsert": true
+    },
+    "table": "storage"
+   },
+   {
+    "eq": {
+     "id": "50470b57-4e67-4d42-99f9-8a7566b11f85"
+    },
+    "op": "update",
+    "patch": {
+     "needs_review_at": null,
+     "needs_review_reason": null,
+     "render_error": null,
+     "render_status": "ready",
+     "render_version": 1,
+     "rendered_storage_path": "00000000-0000-4000-8000-000000000001/9a52516d-fa5a-4100-94cd-52fd09ae1dbb/renders/50470b57-4e67-4d42-99f9-8a7566b11f85-1.mp4"
+    },
+    "table": "social_posts"
+   },
+   {
+    "eq": {
+     "id": "50470b57-4e67-4d42-99f9-8a7566b11f85"
+    },
+    "op": "update",
+    "patch": {
+     "status": "ready"
+    },
+    "table": "social_posts"
+   },
+   {
+    "eq": {
+     "id": "50470b57-4e67-4d42-99f9-8a7566b11f85",
+     "status": "draft"
+    },
+    "op": "update",
+    "patch": {
+     "status": "ready"
+    },
+    "table": "social_posts"
+   }
+  ]
+ },
+ {
+  "id": "e3f48c21-af3c-4bba-9602-b12061010e9e",
+  "why": "tpl:market_type_centered",
+  "result": {
+   "destination": "instagram_reel",
+   "ok": true,
+   "outputPath": "00000000-0000-4000-8000-000000000001/8175d607-29f5-469d-8fdc-f7e19aec2a5e/renders/e3f48c21-af3c-4bba-9602-b12061010e9e-1.mp4",
+   "platform": "instagram",
+   "renderVersion": 1,
+   "safeAreaId": "instagram"
+  },
+  "renderReel": [
+   {
+    "__ffmpeg": true,
+    "audioChoice": "original",
+    "ctaPath": null,
+    "fontPath": "/Users/jaymorris/lb-video-title-mdy/assets/social/fonts/LibreBaskerville-Head.ttf",
+    "headline": "HOUSTON HIGH-RISES",
+    "hookPath": null,
+    "outputPath": "<WORK>/out.mp4",
+    "platform": "instagram",
+    "presenterCtaPath": null,
+    "presenterIntroSeconds": null,
+    "presenterPath": null,
+    "presenterSide": null,
+    "presenterWidthPx": null,
+    "sourcePath": "<WORK>/source.mov",
+    "subheadline": "Starting at $2,200/month",
+    "template": "market_type_centered",
+    "workDir": "<WORK>"
+   }
+  ],
+  "signed": [
+   "00000000-0000-4000-8000-000000000001/8175d607-29f5-469d-8fdc-f7e19aec2a5e/source.mov"
+  ],
+  "writes": [
+   {
+    "eq": {
+     "id": "e3f48c21-af3c-4bba-9602-b12061010e9e"
+    },
+    "op": "update",
+    "patch": {
+     "render_error": null,
+     "render_status": "rendering"
+    },
+    "table": "social_posts"
+   },
+   {
+    "eq": {},
+    "op": "upload",
+    "patch": {
+     "contentType": "video/mp4",
+     "path": "00000000-0000-4000-8000-000000000001/8175d607-29f5-469d-8fdc-f7e19aec2a5e/renders/e3f48c21-af3c-4bba-9602-b12061010e9e-1.mp4",
+     "upsert": true
+    },
+    "table": "storage"
+   },
+   {
+    "eq": {
+     "id": "e3f48c21-af3c-4bba-9602-b12061010e9e"
+    },
+    "op": "update",
+    "patch": {
+     "needs_review_at": null,
+     "needs_review_reason": null,
+     "render_error": null,
+     "render_status": "ready",
+     "render_version": 1,
+     "rendered_storage_path": "00000000-0000-4000-8000-000000000001/8175d607-29f5-469d-8fdc-f7e19aec2a5e/renders/e3f48c21-af3c-4bba-9602-b12061010e9e-1.mp4"
+    },
+    "table": "social_posts"
+   },
+   {
+    "eq": {
+     "id": "e3f48c21-af3c-4bba-9602-b12061010e9e"
+    },
+    "op": "update",
+    "patch": {
+     "status": "ready"
+    },
+    "table": "social_posts"
+   },
+   {
+    "eq": {
+     "id": "e3f48c21-af3c-4bba-9602-b12061010e9e",
+     "status": "draft"
+    },
+    "op": "update",
+    "patch": {
+     "status": "ready"
+    },
+    "table": "social_posts"
+   }
+  ]
+ },
+ {
+  "id": "9eb49b94-423c-43e6-8d62-9445cd715aae",
+  "why": "tpl:market_type",
+  "result": {
+   "destination": "instagram_reel",
+   "ok": true,
+   "outputPath": "00000000-0000-4000-8000-000000000001/d8a65c75-b7d1-4532-a0a9-60b25f01a60e/renders/9eb49b94-423c-43e6-8d62-9445cd715aae-2.mp4",
+   "platform": "instagram",
+   "renderVersion": 2,
+   "safeAreaId": "instagram"
+  },
+  "renderReel": [
+   {
+    "__ffmpeg": true,
+    "audioChoice": "original",
+    "ctaPath": null,
+    "fontPath": "/Users/jaymorris/lb-video-title-mdy/assets/social/fonts/LibreBaskerville-Head.ttf",
+    "headline": "DALLAS APARTMENTS",
+    "hookPath": null,
+    "outputPath": "<WORK>/out.mp4",
+    "platform": "instagram",
+    "presenterCtaPath": null,
+    "presenterIntroSeconds": null,
+    "presenterPath": null,
+    "presenterSide": null,
+    "presenterWidthPx": null,
+    "sourcePath": "<WORK>/source.mov",
+    "subheadline": "Starting at $2,600/month",
+    "template": "market_type",
+    "workDir": "<WORK>"
+   }
+  ],
+  "signed": [
+   "00000000-0000-4000-8000-000000000001/d8a65c75-b7d1-4532-a0a9-60b25f01a60e/source.mov"
+  ],
+  "writes": [
+   {
+    "eq": {
+     "id": "9eb49b94-423c-43e6-8d62-9445cd715aae"
+    },
+    "op": "update",
+    "patch": {
+     "render_error": null,
+     "render_status": "rendering"
+    },
+    "table": "social_posts"
+   },
+   {
+    "eq": {},
+    "op": "upload",
+    "patch": {
+     "contentType": "video/mp4",
+     "path": "00000000-0000-4000-8000-000000000001/d8a65c75-b7d1-4532-a0a9-60b25f01a60e/renders/9eb49b94-423c-43e6-8d62-9445cd715aae-2.mp4",
+     "upsert": true
+    },
+    "table": "storage"
+   },
+   {
+    "eq": {
+     "id": "9eb49b94-423c-43e6-8d62-9445cd715aae"
+    },
+    "op": "update",
+    "patch": {
+     "needs_review_at": null,
+     "needs_review_reason": null,
+     "render_error": null,
+     "render_status": "ready",
+     "render_version": 2,
+     "rendered_storage_path": "00000000-0000-4000-8000-000000000001/d8a65c75-b7d1-4532-a0a9-60b25f01a60e/renders/9eb49b94-423c-43e6-8d62-9445cd715aae-2.mp4"
+    },
+    "table": "social_posts"
+   },
+   {
+    "eq": {
+     "id": "9eb49b94-423c-43e6-8d62-9445cd715aae"
+    },
+    "op": "update",
+    "patch": {
+     "status": "ready"
+    },
+    "table": "social_posts"
+   },
+   {
+    "eq": {
+     "id": "9eb49b94-423c-43e6-8d62-9445cd715aae",
+     "status": "draft"
+    },
+    "op": "update",
+    "patch": {
+     "status": "ready"
+    },
+    "table": "social_posts"
+   }
+  ]
+ },
+ {
+  "id": "eecbac32-2433-40d2-8eba-36eb5a12ab8f",
+  "why": "tpl:upgrade",
+  "result": {
+   "destination": "instagram_reel",
+   "ok": true,
+   "outputPath": "00000000-0000-4000-8000-000000000001/1f64a2b9-3a7f-463a-981e-a264cd4bd2c0/renders/eecbac32-2433-40d2-8eba-36eb5a12ab8f-1.mp4",
+   "platform": "instagram",
+   "renderVersion": 1,
+   "safeAreaId": "instagram"
+  },
+  "renderReel": [
+   {
+    "__ffmpeg": true,
+    "audioChoice": "original",
+    "ctaPath": null,
+    "fontPath": "/Users/jaymorris/lb-video-title-mdy/assets/social/fonts/LibreBaskerville-Head.ttf",
+    "headline": "What life looks like when you upgrade",
+    "hookPath": null,
+    "outputPath": "<WORK>/out.mp4",
+    "platform": "instagram",
+    "presenterCtaPath": null,
+    "presenterIntroSeconds": null,
+    "presenterPath": null,
+    "presenterSide": null,
+    "presenterWidthPx": null,
+    "sourcePath": "<WORK>/source.mov",
+    "subheadline": "",
+    "template": "upgrade",
+    "workDir": "<WORK>"
+   }
+  ],
+  "signed": [
+   "00000000-0000-4000-8000-000000000001/1f64a2b9-3a7f-463a-981e-a264cd4bd2c0/source.mov"
+  ],
+  "writes": [
+   {
+    "eq": {
+     "id": "eecbac32-2433-40d2-8eba-36eb5a12ab8f"
+    },
+    "op": "update",
+    "patch": {
+     "render_error": null,
+     "render_status": "rendering"
+    },
+    "table": "social_posts"
+   },
+   {
+    "eq": {},
+    "op": "upload",
+    "patch": {
+     "contentType": "video/mp4",
+     "path": "00000000-0000-4000-8000-000000000001/1f64a2b9-3a7f-463a-981e-a264cd4bd2c0/renders/eecbac32-2433-40d2-8eba-36eb5a12ab8f-1.mp4",
+     "upsert": true
+    },
+    "table": "storage"
+   },
+   {
+    "eq": {
+     "id": "eecbac32-2433-40d2-8eba-36eb5a12ab8f"
+    },
+    "op": "update",
+    "patch": {
+     "needs_review_at": null,
+     "needs_review_reason": null,
+     "render_error": null,
+     "render_status": "ready",
+     "render_version": 1,
+     "rendered_storage_path": "00000000-0000-4000-8000-000000000001/1f64a2b9-3a7f-463a-981e-a264cd4bd2c0/renders/eecbac32-2433-40d2-8eba-36eb5a12ab8f-1.mp4"
+    },
+    "table": "social_posts"
+   },
+   {
+    "eq": {
+     "id": "eecbac32-2433-40d2-8eba-36eb5a12ab8f"
+    },
+    "op": "update",
+    "patch": {
+     "status": "ready"
+    },
+    "table": "social_posts"
+   },
+   {
+    "eq": {
+     "id": "eecbac32-2433-40d2-8eba-36eb5a12ab8f",
+     "status": "draft"
+    },
+    "op": "update",
+    "patch": {
+     "status": "ready"
+    },
+    "table": "social_posts"
+   }
+  ]
+ },
+ {
+  "id": "78eae826-00d5-44a8-97bd-88c153b5a57a",
+  "why": "tpl:hits_different",
+  "result": {
+   "destination": "instagram_reel",
+   "ok": true,
+   "outputPath": "00000000-0000-4000-8000-000000000001/aa528969-98be-41a7-881b-5fb3e31322a5/renders/78eae826-00d5-44a8-97bd-88c153b5a57a-1.mp4",
+   "platform": "instagram",
+   "renderVersion": 1,
+   "safeAreaId": "instagram"
+  },
+  "renderReel": [
+   {
+    "__ffmpeg": true,
+    "audioChoice": "original",
+    "ctaPath": null,
+    "fontPath": "/Users/jaymorris/lb-video-title-mdy/assets/social/fonts/LibreBaskerville-Head.ttf",
+    "headline": "These apartments just hit different",
+    "hookPath": null,
+    "outputPath": "<WORK>/out.mp4",
+    "platform": "instagram",
+    "presenterCtaPath": null,
+    "presenterIntroSeconds": null,
+    "presenterPath": null,
+    "presenterSide": null,
+    "presenterWidthPx": null,
+    "sourcePath": "<WORK>/source.mov",
+    "subheadline": "",
+    "template": "hits_different",
+    "workDir": "<WORK>"
+   }
+  ],
+  "signed": [
+   "00000000-0000-4000-8000-000000000001/aa528969-98be-41a7-881b-5fb3e31322a5/source.mov"
+  ],
+  "writes": [
+   {
+    "eq": {
+     "id": "78eae826-00d5-44a8-97bd-88c153b5a57a"
+    },
+    "op": "update",
+    "patch": {
+     "render_error": null,
+     "render_status": "rendering"
+    },
+    "table": "social_posts"
+   },
+   {
+    "eq": {},
+    "op": "upload",
+    "patch": {
+     "contentType": "video/mp4",
+     "path": "00000000-0000-4000-8000-000000000001/aa528969-98be-41a7-881b-5fb3e31322a5/renders/78eae826-00d5-44a8-97bd-88c153b5a57a-1.mp4",
+     "upsert": true
+    },
+    "table": "storage"
+   },
+   {
+    "eq": {
+     "id": "78eae826-00d5-44a8-97bd-88c153b5a57a"
+    },
+    "op": "update",
+    "patch": {
+     "needs_review_at": null,
+     "needs_review_reason": null,
+     "render_error": null,
+     "render_status": "ready",
+     "render_version": 1,
+     "rendered_storage_path": "00000000-0000-4000-8000-000000000001/aa528969-98be-41a7-881b-5fb3e31322a5/renders/78eae826-00d5-44a8-97bd-88c153b5a57a-1.mp4"
+    },
+    "table": "social_posts"
+   },
+   {
+    "eq": {
+     "id": "78eae826-00d5-44a8-97bd-88c153b5a57a"
+    },
+    "op": "update",
+    "patch": {
+     "status": "ready"
+    },
+    "table": "social_posts"
+   },
+   {
+    "eq": {
+     "id": "78eae826-00d5-44a8-97bd-88c153b5a57a",
+     "status": "draft"
+    },
+    "op": "update",
+    "patch": {
+     "status": "ready"
+    },
+    "table": "social_posts"
+   }
+  ]
+ },
+ {
+  "id": "f7e1625b-2921-4685-b260-21abbd62a9b1",
+  "why": "tpl:pov_upgrade",
+  "result": {
+   "destination": "instagram_reel",
+   "ok": true,
+   "outputPath": "00000000-0000-4000-8000-000000000001/f64d31eb-467d-4853-9d39-dcd5010d2045/renders/f7e1625b-2921-4685-b260-21abbd62a9b1-1.mp4",
+   "platform": "instagram",
+   "renderVersion": 1,
+   "safeAreaId": "instagram"
+  },
+  "renderReel": [
+   {
+    "__ffmpeg": true,
+    "audioChoice": "original",
+    "ctaPath": null,
+    "fontPath": "/Users/jaymorris/lb-video-title-mdy/assets/social/fonts/LibreBaskerville-Head.ttf",
+    "headline": "POV: You upgraded",
+    "hookPath": null,
+    "outputPath": "<WORK>/out.mp4",
+    "platform": "instagram",
+    "presenterCtaPath": null,
+    "presenterIntroSeconds": null,
+    "presenterPath": null,
+    "presenterSide": null,
+    "presenterWidthPx": null,
+    "sourcePath": "<WORK>/source.mov",
+    "subheadline": "",
+    "template": "pov_upgrade",
+    "workDir": "<WORK>"
+   }
+  ],
+  "signed": [
+   "00000000-0000-4000-8000-000000000001/f64d31eb-467d-4853-9d39-dcd5010d2045/source.mov"
+  ],
+  "writes": [
+   {
+    "eq": {
+     "id": "f7e1625b-2921-4685-b260-21abbd62a9b1"
+    },
+    "op": "update",
+    "patch": {
+     "render_error": null,
+     "render_status": "rendering"
+    },
+    "table": "social_posts"
+   },
+   {
+    "eq": {},
+    "op": "upload",
+    "patch": {
+     "contentType": "video/mp4",
+     "path": "00000000-0000-4000-8000-000000000001/f64d31eb-467d-4853-9d39-dcd5010d2045/renders/f7e1625b-2921-4685-b260-21abbd62a9b1-1.mp4",
+     "upsert": true
+    },
+    "table": "storage"
+   },
+   {
+    "eq": {
+     "id": "f7e1625b-2921-4685-b260-21abbd62a9b1"
+    },
+    "op": "update",
+    "patch": {
+     "needs_review_at": null,
+     "needs_review_reason": null,
+     "render_error": null,
+     "render_status": "ready",
+     "render_version": 1,
+     "rendered_storage_path": "00000000-0000-4000-8000-000000000001/f64d31eb-467d-4853-9d39-dcd5010d2045/renders/f7e1625b-2921-4685-b260-21abbd62a9b1-1.mp4"
+    },
+    "table": "social_posts"
+   },
+   {
+    "eq": {
+     "id": "f7e1625b-2921-4685-b260-21abbd62a9b1"
+    },
+    "op": "update",
+    "patch": {
+     "status": "ready"
+    },
+    "table": "social_posts"
+   },
+   {
+    "eq": {
+     "id": "f7e1625b-2921-4685-b260-21abbd62a9b1",
+     "status": "draft"
+    },
+    "op": "update",
+    "patch": {
+     "status": "ready"
+    },
+    "table": "social_posts"
+   }
+  ]
+ },
+ {
+  "id": "ab43d20d-21ae-4cc2-975d-525833bbff24",
+  "why": "tpl:next_property",
+  "result": {
+   "destination": "instagram_reel",
+   "ok": true,
+   "outputPath": "00000000-0000-4000-8000-000000000001/a2f910b4-f742-4208-a036-1543cb6a7d57/renders/ab43d20d-21ae-4cc2-975d-525833bbff24-1.mp4",
+   "platform": "instagram",
+   "renderVersion": 1,
+   "safeAreaId": "instagram"
+  },
+  "renderReel": [
+   {
+    "__ffmpeg": true,
+    "audioChoice": "original",
+    "ctaPath": null,
+    "fontPath": "/Users/jaymorris/lb-video-title-mdy/assets/social/fonts/LibreBaskerville-Head.ttf",
+    "headline": "What your next apartment could look like",
+    "hookPath": null,
+    "outputPath": "<WORK>/out.mp4",
+    "platform": "instagram",
+    "presenterCtaPath": null,
+    "presenterIntroSeconds": null,
+    "presenterPath": null,
+    "presenterSide": null,
+    "presenterWidthPx": null,
+    "sourcePath": "<WORK>/source.mov",
+    "subheadline": "",
+    "template": "next_property",
+    "workDir": "<WORK>"
+   }
+  ],
+  "signed": [
+   "00000000-0000-4000-8000-000000000001/a2f910b4-f742-4208-a036-1543cb6a7d57/source.mov"
+  ],
+  "writes": [
+   {
+    "eq": {
+     "id": "ab43d20d-21ae-4cc2-975d-525833bbff24"
+    },
+    "op": "update",
+    "patch": {
+     "render_error": null,
+     "render_status": "rendering"
+    },
+    "table": "social_posts"
+   },
+   {
+    "eq": {},
+    "op": "upload",
+    "patch": {
+     "contentType": "video/mp4",
+     "path": "00000000-0000-4000-8000-000000000001/a2f910b4-f742-4208-a036-1543cb6a7d57/renders/ab43d20d-21ae-4cc2-975d-525833bbff24-1.mp4",
+     "upsert": true
+    },
+    "table": "storage"
+   },
+   {
+    "eq": {
+     "id": "ab43d20d-21ae-4cc2-975d-525833bbff24"
+    },
+    "op": "update",
+    "patch": {
+     "needs_review_at": null,
+     "needs_review_reason": null,
+     "render_error": null,
+     "render_status": "ready",
+     "render_version": 1,
+     "rendered_storage_path": "00000000-0000-4000-8000-000000000001/a2f910b4-f742-4208-a036-1543cb6a7d57/renders/ab43d20d-21ae-4cc2-975d-525833bbff24-1.mp4"
+    },
+    "table": "social_posts"
+   },
+   {
+    "eq": {
+     "id": "ab43d20d-21ae-4cc2-975d-525833bbff24"
+    },
+    "op": "update",
+    "patch": {
+     "status": "ready"
+    },
+    "table": "social_posts"
+   },
+   {
+    "eq": {
+     "id": "ab43d20d-21ae-4cc2-975d-525833bbff24",
+     "status": "draft"
+    },
+    "op": "update",
+    "patch": {
+     "status": "ready"
+    },
+    "table": "social_posts"
+   }
+  ]
+ },
+ {
+  "id": "637e601a-5add-4807-a9e3-e1c592168739",
+  "why": "tpl:property_tour",
+  "result": {
+   "destination": "instagram_reel",
+   "ok": true,
+   "outputPath": "00000000-0000-4000-8000-000000000001/0afabe57-d5c8-45bb-a35c-32477c2b0c09/renders/637e601a-5add-4807-a9e3-e1c592168739-1.mp4",
+   "platform": "instagram",
+   "renderVersion": 1,
+   "safeAreaId": "instagram"
+  },
+  "renderReel": [
+   {
+    "__ffmpeg": true,
+    "audioChoice": "original",
+    "ctaPath": null,
+    "fontPath": "/Users/jaymorris/lb-video-title-mdy/assets/social/fonts/LibreBaskerville-Head.ttf",
+    "headline": "Dallas penthouse tour",
+    "hookPath": null,
+    "outputPath": "<WORK>/out.mp4",
+    "platform": "instagram",
+    "presenterCtaPath": null,
+    "presenterIntroSeconds": null,
+    "presenterPath": null,
+    "presenterSide": null,
+    "presenterWidthPx": null,
+    "sourcePath": "<WORK>/source.mov",
+    "subheadline": "Starting at $4,800/month",
+    "template": "property_tour",
+    "workDir": "<WORK>"
+   }
+  ],
+  "signed": [
+   "00000000-0000-4000-8000-000000000001/0afabe57-d5c8-45bb-a35c-32477c2b0c09/source.mov"
+  ],
+  "writes": [
+   {
+    "eq": {
+     "id": "637e601a-5add-4807-a9e3-e1c592168739"
+    },
+    "op": "update",
+    "patch": {
+     "render_error": null,
+     "render_status": "rendering"
+    },
+    "table": "social_posts"
+   },
+   {
+    "eq": {},
+    "op": "upload",
+    "patch": {
+     "contentType": "video/mp4",
+     "path": "00000000-0000-4000-8000-000000000001/0afabe57-d5c8-45bb-a35c-32477c2b0c09/renders/637e601a-5add-4807-a9e3-e1c592168739-1.mp4",
+     "upsert": true
+    },
+    "table": "storage"
+   },
+   {
+    "eq": {
+     "id": "637e601a-5add-4807-a9e3-e1c592168739"
+    },
+    "op": "update",
+    "patch": {
+     "needs_review_at": null,
+     "needs_review_reason": null,
+     "render_error": null,
+     "render_status": "ready",
+     "render_version": 1,
+     "rendered_storage_path": "00000000-0000-4000-8000-000000000001/0afabe57-d5c8-45bb-a35c-32477c2b0c09/renders/637e601a-5add-4807-a9e3-e1c592168739-1.mp4"
+    },
+    "table": "social_posts"
+   },
+   {
+    "eq": {
+     "id": "637e601a-5add-4807-a9e3-e1c592168739"
+    },
+    "op": "update",
+    "patch": {
+     "status": "ready"
+    },
+    "table": "social_posts"
+   },
+   {
+    "eq": {
+     "id": "637e601a-5add-4807-a9e3-e1c592168739",
+     "status": "draft"
+    },
+    "op": "update",
+    "patch": {
+     "status": "ready"
+    },
+    "table": "social_posts"
+   }
+  ]
+ },
+ {
+  "id": "0c2aa779-dfa8-46d7-b789-453f0e8b182c",
+  "why": "tpl:apartment_standards",
+  "result": {
+   "destination": "instagram_reel",
+   "ok": true,
+   "outputPath": "00000000-0000-4000-8000-000000000001/6ef6b7ca-de1d-4f54-a5b3-7194609de7ee/renders/0c2aa779-dfa8-46d7-b789-453f0e8b182c-1.mp4",
+   "platform": "instagram",
+   "renderVersion": 1,
+   "safeAreaId": "instagram"
+  },
+  "renderReel": [
+   {
+    "__ffmpeg": true,
+    "audioChoice": "original",
+    "ctaPath": null,
+    "fontPath": "/Users/jaymorris/lb-video-title-mdy/assets/social/fonts/LibreBaskerville-Head.ttf",
+    "headline": "Your apartment standards went up",
+    "hookPath": null,
+    "outputPath": "<WORK>/out.mp4",
+    "platform": "instagram",
+    "presenterCtaPath": null,
+    "presenterIntroSeconds": null,
+    "presenterPath": null,
+    "presenterSide": null,
+    "presenterWidthPx": null,
+    "sourcePath": "<WORK>/source.mov",
+    "subheadline": "",
+    "template": "apartment_standards",
+    "workDir": "<WORK>"
+   }
+  ],
+  "signed": [
+   "00000000-0000-4000-8000-000000000001/6ef6b7ca-de1d-4f54-a5b3-7194609de7ee/source.mov"
+  ],
+  "writes": [
+   {
+    "eq": {
+     "id": "0c2aa779-dfa8-46d7-b789-453f0e8b182c"
+    },
+    "op": "update",
+    "patch": {
+     "render_error": null,
+     "render_status": "rendering"
+    },
+    "table": "social_posts"
+   },
+   {
+    "eq": {},
+    "op": "upload",
+    "patch": {
+     "contentType": "video/mp4",
+     "path": "00000000-0000-4000-8000-000000000001/6ef6b7ca-de1d-4f54-a5b3-7194609de7ee/renders/0c2aa779-dfa8-46d7-b789-453f0e8b182c-1.mp4",
+     "upsert": true
+    },
+    "table": "storage"
+   },
+   {
+    "eq": {
+     "id": "0c2aa779-dfa8-46d7-b789-453f0e8b182c"
+    },
+    "op": "update",
+    "patch": {
+     "needs_review_at": null,
+     "needs_review_reason": null,
+     "render_error": null,
+     "render_status": "ready",
+     "render_version": 1,
+     "rendered_storage_path": "00000000-0000-4000-8000-000000000001/6ef6b7ca-de1d-4f54-a5b3-7194609de7ee/renders/0c2aa779-dfa8-46d7-b789-453f0e8b182c-1.mp4"
+    },
+    "table": "social_posts"
+   },
+   {
+    "eq": {
+     "id": "0c2aa779-dfa8-46d7-b789-453f0e8b182c"
+    },
+    "op": "update",
+    "patch": {
+     "status": "ready"
+    },
+    "table": "social_posts"
+   },
+   {
+    "eq": {
+     "id": "0c2aa779-dfa8-46d7-b789-453f0e8b182c",
+     "status": "draft"
+    },
+    "op": "update",
+    "patch": {
+     "status": "ready"
+    },
+    "table": "social_posts"
+   }
+  ]
+ },
+ {
+  "id": "641328ac-6a95-430f-96c8-abf552e6181d",
+  "why": "tpl:special_feature",
+  "result": {
+   "destination": "instagram_reel",
+   "ok": true,
+   "outputPath": "00000000-0000-4000-8000-000000000001/f9af2046-e95a-4571-b98f-04c50b0c027e/renders/641328ac-6a95-430f-96c8-abf552e6181d-2.mp4",
+   "platform": "instagram",
+   "renderVersion": 2,
+   "safeAreaId": "instagram"
+  },
+  "renderReel": [
+   {
+    "__ffmpeg": true,
+    "audioChoice": "original",
+    "ctaPath": null,
+    "fontPath": "/Users/jaymorris/lb-video-title-mdy/assets/social/fonts/LibreBaskerville-Head.ttf",
+    "headline": "DALLAS APARTMENTS",
+    "hookPath": null,
+    "outputPath": "<WORK>/out.mp4",
+    "platform": "instagram",
+    "presenterCtaPath": null,
+    "presenterIntroSeconds": null,
+    "presenterPath": null,
+    "presenterSide": null,
+    "presenterWidthPx": null,
+    "sourcePath": "<WORK>/source.mov",
+    "subheadline": "8 Weeks Free · Private Yards",
+    "template": "special_feature",
+    "workDir": "<WORK>"
+   }
+  ],
+  "signed": [
+   "00000000-0000-4000-8000-000000000001/f9af2046-e95a-4571-b98f-04c50b0c027e/source.mov"
+  ],
+  "writes": [
+   {
+    "eq": {
+     "id": "641328ac-6a95-430f-96c8-abf552e6181d"
+    },
+    "op": "update",
+    "patch": {
+     "render_error": null,
+     "render_status": "rendering"
+    },
+    "table": "social_posts"
+   },
+   {
+    "eq": {},
+    "op": "upload",
+    "patch": {
+     "contentType": "video/mp4",
+     "path": "00000000-0000-4000-8000-000000000001/f9af2046-e95a-4571-b98f-04c50b0c027e/renders/641328ac-6a95-430f-96c8-abf552e6181d-2.mp4",
+     "upsert": true
+    },
+    "table": "storage"
+   },
+   {
+    "eq": {
+     "id": "641328ac-6a95-430f-96c8-abf552e6181d"
+    },
+    "op": "update",
+    "patch": {
+     "needs_review_at": null,
+     "needs_review_reason": null,
+     "render_error": null,
+     "render_status": "ready",
+     "render_version": 2,
+     "rendered_storage_path": "00000000-0000-4000-8000-000000000001/f9af2046-e95a-4571-b98f-04c50b0c027e/renders/641328ac-6a95-430f-96c8-abf552e6181d-2.mp4"
+    },
+    "table": "social_posts"
+   },
+   {
+    "eq": {
+     "id": "641328ac-6a95-430f-96c8-abf552e6181d"
+    },
+    "op": "update",
+    "patch": {
+     "status": "ready"
+    },
+    "table": "social_posts"
+   },
+   {
+    "eq": {
+     "id": "641328ac-6a95-430f-96c8-abf552e6181d",
+     "status": "draft"
+    },
+    "op": "update",
+    "patch": {
+     "status": "ready"
+    },
+    "table": "social_posts"
+   }
+  ]
+ },
+ {
+  "id": "49d8f336-5b38-4a1a-8aaa-90085d7eb1cb",
+  "why": "tpl:trade_up",
+  "result": {
+   "destination": "instagram_reel",
+   "ok": true,
+   "outputPath": "00000000-0000-4000-8000-000000000001/377576ac-ee67-41ab-a43a-b2a9da752d1b/renders/49d8f336-5b38-4a1a-8aaa-90085d7eb1cb-1.mp4",
+   "platform": "instagram",
+   "renderVersion": 1,
+   "safeAreaId": "instagram"
+  },
+  "renderReel": [
+   {
+    "__ffmpeg": true,
+    "audioChoice": "original",
+    "ctaPath": null,
+    "fontPath": "/Users/jaymorris/lb-video-title-mdy/assets/social/fonts/LibreBaskerville-Head.ttf",
+    "headline": "What life looks like when you trade in your apartment for a townhome",
+    "hookPath": null,
+    "outputPath": "<WORK>/out.mp4",
+    "platform": "instagram",
+    "presenterCtaPath": null,
+    "presenterIntroSeconds": null,
+    "presenterPath": null,
+    "presenterSide": null,
+    "presenterWidthPx": null,
+    "sourcePath": "<WORK>/source.mov",
+    "subheadline": "",
+    "template": "trade_up",
+    "workDir": "<WORK>"
+   }
+  ],
+  "signed": [
+   "00000000-0000-4000-8000-000000000001/377576ac-ee67-41ab-a43a-b2a9da752d1b/source.mov"
+  ],
+  "writes": [
+   {
+    "eq": {
+     "id": "49d8f336-5b38-4a1a-8aaa-90085d7eb1cb"
+    },
+    "op": "update",
+    "patch": {
+     "render_error": null,
+     "render_status": "rendering"
+    },
+    "table": "social_posts"
+   },
+   {
+    "eq": {},
+    "op": "upload",
+    "patch": {
+     "contentType": "video/mp4",
+     "path": "00000000-0000-4000-8000-000000000001/377576ac-ee67-41ab-a43a-b2a9da752d1b/renders/49d8f336-5b38-4a1a-8aaa-90085d7eb1cb-1.mp4",
+     "upsert": true
+    },
+    "table": "storage"
+   },
+   {
+    "eq": {
+     "id": "49d8f336-5b38-4a1a-8aaa-90085d7eb1cb"
+    },
+    "op": "update",
+    "patch": {
+     "needs_review_at": null,
+     "needs_review_reason": null,
+     "render_error": null,
+     "render_status": "ready",
+     "render_version": 1,
+     "rendered_storage_path": "00000000-0000-4000-8000-000000000001/377576ac-ee67-41ab-a43a-b2a9da752d1b/renders/49d8f336-5b38-4a1a-8aaa-90085d7eb1cb-1.mp4"
+    },
+    "table": "social_posts"
+   },
+   {
+    "eq": {
+     "id": "49d8f336-5b38-4a1a-8aaa-90085d7eb1cb"
+    },
+    "op": "update",
+    "patch": {
+     "status": "ready"
+    },
+    "table": "social_posts"
+   },
+   {
+    "eq": {
+     "id": "49d8f336-5b38-4a1a-8aaa-90085d7eb1cb",
+     "status": "draft"
+    },
+    "op": "update",
+    "patch": {
+     "status": "ready"
+    },
+    "table": "social_posts"
+   }
+  ]
+ },
+ {
+  "id": "e4f3a62a-b04e-42c6-8eb8-8ceacf96c226",
+  "why": "tpl:client_me",
+  "result": {
+   "destination": "instagram_reel",
+   "ok": true,
+   "outputPath": "00000000-0000-4000-8000-000000000001/b4e302b3-15c0-45c0-9477-4d175c6e6327/renders/e4f3a62a-b04e-42c6-8eb8-8ceacf96c226-1.mp4",
+   "platform": "instagram",
+   "renderVersion": 1,
+   "safeAreaId": "instagram"
+  },
+  "renderReel": [
+   {
+    "__ffmpeg": true,
+    "audioChoice": "original",
+    "ctaPath": null,
+    "fontPath": "/Users/jaymorris/lb-video-title-mdy/assets/social/fonts/LibreBaskerville-Head.ttf",
+    "headline": "Client: “I need an apartment in Dallas.”",
+    "hookPath": null,
+    "outputPath": "<WORK>/out.mp4",
+    "platform": "instagram",
+    "presenterCtaPath": null,
+    "presenterIntroSeconds": null,
+    "presenterPath": null,
+    "presenterSide": null,
+    "presenterWidthPx": null,
+    "sourcePath": "<WORK>/source.mov",
+    "subheadline": "Me: “Say less.”",
+    "template": "client_me",
+    "workDir": "<WORK>"
+   }
+  ],
+  "signed": [
+   "00000000-0000-4000-8000-000000000001/b4e302b3-15c0-45c0-9477-4d175c6e6327/source.mov"
+  ],
+  "writes": [
+   {
+    "eq": {
+     "id": "e4f3a62a-b04e-42c6-8eb8-8ceacf96c226"
+    },
+    "op": "update",
+    "patch": {
+     "render_error": null,
+     "render_status": "rendering"
+    },
+    "table": "social_posts"
+   },
+   {
+    "eq": {},
+    "op": "upload",
+    "patch": {
+     "contentType": "video/mp4",
+     "path": "00000000-0000-4000-8000-000000000001/b4e302b3-15c0-45c0-9477-4d175c6e6327/renders/e4f3a62a-b04e-42c6-8eb8-8ceacf96c226-1.mp4",
+     "upsert": true
+    },
+    "table": "storage"
+   },
+   {
+    "eq": {
+     "id": "e4f3a62a-b04e-42c6-8eb8-8ceacf96c226"
+    },
+    "op": "update",
+    "patch": {
+     "needs_review_at": null,
+     "needs_review_reason": null,
+     "render_error": null,
+     "render_status": "ready",
+     "render_version": 1,
+     "rendered_storage_path": "00000000-0000-4000-8000-000000000001/b4e302b3-15c0-45c0-9477-4d175c6e6327/renders/e4f3a62a-b04e-42c6-8eb8-8ceacf96c226-1.mp4"
+    },
+    "table": "social_posts"
+   },
+   {
+    "eq": {
+     "id": "e4f3a62a-b04e-42c6-8eb8-8ceacf96c226"
+    },
+    "op": "update",
+    "patch": {
+     "status": "ready"
+    },
+    "table": "social_posts"
+   },
+   {
+    "eq": {
+     "id": "e4f3a62a-b04e-42c6-8eb8-8ceacf96c226",
+     "status": "draft"
+    },
+    "op": "update",
+    "patch": {
+     "status": "ready"
+    },
+    "table": "social_posts"
+   }
+  ]
+ },
+ {
+  "id": "9c68de3a-b6fd-41cf-945a-052d5cb560f8",
+  "why": "tpl:pov_price",
+  "result": {
+   "destination": "instagram_reel",
+   "ok": true,
+   "outputPath": "00000000-0000-4000-8000-000000000001/496dd5ac-0dfa-4eda-bfd7-9dc8d747efb5/renders/9c68de3a-b6fd-41cf-945a-052d5cb560f8-2.mp4",
+   "platform": "instagram",
+   "renderVersion": 2,
+   "safeAreaId": "instagram"
+  },
+  "renderReel": [
+   {
+    "__ffmpeg": true,
+    "audioChoice": "original",
+    "ctaPath": null,
+    "fontPath": "/Users/jaymorris/lb-video-title-mdy/assets/social/fonts/LibreBaskerville-Head.ttf",
+    "headline": "POV: You upgraded your apartment",
+    "hookPath": null,
+    "outputPath": "<WORK>/out.mp4",
+    "platform": "instagram",
+    "presenterCtaPath": null,
+    "presenterIntroSeconds": null,
+    "presenterPath": null,
+    "presenterSide": null,
+    "presenterWidthPx": null,
+    "sourcePath": "<WORK>/source.mov",
+    "subheadline": "Starting at $4,500/month",
+    "template": "pov_price",
+    "workDir": "<WORK>"
+   }
+  ],
+  "signed": [
+   "00000000-0000-4000-8000-000000000001/496dd5ac-0dfa-4eda-bfd7-9dc8d747efb5/source.mov"
+  ],
+  "writes": [
+   {
+    "eq": {
+     "id": "9c68de3a-b6fd-41cf-945a-052d5cb560f8"
+    },
+    "op": "update",
+    "patch": {
+     "render_error": null,
+     "render_status": "rendering"
+    },
+    "table": "social_posts"
+   },
+   {
+    "eq": {},
+    "op": "upload",
+    "patch": {
+     "contentType": "video/mp4",
+     "path": "00000000-0000-4000-8000-000000000001/496dd5ac-0dfa-4eda-bfd7-9dc8d747efb5/renders/9c68de3a-b6fd-41cf-945a-052d5cb560f8-2.mp4",
+     "upsert": true
+    },
+    "table": "storage"
+   },
+   {
+    "eq": {
+     "id": "9c68de3a-b6fd-41cf-945a-052d5cb560f8"
+    },
+    "op": "update",
+    "patch": {
+     "needs_review_at": null,
+     "needs_review_reason": null,
+     "render_error": null,
+     "render_status": "ready",
+     "render_version": 2,
+     "rendered_storage_path": "00000000-0000-4000-8000-000000000001/496dd5ac-0dfa-4eda-bfd7-9dc8d747efb5/renders/9c68de3a-b6fd-41cf-945a-052d5cb560f8-2.mp4"
+    },
+    "table": "social_posts"
+   },
+   {
+    "eq": {
+     "id": "9c68de3a-b6fd-41cf-945a-052d5cb560f8"
+    },
+    "op": "update",
+    "patch": {
+     "status": "ready"
+    },
+    "table": "social_posts"
+   },
+   {
+    "eq": {
+     "id": "9c68de3a-b6fd-41cf-945a-052d5cb560f8",
+     "status": "draft"
+    },
+    "op": "update",
+    "patch": {
+     "status": "ready"
+    },
+    "table": "social_posts"
+   }
+  ]
+ },
+ {
+  "id": "cf021b07-5a89-43ff-9f47-5fd544493fbd",
+  "why": "tpl:affordable_luxury",
+  "result": {
+   "destination": "instagram_reel",
+   "ok": true,
+   "outputPath": "00000000-0000-4000-8000-000000000001/ce19cfca-2da7-4dbd-8653-0f0ac348b7a1/renders/cf021b07-5a89-43ff-9f47-5fd544493fbd-1.mp4",
+   "platform": "instagram",
+   "renderVersion": 1,
+   "safeAreaId": "instagram"
+  },
+  "renderReel": [
+   {
+    "__ffmpeg": true,
+    "audioChoice": "original",
+    "ctaPath": null,
+    "fontPath": "/Users/jaymorris/lb-video-title-mdy/assets/social/fonts/LibreBaskerville-Head.ttf",
+    "headline": "Luxury doesn't have to be expensive",
+    "hookPath": null,
+    "outputPath": "<WORK>/out.mp4",
+    "platform": "instagram",
+    "presenterCtaPath": null,
+    "presenterIntroSeconds": null,
+    "presenterPath": null,
+    "presenterSide": null,
+    "presenterWidthPx": null,
+    "sourcePath": "<WORK>/source.mov",
+    "subheadline": "",
+    "template": "affordable_luxury",
+    "workDir": "<WORK>"
+   }
+  ],
+  "signed": [
+   "00000000-0000-4000-8000-000000000001/ce19cfca-2da7-4dbd-8653-0f0ac348b7a1/source.mov"
+  ],
+  "writes": [
+   {
+    "eq": {
+     "id": "cf021b07-5a89-43ff-9f47-5fd544493fbd"
+    },
+    "op": "update",
+    "patch": {
+     "render_error": null,
+     "render_status": "rendering"
+    },
+    "table": "social_posts"
+   },
+   {
+    "eq": {},
+    "op": "upload",
+    "patch": {
+     "contentType": "video/mp4",
+     "path": "00000000-0000-4000-8000-000000000001/ce19cfca-2da7-4dbd-8653-0f0ac348b7a1/renders/cf021b07-5a89-43ff-9f47-5fd544493fbd-1.mp4",
+     "upsert": true
+    },
+    "table": "storage"
+   },
+   {
+    "eq": {
+     "id": "cf021b07-5a89-43ff-9f47-5fd544493fbd"
+    },
+    "op": "update",
+    "patch": {
+     "needs_review_at": null,
+     "needs_review_reason": null,
+     "render_error": null,
+     "render_status": "ready",
+     "render_version": 1,
+     "rendered_storage_path": "00000000-0000-4000-8000-000000000001/ce19cfca-2da7-4dbd-8653-0f0ac348b7a1/renders/cf021b07-5a89-43ff-9f47-5fd544493fbd-1.mp4"
+    },
+    "table": "social_posts"
+   },
+   {
+    "eq": {
+     "id": "cf021b07-5a89-43ff-9f47-5fd544493fbd"
+    },
+    "op": "update",
+    "patch": {
+     "status": "ready"
+    },
+    "table": "social_posts"
+   },
+   {
+    "eq": {
+     "id": "cf021b07-5a89-43ff-9f47-5fd544493fbd",
+     "status": "draft"
+    },
+    "op": "update",
+    "patch": {
+     "status": "ready"
+    },
+    "table": "social_posts"
+   }
+  ]
+ },
+ {
+  "id": "261a1313-bb78-4962-8c7c-29f830d0db39",
+  "why": "tpl:what_mo_gets_you",
+  "result": {
+   "destination": "instagram_reel",
+   "ok": true,
+   "outputPath": "00000000-0000-4000-8000-000000000001/c3f8d4cc-50e3-4c3e-bb8a-f83f8ceb1f7d/renders/261a1313-bb78-4962-8c7c-29f830d0db39-1.mp4",
+   "platform": "instagram",
+   "renderVersion": 1,
+   "safeAreaId": "instagram"
+  },
+  "renderReel": [
+   {
+    "__ffmpeg": true,
+    "audioChoice": "original",
+    "ctaPath": null,
+    "fontPath": "/Users/jaymorris/lb-video-title-mdy/assets/social/fonts/LibreBaskerville-Head.ttf",
+    "headline": "What $1,580/month gets you in Dallas",
+    "hookPath": null,
+    "outputPath": "<WORK>/out.mp4",
+    "platform": "instagram",
+    "presenterCtaPath": null,
+    "presenterIntroSeconds": null,
+    "presenterPath": null,
+    "presenterSide": null,
+    "presenterWidthPx": null,
+    "sourcePath": "<WORK>/source.mov",
+    "subheadline": "",
+    "template": "what_mo_gets_you",
+    "workDir": "<WORK>"
+   }
+  ],
+  "signed": [
+   "00000000-0000-4000-8000-000000000001/c3f8d4cc-50e3-4c3e-bb8a-f83f8ceb1f7d/source.mov"
+  ],
+  "writes": [
+   {
+    "eq": {
+     "id": "261a1313-bb78-4962-8c7c-29f830d0db39"
+    },
+    "op": "update",
+    "patch": {
+     "render_error": null,
+     "render_status": "rendering"
+    },
+    "table": "social_posts"
+   },
+   {
+    "eq": {},
+    "op": "upload",
+    "patch": {
+     "contentType": "video/mp4",
+     "path": "00000000-0000-4000-8000-000000000001/c3f8d4cc-50e3-4c3e-bb8a-f83f8ceb1f7d/renders/261a1313-bb78-4962-8c7c-29f830d0db39-1.mp4",
+     "upsert": true
+    },
+    "table": "storage"
+   },
+   {
+    "eq": {
+     "id": "261a1313-bb78-4962-8c7c-29f830d0db39"
+    },
+    "op": "update",
+    "patch": {
+     "needs_review_at": null,
+     "needs_review_reason": null,
+     "render_error": null,
+     "render_status": "ready",
+     "render_version": 1,
+     "rendered_storage_path": "00000000-0000-4000-8000-000000000001/c3f8d4cc-50e3-4c3e-bb8a-f83f8ceb1f7d/renders/261a1313-bb78-4962-8c7c-29f830d0db39-1.mp4"
+    },
+    "table": "social_posts"
+   },
+   {
+    "eq": {
+     "id": "261a1313-bb78-4962-8c7c-29f830d0db39"
+    },
+    "op": "update",
+    "patch": {
+     "status": "ready"
+    },
+    "table": "social_posts"
+   },
+   {
+    "eq": {
+     "id": "261a1313-bb78-4962-8c7c-29f830d0db39",
+     "status": "draft"
+    },
+    "op": "update",
+    "patch": {
+     "status": "ready"
+    },
+    "table": "social_posts"
+   }
+  ]
+ },
+ {
+  "id": "8a5c164c-ceab-4943-ba22-fe67efa1f011",
+  "why": "tpl:client_me_ex_cheated",
+  "result": {
+   "destination": "instagram_reel",
+   "ok": true,
+   "outputPath": "00000000-0000-4000-8000-000000000001/e2135ff3-13fa-449b-a8f9-efc93ace9992/renders/8a5c164c-ceab-4943-ba22-fe67efa1f011-1.mp4",
+   "platform": "instagram",
+   "renderVersion": 1,
+   "safeAreaId": "instagram"
+  },
+  "renderReel": [
+   {
+    "__ffmpeg": true,
+    "audioChoice": "original",
+    "ctaPath": null,
+    "fontPath": "/Users/jaymorris/lb-video-title-mdy/assets/social/fonts/LibreBaskerville-Head.ttf",
+    "headline": "Client: “My ex cheated. I need a new high-rise.”",
+    "hookPath": null,
+    "outputPath": "<WORK>/out.mp4",
+    "platform": "instagram",
+    "presenterCtaPath": null,
+    "presenterIntroSeconds": null,
+    "presenterPath": null,
+    "presenterSide": null,
+    "presenterWidthPx": null,
+    "sourcePath": "<WORK>/source.mov",
+    "subheadline": "Me: “Say less.”",
+    "template": "client_me_ex_cheated",
+    "workDir": "<WORK>"
+   }
+  ],
+  "signed": [
+   "00000000-0000-4000-8000-000000000001/e2135ff3-13fa-449b-a8f9-efc93ace9992/source.mov"
+  ],
+  "writes": [
+   {
+    "eq": {
+     "id": "8a5c164c-ceab-4943-ba22-fe67efa1f011"
+    },
+    "op": "update",
+    "patch": {
+     "render_error": null,
+     "render_status": "rendering"
+    },
+    "table": "social_posts"
+   },
+   {
+    "eq": {},
+    "op": "upload",
+    "patch": {
+     "contentType": "video/mp4",
+     "path": "00000000-0000-4000-8000-000000000001/e2135ff3-13fa-449b-a8f9-efc93ace9992/renders/8a5c164c-ceab-4943-ba22-fe67efa1f011-1.mp4",
+     "upsert": true
+    },
+    "table": "storage"
+   },
+   {
+    "eq": {
+     "id": "8a5c164c-ceab-4943-ba22-fe67efa1f011"
+    },
+    "op": "update",
+    "patch": {
+     "needs_review_at": null,
+     "needs_review_reason": null,
+     "render_error": null,
+     "render_status": "ready",
+     "render_version": 1,
+     "rendered_storage_path": "00000000-0000-4000-8000-000000000001/e2135ff3-13fa-449b-a8f9-efc93ace9992/renders/8a5c164c-ceab-4943-ba22-fe67efa1f011-1.mp4"
+    },
+    "table": "social_posts"
+   },
+   {
+    "eq": {
+     "id": "8a5c164c-ceab-4943-ba22-fe67efa1f011"
+    },
+    "op": "update",
+    "patch": {
+     "status": "ready"
+    },
+    "table": "social_posts"
+   },
+   {
+    "eq": {
+     "id": "8a5c164c-ceab-4943-ba22-fe67efa1f011",
+     "status": "draft"
+    },
+    "op": "update",
+    "patch": {
+     "status": "ready"
+    },
+    "table": "social_posts"
+   }
+  ]
+ },
+ {
+  "id": "ce3bea22-1950-40da-825f-7d17e151a0bf",
+  "why": "tpl:imagine_coming_home",
+  "result": {
+   "destination": "instagram_reel",
+   "ok": true,
+   "outputPath": "00000000-0000-4000-8000-000000000001/a2fdfd9f-410c-42cd-9b35-a0f2c13560cf/renders/ce3bea22-1950-40da-825f-7d17e151a0bf-1.mp4",
+   "platform": "instagram",
+   "renderVersion": 1,
+   "safeAreaId": "instagram"
+  },
+  "renderReel": [
+   {
+    "__ffmpeg": true,
+    "audioChoice": "original",
+    "ctaPath": null,
+    "fontPath": "/Users/jaymorris/lb-video-title-mdy/assets/social/fonts/LibreBaskerville-Head.ttf",
+    "headline": "Imagine coming home to this",
+    "hookPath": null,
+    "outputPath": "<WORK>/out.mp4",
+    "platform": "instagram",
+    "presenterCtaPath": null,
+    "presenterIntroSeconds": null,
+    "presenterPath": null,
+    "presenterSide": null,
+    "presenterWidthPx": null,
+    "sourcePath": "<WORK>/source.mov",
+    "subheadline": "Starting at $2,300/month",
+    "template": "imagine_coming_home",
+    "workDir": "<WORK>"
+   }
+  ],
+  "signed": [
+   "00000000-0000-4000-8000-000000000001/a2fdfd9f-410c-42cd-9b35-a0f2c13560cf/source.mov"
+  ],
+  "writes": [
+   {
+    "eq": {
+     "id": "ce3bea22-1950-40da-825f-7d17e151a0bf"
+    },
+    "op": "update",
+    "patch": {
+     "render_error": null,
+     "render_status": "rendering"
+    },
+    "table": "social_posts"
+   },
+   {
+    "eq": {},
+    "op": "upload",
+    "patch": {
+     "contentType": "video/mp4",
+     "path": "00000000-0000-4000-8000-000000000001/a2fdfd9f-410c-42cd-9b35-a0f2c13560cf/renders/ce3bea22-1950-40da-825f-7d17e151a0bf-1.mp4",
+     "upsert": true
+    },
+    "table": "storage"
+   },
+   {
+    "eq": {
+     "id": "ce3bea22-1950-40da-825f-7d17e151a0bf"
+    },
+    "op": "update",
+    "patch": {
+     "needs_review_at": null,
+     "needs_review_reason": null,
+     "render_error": null,
+     "render_status": "ready",
+     "render_version": 1,
+     "rendered_storage_path": "00000000-0000-4000-8000-000000000001/a2fdfd9f-410c-42cd-9b35-a0f2c13560cf/renders/ce3bea22-1950-40da-825f-7d17e151a0bf-1.mp4"
+    },
+    "table": "social_posts"
+   },
+   {
+    "eq": {
+     "id": "ce3bea22-1950-40da-825f-7d17e151a0bf"
+    },
+    "op": "update",
+    "patch": {
+     "status": "ready"
+    },
+    "table": "social_posts"
+   },
+   {
+    "eq": {
+     "id": "ce3bea22-1950-40da-825f-7d17e151a0bf",
+     "status": "draft"
+    },
+    "op": "update",
+    "patch": {
+     "status": "ready"
+    },
+    "table": "social_posts"
+   }
+  ]
+ },
+ {
+  "id": "014be28a-8a48-4bb4-8a77-b3c187e507ae",
+  "why": "tpl:pov_regular_shmegular",
+  "result": {
+   "destination": "instagram_reel",
+   "ok": true,
+   "outputPath": "00000000-0000-4000-8000-000000000001/fd849bc0-1979-4073-a259-740ef6217b56/renders/014be28a-8a48-4bb4-8a77-b3c187e507ae-1.mp4",
+   "platform": "instagram",
+   "renderVersion": 1,
+   "safeAreaId": "instagram"
+  },
+  "renderReel": [
+   {
+    "__ffmpeg": true,
+    "audioChoice": "original",
+    "ctaPath": null,
+    "fontPath": "/Users/jaymorris/lb-video-title-mdy/assets/social/fonts/LibreBaskerville-Head.ttf",
+    "headline": "POV: You ditched your regular shmegular apartment",
+    "hookPath": null,
+    "outputPath": "<WORK>/out.mp4",
+    "platform": "instagram",
+    "presenterCtaPath": null,
+    "presenterIntroSeconds": null,
+    "presenterPath": null,
+    "presenterSide": null,
+    "presenterWidthPx": null,
+    "sourcePath": "<WORK>/source.mov",
+    "subheadline": "",
+    "template": "pov_regular_shmegular",
+    "workDir": "<WORK>"
+   }
+  ],
+  "signed": [
+   "00000000-0000-4000-8000-000000000001/fd849bc0-1979-4073-a259-740ef6217b56/source.mov"
+  ],
+  "writes": [
+   {
+    "eq": {
+     "id": "014be28a-8a48-4bb4-8a77-b3c187e507ae"
+    },
+    "op": "update",
+    "patch": {
+     "render_error": null,
+     "render_status": "rendering"
+    },
+    "table": "social_posts"
+   },
+   {
+    "eq": {},
+    "op": "upload",
+    "patch": {
+     "contentType": "video/mp4",
+     "path": "00000000-0000-4000-8000-000000000001/fd849bc0-1979-4073-a259-740ef6217b56/renders/014be28a-8a48-4bb4-8a77-b3c187e507ae-1.mp4",
+     "upsert": true
+    },
+    "table": "storage"
+   },
+   {
+    "eq": {
+     "id": "014be28a-8a48-4bb4-8a77-b3c187e507ae"
+    },
+    "op": "update",
+    "patch": {
+     "needs_review_at": null,
+     "needs_review_reason": null,
+     "render_error": null,
+     "render_status": "ready",
+     "render_version": 1,
+     "rendered_storage_path": "00000000-0000-4000-8000-000000000001/fd849bc0-1979-4073-a259-740ef6217b56/renders/014be28a-8a48-4bb4-8a77-b3c187e507ae-1.mp4"
+    },
+    "table": "social_posts"
+   },
+   {
+    "eq": {
+     "id": "014be28a-8a48-4bb4-8a77-b3c187e507ae"
+    },
+    "op": "update",
+    "patch": {
+     "status": "ready"
+    },
+    "table": "social_posts"
+   },
+   {
+    "eq": {
+     "id": "014be28a-8a48-4bb4-8a77-b3c187e507ae",
+     "status": "draft"
+    },
+    "op": "update",
+    "patch": {
+     "status": "ready"
+    },
+    "table": "social_posts"
+   }
+  ]
+ },
+ {
+  "id": "7c094b51-0ecc-4fa4-844a-18b8b2e8a507",
+  "why": "tpl:them_vs_me",
+  "result": {
+   "destination": "instagram_reel",
+   "ok": true,
+   "outputPath": "00000000-0000-4000-8000-000000000001/4b4cd8c4-de78-4dcb-8fba-4177d3228e79/renders/7c094b51-0ecc-4fa4-844a-18b8b2e8a507-1.mp4",
+   "platform": "instagram",
+   "renderVersion": 1,
+   "safeAreaId": "instagram"
+  },
+  "renderReel": [
+   {
+    "__ffmpeg": true,
+    "audioChoice": "original",
+    "ctaPath": null,
+    "fontPath": "/Users/jaymorris/lb-video-title-mdy/assets/social/fonts/LibreBaskerville-Head.ttf",
+    "headline": "Them: Just get a regular apartment bro",
+    "hookPath": null,
+    "outputPath": "<WORK>/out.mp4",
+    "platform": "instagram",
+    "presenterCtaPath": null,
+    "presenterIntroSeconds": null,
+    "presenterPath": null,
+    "presenterSide": null,
+    "presenterWidthPx": null,
+    "sourcePath": "<WORK>/source.mov",
+    "subheadline": "Me: Nah, I’m good",
+    "template": "them_vs_me",
+    "workDir": "<WORK>"
+   }
+  ],
+  "signed": [
+   "00000000-0000-4000-8000-000000000001/4b4cd8c4-de78-4dcb-8fba-4177d3228e79/source.mov"
+  ],
+  "writes": [
+   {
+    "eq": {
+     "id": "7c094b51-0ecc-4fa4-844a-18b8b2e8a507"
+    },
+    "op": "update",
+    "patch": {
+     "render_error": null,
+     "render_status": "rendering"
+    },
+    "table": "social_posts"
+   },
+   {
+    "eq": {},
+    "op": "upload",
+    "patch": {
+     "contentType": "video/mp4",
+     "path": "00000000-0000-4000-8000-000000000001/4b4cd8c4-de78-4dcb-8fba-4177d3228e79/renders/7c094b51-0ecc-4fa4-844a-18b8b2e8a507-1.mp4",
+     "upsert": true
+    },
+    "table": "storage"
+   },
+   {
+    "eq": {
+     "id": "7c094b51-0ecc-4fa4-844a-18b8b2e8a507"
+    },
+    "op": "update",
+    "patch": {
+     "needs_review_at": null,
+     "needs_review_reason": null,
+     "render_error": null,
+     "render_status": "ready",
+     "render_version": 1,
+     "rendered_storage_path": "00000000-0000-4000-8000-000000000001/4b4cd8c4-de78-4dcb-8fba-4177d3228e79/renders/7c094b51-0ecc-4fa4-844a-18b8b2e8a507-1.mp4"
+    },
+    "table": "social_posts"
+   },
+   {
+    "eq": {
+     "id": "7c094b51-0ecc-4fa4-844a-18b8b2e8a507"
+    },
+    "op": "update",
+    "patch": {
+     "status": "ready"
+    },
+    "table": "social_posts"
+   },
+   {
+    "eq": {
+     "id": "7c094b51-0ecc-4fa4-844a-18b8b2e8a507",
+     "status": "draft"
+    },
+    "op": "update",
+    "patch": {
+     "status": "ready"
+    },
+    "table": "social_posts"
+   }
+  ]
+ },
+ {
+  "id": "186a381c-f720-442a-8cfe-d83372046c4a",
+  "why": "tpl:aura",
+  "result": {
+   "destination": "instagram_reel",
+   "ok": true,
+   "outputPath": "00000000-0000-4000-8000-000000000001/2f3a9d5a-1316-428e-89c8-1fbc976b01f2/renders/186a381c-f720-442a-8cfe-d83372046c4a-1.mp4",
+   "platform": "instagram",
+   "renderVersion": 1,
+   "safeAreaId": "instagram"
+  },
+  "renderReel": [
+   {
+    "__ffmpeg": true,
+    "audioChoice": "original",
+    "ctaPath": null,
+    "fontPath": "/Users/jaymorris/lb-video-title-mdy/assets/social/fonts/LibreBaskerville-Head.ttf",
+    "headline": "This apartment has too much aura",
+    "hookPath": null,
+    "outputPath": "<WORK>/out.mp4",
+    "platform": "instagram",
+    "presenterCtaPath": null,
+    "presenterIntroSeconds": null,
+    "presenterPath": null,
+    "presenterSide": null,
+    "presenterWidthPx": null,
+    "sourcePath": "<WORK>/source.mov",
+    "subheadline": "Starting at $2,380/month",
+    "template": "aura",
+    "workDir": "<WORK>"
+   }
+  ],
+  "signed": [
+   "00000000-0000-4000-8000-000000000001/2f3a9d5a-1316-428e-89c8-1fbc976b01f2/source.mov"
+  ],
+  "writes": [
+   {
+    "eq": {
+     "id": "186a381c-f720-442a-8cfe-d83372046c4a"
+    },
+    "op": "update",
+    "patch": {
+     "render_error": null,
+     "render_status": "rendering"
+    },
+    "table": "social_posts"
+   },
+   {
+    "eq": {},
+    "op": "upload",
+    "patch": {
+     "contentType": "video/mp4",
+     "path": "00000000-0000-4000-8000-000000000001/2f3a9d5a-1316-428e-89c8-1fbc976b01f2/renders/186a381c-f720-442a-8cfe-d83372046c4a-1.mp4",
+     "upsert": true
+    },
+    "table": "storage"
+   },
+   {
+    "eq": {
+     "id": "186a381c-f720-442a-8cfe-d83372046c4a"
+    },
+    "op": "update",
+    "patch": {
+     "needs_review_at": null,
+     "needs_review_reason": null,
+     "render_error": null,
+     "render_status": "ready",
+     "render_version": 1,
+     "rendered_storage_path": "00000000-0000-4000-8000-000000000001/2f3a9d5a-1316-428e-89c8-1fbc976b01f2/renders/186a381c-f720-442a-8cfe-d83372046c4a-1.mp4"
+    },
+    "table": "social_posts"
+   },
+   {
+    "eq": {
+     "id": "186a381c-f720-442a-8cfe-d83372046c4a"
+    },
+    "op": "update",
+    "patch": {
+     "status": "ready"
+    },
+    "table": "social_posts"
+   },
+   {
+    "eq": {
+     "id": "186a381c-f720-442a-8cfe-d83372046c4a",
+     "status": "draft"
+    },
+    "op": "update",
+    "patch": {
+     "status": "ready"
+    },
+    "table": "social_posts"
+   }
+  ]
+ },
+ {
+  "id": "754c44d8-73ac-40f9-a4db-327db1de2411",
+  "why": "tpl:level_up",
+  "result": {
+   "destination": "instagram_reel",
+   "ok": true,
+   "outputPath": "00000000-0000-4000-8000-000000000001/ebd37940-51ff-4475-80b6-118975082f11/renders/754c44d8-73ac-40f9-a4db-327db1de2411-1.mp4",
+   "platform": "instagram",
+   "renderVersion": 1,
+   "safeAreaId": "instagram"
+  },
+  "renderReel": [
+   {
+    "__ffmpeg": true,
+    "audioChoice": "original",
+    "ctaPath": null,
+    "fontPath": "/Users/jaymorris/lb-video-title-mdy/assets/social/fonts/LibreBaskerville-Head.ttf",
+    "headline": "You leveled up",
+    "hookPath": null,
+    "outputPath": "<WORK>/out.mp4",
+    "platform": "instagram",
+    "presenterCtaPath": null,
+    "presenterIntroSeconds": null,
+    "presenterPath": null,
+    "presenterSide": null,
+    "presenterWidthPx": null,
+    "sourcePath": "<WORK>/source.mov",
+    "subheadline": "Starting at $2,200/month",
+    "template": "level_up",
+    "workDir": "<WORK>"
+   }
+  ],
+  "signed": [
+   "00000000-0000-4000-8000-000000000001/ebd37940-51ff-4475-80b6-118975082f11/source.mov"
+  ],
+  "writes": [
+   {
+    "eq": {
+     "id": "754c44d8-73ac-40f9-a4db-327db1de2411"
+    },
+    "op": "update",
+    "patch": {
+     "render_error": null,
+     "render_status": "rendering"
+    },
+    "table": "social_posts"
+   },
+   {
+    "eq": {},
+    "op": "upload",
+    "patch": {
+     "contentType": "video/mp4",
+     "path": "00000000-0000-4000-8000-000000000001/ebd37940-51ff-4475-80b6-118975082f11/renders/754c44d8-73ac-40f9-a4db-327db1de2411-1.mp4",
+     "upsert": true
+    },
+    "table": "storage"
+   },
+   {
+    "eq": {
+     "id": "754c44d8-73ac-40f9-a4db-327db1de2411"
+    },
+    "op": "update",
+    "patch": {
+     "needs_review_at": null,
+     "needs_review_reason": null,
+     "render_error": null,
+     "render_status": "ready",
+     "render_version": 1,
+     "rendered_storage_path": "00000000-0000-4000-8000-000000000001/ebd37940-51ff-4475-80b6-118975082f11/renders/754c44d8-73ac-40f9-a4db-327db1de2411-1.mp4"
+    },
+    "table": "social_posts"
+   },
+   {
+    "eq": {
+     "id": "754c44d8-73ac-40f9-a4db-327db1de2411"
+    },
+    "op": "update",
+    "patch": {
+     "status": "ready"
+    },
+    "table": "social_posts"
+   },
+   {
+    "eq": {
+     "id": "754c44d8-73ac-40f9-a4db-327db1de2411",
+     "status": "draft"
+    },
+    "op": "update",
+    "patch": {
+     "status": "ready"
+    },
+    "table": "social_posts"
+   }
+  ]
+ },
+ {
+  "id": "daa061e0-fb72-4c66-a576-22d5db0fbad4",
+  "why": "tpl:pov_couple",
+  "result": {
+   "destination": "instagram_reel",
+   "ok": true,
+   "outputPath": "00000000-0000-4000-8000-000000000001/7ad2578c-da4c-4008-a193-bb529c416aea/renders/daa061e0-fb72-4c66-a576-22d5db0fbad4-1.mp4",
+   "platform": "instagram",
+   "renderVersion": 1,
+   "safeAreaId": "instagram"
+  },
+  "renderReel": [
+   {
+    "__ffmpeg": true,
+    "audioChoice": "original",
+    "ctaPath": null,
+    "fontPath": "/Users/jaymorris/lb-video-title-mdy/assets/social/fonts/LibreBaskerville-Head.ttf",
+    "headline": "POV: You just moved in with the love of your life",
+    "hookPath": null,
+    "outputPath": "<WORK>/out.mp4",
+    "platform": "instagram",
+    "presenterCtaPath": null,
+    "presenterIntroSeconds": null,
+    "presenterPath": null,
+    "presenterSide": null,
+    "presenterWidthPx": null,
+    "sourcePath": "<WORK>/source.mov",
+    "subheadline": "",
+    "template": "pov_couple",
+    "workDir": "<WORK>"
+   }
+  ],
+  "signed": [
+   "00000000-0000-4000-8000-000000000001/7ad2578c-da4c-4008-a193-bb529c416aea/source.mov"
+  ],
+  "writes": [
+   {
+    "eq": {
+     "id": "daa061e0-fb72-4c66-a576-22d5db0fbad4"
+    },
+    "op": "update",
+    "patch": {
+     "render_error": null,
+     "render_status": "rendering"
+    },
+    "table": "social_posts"
+   },
+   {
+    "eq": {},
+    "op": "upload",
+    "patch": {
+     "contentType": "video/mp4",
+     "path": "00000000-0000-4000-8000-000000000001/7ad2578c-da4c-4008-a193-bb529c416aea/renders/daa061e0-fb72-4c66-a576-22d5db0fbad4-1.mp4",
+     "upsert": true
+    },
+    "table": "storage"
+   },
+   {
+    "eq": {
+     "id": "daa061e0-fb72-4c66-a576-22d5db0fbad4"
+    },
+    "op": "update",
+    "patch": {
+     "needs_review_at": null,
+     "needs_review_reason": null,
+     "render_error": null,
+     "render_status": "ready",
+     "render_version": 1,
+     "rendered_storage_path": "00000000-0000-4000-8000-000000000001/7ad2578c-da4c-4008-a193-bb529c416aea/renders/daa061e0-fb72-4c66-a576-22d5db0fbad4-1.mp4"
+    },
+    "table": "social_posts"
+   },
+   {
+    "eq": {
+     "id": "daa061e0-fb72-4c66-a576-22d5db0fbad4"
+    },
+    "op": "update",
+    "patch": {
+     "status": "ready"
+    },
+    "table": "social_posts"
+   },
+   {
+    "eq": {
+     "id": "daa061e0-fb72-4c66-a576-22d5db0fbad4",
+     "status": "draft"
+    },
+    "op": "update",
+    "patch": {
+     "status": "ready"
+    },
+    "table": "social_posts"
+   }
+  ]
+ },
+ {
+  "id": "32796f50-bd1e-469d-98ae-6f6d8c9d7211",
+  "why": "tpl:roomie",
+  "result": {
+   "destination": "instagram_reel",
+   "ok": true,
+   "outputPath": "00000000-0000-4000-8000-000000000001/937317f6-bf86-4352-ac3c-7cbacf8d4dc2/renders/32796f50-bd1e-469d-98ae-6f6d8c9d7211-1.mp4",
+   "platform": "instagram",
+   "renderVersion": 1,
+   "safeAreaId": "instagram"
+  },
+  "renderReel": [
+   {
+    "__ffmpeg": true,
+    "audioChoice": "original",
+    "ctaPath": null,
+    "fontPath": "/Users/jaymorris/lb-video-title-mdy/assets/social/fonts/LibreBaskerville-Head.ttf",
+    "headline": "2 bed apartment…",
+    "hookPath": null,
+    "outputPath": "<WORK>/out.mp4",
+    "platform": "instagram",
+    "presenterCtaPath": null,
+    "presenterIntroSeconds": null,
+    "presenterPath": null,
+    "presenterSide": null,
+    "presenterWidthPx": null,
+    "sourcePath": "<WORK>/source.mov",
+    "subheadline": "Only $893/month per roomie",
+    "template": "roomie",
+    "workDir": "<WORK>"
+   }
+  ],
+  "signed": [
+   "00000000-0000-4000-8000-000000000001/937317f6-bf86-4352-ac3c-7cbacf8d4dc2/source.mov"
+  ],
+  "writes": [
+   {
+    "eq": {
+     "id": "32796f50-bd1e-469d-98ae-6f6d8c9d7211"
+    },
+    "op": "update",
+    "patch": {
+     "render_error": null,
+     "render_status": "rendering"
+    },
+    "table": "social_posts"
+   },
+   {
+    "eq": {},
+    "op": "upload",
+    "patch": {
+     "contentType": "video/mp4",
+     "path": "00000000-0000-4000-8000-000000000001/937317f6-bf86-4352-ac3c-7cbacf8d4dc2/renders/32796f50-bd1e-469d-98ae-6f6d8c9d7211-1.mp4",
+     "upsert": true
+    },
+    "table": "storage"
+   },
+   {
+    "eq": {
+     "id": "32796f50-bd1e-469d-98ae-6f6d8c9d7211"
+    },
+    "op": "update",
+    "patch": {
+     "needs_review_at": null,
+     "needs_review_reason": null,
+     "render_error": null,
+     "render_status": "ready",
+     "render_version": 1,
+     "rendered_storage_path": "00000000-0000-4000-8000-000000000001/937317f6-bf86-4352-ac3c-7cbacf8d4dc2/renders/32796f50-bd1e-469d-98ae-6f6d8c9d7211-1.mp4"
+    },
+    "table": "social_posts"
+   },
+   {
+    "eq": {
+     "id": "32796f50-bd1e-469d-98ae-6f6d8c9d7211"
+    },
+    "op": "update",
+    "patch": {
+     "status": "ready"
+    },
+    "table": "social_posts"
+   },
+   {
+    "eq": {
+     "id": "32796f50-bd1e-469d-98ae-6f6d8c9d7211",
+     "status": "draft"
+    },
+    "op": "update",
+    "patch": {
+     "status": "ready"
+    },
+    "table": "social_posts"
+   }
+  ]
+ },
+ {
+  "id": "e2350046-e281-4b92-8f50-fa3dc3762d31",
+  "why": "tpl:engagement",
+  "result": {
+   "destination": "instagram_reel",
+   "ok": true,
+   "outputPath": "00000000-0000-4000-8000-000000000001/c230a1e7-1215-486b-b246-a0d79d23eca2/renders/e2350046-e281-4b92-8f50-fa3dc3762d31-1.mp4",
+   "platform": "instagram",
+   "renderVersion": 1,
+   "safeAreaId": "instagram"
+  },
+  "renderReel": [
+   {
+    "__ffmpeg": true,
+    "audioChoice": "original",
+    "ctaPath": null,
+    "fontPath": "/Users/jaymorris/lb-video-title-mdy/assets/social/fonts/LibreBaskerville-Head.ttf",
+    "headline": "Who would you live here with?",
+    "hookPath": null,
+    "outputPath": "<WORK>/out.mp4",
+    "platform": "instagram",
+    "presenterCtaPath": null,
+    "presenterIntroSeconds": null,
+    "presenterPath": null,
+    "presenterSide": null,
+    "presenterWidthPx": null,
+    "sourcePath": "<WORK>/source.mov",
+    "subheadline": "",
+    "template": "engagement",
+    "workDir": "<WORK>"
+   }
+  ],
+  "signed": [
+   "00000000-0000-4000-8000-000000000001/c230a1e7-1215-486b-b246-a0d79d23eca2/source.mov"
+  ],
+  "writes": [
+   {
+    "eq": {
+     "id": "e2350046-e281-4b92-8f50-fa3dc3762d31"
+    },
+    "op": "update",
+    "patch": {
+     "render_error": null,
+     "render_status": "rendering"
+    },
+    "table": "social_posts"
+   },
+   {
+    "eq": {},
+    "op": "upload",
+    "patch": {
+     "contentType": "video/mp4",
+     "path": "00000000-0000-4000-8000-000000000001/c230a1e7-1215-486b-b246-a0d79d23eca2/renders/e2350046-e281-4b92-8f50-fa3dc3762d31-1.mp4",
+     "upsert": true
+    },
+    "table": "storage"
+   },
+   {
+    "eq": {
+     "id": "e2350046-e281-4b92-8f50-fa3dc3762d31"
+    },
+    "op": "update",
+    "patch": {
+     "needs_review_at": null,
+     "needs_review_reason": null,
+     "render_error": null,
+     "render_status": "ready",
+     "render_version": 1,
+     "rendered_storage_path": "00000000-0000-4000-8000-000000000001/c230a1e7-1215-486b-b246-a0d79d23eca2/renders/e2350046-e281-4b92-8f50-fa3dc3762d31-1.mp4"
+    },
+    "table": "social_posts"
+   },
+   {
+    "eq": {
+     "id": "e2350046-e281-4b92-8f50-fa3dc3762d31"
+    },
+    "op": "update",
+    "patch": {
+     "status": "ready"
+    },
+    "table": "social_posts"
+   },
+   {
+    "eq": {
+     "id": "e2350046-e281-4b92-8f50-fa3dc3762d31",
+     "status": "draft"
+    },
+    "op": "update",
+    "patch": {
+     "status": "ready"
+    },
+    "table": "social_posts"
+   }
+  ]
+ },
+ {
+  "id": "88d04297-b421-4f94-83df-b027d7639c95",
+  "why": "tpl:apartment_crush",
+  "result": {
+   "destination": "instagram_reel",
+   "ok": true,
+   "outputPath": "00000000-0000-4000-8000-000000000001/e3d3e5a5-dcdc-48da-aa47-b7d5b8f32acd/renders/88d04297-b421-4f94-83df-b027d7639c95-1.mp4",
+   "platform": "instagram",
+   "renderVersion": 1,
+   "safeAreaId": "instagram"
+  },
+  "renderReel": [
+   {
+    "__ffmpeg": true,
+    "audioChoice": "original",
+    "ctaPath": null,
+    "fontPath": "/Users/jaymorris/lb-video-title-mdy/assets/social/fonts/LibreBaskerville-Head.ttf",
+    "headline": "I wasn’t even looking to move…",
+    "hookPath": null,
+    "outputPath": "<WORK>/out.mp4",
+    "platform": "instagram",
+    "presenterCtaPath": null,
+    "presenterIntroSeconds": null,
+    "presenterPath": null,
+    "presenterSide": null,
+    "presenterWidthPx": null,
+    "sourcePath": "<WORK>/source.mov",
+    "subheadline": "",
+    "template": "apartment_crush",
+    "workDir": "<WORK>"
+   }
+  ],
+  "signed": [
+   "00000000-0000-4000-8000-000000000001/e3d3e5a5-dcdc-48da-aa47-b7d5b8f32acd/source.mov"
+  ],
+  "writes": [
+   {
+    "eq": {
+     "id": "88d04297-b421-4f94-83df-b027d7639c95"
+    },
+    "op": "update",
+    "patch": {
+     "render_error": null,
+     "render_status": "rendering"
+    },
+    "table": "social_posts"
+   },
+   {
+    "eq": {},
+    "op": "upload",
+    "patch": {
+     "contentType": "video/mp4",
+     "path": "00000000-0000-4000-8000-000000000001/e3d3e5a5-dcdc-48da-aa47-b7d5b8f32acd/renders/88d04297-b421-4f94-83df-b027d7639c95-1.mp4",
+     "upsert": true
+    },
+    "table": "storage"
+   },
+   {
+    "eq": {
+     "id": "88d04297-b421-4f94-83df-b027d7639c95"
+    },
+    "op": "update",
+    "patch": {
+     "needs_review_at": null,
+     "needs_review_reason": null,
+     "render_error": null,
+     "render_status": "ready",
+     "render_version": 1,
+     "rendered_storage_path": "00000000-0000-4000-8000-000000000001/e3d3e5a5-dcdc-48da-aa47-b7d5b8f32acd/renders/88d04297-b421-4f94-83df-b027d7639c95-1.mp4"
+    },
+    "table": "social_posts"
+   },
+   {
+    "eq": {
+     "id": "88d04297-b421-4f94-83df-b027d7639c95"
+    },
+    "op": "update",
+    "patch": {
+     "status": "ready"
+    },
+    "table": "social_posts"
+   },
+   {
+    "eq": {
+     "id": "88d04297-b421-4f94-83df-b027d7639c95",
+     "status": "draft"
+    },
+    "op": "update",
+    "patch": {
+     "status": "ready"
+    },
+    "table": "social_posts"
+   }
+  ]
+ },
+ {
+  "id": "eedb206f-43a3-475a-9dc2-4a7f85988fb0",
+  "why": "tpl:view",
+  "result": {
+   "destination": "instagram_reel",
+   "ok": true,
+   "outputPath": "00000000-0000-4000-8000-000000000001/20433d0f-9038-452e-9fb2-b1d6cc39b661/renders/eedb206f-43a3-475a-9dc2-4a7f85988fb0-1.mp4",
+   "platform": "instagram",
+   "renderVersion": 1,
+   "safeAreaId": "instagram"
+  },
+  "renderReel": [
+   {
+    "__ffmpeg": true,
+    "audioChoice": "original",
+    "ctaPath": null,
+    "fontPath": "/Users/jaymorris/lb-video-title-mdy/assets/social/fonts/LibreBaskerville-Head.ttf",
+    "headline": "I’ll never get tired of this view",
+    "hookPath": null,
+    "outputPath": "<WORK>/out.mp4",
+    "platform": "instagram",
+    "presenterCtaPath": null,
+    "presenterIntroSeconds": null,
+    "presenterPath": null,
+    "presenterSide": null,
+    "presenterWidthPx": null,
+    "sourcePath": "<WORK>/source.mov",
+    "subheadline": "",
+    "template": "view",
+    "workDir": "<WORK>"
+   }
+  ],
+  "signed": [
+   "00000000-0000-4000-8000-000000000001/20433d0f-9038-452e-9fb2-b1d6cc39b661/source.mov"
+  ],
+  "writes": [
+   {
+    "eq": {
+     "id": "eedb206f-43a3-475a-9dc2-4a7f85988fb0"
+    },
+    "op": "update",
+    "patch": {
+     "render_error": null,
+     "render_status": "rendering"
+    },
+    "table": "social_posts"
+   },
+   {
+    "eq": {},
+    "op": "upload",
+    "patch": {
+     "contentType": "video/mp4",
+     "path": "00000000-0000-4000-8000-000000000001/20433d0f-9038-452e-9fb2-b1d6cc39b661/renders/eedb206f-43a3-475a-9dc2-4a7f85988fb0-1.mp4",
+     "upsert": true
+    },
+    "table": "storage"
+   },
+   {
+    "eq": {
+     "id": "eedb206f-43a3-475a-9dc2-4a7f85988fb0"
+    },
+    "op": "update",
+    "patch": {
+     "needs_review_at": null,
+     "needs_review_reason": null,
+     "render_error": null,
+     "render_status": "ready",
+     "render_version": 1,
+     "rendered_storage_path": "00000000-0000-4000-8000-000000000001/20433d0f-9038-452e-9fb2-b1d6cc39b661/renders/eedb206f-43a3-475a-9dc2-4a7f85988fb0-1.mp4"
+    },
+    "table": "social_posts"
+   },
+   {
+    "eq": {
+     "id": "eedb206f-43a3-475a-9dc2-4a7f85988fb0"
+    },
+    "op": "update",
+    "patch": {
+     "status": "ready"
+    },
+    "table": "social_posts"
+   },
+   {
+    "eq": {
+     "id": "eedb206f-43a3-475a-9dc2-4a7f85988fb0",
+     "status": "draft"
+    },
+    "op": "update",
+    "patch": {
+     "status": "ready"
+    },
+    "table": "social_posts"
+   }
+  ]
+ },
+ {
+  "id": "d58fa216-bdf8-4dc8-ac7e-0fbef94a5cef",
+  "why": "tpl:military_special",
+  "result": {
+   "destination": "instagram_reel",
+   "ok": true,
+   "outputPath": "00000000-0000-4000-8000-000000000001/bfebe027-0ea2-4c41-b3b5-2d4f0a81e9fe/renders/d58fa216-bdf8-4dc8-ac7e-0fbef94a5cef-1.mp4",
+   "platform": "instagram",
+   "renderVersion": 1,
+   "safeAreaId": "instagram"
+  },
+  "renderReel": [
+   {
+    "__ffmpeg": true,
+    "audioChoice": "original",
+    "ctaPath": null,
+    "fontPath": "/Users/jaymorris/lb-video-title-mdy/assets/social/fonts/LibreBaskerville-Head.ttf",
+    "headline": "MILITARY SPECIAL",
+    "hookPath": null,
+    "outputPath": "<WORK>/out.mp4",
+    "platform": "instagram",
+    "presenterCtaPath": null,
+    "presenterIntroSeconds": null,
+    "presenterPath": null,
+    "presenterSide": null,
+    "presenterWidthPx": null,
+    "sourcePath": "<WORK>/source.mov",
+    "subheadline": "$0 Deposit - $0 App/Admin Fees - 8 Weeks Free",
+    "template": "military_special",
+    "workDir": "<WORK>"
+   }
+  ],
+  "signed": [
+   "00000000-0000-4000-8000-000000000001/bfebe027-0ea2-4c41-b3b5-2d4f0a81e9fe/source.mov"
+  ],
+  "writes": [
+   {
+    "eq": {
+     "id": "d58fa216-bdf8-4dc8-ac7e-0fbef94a5cef"
+    },
+    "op": "update",
+    "patch": {
+     "render_error": null,
+     "render_status": "rendering"
+    },
+    "table": "social_posts"
+   },
+   {
+    "eq": {},
+    "op": "upload",
+    "patch": {
+     "contentType": "video/mp4",
+     "path": "00000000-0000-4000-8000-000000000001/bfebe027-0ea2-4c41-b3b5-2d4f0a81e9fe/renders/d58fa216-bdf8-4dc8-ac7e-0fbef94a5cef-1.mp4",
+     "upsert": true
+    },
+    "table": "storage"
+   },
+   {
+    "eq": {
+     "id": "d58fa216-bdf8-4dc8-ac7e-0fbef94a5cef"
+    },
+    "op": "update",
+    "patch": {
+     "needs_review_at": null,
+     "needs_review_reason": null,
+     "render_error": null,
+     "render_status": "ready",
+     "render_version": 1,
+     "rendered_storage_path": "00000000-0000-4000-8000-000000000001/bfebe027-0ea2-4c41-b3b5-2d4f0a81e9fe/renders/d58fa216-bdf8-4dc8-ac7e-0fbef94a5cef-1.mp4"
+    },
+    "table": "social_posts"
+   },
+   {
+    "eq": {
+     "id": "d58fa216-bdf8-4dc8-ac7e-0fbef94a5cef"
+    },
+    "op": "update",
+    "patch": {
+     "status": "ready"
+    },
+    "table": "social_posts"
+   },
+   {
+    "eq": {
+     "id": "d58fa216-bdf8-4dc8-ac7e-0fbef94a5cef",
+     "status": "draft"
+    },
+    "op": "update",
+    "patch": {
+     "status": "ready"
+    },
+    "table": "social_posts"
+   }
+  ]
+ },
+ {
+  "id": "synthetic-0000-0000-0000-000000000001",
+  "why": "syn:existing_overlay",
+  "result": {
+   "destination": "instagram_reel",
+   "ok": true,
+   "outputPath": "00000000-0000-4000-8000-000000000001/d022713a-6413-47a3-9f05-b32c136aef9d/renders/synthetic-0000-0000-0000-000000000001-2.mp4",
+   "platform": "instagram",
+   "renderVersion": 2,
+   "safeAreaId": "instagram"
+  },
+  "renderReel": [
+   {
+    "__ffmpeg": true,
+    "audioChoice": "original",
+    "ctaPath": null,
+    "fontPath": "/Users/jaymorris/lb-video-title-mdy/assets/social/fonts/LibreBaskerville-Head.ttf",
+    "headline": "",
+    "hookPath": null,
+    "outputPath": "<WORK>/out.mp4",
+    "platform": "instagram",
+    "presenterCtaPath": null,
+    "presenterIntroSeconds": null,
+    "presenterPath": null,
+    "presenterSide": null,
+    "presenterWidthPx": null,
+    "sourcePath": "<WORK>/source.mov",
+    "subheadline": "",
+    "template": "market_type",
+    "workDir": "<WORK>"
+   }
+  ],
+  "signed": [
+   "00000000-0000-4000-8000-000000000001/d022713a-6413-47a3-9f05-b32c136aef9d/source.mov"
+  ],
+  "writes": [
+   {
+    "eq": {
+     "id": "synthetic-0000-0000-0000-000000000001"
+    },
+    "op": "update",
+    "patch": {
+     "render_error": null,
+     "render_status": "rendering"
+    },
+    "table": "social_posts"
+   },
+   {
+    "eq": {},
+    "op": "upload",
+    "patch": {
+     "contentType": "video/mp4",
+     "path": "00000000-0000-4000-8000-000000000001/d022713a-6413-47a3-9f05-b32c136aef9d/renders/synthetic-0000-0000-0000-000000000001-2.mp4",
+     "upsert": true
+    },
+    "table": "storage"
+   },
+   {
+    "eq": {
+     "id": "synthetic-0000-0000-0000-000000000001"
+    },
+    "op": "update",
+    "patch": {
+     "needs_review_at": null,
+     "needs_review_reason": null,
+     "render_error": null,
+     "render_status": "ready",
+     "render_version": 2,
+     "rendered_storage_path": "00000000-0000-4000-8000-000000000001/d022713a-6413-47a3-9f05-b32c136aef9d/renders/synthetic-0000-0000-0000-000000000001-2.mp4"
+    },
+    "table": "social_posts"
+   },
+   {
+    "eq": {
+     "id": "synthetic-0000-0000-0000-000000000001"
+    },
+    "op": "update",
+    "patch": {
+     "status": "ready"
+    },
+    "table": "social_posts"
+   },
+   {
+    "eq": {
+     "id": "synthetic-0000-0000-0000-000000000001",
+     "status": "draft"
+    },
+    "op": "update",
+    "patch": {
+     "status": "ready"
+    },
+    "table": "social_posts"
+   }
+  ]
+ },
+ {
+  "id": "synthetic-0000-0000-0000-000000000002",
+  "why": "syn:presenter_full",
+  "result": {
+   "destination": "instagram_reel",
+   "ok": true,
+   "outputPath": "00000000-0000-4000-8000-000000000001/d022713a-6413-47a3-9f05-b32c136aef9d/renders/synthetic-0000-0000-0000-000000000002-2.mp4",
+   "platform": "instagram",
+   "renderVersion": 2,
+   "safeAreaId": "instagram"
+  },
+  "renderReel": [
+   {
+    "__ffmpeg": true,
+    "audioChoice": "original",
+    "ctaPath": null,
+    "fontPath": "/Users/jaymorris/lb-video-title-mdy/assets/social/fonts/LibreBaskerville-Head.ttf",
+    "headline": "DALLAS APARTMENTS",
+    "hookPath": "<WORK>/presenter-audio.mp3",
+    "outputPath": "<WORK>/out.mp4",
+    "platform": "instagram",
+    "presenterCtaPath": "<WORK>/presenter-cta.webm",
+    "presenterIntroSeconds": 4,
+    "presenterPath": "<WORK>/presenter.webm",
+    "presenterSide": "left",
+    "presenterWidthPx": 420,
+    "sourcePath": "<WORK>/source.mov",
+    "subheadline": "Starting at $1,450/month",
+    "template": "market_type_centered",
+    "workDir": "<WORK>"
+   }
+  ],
+  "signed": [
+   "00000000-0000-4000-8000-000000000001/d022713a-6413-47a3-9f05-b32c136aef9d/source.mov",
+   "00000000-0000-4000-8000-000000000001/presenters/a.webm",
+   "00000000-0000-4000-8000-000000000001/presenters/a-cta.webm",
+   "00000000-0000-4000-8000-000000000001/presenters/a.mp3"
+  ],
+  "writes": [
+   {
+    "eq": {
+     "id": "synthetic-0000-0000-0000-000000000002"
+    },
+    "op": "update",
+    "patch": {
+     "render_error": null,
+     "render_status": "rendering"
+    },
+    "table": "social_posts"
+   },
+   {
+    "eq": {},
+    "op": "upload",
+    "patch": {
+     "contentType": "video/mp4",
+     "path": "00000000-0000-4000-8000-000000000001/d022713a-6413-47a3-9f05-b32c136aef9d/renders/synthetic-0000-0000-0000-000000000002-2.mp4",
+     "upsert": true
+    },
+    "table": "storage"
+   },
+   {
+    "eq": {
+     "id": "synthetic-0000-0000-0000-000000000002"
+    },
+    "op": "update",
+    "patch": {
+     "needs_review_at": null,
+     "needs_review_reason": null,
+     "render_error": null,
+     "render_status": "ready",
+     "render_version": 2,
+     "rendered_storage_path": "00000000-0000-4000-8000-000000000001/d022713a-6413-47a3-9f05-b32c136aef9d/renders/synthetic-0000-0000-0000-000000000002-2.mp4"
+    },
+    "table": "social_posts"
+   },
+   {
+    "eq": {
+     "id": "synthetic-0000-0000-0000-000000000002"
+    },
+    "op": "update",
+    "patch": {
+     "status": "ready"
+    },
+    "table": "social_posts"
+   },
+   {
+    "eq": {
+     "id": "synthetic-0000-0000-0000-000000000002",
+     "status": "draft"
+    },
+    "op": "update",
+    "patch": {
+     "status": "ready"
+    },
+    "table": "social_posts"
+   }
+  ]
+ },
+ {
+  "id": "synthetic-0000-0000-0000-000000000003",
+  "why": "syn:presenter_audio_only",
+  "result": {
+   "destination": "instagram_reel",
+   "ok": true,
+   "outputPath": "00000000-0000-4000-8000-000000000001/d022713a-6413-47a3-9f05-b32c136aef9d/renders/synthetic-0000-0000-0000-000000000003-2.mp4",
+   "platform": "instagram",
+   "renderVersion": 2,
+   "safeAreaId": "instagram"
+  },
+  "renderReel": [
+   {
+    "__ffmpeg": true,
+    "audioChoice": "original",
+    "ctaPath": null,
+    "fontPath": "/Users/jaymorris/lb-video-title-mdy/assets/social/fonts/LibreBaskerville-Head.ttf",
+    "headline": "DALLAS APARTMENTS",
+    "hookPath": "<WORK>/presenter-audio.mp3",
+    "outputPath": "<WORK>/out.mp4",
+    "platform": "instagram",
+    "presenterCtaPath": null,
+    "presenterIntroSeconds": null,
+    "presenterPath": null,
+    "presenterSide": null,
+    "presenterWidthPx": null,
+    "sourcePath": "<WORK>/source.mov",
+    "subheadline": "Starting at $1,450/month",
+    "template": "market_type_centered",
+    "workDir": "<WORK>"
+   }
+  ],
+  "signed": [
+   "00000000-0000-4000-8000-000000000001/d022713a-6413-47a3-9f05-b32c136aef9d/source.mov",
+   "00000000-0000-4000-8000-000000000001/presenters/a.mp3"
+  ],
+  "writes": [
+   {
+    "eq": {
+     "id": "synthetic-0000-0000-0000-000000000003"
+    },
+    "op": "update",
+    "patch": {
+     "render_error": null,
+     "render_status": "rendering"
+    },
+    "table": "social_posts"
+   },
+   {
+    "eq": {},
+    "op": "upload",
+    "patch": {
+     "contentType": "video/mp4",
+     "path": "00000000-0000-4000-8000-000000000001/d022713a-6413-47a3-9f05-b32c136aef9d/renders/synthetic-0000-0000-0000-000000000003-2.mp4",
+     "upsert": true
+    },
+    "table": "storage"
+   },
+   {
+    "eq": {
+     "id": "synthetic-0000-0000-0000-000000000003"
+    },
+    "op": "update",
+    "patch": {
+     "needs_review_at": null,
+     "needs_review_reason": null,
+     "render_error": null,
+     "render_status": "ready",
+     "render_version": 2,
+     "rendered_storage_path": "00000000-0000-4000-8000-000000000001/d022713a-6413-47a3-9f05-b32c136aef9d/renders/synthetic-0000-0000-0000-000000000003-2.mp4"
+    },
+    "table": "social_posts"
+   },
+   {
+    "eq": {
+     "id": "synthetic-0000-0000-0000-000000000003"
+    },
+    "op": "update",
+    "patch": {
+     "status": "ready"
+    },
+    "table": "social_posts"
+   },
+   {
+    "eq": {
+     "id": "synthetic-0000-0000-0000-000000000003",
+     "status": "draft"
+    },
+    "op": "update",
+    "patch": {
+     "status": "ready"
+    },
+    "table": "social_posts"
+   }
+  ]
+ },
+ {
+  "id": "synthetic-0000-0000-0000-000000000004",
+  "why": "syn:no_source",
+  "result": {
+   "code": "missing_source",
+   "message": "the post has no source video",
+   "ok": false
+  },
+  "renderReel": [],
+  "signed": [],
+  "writes": []
+ },
+ {
+  "id": "synthetic-0000-0000-0000-000000000005",
+  "why": "syn:audio_lb_track",
+  "result": {
+   "destination": "instagram_reel",
+   "ok": true,
+   "outputPath": "00000000-0000-4000-8000-000000000001/d022713a-6413-47a3-9f05-b32c136aef9d/renders/synthetic-0000-0000-0000-000000000005-2.mp4",
+   "platform": "instagram",
+   "renderVersion": 2,
+   "safeAreaId": "instagram"
+  },
+  "renderReel": [
+   {
+    "__ffmpeg": true,
+    "audioChoice": "lb_track",
+    "ctaPath": null,
+    "fontPath": "/Users/jaymorris/lb-video-title-mdy/assets/social/fonts/LibreBaskerville-Head.ttf",
+    "headline": "DALLAS APARTMENTS",
+    "hookPath": null,
+    "outputPath": "<WORK>/out.mp4",
+    "platform": "instagram",
+    "presenterCtaPath": null,
+    "presenterIntroSeconds": null,
+    "presenterPath": null,
+    "presenterSide": null,
+    "presenterWidthPx": null,
+    "sourcePath": "<WORK>/source.mov",
+    "subheadline": "Starting at $1,450/month",
+    "template": "market_type_centered",
+    "workDir": "<WORK>"
+   }
+  ],
+  "signed": [
+   "00000000-0000-4000-8000-000000000001/d022713a-6413-47a3-9f05-b32c136aef9d/source.mov"
+  ],
+  "writes": [
+   {
+    "eq": {
+     "id": "synthetic-0000-0000-0000-000000000005"
+    },
+    "op": "update",
+    "patch": {
+     "render_error": null,
+     "render_status": "rendering"
+    },
+    "table": "social_posts"
+   },
+   {
+    "eq": {},
+    "op": "upload",
+    "patch": {
+     "contentType": "video/mp4",
+     "path": "00000000-0000-4000-8000-000000000001/d022713a-6413-47a3-9f05-b32c136aef9d/renders/synthetic-0000-0000-0000-000000000005-2.mp4",
+     "upsert": true
+    },
+    "table": "storage"
+   },
+   {
+    "eq": {
+     "id": "synthetic-0000-0000-0000-000000000005"
+    },
+    "op": "update",
+    "patch": {
+     "needs_review_at": null,
+     "needs_review_reason": null,
+     "render_error": null,
+     "render_status": "ready",
+     "render_version": 2,
+     "rendered_storage_path": "00000000-0000-4000-8000-000000000001/d022713a-6413-47a3-9f05-b32c136aef9d/renders/synthetic-0000-0000-0000-000000000005-2.mp4"
+    },
+    "table": "social_posts"
+   },
+   {
+    "eq": {
+     "id": "synthetic-0000-0000-0000-000000000005"
+    },
+    "op": "update",
+    "patch": {
+     "status": "ready"
+    },
+    "table": "social_posts"
+   },
+   {
+    "eq": {
+     "id": "synthetic-0000-0000-0000-000000000005",
+     "status": "draft"
+    },
+    "op": "update",
+    "patch": {
+     "status": "ready"
+    },
+    "table": "social_posts"
+   }
+  ]
+ },
+ {
+  "id": "synthetic-0000-0000-0000-000000000006",
+  "why": "syn:audio_none",
+  "result": {
+   "destination": "instagram_reel",
+   "ok": true,
+   "outputPath": "00000000-0000-4000-8000-000000000001/d022713a-6413-47a3-9f05-b32c136aef9d/renders/synthetic-0000-0000-0000-000000000006-2.mp4",
+   "platform": "instagram",
+   "renderVersion": 2,
+   "safeAreaId": "instagram"
+  },
+  "renderReel": [
+   {
+    "__ffmpeg": true,
+    "audioChoice": "none",
+    "ctaPath": null,
+    "fontPath": "/Users/jaymorris/lb-video-title-mdy/assets/social/fonts/LibreBaskerville-Head.ttf",
+    "headline": "DALLAS APARTMENTS",
+    "hookPath": null,
+    "outputPath": "<WORK>/out.mp4",
+    "platform": "instagram",
+    "presenterCtaPath": null,
+    "presenterIntroSeconds": null,
+    "presenterPath": null,
+    "presenterSide": null,
+    "presenterWidthPx": null,
+    "sourcePath": "<WORK>/source.mov",
+    "subheadline": "Starting at $1,450/month",
+    "template": "market_type_centered",
+    "workDir": "<WORK>"
+   }
+  ],
+  "signed": [
+   "00000000-0000-4000-8000-000000000001/d022713a-6413-47a3-9f05-b32c136aef9d/source.mov"
+  ],
+  "writes": [
+   {
+    "eq": {
+     "id": "synthetic-0000-0000-0000-000000000006"
+    },
+    "op": "update",
+    "patch": {
+     "render_error": null,
+     "render_status": "rendering"
+    },
+    "table": "social_posts"
+   },
+   {
+    "eq": {},
+    "op": "upload",
+    "patch": {
+     "contentType": "video/mp4",
+     "path": "00000000-0000-4000-8000-000000000001/d022713a-6413-47a3-9f05-b32c136aef9d/renders/synthetic-0000-0000-0000-000000000006-2.mp4",
+     "upsert": true
+    },
+    "table": "storage"
+   },
+   {
+    "eq": {
+     "id": "synthetic-0000-0000-0000-000000000006"
+    },
+    "op": "update",
+    "patch": {
+     "needs_review_at": null,
+     "needs_review_reason": null,
+     "render_error": null,
+     "render_status": "ready",
+     "render_version": 2,
+     "rendered_storage_path": "00000000-0000-4000-8000-000000000001/d022713a-6413-47a3-9f05-b32c136aef9d/renders/synthetic-0000-0000-0000-000000000006-2.mp4"
+    },
+    "table": "social_posts"
+   },
+   {
+    "eq": {
+     "id": "synthetic-0000-0000-0000-000000000006"
+    },
+    "op": "update",
+    "patch": {
+     "status": "ready"
+    },
+    "table": "social_posts"
+   },
+   {
+    "eq": {
+     "id": "synthetic-0000-0000-0000-000000000006",
+     "status": "draft"
+    },
+    "op": "update",
+    "patch": {
+     "status": "ready"
+    },
+    "table": "social_posts"
+   }
+  ]
+ },
+ {
+  "id": "synthetic-0000-0000-0000-000000000007",
+  "why": "syn:hook_beats_presenter_audio",
+  "result": {
+   "destination": "instagram_reel",
+   "ok": true,
+   "outputPath": "00000000-0000-4000-8000-000000000001/d022713a-6413-47a3-9f05-b32c136aef9d/renders/synthetic-0000-0000-0000-000000000007-2.mp4",
+   "platform": "instagram",
+   "renderVersion": 2,
+   "safeAreaId": "instagram"
+  },
+  "renderReel": [
+   {
+    "__ffmpeg": true,
+    "audioChoice": "original",
+    "ctaPath": null,
+    "fontPath": "/Users/jaymorris/lb-video-title-mdy/assets/social/fonts/LibreBaskerville-Head.ttf",
+    "headline": "DALLAS APARTMENTS",
+    "hookPath": "<WORK>/voice-hook.m4a",
+    "outputPath": "<WORK>/out.mp4",
+    "platform": "instagram",
+    "presenterCtaPath": null,
+    "presenterIntroSeconds": null,
+    "presenterPath": null,
+    "presenterSide": null,
+    "presenterWidthPx": null,
+    "sourcePath": "<WORK>/source.mov",
+    "subheadline": "Starting at $1,450/month",
+    "template": "market_type_centered",
+    "workDir": "<WORK>"
+   }
+  ],
+  "signed": [
+   "00000000-0000-4000-8000-000000000001/d022713a-6413-47a3-9f05-b32c136aef9d/source.mov",
+   "00000000-0000-4000-8000-000000000001/voice/normalized/Apt_Hunting_See_This_DAL.normalized.m4a",
+   "00000000-0000-4000-8000-000000000001/presenters/a.mp3"
+  ],
+  "writes": [
+   {
+    "eq": {
+     "id": "synthetic-0000-0000-0000-000000000007"
+    },
+    "op": "update",
+    "patch": {
+     "render_error": null,
+     "render_status": "rendering"
+    },
+    "table": "social_posts"
+   },
+   {
+    "eq": {},
+    "op": "upload",
+    "patch": {
+     "contentType": "video/mp4",
+     "path": "00000000-0000-4000-8000-000000000001/d022713a-6413-47a3-9f05-b32c136aef9d/renders/synthetic-0000-0000-0000-000000000007-2.mp4",
+     "upsert": true
+    },
+    "table": "storage"
+   },
+   {
+    "eq": {
+     "id": "synthetic-0000-0000-0000-000000000007"
+    },
+    "op": "update",
+    "patch": {
+     "needs_review_at": null,
+     "needs_review_reason": null,
+     "render_error": null,
+     "render_status": "ready",
+     "render_version": 2,
+     "rendered_storage_path": "00000000-0000-4000-8000-000000000001/d022713a-6413-47a3-9f05-b32c136aef9d/renders/synthetic-0000-0000-0000-000000000007-2.mp4"
+    },
+    "table": "social_posts"
+   },
+   {
+    "eq": {
+     "id": "synthetic-0000-0000-0000-000000000007"
+    },
+    "op": "update",
+    "patch": {
+     "status": "ready"
+    },
+    "table": "social_posts"
+   },
+   {
+    "eq": {
+     "id": "synthetic-0000-0000-0000-000000000007",
+     "status": "draft"
+    },
+    "op": "update",
+    "patch": {
+     "status": "ready"
+    },
+    "table": "social_posts"
+   }
+  ]
+ },
+ {
+  "id": "synthetic-0000-0000-0000-000000000008",
+  "why": "syn:voice_clip_missing",
+  "result": {
+   "code": "render_failed",
+   "message": "voice clips: the selected Hook clip no longer exists",
+   "ok": false
+  },
+  "renderReel": [],
+  "signed": [
+   "00000000-0000-4000-8000-000000000001/d022713a-6413-47a3-9f05-b32c136aef9d/source.mov"
+  ],
+  "writes": [
+   {
+    "eq": {
+     "id": "synthetic-0000-0000-0000-000000000008"
+    },
+    "op": "update",
+    "patch": {
+     "render_error": null,
+     "render_status": "rendering"
+    },
+    "table": "social_posts"
+   },
+   {
+    "eq": {
+     "id": "synthetic-0000-0000-0000-000000000008"
+    },
+    "op": "update",
+    "patch": {
+     "render_error": "voice clips: the selected Hook clip no longer exists",
+     "render_status": "error"
+    },
+    "table": "social_posts"
+   }
+  ]
+ },
+ {
+  "id": "synthetic-0000-0000-0000-000000000009",
+  "why": "syn:story_with_presenter",
+  "result": {
+   "destination": "instagram_story",
+   "ok": true,
+   "outputPath": "00000000-0000-4000-8000-000000000001/d022713a-6413-47a3-9f05-b32c136aef9d/renders/synthetic-0000-0000-0000-000000000009-2.mp4",
+   "platform": "instagram",
+   "renderVersion": 2,
+   "safeAreaId": "instagram"
+  },
+  "renderReel": [
+   {
+    "__ffmpeg": true,
+    "audioChoice": "original",
+    "ctaPath": null,
+    "fontPath": "/Users/jaymorris/lb-video-title-mdy/assets/social/fonts/LibreBaskerville-Head.ttf",
+    "headline": "DALLAS APARTMENTS",
+    "hookPath": null,
+    "outputPath": "<WORK>/out.mp4",
+    "platform": "instagram",
+    "presenterCtaPath": null,
+    "presenterIntroSeconds": null,
+    "presenterPath": "<WORK>/presenter.webm",
+    "presenterSide": null,
+    "presenterWidthPx": null,
+    "sourcePath": "<WORK>/source.mov",
+    "subheadline": "Starting at $1,450/month",
+    "template": "market_type_centered",
+    "workDir": "<WORK>"
+   }
+  ],
+  "signed": [
+   "00000000-0000-4000-8000-000000000001/d022713a-6413-47a3-9f05-b32c136aef9d/source.mov",
+   "00000000-0000-4000-8000-000000000001/presenters/a.webm"
+  ],
+  "writes": [
+   {
+    "eq": {
+     "id": "synthetic-0000-0000-0000-000000000009"
+    },
+    "op": "update",
+    "patch": {
+     "render_error": null,
+     "render_status": "rendering"
+    },
+    "table": "social_posts"
+   },
+   {
+    "eq": {},
+    "op": "upload",
+    "patch": {
+     "contentType": "video/mp4",
+     "path": "00000000-0000-4000-8000-000000000001/d022713a-6413-47a3-9f05-b32c136aef9d/renders/synthetic-0000-0000-0000-000000000009-2.mp4",
+     "upsert": true
+    },
+    "table": "storage"
+   },
+   {
+    "eq": {
+     "id": "synthetic-0000-0000-0000-000000000009"
+    },
+    "op": "update",
+    "patch": {
+     "needs_review_at": null,
+     "needs_review_reason": null,
+     "render_error": null,
+     "render_status": "ready",
+     "render_version": 2,
+     "rendered_storage_path": "00000000-0000-4000-8000-000000000001/d022713a-6413-47a3-9f05-b32c136aef9d/renders/synthetic-0000-0000-0000-000000000009-2.mp4"
+    },
+    "table": "social_posts"
+   },
+   {
+    "eq": {
+     "id": "synthetic-0000-0000-0000-000000000009"
+    },
+    "op": "update",
+    "patch": {
+     "status": "ready"
+    },
+    "table": "social_posts"
+   },
+   {
+    "eq": {
+     "id": "synthetic-0000-0000-0000-000000000009",
+     "status": "draft"
+    },
+    "op": "update",
+    "patch": {
+     "status": "ready"
+    },
+    "table": "social_posts"
+   }
+  ]
+ },
+ {
+  "id": "synthetic-0000-0000-0000-000000000010",
+  "why": "syn:legacy_platform_null_destination",
+  "result": {
+   "destination": "instagram_reel",
+   "ok": true,
+   "outputPath": "00000000-0000-4000-8000-000000000001/d022713a-6413-47a3-9f05-b32c136aef9d/renders/synthetic-0000-0000-0000-000000000010-2.mp4",
+   "platform": "instagram",
+   "renderVersion": 2,
+   "safeAreaId": "instagram"
+  },
+  "renderReel": [
+   {
+    "__ffmpeg": true,
+    "audioChoice": "original",
+    "ctaPath": null,
+    "fontPath": "/Users/jaymorris/lb-video-title-mdy/assets/social/fonts/LibreBaskerville-Head.ttf",
+    "headline": "DALLAS APARTMENTS",
+    "hookPath": null,
+    "outputPath": "<WORK>/out.mp4",
+    "platform": "instagram",
+    "presenterCtaPath": null,
+    "presenterIntroSeconds": null,
+    "presenterPath": null,
+    "presenterSide": null,
+    "presenterWidthPx": null,
+    "sourcePath": "<WORK>/source.mov",
+    "subheadline": "Starting at $1,450/month",
+    "template": "market_type_centered",
+    "workDir": "<WORK>"
+   }
+  ],
+  "signed": [
+   "00000000-0000-4000-8000-000000000001/d022713a-6413-47a3-9f05-b32c136aef9d/source.mov"
+  ],
+  "writes": [
+   {
+    "eq": {
+     "id": "synthetic-0000-0000-0000-000000000010"
+    },
+    "op": "update",
+    "patch": {
+     "render_error": null,
+     "render_status": "rendering"
+    },
+    "table": "social_posts"
+   },
+   {
+    "eq": {},
+    "op": "upload",
+    "patch": {
+     "contentType": "video/mp4",
+     "path": "00000000-0000-4000-8000-000000000001/d022713a-6413-47a3-9f05-b32c136aef9d/renders/synthetic-0000-0000-0000-000000000010-2.mp4",
+     "upsert": true
+    },
+    "table": "storage"
+   },
+   {
+    "eq": {
+     "id": "synthetic-0000-0000-0000-000000000010"
+    },
+    "op": "update",
+    "patch": {
+     "needs_review_at": null,
+     "needs_review_reason": null,
+     "render_error": null,
+     "render_status": "ready",
+     "render_version": 2,
+     "rendered_storage_path": "00000000-0000-4000-8000-000000000001/d022713a-6413-47a3-9f05-b32c136aef9d/renders/synthetic-0000-0000-0000-000000000010-2.mp4"
+    },
+    "table": "social_posts"
+   },
+   {
+    "eq": {
+     "id": "synthetic-0000-0000-0000-000000000010"
+    },
+    "op": "update",
+    "patch": {
+     "status": "ready"
+    },
+    "table": "social_posts"
+   },
+   {
+    "eq": {
+     "id": "synthetic-0000-0000-0000-000000000010",
+     "status": "draft"
+    },
+    "op": "update",
+    "patch": {
+     "status": "ready"
+    },
+    "table": "social_posts"
+   }
+  ]
+ },
+ {
+  "id": "synthetic-0000-0000-0000-000000000011",
+  "why": "syn:legacy_platform_tiktok",
+  "result": {
+   "destination": "tiktok_video",
+   "ok": true,
+   "outputPath": "00000000-0000-4000-8000-000000000001/d022713a-6413-47a3-9f05-b32c136aef9d/renders/synthetic-0000-0000-0000-000000000011-2-tiktok.mp4",
+   "platform": "tiktok",
+   "renderVersion": 2,
+   "safeAreaId": "tiktok"
+  },
+  "renderReel": [
+   {
+    "__ffmpeg": true,
+    "audioChoice": "original",
+    "ctaPath": null,
+    "fontPath": "/Users/jaymorris/lb-video-title-mdy/assets/social/fonts/LibreBaskerville-Head.ttf",
+    "headline": "DALLAS APARTMENTS",
+    "hookPath": null,
+    "outputPath": "<WORK>/out.mp4",
+    "platform": "tiktok",
+    "presenterCtaPath": null,
+    "presenterIntroSeconds": null,
+    "presenterPath": null,
+    "presenterSide": null,
+    "presenterWidthPx": null,
+    "sourcePath": "<WORK>/source.mov",
+    "subheadline": "Starting at $1,450/month",
+    "template": "market_type_centered",
+    "workDir": "<WORK>"
+   }
+  ],
+  "signed": [
+   "00000000-0000-4000-8000-000000000001/d022713a-6413-47a3-9f05-b32c136aef9d/source.mov"
+  ],
+  "writes": [
+   {
+    "eq": {
+     "id": "synthetic-0000-0000-0000-000000000011"
+    },
+    "op": "update",
+    "patch": {
+     "render_error": null,
+     "render_status": "rendering"
+    },
+    "table": "social_posts"
+   },
+   {
+    "eq": {},
+    "op": "upload",
+    "patch": {
+     "contentType": "video/mp4",
+     "path": "00000000-0000-4000-8000-000000000001/d022713a-6413-47a3-9f05-b32c136aef9d/renders/synthetic-0000-0000-0000-000000000011-2-tiktok.mp4",
+     "upsert": true
+    },
+    "table": "storage"
+   },
+   {
+    "eq": {
+     "id": "synthetic-0000-0000-0000-000000000011"
+    },
+    "op": "update",
+    "patch": {
+     "needs_review_at": null,
+     "needs_review_reason": null,
+     "render_error": null,
+     "render_status": "ready",
+     "render_version": 2,
+     "rendered_storage_path": "00000000-0000-4000-8000-000000000001/d022713a-6413-47a3-9f05-b32c136aef9d/renders/synthetic-0000-0000-0000-000000000011-2-tiktok.mp4"
+    },
+    "table": "social_posts"
+   },
+   {
+    "eq": {
+     "id": "synthetic-0000-0000-0000-000000000011"
+    },
+    "op": "update",
+    "patch": {
+     "status": "ready"
+    },
+    "table": "social_posts"
+   },
+   {
+    "eq": {
+     "id": "synthetic-0000-0000-0000-000000000011",
+     "status": "draft"
+    },
+    "op": "update",
+    "patch": {
+     "status": "ready"
+    },
+    "table": "social_posts"
+   }
+  ]
+ },
+ {
+  "id": "synthetic-0000-0000-0000-000000000012",
+  "why": "syn:null_template",
+  "result": {
+   "destination": "instagram_reel",
+   "ok": true,
+   "outputPath": "00000000-0000-4000-8000-000000000001/d022713a-6413-47a3-9f05-b32c136aef9d/renders/synthetic-0000-0000-0000-000000000012-2.mp4",
+   "platform": "instagram",
+   "renderVersion": 2,
+   "safeAreaId": "instagram"
+  },
+  "renderReel": [
+   {
+    "__ffmpeg": true,
+    "audioChoice": "original",
+    "ctaPath": null,
+    "fontPath": "/Users/jaymorris/lb-video-title-mdy/assets/social/fonts/LibreBaskerville-Head.ttf",
+    "headline": "DALLAS APARTMENTS",
+    "hookPath": null,
+    "outputPath": "<WORK>/out.mp4",
+    "platform": "instagram",
+    "presenterCtaPath": null,
+    "presenterIntroSeconds": null,
+    "presenterPath": null,
+    "presenterSide": null,
+    "presenterWidthPx": null,
+    "sourcePath": "<WORK>/source.mov",
+    "subheadline": "Starting at $1,450/month",
+    "template": "market_type",
+    "workDir": "<WORK>"
+   }
+  ],
+  "signed": [
+   "00000000-0000-4000-8000-000000000001/d022713a-6413-47a3-9f05-b32c136aef9d/source.mov"
+  ],
+  "writes": [
+   {
+    "eq": {
+     "id": "synthetic-0000-0000-0000-000000000012"
+    },
+    "op": "update",
+    "patch": {
+     "render_error": null,
+     "render_status": "rendering"
+    },
+    "table": "social_posts"
+   },
+   {
+    "eq": {},
+    "op": "upload",
+    "patch": {
+     "contentType": "video/mp4",
+     "path": "00000000-0000-4000-8000-000000000001/d022713a-6413-47a3-9f05-b32c136aef9d/renders/synthetic-0000-0000-0000-000000000012-2.mp4",
+     "upsert": true
+    },
+    "table": "storage"
+   },
+   {
+    "eq": {
+     "id": "synthetic-0000-0000-0000-000000000012"
+    },
+    "op": "update",
+    "patch": {
+     "needs_review_at": null,
+     "needs_review_reason": null,
+     "render_error": null,
+     "render_status": "ready",
+     "render_version": 2,
+     "rendered_storage_path": "00000000-0000-4000-8000-000000000001/d022713a-6413-47a3-9f05-b32c136aef9d/renders/synthetic-0000-0000-0000-000000000012-2.mp4"
+    },
+    "table": "social_posts"
+   },
+   {
+    "eq": {
+     "id": "synthetic-0000-0000-0000-000000000012"
+    },
+    "op": "update",
+    "patch": {
+     "status": "ready"
+    },
+    "table": "social_posts"
+   },
+   {
+    "eq": {
+     "id": "synthetic-0000-0000-0000-000000000012",
+     "status": "draft"
+    },
+    "op": "update",
+    "patch": {
+     "status": "ready"
+    },
+    "table": "social_posts"
+   }
+  ]
+ },
+ {
+  "id": "synthetic-0000-0000-0000-000000000013",
+  "why": "syn:voice_unnormalized_falls_back",
+  "result": {
+   "destination": "instagram_reel",
+   "ok": true,
+   "outputPath": "00000000-0000-4000-8000-000000000001/d022713a-6413-47a3-9f05-b32c136aef9d/renders/synthetic-0000-0000-0000-000000000013-2.mp4",
+   "platform": "instagram",
+   "renderVersion": 2,
+   "safeAreaId": "instagram"
+  },
+  "renderReel": [
+   {
+    "__ffmpeg": true,
+    "audioChoice": "original",
+    "ctaPath": "<WORK>/voice-cta.m4a",
+    "fontPath": "/Users/jaymorris/lb-video-title-mdy/assets/social/fonts/LibreBaskerville-Head.ttf",
+    "headline": "DALLAS APARTMENTS",
+    "hookPath": "<WORK>/voice-hook.mp3",
+    "outputPath": "<WORK>/out.mp4",
+    "platform": "instagram",
+    "presenterCtaPath": null,
+    "presenterIntroSeconds": null,
+    "presenterPath": null,
+    "presenterSide": null,
+    "presenterWidthPx": null,
+    "sourcePath": "<WORK>/source.mov",
+    "subheadline": "Starting at $1,450/month",
+    "template": "market_type_centered",
+    "workDir": "<WORK>"
+   }
+  ],
+  "signed": [
+   "00000000-0000-4000-8000-000000000001/d022713a-6413-47a3-9f05-b32c136aef9d/source.mov",
+   "00000000-0000-4000-8000-000000000001/voice/8f2c5c9a-8a79-4831-812f-e9c450c12d7c.mp3",
+   "00000000-0000-4000-8000-000000000001/voice/normalized/Apt_Hunting_See_This_DAL.normalized.m4a"
+  ],
+  "writes": [
+   {
+    "eq": {
+     "id": "synthetic-0000-0000-0000-000000000013"
+    },
+    "op": "update",
+    "patch": {
+     "render_error": null,
+     "render_status": "rendering"
+    },
+    "table": "social_posts"
+   },
+   {
+    "eq": {},
+    "op": "upload",
+    "patch": {
+     "contentType": "video/mp4",
+     "path": "00000000-0000-4000-8000-000000000001/d022713a-6413-47a3-9f05-b32c136aef9d/renders/synthetic-0000-0000-0000-000000000013-2.mp4",
+     "upsert": true
+    },
+    "table": "storage"
+   },
+   {
+    "eq": {
+     "id": "synthetic-0000-0000-0000-000000000013"
+    },
+    "op": "update",
+    "patch": {
+     "needs_review_at": null,
+     "needs_review_reason": null,
+     "render_error": null,
+     "render_status": "ready",
+     "render_version": 2,
+     "rendered_storage_path": "00000000-0000-4000-8000-000000000001/d022713a-6413-47a3-9f05-b32c136aef9d/renders/synthetic-0000-0000-0000-000000000013-2.mp4"
+    },
+    "table": "social_posts"
+   },
+   {
+    "eq": {
+     "id": "synthetic-0000-0000-0000-000000000013"
+    },
+    "op": "update",
+    "patch": {
+     "status": "ready"
+    },
+    "table": "social_posts"
+   },
+   {
+    "eq": {
+     "id": "synthetic-0000-0000-0000-000000000013",
+     "status": "draft"
+    },
+    "op": "update",
+    "patch": {
+     "status": "ready"
+    },
+    "table": "social_posts"
+   }
+  ]
+ },
+ {
+  "id": "synthetic-0000-0000-0000-000000000014",
+  "why": "syn:post_source_override_wins",
+  "result": {
+   "destination": "instagram_reel",
+   "ok": true,
+   "outputPath": "00000000-0000-4000-8000-000000000001/d022713a-6413-47a3-9f05-b32c136aef9d/renders/synthetic-0000-0000-0000-000000000014-2.mp4",
+   "platform": "instagram",
+   "renderVersion": 2,
+   "safeAreaId": "instagram"
+  },
+  "renderReel": [
+   {
+    "__ffmpeg": true,
+    "audioChoice": "original",
+    "ctaPath": null,
+    "fontPath": "/Users/jaymorris/lb-video-title-mdy/assets/social/fonts/LibreBaskerville-Head.ttf",
+    "headline": "DALLAS APARTMENTS",
+    "hookPath": null,
+    "outputPath": "<WORK>/out.mp4",
+    "platform": "instagram",
+    "presenterCtaPath": null,
+    "presenterIntroSeconds": null,
+    "presenterPath": null,
+    "presenterSide": null,
+    "presenterWidthPx": null,
+    "sourcePath": "<WORK>/source.mp4",
+    "subheadline": "Starting at $1,450/month",
+    "template": "market_type_centered",
+    "workDir": "<WORK>"
+   }
+  ],
+  "signed": [
+   "00000000-0000-4000-8000-000000000001/override/custom.mp4"
+  ],
+  "writes": [
+   {
+    "eq": {
+     "id": "synthetic-0000-0000-0000-000000000014"
+    },
+    "op": "update",
+    "patch": {
+     "render_error": null,
+     "render_status": "rendering"
+    },
+    "table": "social_posts"
+   },
+   {
+    "eq": {},
+    "op": "upload",
+    "patch": {
+     "contentType": "video/mp4",
+     "path": "00000000-0000-4000-8000-000000000001/d022713a-6413-47a3-9f05-b32c136aef9d/renders/synthetic-0000-0000-0000-000000000014-2.mp4",
+     "upsert": true
+    },
+    "table": "storage"
+   },
+   {
+    "eq": {
+     "id": "synthetic-0000-0000-0000-000000000014"
+    },
+    "op": "update",
+    "patch": {
+     "needs_review_at": null,
+     "needs_review_reason": null,
+     "render_error": null,
+     "render_status": "ready",
+     "render_version": 2,
+     "rendered_storage_path": "00000000-0000-4000-8000-000000000001/d022713a-6413-47a3-9f05-b32c136aef9d/renders/synthetic-0000-0000-0000-000000000014-2.mp4"
+    },
+    "table": "social_posts"
+   },
+   {
+    "eq": {
+     "id": "synthetic-0000-0000-0000-000000000014"
+    },
+    "op": "update",
+    "patch": {
+     "status": "ready"
+    },
+    "table": "social_posts"
+   },
+   {
+    "eq": {
+     "id": "synthetic-0000-0000-0000-000000000014",
+     "status": "draft"
+    },
+    "op": "update",
+    "patch": {
+     "status": "ready"
+    },
+    "table": "social_posts"
+   }
+  ]
+ },
+ {
+  "id": "synthetic-0000-0000-0000-000000000015",
+  "why": "syn:render_version_null",
+  "result": {
+   "destination": "instagram_reel",
+   "ok": true,
+   "outputPath": "00000000-0000-4000-8000-000000000001/d022713a-6413-47a3-9f05-b32c136aef9d/renders/synthetic-0000-0000-0000-000000000015-1.mp4",
+   "platform": "instagram",
+   "renderVersion": 1,
+   "safeAreaId": "instagram"
+  },
+  "renderReel": [
+   {
+    "__ffmpeg": true,
+    "audioChoice": "original",
+    "ctaPath": null,
+    "fontPath": "/Users/jaymorris/lb-video-title-mdy/assets/social/fonts/LibreBaskerville-Head.ttf",
+    "headline": "DALLAS APARTMENTS",
+    "hookPath": null,
+    "outputPath": "<WORK>/out.mp4",
+    "platform": "instagram",
+    "presenterCtaPath": null,
+    "presenterIntroSeconds": null,
+    "presenterPath": null,
+    "presenterSide": null,
+    "presenterWidthPx": null,
+    "sourcePath": "<WORK>/source.mov",
+    "subheadline": "Starting at $1,450/month",
+    "template": "market_type_centered",
+    "workDir": "<WORK>"
+   }
+  ],
+  "signed": [
+   "00000000-0000-4000-8000-000000000001/d022713a-6413-47a3-9f05-b32c136aef9d/source.mov"
+  ],
+  "writes": [
+   {
+    "eq": {
+     "id": "synthetic-0000-0000-0000-000000000015"
+    },
+    "op": "update",
+    "patch": {
+     "render_error": null,
+     "render_status": "rendering"
+    },
+    "table": "social_posts"
+   },
+   {
+    "eq": {},
+    "op": "upload",
+    "patch": {
+     "contentType": "video/mp4",
+     "path": "00000000-0000-4000-8000-000000000001/d022713a-6413-47a3-9f05-b32c136aef9d/renders/synthetic-0000-0000-0000-000000000015-1.mp4",
+     "upsert": true
+    },
+    "table": "storage"
+   },
+   {
+    "eq": {
+     "id": "synthetic-0000-0000-0000-000000000015"
+    },
+    "op": "update",
+    "patch": {
+     "needs_review_at": null,
+     "needs_review_reason": null,
+     "render_error": null,
+     "render_status": "ready",
+     "render_version": 1,
+     "rendered_storage_path": "00000000-0000-4000-8000-000000000001/d022713a-6413-47a3-9f05-b32c136aef9d/renders/synthetic-0000-0000-0000-000000000015-1.mp4"
+    },
+    "table": "social_posts"
+   },
+   {
+    "eq": {
+     "id": "synthetic-0000-0000-0000-000000000015"
+    },
+    "op": "update",
+    "patch": {
+     "status": "ready"
+    },
+    "table": "social_posts"
+   },
+   {
+    "eq": {
+     "id": "synthetic-0000-0000-0000-000000000015",
+     "status": "draft"
+    },
+    "op": "update",
+    "patch": {
+     "status": "ready"
+    },
+    "table": "social_posts"
+   }
+  ]
+ }
+]

@@ -272,8 +272,13 @@ console.log("\nshadows, fitting and the single composition pipeline:")
     /computeOverlayLayout\([^)]*avatarVisible\)/.test(ed))
   ok("no second overlay/composition path was introduced",
     (rv.match(/buildPresenterFilter\(/g) ?? []).length === 1)
-  ok("renderPost still supplies the clip to the renderer",
-    /presenterPath:\s*presenterLocal/.test(code(readFileSync("lib/social/renderPost.ts", "utf8"))))
+  // Phase A moved the mapping into renderFromSpec: the spec names the avatar by STORAGE path and
+  // the renderer resolves it to the downloaded file. Both halves are asserted, so a spec that
+  // carries the clip but never passes it on still fails here.
+  ok("renderPost still supplies the clip to the renderer", (() => {
+    const rp = code(readFileSync("lib/social/renderPost.ts", "utf8"))
+    return /presenter:\s*presenterStorage/.test(rp) && /presenterPath:\s*at\(spec\.media\.presenter\)/.test(rp)
+  })())
 }
 
 // ── 7. NOTHING ELSE CHANGED ───────────────────────────────────────────────────────────────────

@@ -11,6 +11,7 @@ import path from "node:path"
 import ffmpegPath from "ffmpeg-static"
 import { renderReel, makeWorkDir, type AudioChoice } from "@/lib/social/renderVideo"
 import { DESTINATIONS, isSocialDestination, destinationFromLegacyPlatform } from "@/lib/social/destinations"
+import { RENDERER_VERSION, renderFingerprint, type RenderSpec } from "@/lib/social/renderSpec"
 // ONE overlay font: Libre Baskerville Bold (OFL, wght 700), headline AND detail. The same bytes
 // the browser preview loads via @font-face, so preview and burned-in render measure identically.
 // Moved here verbatim with the render body — not re-pointed, not re-chosen.
@@ -24,8 +25,51 @@ import { resolveSourcePath } from "./sourcePath"
 export { resolveSourcePath }
 
 export type RenderPostResult =
-  | { ok: true; renderVersion: number; outputPath: string; platform: string; destination: string; safeAreaId: string }
+  | { ok: true; renderVersion: number; outputPath: string; platform: string; destination: string; safeAreaId: string; fingerprint: string }
   | { ok: false; code: string; message: string }
+
+/**
+ * THE LAST MILE, and the reason the spec exists: this function queries NOTHING.
+ *
+ * Everything that can change the output arrives in `spec`. The only other thing it touches is
+ * the map from a spec's storage paths to the local files a caller already downloaded — a
+ * lookup, not a source of new inputs. So an input that is absent from the spec cannot reach
+ * ffmpeg, which is what makes renderFingerprint(spec) an honest content address rather than a
+ * hash of whichever fields somebody remembered to include.
+ *
+ * renderSpec.test.ts asserts this body contains no query, no storage call and no fetch.
+ */
+export async function renderFromSpec(
+  ffmpeg: string,
+  spec: RenderSpec,
+  deps: {
+    /** Local file already downloaded for a storage path in the spec. */
+    localFor: (storagePath: string) => string
+    fontPath: string
+    workDir: string
+    outputPath: string
+  },
+): Promise<void> {
+  const at = (p: string | null) => (p ? deps.localFor(p) : null)
+  await renderReel(ffmpeg, {
+    sourcePath: deps.localFor(spec.media.source),
+    outputPath: deps.outputPath,
+    fontPath: deps.fontPath,
+    template: spec.template,
+    headline: spec.headline,
+    subheadline: spec.subheadline,
+    audioChoice: spec.audioChoice,
+    platform: spec.safeAreaId,
+    workDir: deps.workDir,
+    hookPath: at(spec.media.hook),
+    ctaPath: at(spec.media.cta),
+    presenterPath: at(spec.media.presenter),
+    presenterCtaPath: at(spec.media.presenterCta),
+    presenterIntroSeconds: spec.presenterIntroSeconds,
+    presenterSide: spec.presenterSide,
+    presenterWidthPx: spec.presenterWidthPx,
+  })
+}
 
 /** Render one post and write the artifact + post state. `supabase` must be privileged enough to
  *  write social_posts — an RLS-denied update here would look like a successful render. */
@@ -62,6 +106,10 @@ export async function renderPostToStorage(args: {
   await supabase.from("social_posts").update({ render_status: "rendering", render_error: null, updated_at: new Date().toISOString() }).eq("id", id)
 
   const work = await makeWorkDir()
+  // WHERE EACH SPEC PATH LANDED. The spec names inputs by immutable storage path; the renderer
+  // needs the local file. This map is the only bridge between them, and it is populated at the
+  // moment of download, so a file that was never fetched cannot be handed to ffmpeg.
+  const localByStorage = new Map<string, string>()
   try {
     // Download the immutable source via a short-lived signed URL (never made public).
     const { data: signed, error: signErr } = await supabase.storage.from("social-media").createSignedUrl(sourcePath, 600)
@@ -70,13 +118,17 @@ export async function renderPostToStorage(args: {
     if (!res.ok) throw new Error(`source fetch ${res.status}`)
     const srcLocal = path.join(work, `source.${extOf(sourcePath)}`)
     await fs.writeFile(srcLocal, Buffer.from(await res.arrayBuffer()))
+    localByStorage.set(sourcePath, srcLocal)
 
     // VOICE CLIPS — resolve the selected Hook/CTA to their private storage paths and download them
     // into the SAME work dir, using the same signed-URL pattern as the source. The renderer then adds
     // them as extra ffmpeg inputs and ducks the music bed while each one plays. A selected clip that
     // cannot be resolved or fetched FAILS the render: silently rendering without the locator's voice
     // would ship a different video than they asked for.
-    const voiceLocal = async (clipId: string | null, role: "Hook" | "CTA"): Promise<string | null> => {
+    // Returns the STORAGE path it chose as well as the local file. The choice between the
+    // normalised derivative and the original changes the mix, so it is part of what identifies
+    // this render and has to reach the spec — not just the temp filename it landed in.
+    const voiceLocal = async (clipId: string | null, role: "Hook" | "CTA"): Promise<{ storagePath: string; local: string } | null> => {
       if (!clipId) return null
       const { data: clip } = await supabase.from("social_voice_clips")
         .select("storage_path, normalized_storage_path").eq("id", clipId).maybeSingle()
@@ -99,11 +151,12 @@ export async function renderPostToStorage(args: {
       if (!clipRes.ok) throw new Error(`voice clips: the selected ${role} clip failed to download (${clipRes.status})`)
       const local = path.join(work, `voice-${role.toLowerCase()}.${extOf(clipPath)}`)
       await fs.writeFile(local, Buffer.from(await clipRes.arrayBuffer()))
-      return local
+      localByStorage.set(clipPath, local)
+      return { storagePath: clipPath, local }
     }
     // 'existing' mode draws no overlay, but it is still the locator's post — voice clips apply there too.
-    const hookLocal = await voiceLocal((p.voice_hook_id as string | null) ?? null, "Hook")
-    const ctaLocal = await voiceLocal((p.voice_cta_id as string | null) ?? null, "CTA")
+    const hookClip = await voiceLocal((p.voice_hook_id as string | null) ?? null, "Hook")
+    const ctaClip = await voiceLocal((p.voice_cta_id as string | null) ?? null, "CTA")
 
     // ── AI PRESENTER ──────────────────────────────────────────────────────────────────────────
     // Entirely opt-in: no presenter_id ⇒ nothing below runs and the render is exactly what it was.
@@ -111,9 +164,9 @@ export async function renderPostToStorage(args: {
     // Downloading by storage path, the same read-only signed-URL pattern as the source and voice
     // clips. The presenter clip is a DERIVATIVE under presenters/ — no source.* key is read here,
     // and nothing is uploaded.
-    let presenterLocal: string | null = null
-    let presenterCtaLocal: string | null = null
-    let presenterAudioLocal: string | null = null
+    let presenterStorage: string | null = null
+    let presenterCtaStorage: string | null = null
+    let presenterAudioStorage: string | null = null
     /** Both avatar clips arrive the same way, so the download is written once. */
     const avatarLocal = async (clipPath: string | null, role: "presenter" | "presenter-cta"): Promise<string | null> => {
       if (!clipPath) return null
@@ -123,32 +176,37 @@ export async function renderPostToStorage(args: {
       if (!r.ok) throw new Error(`AI Presenter: the avatar clip failed to download (${r.status})`)
       const local = path.join(work, `${role}.${extOf(clipPath)}`)
       await fs.writeFile(local, Buffer.from(await r.arrayBuffer()))
+      localByStorage.set(clipPath, local)
       return local
     }
     if (p.presenter_id) {
-      presenterLocal = await avatarLocal((p.presenter_clip_storage_path as string | null) ?? null, "presenter")
+      const presenterPath = (p.presenter_clip_storage_path as string | null) ?? null
+      if (await avatarLocal(presenterPath, "presenter")) presenterStorage = presenterPath
       // ── THE CTA AVATAR IS WRITTEN ONLY ON A VERIFIED MATCH ────────────────────────────────
       // presenter_cta_clip_storage_path is set by the editor's save path ONLY when a clip
       // lip-synced to the selected CTA exists (see the posts route). So there is no fallback to
       // decide here: a null means no avatar during the CTA, which is the audio-only behaviour this
       // feature started from. The alternative — showing the intro clip again — would put the
       // hook's mouth on the CTA's words for five seconds at the end of every video.
-      presenterCtaLocal = await avatarLocal((p.presenter_cta_clip_storage_path as string | null) ?? null, "presenter-cta")
+      const presenterCtaPath = (p.presenter_cta_clip_storage_path as string | null) ?? null
+      if (await avatarLocal(presenterCtaPath, "presenter-cta")) presenterCtaStorage = presenterCtaPath
       const audioPath = (p.presenter_audio_storage_path as string | null) ?? null
       if (audioPath) {
         const { data: ag, error: agErr } = await supabase.storage.from("social-media").createSignedUrl(audioPath, 600)
         if (agErr || !ag?.signedUrl) throw new Error("AI Presenter: could not read the presenter audio")
         const ar = await fetch(ag.signedUrl)
         if (!ar.ok) throw new Error(`AI Presenter: the presenter audio failed to download (${ar.status})`)
-        presenterAudioLocal = path.join(work, `presenter-audio.${extOf(audioPath)}`)
+        const presenterAudioLocal = path.join(work, `presenter-audio.${extOf(audioPath)}`)
         await fs.writeFile(presenterAudioLocal, Buffer.from(await ar.arrayBuffer()))
+        localByStorage.set(audioPath, presenterAudioLocal)
+        presenterAudioStorage = audioPath
       }
     }
     // ONE audio file drives both the avatar's lip-sync and the final mix. It rides the EXISTING
     // Voice Clip hook path — same ducking, same timing, already tested — rather than introducing a
     // second audio chain that could drift out of sync with the mouth. An explicitly chosen Hook
     // still wins: the operator's selection is never silently replaced.
-    const effectiveHook = hookLocal ?? presenterAudioLocal
+    const effectiveHook = hookClip?.storagePath ?? presenterAudioStorage
 
     const outLocal = path.join(work, "out.mp4")
     // 'existing' mode = the uploaded video already has burned-in text: draw NO Beast Social overlay
@@ -157,27 +215,46 @@ export async function renderPostToStorage(args: {
     const destination = isSocialDestination(p.destination) ? p.destination : destinationFromLegacyPlatform(p.platform as string | null)
     const safeAreaId = DESTINATIONS[destination].safeAreaId
     const existingText = (p.overlay_mode as string) === "existing"
-    await renderReel(ffmpegPath as unknown as string, {
-      sourcePath: srcLocal,
-      outputPath: outLocal,
-      fontPath: OVERLAY_FONT_PATH,
+
+    // THE SPEC. Every value that reaches ffmpeg is decided here and nowhere else, including the
+    // 'existing' overrides — a post whose footage already carries burned-in text draws no
+    // overlay and keeps its original audio, and that is a property of the RENDER, so it belongs
+    // in the thing that describes the render rather than being applied further down.
+    const spec: RenderSpec = {
+      rendererVersion: RENDERER_VERSION,
+      // THE DESTINATION'S GEOMETRY, not the bare platform. An Instagram Reel and an Instagram
+      // Story share a provider but not necessarily a safe area, so passing "instagram" for both
+      // would fit a Story headline into the Reel box and leave it under the Story reply bar. The
+      // layout engine takes a safe-area id; the destination is what resolves it.
+      safeAreaId,
       template: existingText ? "market_type" : ((p.overlay_template as string | null) ?? "market_type"),
       headline: existingText ? "" : ((p.overlay_headline as string | null) ?? ""),
       subheadline: existingText ? "" : ((p.overlay_subheadline as string | null) ?? ""),
       audioChoice: existingText ? "original" : (((p.audio_choice as string) || "original") as AudioChoice),
-        // THE DESTINATION'S GEOMETRY, not the bare platform. An Instagram Reel and an Instagram
-        // Story share a provider but not a safe area, so passing "instagram" for both would fit a
-        // Story headline into the Reel box and leave it under the Story reply bar. The layout
-        // engine takes a safe-area id; the destination is what resolves it.
-        platform: safeAreaId,
-      workDir: work,
-      hookPath: effectiveHook,
-      ctaPath: ctaLocal,
-      presenterPath: presenterLocal,
-      presenterCtaPath: presenterCtaLocal,
+      media: {
+        source: sourcePath,
+        hook: effectiveHook,
+        cta: ctaClip?.storagePath ?? null,
+        presenter: presenterStorage,
+        presenterCta: presenterCtaStorage,
+      },
       presenterIntroSeconds: typeof p.presenter_intro_seconds === "number" ? p.presenter_intro_seconds : null,
       presenterSide: (p.presenter_side as string | null) ?? null,
       presenterWidthPx: typeof p.presenter_width_px === "number" ? p.presenter_width_px : null,
+    }
+    const fingerprint = renderFingerprint(spec)
+
+    await renderFromSpec(ffmpegPath as unknown as string, spec, {
+      // A spec path with no downloaded file is a bug in THIS function, not a missing asset —
+      // every path in the spec was put there by a download above. Throwing names which one.
+      localFor: (storagePath: string) => {
+        const local = localByStorage.get(storagePath)
+        if (!local) throw new Error(`render spec references a file that was never downloaded: ${storagePath}`)
+        return local
+      },
+      fontPath: OVERLAY_FONT_PATH,
+      workDir: work,
+      outputPath: outLocal,
     })
 
     const nextVersion = (typeof p.render_version === "number" ? p.render_version : 0) + 1
@@ -216,7 +293,7 @@ export async function renderPostToStorage(args: {
       .eq("id", id)
       .eq("status", "draft")
 
-    return { ok: true as const, renderVersion: nextVersion, outputPath: derivativePath, platform: (p.platform as string | null) ?? "instagram", destination, safeAreaId }
+    return { ok: true as const, renderVersion: nextVersion, outputPath: derivativePath, platform: (p.platform as string | null) ?? "instagram", destination, safeAreaId, fingerprint }
   } catch (e) {
     const message = e instanceof Error ? e.message.slice(0, 400) : "render error"
     await supabase.from("social_posts").update({ render_status: "error", render_error: message, updated_at: new Date().toISOString() }).eq("id", id)
