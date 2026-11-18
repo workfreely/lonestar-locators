@@ -331,7 +331,13 @@ export async function exchangeForLongLivedToken(shortToken: string): Promise<Lon
 export async function refreshLongLivedToken(longToken: string): Promise<LongToken> {
   const params = new URLSearchParams({ grant_type: "ig_refresh_token", access_token: longToken })
   const res = await fetch(`${GRAPH_BASE}/refresh_access_token?${params.toString()}`)
-  if (!res.ok) throw new Error(`ig token refresh failed: ${res.status}`)
+  if (!res.ok) {
+    // Same treatment as the long-lived exchange, and for a stronger reason: this one runs
+    // unattended, so "400" in a cron log at 3am is the whole of what anybody would ever see.
+    // describeGraphError never receives the URL and never echoes a body it cannot parse.
+    const detail = describeGraphError(await res.text().catch(() => ""))
+    throw new Error(`ig token refresh failed: ${res.status}${detail ? ` — ${detail}` : ""}`)
+  }
   return (await res.json()) as LongToken
 }
 

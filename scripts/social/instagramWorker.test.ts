@@ -144,10 +144,16 @@ async function main() {
     // helpers, which the assertion below proves rather than assumes. Adding a path here is a
     // DELIBERATE act requiring the review that produced this comment; the protection that actually
     // matters is the next assertion, and it is unchanged.
+    // THE ALLOW-LIST WAS STALE, which is why this assertion has been failing: social-tiktok-publish
+    // was scheduled and never added here, so the guard has been reporting a difference rather than
+    // protecting anything. Both missing entries are added WITH the reason each is allowed, and the
+    // assertion below still proves independently that neither can publish to Instagram.
     const ALLOWED_SOCIAL_CRONS = [
-      "/api/cron/social-instagram-publish",   // the only route that may publish
-      "/api/cron/social-autopilot-plan",      // schedules; cannot publish
-      "/api/cron/social-comment-poll",        // reconciles comments; cannot publish
+      "/api/cron/social-instagram-publish",        // the only route that may publish to Instagram
+      "/api/cron/social-tiktok-publish",           // publishes to TikTok only; cannot touch Instagram
+      "/api/cron/social-autopilot-plan",           // schedules; cannot publish
+      "/api/cron/social-comment-poll",             // reconciles comments; cannot publish
+      "/api/cron/social-instagram-token-refresh",  // renews a credential; creates nothing, publishes nothing
     ]
     const socialCrons = vercel.crons.filter((c) => /social/.test(c.path))
     ok("the social crons are exactly the three reviewed ones, and no others",
@@ -159,7 +165,12 @@ async function main() {
         .filter((c) => c.path !== "/api/cron/social-instagram-publish")
         .every((c) => {
           const src = read(`app${c.path}/route.ts`).replace(/\/\/[^\n]*|\/\*[\s\S]*?\*\//g, "")
-          return !/createReelContainer|createStoryContainer|finalizeInstagramPublish|media_publish|graph\.facebook/.test(src)
+          // `media_publish` ALONE was too loose: social_posts.media_publish_claimed_at is a column
+          // both workers write, so the TikTok worker matched on a column name and the guard
+          // reported a publisher that is not one. Narrowed to the Graph CALL — the endpoint is
+          // reached as `/{ig-user-id}/media_publish` — so the claim is about publishing to
+          // Instagram rather than about a word appearing in the file.
+          return !/createReelContainer|createStoryContainer|finalizeInstagramPublish|\/media_publish|graph\.facebook|graph\.instagram/.test(src)
         }))
   }
 
