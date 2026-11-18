@@ -53,6 +53,7 @@ const MIG = sqlOf(read("supabase/prepared/20261115000003_tiktok_connection_scope
 const SERVER = code(read("lib/social/tiktokServer.ts"))
 const WORKER = code(read("app/api/cron/social-tiktok-publish/route.ts"))
 const UI = code(read("components/crm/social/PublishingDestinations.tsx"))
+const CAPS = code(read("lib/social/accountCapabilities.ts"))
 const PAGE = code(read("app/admin/social-autopilot/accounts/page.tsx"))
 
 // Two accounts, used throughout. REP is the live Real Estate Pro destination; LB is the Locator
@@ -360,7 +361,13 @@ console.log("\nPAUSE — per destination, through the connection-scoped RPCs:")
   ok("…and the page selects it", /posting_paused/.test(PAGE))
   ok("the row offers Pause when running", /action: "pause"/.test(UI))
   ok("…and Resume when paused", /action: "resume"/.test(UI))
-  ok("the paused state is shown as its own pill, distinct from Connected", /Paused</.test(UI))
+  // Restated for the owner-grouped cards. The pause is no longer a value the STATUS chip can take
+  // — that chip now answers only "can we reach this account" — so it is stated on its own line and
+  // cannot be confused with a dead token, which is a stronger form of the original claim.
+  ok("the paused state is stated separately from the connection status",
+    /CONNECTION_STATUS_LABEL\[state\]/.test(UI) && /t\.paused \? "Paused"/.test(UI))
+  ok("…and the status chip cannot say 'Paused' at all",
+    !/connected: "Paused"|not_connected: "Paused"|reconnect_needed: "Paused"/.test(CAPS))
   ok("planning excludes a paused destination, so a pause keeps NEW posts off its queue",
     /c\.posting_paused !== true/.test(code(read("lib/social/autopilotPlanRun.ts"))))
   // This read "the TikTok worker does NOT yet enforce it — Phase 2" while Phase 1 was the tip. That
@@ -392,17 +399,21 @@ console.log("\nTHE DASHBOARD — N TikTok accounts, not one:")
     !/\.eq\("provider", "tiktok"\)\s*\n\s*\.maybeSingle\(\)/.test(PAGE))
   ok("…it is an ordered list", /\.eq\("provider", "tiktok"\)\s*\n\s*\.order\("created_at", \{ ascending: true \}\)/.test(PAGE))
   ok("…selecting the connection id, so each row can be acted on", /select\("id, username, label, status, posting_paused/.test(PAGE))
-  ok("the component takes a list", /tiktoks\?: TikTokConnection\[\]/.test(UI))
+  ok("the component takes a list", /tiktok: TikTokConnection\[\]/.test(UI))
   ok("…and renders one row per account, keyed by connection id",
-    /tiktoks\.map\(\(tiktok\) => \(/.test(UI) && /key=\{tiktok\.id\}/.test(UI))
-  ok("the empty state is the empty LIST, not a null row", /tiktoks\.length === 0 \?/.test(UI))
+    /accounts\.map\(\(a\) =>/.test(UI) && /tiktokCard\(a as TikTokConnection/.test(UI) && /key: t\.id,/.test(UI))
+  ok("the empty state is the empty LIST, not a null row",
+    /accounts\.length === 0 && asCards\.length === 0 && emptySlot\(group, platform\)/.test(UI))
   ok("a TikTok row leads with the ACCOUNT, so two rows are distinguishable",
-    /\{tiktok\.label \|\| tiktok\.username \|\| tiktok\.ownerName \|\| "TikTok account"\}/.test(UI))
-  ok("…and can be renamed to disambiguate, like the Instagram rows", /setRenamingId\(tiktok\.id\)/.test(UI))
-  ok("the market chip still renders on a TikTok row (beb7c81, unchanged)", /marketChip\(tiktok\.marketRestriction\)/.test(UI))
+    /name: t\.label \|\| t\.username \|\| t\.ownerName \|\| "TikTok account",/.test(UI))
+  ok("…and can be renamed to disambiguate, like the Instagram rows", /setRenamingId\(t\.id\)/.test(UI))
+  ok("the market chip still renders on a TikTok row (beb7c81, unchanged)", /marketChip\(t\.marketRestriction\)/.test(UI))
   // The Instagram section is untouched by this phase.
-  ok("the Instagram rows still render from `destinations`", /destinations\.map\(\(d\) => \(/.test(UI))
-  ok("…with their own capability rows intact", /capabilityRow\("Instagram Publishing", d\.publishing\)/.test(UI))
+  ok("the Instagram rows still render from the Destination list", /instagramCard\(a as Destination/.test(UI))
+  ok("…with both capabilities still reported per account",
+    /autoPostingWord\(d\.publishing\)/.test(UI) && /autoReplyWord\(d\.autoReply\)/.test(UI))
+  ok("…and the component still decides NEITHER of them itself",
+    !/publishingCapability\(|autoReplyCapability\(|accountAutomationGate\(/.test(UI))
 }
 
 // ── RELEASE SCOPE ─────────────────────────────────────────────────────────────────────────────

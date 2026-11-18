@@ -271,3 +271,72 @@ export const REAUTHORIZE_COMMENTS_TITLE =
   "Re-authorize this Instagram account to grant comment access. Nothing is disconnected and your " +
   "publishing settings, schedules and scheduled posts are unaffected — sign in with the SAME " +
   "Instagram account."
+
+// ── THE ACCOUNTS PAGE'S THREE WORDS ─────────────────────────────────────────────────────────
+// The redesigned card states three things per account: can we reach it, is it posting, is it
+// answering comments. Those are the SAME facts publishingCapability and autoReplyCapability
+// already decide — these map their verdict onto the card's shorter vocabulary and derive nothing
+// new. A second opinion computed in the component is exactly how the page and the worker came to
+// disagree once already.
+
+/** Exactly three, because the card's status chip offers exactly three. */
+export type ConnectionStatus = "connected" | "not_connected" | "reconnect_needed"
+
+/**
+ * Can we reach this account?
+ *
+ * ONLY about the token. A healthy account with posting paused is CONNECTED — the pause belongs on
+ * the Auto Posting line, and conflating the two is what made a paused account and a dead token
+ * wear the same pill. A row with no connection at all (an invitation that nobody has accepted) is
+ * not passed here; it has no status to read and renders as not_connected.
+ */
+export function connectionStatus(input: { status: string; expired: boolean }): ConnectionStatus {
+  return input.status === "error" || input.expired ? "reconnect_needed" : "connected"
+}
+
+export const CONNECTION_STATUS_LABEL: Record<ConnectionStatus, string> = {
+  connected: "Connected",
+  not_connected: "Not Connected",
+  reconnect_needed: "Reconnect Needed",
+}
+
+/** One word for the Auto Posting line, from the capability that already decided it. */
+export function autoPostingWord(cap: Capability): string {
+  if (cap.state === "active") return "On"
+  if (cap.state === "attention") return "Blocked"
+  return "Paused"
+}
+
+/** One or two words for the Auto Reply line, from the gate's verdict. Never re-derived. */
+export function autoReplyWord(cap: Capability): string {
+  switch (cap.state) {
+    case "active": return "On"
+    case "permission_needed": return "Permission needed"
+    case "attention": return "Needs attention"
+    default: return "Off"
+  }
+}
+
+/**
+ * The status chip's palette.
+ *
+ * Declared HERE, beside CAPABILITY_TONE, for the reason that module comment already gives: a
+ * colour defined in the component is a colour the preview harness cannot see, and the two drifted
+ * apart once already. Connection status is a different taxonomy from CapabilityState — three
+ * values about reachability, not five about activity — so it gets its own map rather than being
+ * forced through one that does not fit.
+ *
+ * Emerald stays the only green: a reachable account is not a busy one, but "Connected" is a fact
+ * about the token and there is nothing to warn about, so it is the one place green means "fine".
+ */
+export const CONNECTION_STATUS_TONE: Record<ConnectionStatus, string> = {
+  connected: "text-emerald-600 dark:text-emerald-400 border-emerald-500/40",
+  not_connected: "text-[var(--crm-text-muted)] border-[var(--crm-border)]",
+  reconnect_needed: "text-amber-600 dark:text-amber-400 border-amber-500/50",
+}
+
+export const CONNECTION_STATUS_DOT: Record<ConnectionStatus, string> = {
+  connected: "bg-emerald-500",
+  not_connected: "bg-[var(--crm-text-muted)]",
+  reconnect_needed: "bg-amber-500",
+}

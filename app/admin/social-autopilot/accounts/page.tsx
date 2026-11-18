@@ -5,7 +5,7 @@ import { createClient } from "@/lib/supabase/server"
 import { loadAgentRoster, connectionIdsFor, resolveSelection } from "@/lib/social/agentRoster"
 import { instagramConfigured } from "@/lib/social/instagram"
 import { tiktokConfigured } from "@/lib/social/tiktok"
-import PublishingDestinations, { type Destination, type PendingInvite, type TikTokConnection } from "@/components/crm/social/PublishingDestinations"
+import PublishingDestinations, { type Destination, type OwnerGroup, type PendingInvite, type TikTokConnection } from "@/components/crm/social/PublishingDestinations"
 import AutoPostingControl from "@/components/crm/social/AutoPostingControl"
 import { readAutoPosting } from "@/lib/social/autoPosting"
 import { accountAutomationGate } from "@/lib/social/commentSafety"
@@ -51,7 +51,7 @@ export default async function SocialAutopilotAccountsPage({ searchParams }: { se
   // same way the Instagram destinations are, so the two sections behave identically.
   const { data: ttRows } = await supabase
     .from("social_connections")
-    .select("id, username, label, status, posting_paused, token_expires_at, created_at, avatar_url, market_restriction")
+    .select("id, username, label, status, posting_paused, posts_per_day, token_expires_at, created_at, avatar_url, market_restriction, agent_user_id")
     .eq("provider", "tiktok")
     .order("created_at", { ascending: true })
 
@@ -73,14 +73,23 @@ export default async function SocialAutopilotAccountsPage({ searchParams }: { se
     }
   }
 
-  type TtRow = { id: string; username: string | null; label: string | null; status: string; posting_paused: boolean | null; token_expires_at: string | null; created_at: string; avatar_url: string | null; market_restriction: string[] | null }
+  type TtRow = { id: string; username: string | null; label: string | null; status: string; posting_paused: boolean | null; posts_per_day: number | null; token_expires_at: string | null; created_at: string; avatar_url: string | null; market_restriction: string[] | null; agent_user_id: string | null }
   const tiktoks: TikTokConnection[] = ((ttRows ?? []) as TtRow[]).map((r) => ({
     // The connection id addresses the connection-scoped backend actions (pause / resume / label /
     // disconnect) — the same ones the Instagram rows use. It is never displayed.
     id: r.id,
     username: r.username,
     label: r.label,
+    // Whose account this is. NULL is the OWNER's own — never "no agent" — which is what the live
+    // TikTok row carries and why it groups under My Accounts without a special case.
+    agentUserId: r.agent_user_id,
     paused: !!r.posting_paused,
+    // The SAME column the Instagram row shows, read for the same reason: computeAutopilotPlan
+    // builds a rule from every connection regardless of provider and takes its daily times from
+    // this value, so a TikTok destination's cadence is as real as an Instagram one's and was
+    // simply never selected.
+    postsPerDay: r.posts_per_day,
+    status: r.status,
     avatarUrl: r.avatar_url ?? null,
     ownerName,
     ownerPhotoUrl,
@@ -108,7 +117,7 @@ export default async function SocialAutopilotAccountsPage({ searchParams }: { se
   const invites = (inviteRows ?? []) as InviteRow[]
 
   const agentIds = Array.from(
-    new Set([...conns, ...invites].map((r) => r.agent_user_id).filter((x): x is string => !!x)),
+    new Set([...conns, ...invites, ...((ttRows ?? []) as TtRow[])].map((r) => r.agent_user_id).filter((x): x is string => !!x)),
   )
   const agentMap = new Map<string, { name: string; photoUrl: string | null }>()
   if (agentIds.length > 0) {
@@ -239,6 +248,7 @@ export default async function SocialAutopilotAccountsPage({ searchParams }: { se
       id: row.id,
       username: row.username,
       label: row.label,
+      agentUserId: row.agent_user_id,
       status: row.status,
       paused: !!row.posting_paused,
       postsPerDay: row.posts_per_day,
@@ -275,6 +285,70 @@ export default async function SocialAutopilotAccountsPage({ searchParams }: { se
       agentPhotoUrl: agent?.photoUrl ?? null,
     }
   })
+
+  // ── GROUPED BY OWNER ──────────────────────────────────────────────────────────────────────
+  // The page used to be a list of Instagram rows and a list of TikTok rows, with every pending
+  // invitation in a third list at the bottom of the page — so the only way to learn that an
+  // invitation belonged to a particular agent was to read its label and remember.
+  //
+  // The grouping is derived, never configured. An owner appears because a connection or an
+  // invitation names them, which is the same relationship loadAgentRoster is built from, so a new
+  // agent gets their own band the moment they have either and nothing has to be registered
+  // anywhere. NOTHING HERE WRITES: this reorganises rows already loaded above.
+  //
+  // A NULL agent_user_id is the OWNER's own account, not "no agent" — the live TikTok destination
+  // carries one, and so does the invitation created without choosing an agent. Both belong under
+  // My Accounts rather than in a bucket of their own, which is also where an operator looks for
+  // them.
+  const OWNER_KEY = "owner"
+  const keyOf = (agentUserId: string | null) =>
+    !agentUserId || (me && agentUserId === me.id) ? OWNER_KEY : agentUserId
+
+  const groups: OwnerGroup[] = []
+  const groupBy = new Map<string, OwnerGroup>()
+  const groupFor = (agentUserId: string | null): OwnerGroup => {
+    const key = keyOf(agentUserId)
+    const existing = groupBy.get(key)
+    if (existing) return existing
+    const agent = key === OWNER_KEY ? null : agentOf(key)
+    const group: OwnerGroup = {
+      key,
+      kind: key === OWNER_KEY ? "mine" : "team",
+      // The owner's own band is named from their profile, exactly as the TikTok row already is.
+      name: key === OWNER_KEY ? ownerName ?? "My Accounts" : agent?.name || "Agent",
+      photoUrl: key === OWNER_KEY ? ownerPhotoUrl : agent?.photoUrl ?? null,
+      instagram: [],
+      tiktok: [],
+      invites: [],
+    }
+    groupBy.set(key, group)
+    groups.push(group)
+    return group
+  }
+
+  // The owner's band exists even with nothing in it, so the page always offers somewhere to
+  // connect a first account rather than rendering as empty.
+  groupFor(null)
+
+  for (const d of destinations) if (visible(d.id)) groupFor(d.agentUserId).instagram.push(d)
+  for (const t of tiktoks) if (visible(t.id)) groupFor(t.agentUserId).tiktok.push(t)
+  for (const i of pendingInvites) {
+    if (selectedAgent && i.agentUserId !== selectedAgent) continue
+    groupFor(i.agentUserId).invites.push(i)
+  }
+
+  // Mine first, then the team by name — a stable order, so the page does not reshuffle itself
+  // when a token is refreshed or an invitation is used.
+  groups.sort((a, b) =>
+    a.kind === b.kind ? a.name.localeCompare(b.name) : a.kind === "mine" ? -1 : 1,
+  )
+
+  // Under a selected-agent filter, a band holding nothing is noise rather than an empty slot to
+  // fill: the operator asked to see ONE agent. Unfiltered, an empty team band is kept on purpose —
+  // it is where that agent's next account goes.
+  const visibleGroups = selectedAgent
+    ? groups.filter((g) => g.instagram.length + g.tiktok.length + g.invites.length > 0)
+    : groups
 
   // Flash from the direct admin-connect callback (?connected / ?error). Provider-aware so both
   // the Instagram and TikTok connect flows land here with the right copy.
@@ -333,10 +407,8 @@ export default async function SocialAutopilotAccountsPage({ searchParams }: { se
 
       <PublishingDestinations
         configured={configured}
-        destinations={destinations.filter((d) => visible(d.id))}
-        pendingInvites={pendingInvites.filter((i) => !selectedAgent || i.agentUserId === selectedAgent)}
         tiktokConfigured={ttConfigured}
-        tiktoks={tiktoks.filter((t) => visible(t.id))}
+        groups={visibleGroups}
       />
     </div>
   )

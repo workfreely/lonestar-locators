@@ -465,8 +465,16 @@ console.log("\nSEEING IT — the restriction is on the destination row, for both
   // autopilot plan cron made that false, and it rendered nothing at all when the column was null —
   // which is both live accounts, so there was nowhere to confirm a 2/day account posts twice.
   ok("the stale 'scheduling coming soon' copy is gone", !/scheduling coming soon/.test(UI))
+  // Restated for the owner-grouped cards, where ONE renderer serves both platforms — the claim is
+  // unchanged and now covers TikTok too, whose cadence the planner has always honoured (it builds
+  // a rule from every connection regardless of provider) and which the page simply never selected.
   ok("…and the EFFECTIVE cadence is shown, marked when it comes from the default",
-    /\{d\.postsPerDay \?\? 2\} posts\/day/.test(UI) && /\(default\)/.test(UI))
+    /const cadence = \(postsPerDay: number \| null \| undefined\)/.test(UI)
+      && /\{postsPerDay \?\? 2\}/.test(UI)
+      && /\(default — 7:30 AM & 7:30 PM CT\)/.test(UI))
+  ok("…by ONE renderer, so the two platforms cannot state different cadences",
+    (UI.match(/cadence\(/g) ?? []).length === 2
+      && /cadence\(d\.postsPerDay\)/.test(UI) && /cadence\(t\.postsPerDay\)/.test(UI))
 }
 
 // ── 8. RELEASE SCOPE ──────────────────────────────────────────────────────────────────────────

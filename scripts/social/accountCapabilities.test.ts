@@ -162,16 +162,31 @@ console.log("\n4. THE ACCOUNTS PAGE WIRES THE GATE, AND KEEPS EVERY EXISTING CON
   ok("pause and resume still go through manage()",
     /manage\(d\.id, \{ action: "pause" \}\)/.test(comp) && /manage\(d\.id, \{ action: "resume" \}\)/.test(comp))
 
-  ok("both capability rows are rendered", /capabilityRow\("Instagram Publishing"/.test(comp)
-    && /capabilityRow\("Instagram Auto Reply"/.test(comp))
+  // Restated for the owner-grouped cards: the two capabilities are now two fact rows rather than
+  // two capabilityRow() blocks. The claim is the one that mattered — BOTH are reported on every
+  // Instagram card, and neither is inferred from the other or from the connection alone.
+  ok("both capability rows are rendered", /factRow\("Auto Posting", <span className=\{toneFor\(d\.publishing\)\}/.test(comp)
+    && /factRow\("Auto Reply", <span className=\{toneFor\(d\.autoReply\)\}/.test(comp))
   ok("there is a Manage in Comments action", /Manage in Comments/.test(comp))
   ok("…pointing at the Comments page", /COMMENTS_PAGE = "\/admin\/social-autopilot\/comments"/.test(comp))
   // The approved layout: name left, badge right, detail underneath, actions on their own row.
-  ok("the badge is right-aligned and rendered from cap.badge",
-    /shrink-0[^>]*rounded-full[\s\S]{0,160}\{cap\.badge\}/.test(comp))
-  ok("the detail sits under the capability name", /\{cap\.detail\}/.test(comp))
-  ok("actions render on their own row beneath, not beside the badge",
-    /\{actions && <div className="mt-2 flex/.test(comp))
+  // The badge became the card's shorter word, and the word is still DERIVED from the capability —
+  // autoPostingWord / autoReplyWord switch on cap.state and nothing else, which is asserted
+  // directly above. What must stay true is that the component invents neither.
+  ok("the capability's own word is rendered, not one the component invented",
+    /\{autoPostingWord\(d\.publishing\)\}/.test(comp) && /\{autoReplyWord\(d\.autoReply\)\}/.test(comp))
+  // cap.detail is the sentence naming WHY nothing is happening. It is still shown — as the card's
+  // note line whenever a capability is not active, and as the row's tooltip in every case — so the
+  // reason is never lost behind the one-word summary.
+  ok("the detail is still shown, as the note and the tooltip",
+    /d\.publishing\.state !== "active" \? d\.publishing\.detail : d\.autoReply\.detail/.test(comp)
+      && /autoPostingWord\(d\.publishing\)\}<\/span>, d\.publishing\.detail\)/.test(comp)
+      && /autoReplyWord\(d\.autoReply\)\}<\/span>, d\.autoReply\.detail\)/.test(comp))
+  // Actions moved out of the capability block entirely: one primary action per card in its own
+  // column, everything else behind Advanced. The crowding this once guarded against cannot recur,
+  // because no action is rendered beside the status at all.
+  ok("actions render in their own column, never beside the status",
+    /\{opts\.actions && <div className="flex-none flex flex-col gap-1\.5 w-\[150px\]">/.test(comp))
 
   // ── THE REDUNDANT LINK ────────────────────────────────────────────────────────────────
   ok("the standalone connect link is hidden once an account is connected",
@@ -195,7 +210,8 @@ console.log("\n5. RE-AUTHORIZATION IS SAFE, AND REUSES THE ONE FLOW:")
   // apparent remedy for a problem it could not touch. The condition must now name a PERMISSION
   // problem specifically, and the assertion also forbids the old disjunct returning.
   ok("…appears only when the permission is missing or reported revoked",
-    /\(!d\.commentsScopeGranted \|\| d\.autoReply\.state === "permission_needed"\) &&/.test(comp))
+    /const needsComments = !d\.commentsScopeGranted \|\| d\.autoReply\.state === "permission_needed"/.test(comp)
+      && /\{needsComments && \(/.test(comp))
   ok("…and NEVER merely because an action failed (no `attention` disjunct)",
     !/d\.autoReply\.state === "attention"\) &&\s*\(/.test(comp) &&
     !/commentsScopeGranted \|\| d\.autoReply\.state === "attention"/.test(comp))
@@ -289,7 +305,13 @@ console.log("\n7. THE PALETTE — five states, five colours, told apart at a gla
   // The component must RENDER the shared palette rather than keeping its own copy — that drift is
   // exactly what put a different tone function in the preview harness once already.
   const comp = read("components/crm/social/PublishingDestinations.tsx")
-  ok("the component reads the shared palette", /CAPABILITY_TONE\[state\]/.test(comp) && /CAPABILITY_DOT\[state\]/.test(comp))
+  // The capability words read CAPABILITY_TONE; the three-value status chip reads its own shared
+  // map, declared beside it for the same reason. CAPABILITY_DOT keeps its consumers — the preview
+  // harness and the palette suite — but the redesigned card has no capability dot to colour.
+  ok("the component reads the shared palette",
+    /CAPABILITY_TONE\[state\]/.test(comp)
+      && /CONNECTION_STATUS_TONE\[state\]/.test(comp)
+      && /CONNECTION_STATUS_DOT\[state\]/.test(comp))
   ok("…and keeps no hard-coded colour of its own",
     !/capabilityTone[\s\S]{0,200}text-(emerald|amber|sky|yellow|orange)-/.test(comp))
 

@@ -27,26 +27,36 @@ const sql = read("supabase/migrations/20260921000000_tiktok_connection.sql")
 
 // ── 1. THE BUTTON ───────────────────────────────────────────────────────────
 console.log("1. Reconnect shows on a connected card, not only an expired one:")
-const ttCard = ui.slice(ui.indexOf("TikTok subsection"), ui.indexOf("Pending Invitations"))
+// THE CARD IS NOW A FUNCTION, not a block of JSX inside a platform subsection — the page groups
+// accounts by owner and renders each through tiktokCard. The slice follows it; every claim below
+// is the one that was here before.
+const ttCard = ui.slice(ui.indexOf("── TIKTOK CARD"), ui.indexOf("── A PENDING INVITATION"))
+const caps = read("lib/social/accountCapabilities.ts")
 ok("the TikTok card was located", ttCard.length > 500)
 ok("Reconnect is NOT gated on expiry any more", !/\{tiktok\.expired && <a href=\{TT_CONNECT\}/.test(ttCard))
-ok("Reconnect renders unconditionally, pointing at the connect endpoint",
-  /<a href=\{TT_CONNECT\}[^>]*>Reconnect<\/a>/.test(ttCard))
-// Takes the destination it is disconnecting now that the section renders N accounts — the handler
-// is per row, and the connection-scoped backend is what makes "one account, never both" true.
-ok("Disconnect is still offered beside it", /onClick=\{\(\) => tiktokDisconnect\(tiktok\)\}>Disconnect<\/button>/.test(ttCard))
+// ── THE RESTATED CLAIM, AND WHY IT IS THE SAME ONE ──────────────────────────
+// The original hazard was that on a healthy connection the only visible control was Disconnect.
+// Reconnect is now the PRIMARY action when the sign-in has expired and sits in Advanced otherwise
+// — but so does Disconnect, and Reconnect comes first. The thing being prevented is unchanged:
+// the destructive action is never easier to reach than the repair.
+ok("Reconnect is always reachable, pointing at the connect endpoint",
+  /state === "reconnect_needed" && <a href=\{TT_CONNECT\}/.test(ttCard)
+    && /state !== "reconnect_needed" && advancedRow\("Re-authorize"/.test(ttCard))
+ok("…and is never harder to reach than Disconnect",
+  ttCard.indexOf('advancedRow("Re-authorize"') > 0
+    && ttCard.indexOf('advancedRow("Re-authorize"') < ttCard.indexOf('advancedRow("Disconnect this account"'))
+ok("Disconnect is still offered beside it", /onClick=\{\(\) => tiktokDisconnect\(t\)\}>Disconnect<\/button>/.test(ttCard))
 ok("the Connected / Reconnect-needed STATUS is still driven by expiry (unchanged)",
-  /tiktok\.expired \? \([\s\S]{0,400}?Reconnect needed[\s\S]{0,400}?\) : \([\s\S]{0,300}?Connected/.test(ttCard))
+  /connectionStatus\(\{ status: t\.status \?\? "connected", expired: t\.expired \}\)/.test(ttCard)
+    && /input\.status === "error" \|\| input\.expired \? "reconnect_needed" : "connected"/.test(caps))
 ok("Reconnect does NOT call disconnect first — it is a plain link, not a handler",
-  !/Reconnect<\/a>/.test(ttCard.replace(/<a href=\{TT_CONNECT\}[^>]*>Reconnect<\/a>/, "")) 
-  && !/tiktokDisconnect[\s\S]{0,120}TT_CONNECT/.test(ttCard))
+  !/tiktokDisconnect[\s\S]{0,120}TT_CONNECT/.test(ttCard)
+    && (ttCard.match(/<a href=\{TT_CONNECT\}/g) ?? []).length === (ttCard.match(/TT_CONNECT/g) ?? []).length)
 ok("the button explains that nothing is disconnected", /title="Re-authorize this TikTok account\. Nothing is disconnected/.test(ttCard))
-// THE ADD CONTROL IS NOW ALWAYS SHOWN, and that is deliberate. It used to be gated on
-// tiktoks.length === 0 so it could never read as "add another one here" — but adding another one
-// is now supported and intended, and the gate left no way to do it. What replaces the gate is
-// plain text: the control says to sign in as the account you want to ADD, and warns that an
-// already-connected account is re-authorized instead. Asserted here so the warning cannot be
-// dropped while the control stays.
+// ADDING IS NOT SOMETHING A CARD CAN DO. It used to be a second TT_CONNECT link sitting below the
+// list, which is why the old suite counted links to keep the two apart. The add flow is now a
+// button that opens the shared sheet, so the separation is structural rather than positional.
+ok("no card offers an add control", !/openAdd\(/.test(ttCard))
 ok("the add control is no longer gated on having no connections",
   !/\{tiktokConfigured && tiktoks\.length === 0/.test(ui))
 ok("…and it states which account to sign in as",
@@ -114,41 +124,36 @@ ok("video.upload is still NOT requested", !(TIKTOK_SCOPES as readonly string[]).
 ok("the card invokes no publishing endpoint or handler (its only 'publish' is the section's own label)",
   !/\/api\/[^"']*publish|publishPost|startPublish|TikTokPostConfirm/.test(ttCard))
 {
-  // The connected card is the block between the "no account connected yet" branch and the add
-  // control below it. The end marker used to be `{tiktokConfigured && tiktoks.length === 0 &&`;
-  // when that gate was removed, indexOf returned -1, slice(start, -1) swallowed the add control
-  // too, and the "exactly ONE connect link" assertion failed on a correct component. Anchored on
-  // the add control's own heading instead, which is the thing the slice is meant to stop before.
-  const addControlAt = ttCard.indexOf("Connect my TikTok")
-  const connectedCard = ttCard.slice(ttCard.indexOf("No TikTok account connected yet"), addControlAt)
-  ok("the slice stops before the add control", addControlAt > 0 && !connectedCard.includes("Connect My TikTok"))
-  ok("the connected card was located", connectedCard.includes("Reconnect") && connectedCard.includes("Disconnect"))
-  // THE ORIGINAL CLAIM, which was "exactly one connect link and one destructive control", now that
-  // the row also carries Pause/Resume and Rename (the per-account controls the multi-account work
-  // added, identical to the ones the Instagram rows have had all along).
+  // THE CONNECTED ROW is now the card function itself — there is no "no account connected yet"
+  // branch to slice from, because an owner with no account on a platform gets an empty slot
+  // rendered by emptySlot() instead, outside the card entirely.
   //
-  // The part that MATTERS is unchanged and is what this asserts: ONE connect link INSIDE the
-  // connected row — so Reconnect can never be mistaken for "add another account" — and every
-  // button in it drawn from the known safe set. The ADD control is a separate block outside this
-  // card; keeping the row at exactly one link is what keeps the two distinguishable.
-  ok("the connected row still offers exactly ONE connect link",
-    (connectedCard.match(/<a href=\{TT_CONNECT\}/g) ?? []).length === 1)
+  // The part that MATTERS is unchanged and is what this asserts: the card holds ONE connect
+  // action for THIS account, in two mutually exclusive branches so exactly one ever renders, and
+  // every button in it is drawn from the known safe set. Nothing in it connects a DIFFERENT
+  // account, publishes, or acts on another row.
+  const connectedCard = ttCard
+  ok("the connected card was located", connectedCard.includes("Reconnect") && connectedCard.includes("Disconnect"))
+  ok("the connect links are mutually exclusive branches, so exactly one renders", (() => {
+    const links = connectedCard.match(/<a href=\{TT_CONNECT\}/g) ?? []
+    return links.length === 2
+      && /state === "reconnect_needed" && <a href=\{TT_CONNECT\}/.test(connectedCard)
+      && /state !== "reconnect_needed" && advancedRow\("Re-authorize"/.test(connectedCard)
+  })())
   ok("…and its buttons are only the expected per-account controls", (() => {
     const labels = [...connectedCard.matchAll(/>([A-Za-z ]+)<\/button>/g)].map((m) => m[1].trim())
-    // Resume/Pause and Rename are the per-account controls; Save/Cancel belong to the inline
-    // rename field. Nothing here connects, publishes, or acts on another account.
-    const allowed = new Set(["Resume", "Pause", "Rename", "Disconnect", "Save", "Cancel"])
-    return labels.length === 6 && labels.every((l) => allowed.has(l))
+    // Pause/Resume, Rename and Disconnect are the per-account controls. Save/Cancel moved to the
+    // shared rename field, which is rendered outside this card by both platforms.
+    const allowed = new Set(["Resume", "Pause", "Rename", "Disconnect"])
+    return labels.length === 4 && labels.every((l) => allowed.has(l))
   })())
   ok("…exactly one of which is the destructive one",
     (connectedCard.match(/>Disconnect<\/button>/g) ?? []).length === 1)
-  // Two links in the subsection: the row's Reconnect, and the add control below it. The add one
-  // must sit OUTSIDE the connected row, which is what stops it reading as a control on that
-  // account — now asserted by its position rather than by its absence.
-  ok("the second TT_CONNECT link is the add control, outside the connected row",
-    (ttCard.match(/<a href=\{TT_CONNECT\}/g) ?? []).length === 2
-      && !connectedCard.includes("Connect My TikTok")
-      && /Connect my TikTok[\s\S]{0,600}<a href=\{TT_CONNECT\}[^>]*>Connect My TikTok<\/a>/.test(ttCard))
+  // The add flow's own connect link lives in the shared Add Account sheet, outside every card —
+  // asserted by where it is, not by counting links in a subsection.
+  ok("the add flow's connect link is in the Add sheet, outside every card",
+    ui.indexOf('<a href={TT_CONNECT} className={btnPrimary}>Continue to TikTok</a>') > 0
+      && !ttCard.includes("Continue to TikTok"))
 }
 
 console.log(`\nTikTok reconnect: ${pass} passed, ${fail} failed`)

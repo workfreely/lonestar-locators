@@ -4,24 +4,48 @@ import { useState } from "react"
 import { useRouter } from "next/navigation"
 import AgentSearchField, { type AgentHit } from "@/components/crm/social/AgentSearchField"
 import {
-  type Capability, type CapabilityState,
-  CAPABILITY_TONE, CAPABILITY_DOT,
+  type Capability,
+  type CapabilityState,
+  type ConnectionStatus,
+  CAPABILITY_TONE,
+  CONNECTION_STATUS_LABEL,
+  CONNECTION_STATUS_TONE,
+  CONNECTION_STATUS_DOT,
+  connectionStatus,
+  autoPostingWord,
+  autoReplyWord,
   REAUTHORIZE_COMMENTS_LABEL, REAUTHORIZE_COMMENTS_TITLE,
 } from "@/lib/social/accountCapabilities"
 
 // Beast Social → Accounts → Publishing Destinations (admin-only management UI).
 //
-// Lists ALL Instagram destinations owned by the current Beast Social admin and manages each by its
-// connection_id via the connection-ID-scoped backend (/destinations/manage). It NEVER uses the
-// legacy owner+provider disconnect, and NEVER shows external account ids, Vault/token ids, owner
-// uuids, or tokens — only safe identity/label/status. "+ Add Publishing Destination" mints a
-// single-use invitation link (shown once) that the admin sends manually; recipients only authorize
-// their own Instagram and get no Beast Social access.
+// ── WHAT THIS SCREEN IS ─────────────────────────────────────────────────────────────────────
+// Every account this Beast Social admin publishes to, grouped by WHOSE account it is and then by
+// platform. It manages each one by its connection_id through the connection-ID-scoped backend
+// (/destinations/manage), never the legacy owner+provider disconnect, and NEVER shows external
+// account ids, Vault/token ids, owner uuids or tokens — only safe identity/label/status.
+//
+// ── THE REDESIGN, AND WHAT IT DELIBERATELY DOES NOT DO ──────────────────────────────────────
+// This was a flat list of Instagram rows, a flat list of TikTok rows, and a third list of pending
+// invitations at the bottom of the page — so the only way to learn that an invitation belonged to
+// an agent was to read its label and remember. Accounts now sit under their owner, an invitation
+// sits under the person it was sent to, and each card states three things in three fixed rows.
+//
+// IT RENDERS DECISIONS, IT DOES NOT MAKE THEM. publishingCapability, autoReplyCapability and
+// accountAutomationGate still decide what is true; connectionStatus / autoPostingWord /
+// autoReplyWord only translate their verdict into the card's shorter vocabulary. A rule
+// re-derived here could disagree with the gate, and the operator would be reading the wrong one.
+//
+// EVERY ACTION IS THE ONE THAT WAS HERE BEFORE: the same endpoints, the same request bodies, the
+// same confirmations. Nothing about connections, invitations, scopes, schedules, cadence,
+// rendering, approvals or publishing changed — only where a control sits and what the card says.
 
 export type Destination = {
   id: string // connection_id — used only to address backend actions; never displayed
   username: string | null
   label: string | null
+  /** Whose account this is. NULL is the OWNER's own, never "no agent". */
+  agentUserId: string | null
   status: string
   paused: boolean
   postsPerDay: number | null
@@ -35,12 +59,45 @@ export type Destination = {
   agentPhotoUrl: string | null
   // ── THE TWO CAPABILITIES ──────────────────────────────────────────────────────────────────
   // Computed server-side (lib/social/accountCapabilities) from the master Auto Posting switch and
-  // from accountAutomationGate. This component RENDERS them and derives nothing: a second opinion
-  // here could disagree with the gate, and the one the operator reads would be the wrong one.
+  // from accountAutomationGate.
   publishing: Capability
   autoReply: Capability
   /** Drives the Re-authorize Comments action. From the granted scopes, never assumed. */
   commentsScopeGranted: boolean
+}
+
+// ONE TikTok destination for the current admin (identity/status only — never tokens). There may be
+// several: a TikTok connection is a social_connections row exactly as an Instagram one is.
+export type TikTokConnection = {
+  /** connection_id — addresses the connection-scoped backend actions; never displayed. */
+  id: string
+  /** Friendly label, set with Rename. The one way to tell two accounts apart at a glance when
+   *  their TikTok display names are similar. */
+  label: string | null
+  /** Whose account this is. NULL is the OWNER's own — what the live TikTok row carries. */
+  agentUserId: string | null
+  /** This destination's OWN pause switch (social_connections.posting_paused), not the owner-wide
+   *  Auto Posting master switch. */
+  paused: boolean
+  /** The stored TikTok identity (display_name). NOT a real @handle — TikTok does not give us one,
+   *  so the card never renders this with an @ in front of it. */
+  username: string | null
+  /** social_connections.status, so a TikTok row reads the same three statuses an Instagram row
+   *  does rather than inferring health from expiry alone. */
+  status?: string
+  /** The connected account's real TikTok avatar (persisted via user.info.basic on connect). */
+  avatarUrl?: string | null
+  /** The destination's own cadence. computeAutopilotPlan builds a rule from EVERY connection and
+   *  takes its daily times from this column regardless of provider, so this is as real here as it
+   *  is on an Instagram card. */
+  postsPerDay?: number | null
+  ownerName?: string | null
+  ownerPhotoUrl?: string | null
+  expired: boolean
+  addedAt: string | null
+  /** Same meaning as the Instagram row's — the restriction is a property of the DESTINATION, not
+   *  of the platform, so both rows read the same column through the same helper. */
+  marketRestriction?: string[] | null
 }
 
 export type PendingInvite = {
@@ -53,47 +110,59 @@ export type PendingInvite = {
   agentPhotoUrl: string | null
 }
 
+/**
+ * One person's accounts, across both platforms.
+ *
+ * Built in the page from the relationships that already exist — social_connections.agent_user_id
+ * and social_destination_invitations.agent_user_id — so a new agent gets a band the moment they
+ * have a connection or an invitation, and nothing has to be registered anywhere for them to
+ * appear. `kind` is the only thing separating My Accounts from Team Accounts.
+ */
+export type OwnerGroup = {
+  key: string
+  kind: "mine" | "team"
+  name: string
+  photoUrl: string | null
+  instagram: Destination[]
+  tiktok: TikTokConnection[]
+  /** Instagram-only today: the invitation → authorize flow exists for Instagram alone. */
+  invites: PendingInvite[]
+}
+
 const MANAGE = "/api/admin/social-autopilot/destinations/manage"
 const INVITES = "/api/admin/social-autopilot/destinations/invitations"
 const CONNECT = "/api/admin/social-autopilot/accounts/instagram/connect"
 const COMMENTS_PAGE = "/admin/social-autopilot/comments"
 const TT_CONNECT = "/api/integrations/tiktok/connect"
 
-// ONE TikTok destination for the current admin (identity/status only — never tokens). There may be
-// several: a TikTok connection is a social_connections row exactly as an Instagram one is, so this
-// section renders N rows with the same controls rather than one special case.
-export type TikTokConnection = {
-  /** connection_id — addresses the connection-scoped backend actions; never displayed. */
-  id: string
-  /** Friendly label, set with Rename. The one way to tell two accounts apart at a glance when
-   *  their TikTok display names are similar. */
-  label: string | null
-  /** This destination's OWN pause switch (social_connections.posting_paused), not the owner-wide
-   *  Auto Posting master switch. */
-  paused: boolean
-  // The stored TikTok identity (display_name). Shown on the secondary line; NOT a real @handle.
-  username: string | null
-  // The connected account's real TikTok avatar (persisted via user.info.basic on connect).
-  avatarUrl?: string | null
-  // The owner (this platform admin) shown as the row's primary name, matching the Instagram
-  // row's "agent name" model so both platforms present one consistent identity format.
-  ownerName?: string | null
-  ownerPhotoUrl?: string | null
-  expired: boolean
-  addedAt: string | null
-  /** Same meaning as the Instagram row's — the restriction is a property of the DESTINATION, not
-   *  of the platform, so both rows read the same column through the same helper. */
-  marketRestriction?: string[] | null
+type Platform = "instagram" | "tiktok"
+
+function fmtDate(iso: string): string {
+  const d = new Date(iso)
+  return Number.isNaN(d.getTime()) ? "—" : d.toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" })
+}
+
+function InstagramGlyph({ size = 15 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
+      <rect x="2" y="2" width="20" height="20" rx="5.5" />
+      <circle cx="12" cy="12" r="4.4" />
+      <circle cx="17.6" cy="6.4" r="1.1" fill="currentColor" stroke="none" />
+    </svg>
+  )
+}
+function TikTokGlyph({ size = 15 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="currentColor" aria-hidden>
+      <path d="M16.6 3c.3 2.03 1.63 3.6 3.4 3.86V9.3c-1.28 0-2.47-.4-3.44-1.07v6.09c0 3.07-2.49 5.56-5.56 5.56S5.44 17.4 5.44 14.32c0-2.97 2.32-5.4 5.24-5.55v2.5c-.2-.04-.4-.06-.6-.06-1.71 0-3.1 1.39-3.1 3.11 0 1.72 1.39 3.11 3.1 3.11 1.72 0 3.11-1.39 3.11-3.11V3h3.41z" />
+    </svg>
+  )
 }
 
 /**
  * The market-restriction chip. ONE renderer for both platforms, because the restriction is a
- * property of the destination rather than of Instagram or TikTok — two copies of this is how the
- * two rows come to describe the same column differently.
- *
- * Rendered with a border and in amber rather than as muted grey text: it is a CONSTRAINT, and an
- * operator looking for why an account posted nothing yesterday needs to see it at a glance. Absent
- * entirely when unrestricted, so an unrestricted account's row is unchanged.
+ * property of the destination rather than of Instagram or TikTok. Absent entirely when
+ * unrestricted, so an unrestricted account's card is unchanged.
  */
 function marketChip(markets: string[] | null | undefined) {
   if (!markets || markets.length === 0) return null
@@ -107,61 +176,27 @@ function marketChip(markets: string[] | null | undefined) {
   )
 }
 
-function fmtDate(iso: string): string {
-  const d = new Date(iso)
-  return Number.isNaN(d.getTime()) ? "—" : d.toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" })
-}
-
-// Subtle, ~15px monochrome platform glyphs (shape only — no large badge/label). Same visual
-// treatment for both platforms so a connected/pending row reads its platform at a glance.
-function InstagramGlyph() {
-  return (
-    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
-      <rect x="2" y="2" width="20" height="20" rx="5.5" />
-      <circle cx="12" cy="12" r="4.4" />
-      <circle cx="17.6" cy="6.4" r="1.1" fill="currentColor" stroke="none" />
-    </svg>
-  )
-}
-function TikTokGlyph() {
-  return (
-    <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor" aria-hidden>
-      <path d="M16.6 3c.3 2.03 1.63 3.6 3.4 3.86V9.3c-1.28 0-2.47-.4-3.44-1.07v6.09c0 3.07-2.49 5.56-5.56 5.56S5.44 17.4 5.44 14.32c0-2.97 2.32-5.4 5.24-5.55v2.5c-.2-.04-.4-.06-.6-.06-1.71 0-3.1 1.39-3.1 3.11 0 1.72 1.39 3.11 3.1 3.11 1.72 0 3.11-1.39 3.11-3.11V3h3.41z" />
-    </svg>
-  )
-}
-// Consistent wrapper: subtle muted tint, non-interactive, accessible platform name.
-function PlatformIcon({ platform }: { platform: "instagram" | "tiktok" }) {
-  const name = platform === "tiktok" ? "TikTok" : "Instagram"
-  return (
-    <span className="inline-flex flex-none items-center justify-center text-[var(--crm-text-muted)]" title={name} aria-label={name} role="img">
-      {platform === "tiktok" ? <TikTokGlyph /> : <InstagramGlyph />}
-    </span>
-  )
-}
-
 export default function PublishingDestinations({
   configured,
-  destinations,
-  pendingInvites,
   tiktokConfigured = false,
-  tiktoks = [],
+  groups,
 }: {
   configured: boolean
-  destinations: Destination[]
-  pendingInvites: PendingInvite[]
   /** Whether TikTok OAuth credentials (client key + secret) are present server-side. */
   tiktokConfigured?: boolean
-  /** EVERY TikTok destination the admin has, oldest first. Was a single nullable connection. */
-  tiktoks?: TikTokConnection[]
+  /** Every owner with an account or an invitation, My Accounts first. */
+  groups: OwnerGroup[]
 }) {
   const router = useRouter()
   const [busyId, setBusyId] = useState<string | null>(null)
   const [renamingId, setRenamingId] = useState<string | null>(null)
   const [renameValue, setRenameValue] = useState("")
+  const [openAdvanced, setOpenAdvanced] = useState<string | null>(null)
 
-  // Add-destination invitation flow.
+  // Add-account flow.
   const [adding, setAdding] = useState(false)
+  const [addPlatform, setAddPlatform] = useState<Platform | null>(null)
+  const [addRoute, setAddRoute] = useState<"self" | "invite" | null>(null)
   const [inviteLabel, setInviteLabel] = useState("")
   const [selectedAgent, setSelectedAgent] = useState<AgentHit | null>(null)
   const [generating, setGenerating] = useState(false)
@@ -169,19 +204,18 @@ export default function PublishingDestinations({
   const [copied, setCopied] = useState(false)
   const [addError, setAddError] = useState<string | null>(null)
 
-  const btn = "text-[12px] font-semibold px-2.5 py-1 rounded-lg border border-[var(--crm-border)] text-[var(--crm-text-secondary)] hover:bg-[var(--crm-card)] transition-colors disabled:opacity-50"
+  const btn = "text-[12px] font-semibold px-2.5 py-1.5 rounded-lg border border-[var(--crm-border)] text-[var(--crm-text-secondary)] hover:bg-[var(--crm-card)] transition-colors disabled:opacity-50"
   const btnPrimary = "text-[12.5px] font-semibold px-3 py-1.5 rounded-lg bg-[var(--crm-text-primary)] text-[var(--crm-panel)] disabled:opacity-50"
   const control = "w-full text-[13px] rounded-lg border border-[var(--crm-border)] bg-[var(--crm-card)] text-[var(--crm-text-primary)] px-2.5 py-1.5"
   const dot = (cls: string) => <span className={`h-1.5 w-1.5 rounded-full ${cls}`} />
 
-  // Small avatar (photo or initial) for agent identity on cards / pending rows.
   const avatar = (name: string | null, photoUrl: string | null, size = 24) => {
     const initial = (name || "?").trim().charAt(0).toUpperCase()
     return photoUrl ? (
       // eslint-disable-next-line @next/next/no-img-element
       <img src={photoUrl} alt="" width={size} height={size} className="rounded-full object-cover flex-none" style={{ width: size, height: size }} />
     ) : (
-      <span className="rounded-full flex-none inline-flex items-center justify-center bg-[var(--crm-inset)] text-[var(--crm-text-secondary)] font-semibold" style={{ width: size, height: size, fontSize: size * 0.45 }}>{initial}</span>
+      <span className="rounded-full flex-none inline-flex items-center justify-center bg-[var(--crm-inset)] text-[var(--crm-text-secondary)] font-semibold" style={{ width: size, height: size, fontSize: size * 0.42 }}>{initial}</span>
     )
   }
 
@@ -205,13 +239,9 @@ export default function PublishingDestinations({
     void manage(d.id, { action: "disconnect" })
   }
 
-  // ONE TikTok destination, through the SAME connection-scoped backend the Instagram rows use.
-  //
-  // This used to POST to /api/integrations/tiktok/disconnect, which calls sa_disconnect_tiktok() —
-  // a function that takes no arguments and deleted EVERY TikTok row for the owner while revoking
-  // only one of their Vault secrets. With two accounts connected, disconnecting one removed both.
-  // sa_disconnect_destination(connection_id) already does this correctly for a single destination,
-  // so the row addresses that instead of a new function being written.
+  // ONE TikTok destination, through the SAME connection-scoped backend the Instagram rows use —
+  // sa_disconnect_destination(connection_id), never the argument-less sa_disconnect_tiktok() that
+  // removed every TikTok row for the owner while revoking only one of their Vault secrets.
   const tiktokDisconnect = (t: TikTokConnection) => {
     const who = t.label || (t.username ? `@${t.username}` : "this TikTok account")
     if (!confirm(`Disconnect ${who}? This revokes its TikTok authorization. Your other accounts are unaffected, and nothing in your Library is deleted.`)) return
@@ -267,21 +297,23 @@ export default function PublishingDestinations({
     }
   }
 
-  // ALWAYS start a fresh invitation flow. Never reopen a previously created show-once link:
-  // clear newLink + label + flags before opening, so "+ Add Publishing Destination" is always a
-  // clean, empty form regardless of prior state (connected/pending/used destinations never block it).
-  const openAdd = () => {
+  // ALWAYS start a fresh flow. Never reopen a previously created show-once link.
+  const openAdd = (platform: Platform | null, agent: AgentHit | null = null) => {
     setNewLink(null)
     setInviteLabel("")
-    setSelectedAgent(null)
+    setSelectedAgent(agent)
     setAddError(null)
     setCopied(false)
     setGenerating(false)
+    setAddPlatform(platform)
+    setAddRoute(platform === "tiktok" ? "self" : agent ? "invite" : null)
     setAdding(true)
   }
 
   const closeAdd = () => {
     setAdding(false)
+    setAddPlatform(null)
+    setAddRoute(null)
     setInviteLabel("")
     setSelectedAgent(null)
     setNewLink(null)
@@ -302,8 +334,8 @@ export default function PublishingDestinations({
   }
 
   // Create New Link for a PENDING invitation: revoke the old one, mint a fresh invitation with the
-  // SAME label, and show the new raw link ONCE (in the add panel's created-link view). The old
-  // invitation's raw token is never reconstructed or redisplayed.
+  // SAME label, and show the new raw link ONCE. The old invitation's raw token is never
+  // reconstructed or redisplayed — it was shown once, at creation, and is not stored.
   const createNewLink = async (inv: PendingInvite) => {
     const who = inv.label || "this invitation"
     if (!confirm(`Replace the link for ${who}? The old link stops working immediately and a new one-time link is created.`)) return
@@ -325,11 +357,15 @@ export default function PublishingDestinations({
         setInviteLabel(inv.label ?? "")
         setSelectedAgent(inv.agentUserId ? { id: inv.agentUserId, name: inv.agentName ?? inv.label ?? "Agent", photoUrl: inv.agentPhotoUrl, email: null } : null)
         setCopied(false)
+        setAddPlatform("instagram")
+        setAddRoute("invite")
         setNewLink(data.link as string)
         setAdding(true) // surface the created-link view
         router.refresh() // old invite revoked, new one now pending
       } else {
         setAddError("Couldn't create a new link. Please try again.")
+        setAddPlatform("instagram")
+        setAddRoute("invite")
         setAdding(true)
       }
     } finally {
@@ -337,367 +373,571 @@ export default function PublishingDestinations({
     }
   }
 
-  // ── CAPABILITY ROW ────────────────────────────────────────────────────────────────────────
-  // The colours come from CAPABILITY_TONE / CAPABILITY_DOT so this page and the preview harness
-  // cannot disagree. "active" is still the ONLY green: a connected account with posting paused or
-  // auto reply off is yellow, sky or orange — never green. The rule that connection alone must not
-  // read as activity is enforced in the labels and in the palette.
-  const capabilityTone = (state: CapabilityState): string => CAPABILITY_TONE[state]
-  const capabilityDot = (state: CapabilityState): string => CAPABILITY_DOT[state]
+  // ── THE STATUS CHIP ───────────────────────────────────────────────────────────────────────
+  // Three values, and only three. It answers ONE question — can we reach this account — so a
+  // healthy account whose posting is paused reads Connected and says "Paused" on its own line
+  // instead. Mixing the two is what made a deliberate pause and a dead token wear the same pill.
+  const statusChip = (state: ConnectionStatus) => {
+    const tone = CONNECTION_STATUS_TONE[state]
+    const marker =
+      state === "not_connected"
+        ? <span className="h-[9px] w-[9px] rounded-full border-[1.5px] border-current" />
+        : dot(CONNECTION_STATUS_DOT[state])
+    return (
+      <span className={`inline-flex items-center gap-1.5 text-[11.5px] font-semibold rounded-full border px-2.5 py-1 whitespace-nowrap ${tone}`}>
+        {marker} {CONNECTION_STATUS_LABEL[state]}
+      </span>
+    )
+  }
 
-  // NAME LEFT, BADGE RIGHT, DETAIL UNDERNEATH — the capability reads as a column down a list of
-  // accounts, so the state is scannable without reading the sentence. Actions, when present, sit on
-  // their own full-width row beneath, because a button crowded against a right-aligned badge is the
-  // crowding this card already had once.
-  const capabilityRow = (name: string, cap: Capability, actions?: React.ReactNode) => (
-    <div className="py-[9px] border-t border-[var(--crm-border)]">
-      <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0">
-          <div className="text-[12.5px] font-semibold text-[var(--crm-text-primary)]">{name}</div>
-          <div className="text-[11.5px] text-[var(--crm-text-muted)] mt-[2px]">{cap.detail}</div>
+  // ── THE THREE FACTS ───────────────────────────────────────────────────────────────────────
+  // Label left, value right, in a fixed order on every card and both platforms, so the three read
+  // as a column down the page rather than as a sentence to be parsed per account.
+  const factRow = (label: string, value: React.ReactNode, title?: string) => (
+    <div className="flex items-baseline gap-2 py-[3px]" title={title}>
+      <span className="text-[12px] text-[var(--crm-text-muted)] w-[92px] flex-none">{label}</span>
+      <span className="text-[12.5px] min-w-0">{value}</span>
+    </div>
+  )
+  // ONE palette, shared with the preview harness. A colour defined here is a colour the harness
+  // cannot see, and the two drifted apart once already.
+  const toneOf = (state: CapabilityState) => `${CAPABILITY_TONE[state]} font-semibold`
+  const toneFor = (cap: Capability) => toneOf(cap.state)
+
+  const cadence = (postsPerDay: number | null | undefined) => (
+    <span className="font-semibold text-[var(--crm-text-primary)]">
+      {postsPerDay ?? 2}
+      <span className="font-normal text-[var(--crm-text-muted)]">
+        {postsPerDay == null ? " (default — 7:30 AM & 7:30 PM CT)" : " per day"}
+      </span>
+    </span>
+  )
+
+  const muted = <span className="text-[var(--crm-text-muted)]">—</span>
+
+  // ── THE CARD ──────────────────────────────────────────────────────────────────────────────
+  const card = (opts: {
+    key: string
+    name: string
+    handle: React.ReactNode
+    sub: React.ReactNode
+    photoUrl: string | null
+    isOwner: boolean
+    glyph: React.ReactNode
+    status: ConnectionStatus
+    facts: React.ReactNode
+    note?: React.ReactNode
+    actions?: React.ReactNode
+    advanced?: React.ReactNode
+    advancedKey?: string
+  }) => (
+    <div key={opts.key} className="rounded-xl border border-[var(--crm-border)] bg-[var(--crm-card)] px-3.5 py-3">
+      <div className="flex items-start gap-3 flex-wrap">
+        <div className="flex items-center gap-3 min-w-0 flex-1 basis-[230px]">
+          {avatar(opts.name, opts.photoUrl, 40)}
+          <div className="min-w-0">
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="text-[14px] font-bold text-[var(--crm-text-primary)]">{opts.name}</span>
+              {opts.isOwner && (
+                <span className="text-[10px] font-bold uppercase tracking-wide rounded px-1.5 py-[2px] bg-[var(--crm-text-primary)] text-[var(--crm-panel)]">You</span>
+              )}
+              <span className="text-[var(--crm-text-muted)] inline-flex">{opts.glyph}</span>
+            </div>
+            <div className="text-[12.5px] text-[var(--crm-text-secondary)] mt-[1px]">{opts.handle}</div>
+            <div className="text-[11.5px] text-[var(--crm-text-muted)] mt-[1px]">{opts.sub}</div>
+          </div>
         </div>
-        <span className={`shrink-0 inline-flex items-center gap-1.5 text-[11px] font-semibold rounded-full border border-[var(--crm-border)] px-2 py-[3px] ${capabilityTone(cap.state)}`}>
-          {dot(capabilityDot(cap.state))} {cap.badge}
-        </span>
+
+        <div className="flex-none pt-1">{statusChip(opts.status)}</div>
+
+        <div className="flex-1 basis-[240px] min-w-0 sm:border-l sm:border-[var(--crm-border)] sm:pl-4">
+          {opts.facts}
+          {opts.note && <div className="text-[11.5px] text-[var(--crm-text-muted)] mt-1.5 leading-snug">{opts.note}</div>}
+        </div>
+
+        {opts.actions && <div className="flex-none flex flex-col gap-1.5 w-[150px]">{opts.actions}</div>}
       </div>
-      {actions && <div className="mt-2 flex items-center gap-2 flex-wrap">{actions}</div>}
+
+      {opts.advanced && opts.advancedKey && openAdvanced === opts.advancedKey && (
+        <div className="mt-3 rounded-lg border border-[var(--crm-border)] bg-[var(--crm-panel)] p-3">{opts.advanced}</div>
+      )}
     </div>
   )
 
-  const statusPill = (d: Destination) => {
-    if (d.status === "error" || d.expired)
-      return <span className="inline-flex items-center gap-1.5 text-[11.5px] font-semibold text-amber-600 dark:text-amber-400">{dot("bg-amber-500")} Reconnect needed</span>
-    if (d.paused)
-      return <span className="inline-flex items-center gap-1.5 text-[11.5px] font-semibold text-[var(--crm-text-muted)]">{dot("bg-[var(--crm-text-muted)]")} Paused</span>
-    return <span className="inline-flex items-center gap-1.5 text-[11.5px] font-semibold text-emerald-600 dark:text-emerald-400">{dot("bg-emerald-500")} Connected</span>
+  const advancedToggle = (key: string) => (
+    <button
+      type="button"
+      className={btn}
+      aria-expanded={openAdvanced === key}
+      onClick={() => setOpenAdvanced(openAdvanced === key ? null : key)}
+    >
+      Advanced {openAdvanced === key ? "▲" : "▾"}
+    </button>
+  )
+
+  const advancedRow = (label: string, detail: React.ReactNode, action: React.ReactNode) => (
+    <div className="flex items-center gap-3 flex-wrap py-1.5 border-b border-[var(--crm-border)] last:border-b-0">
+      <div className="flex-1 min-w-[160px]">
+        <div className="text-[12px] font-semibold text-[var(--crm-text-primary)]">{label}</div>
+        <div className="text-[11px] text-[var(--crm-text-muted)]">{detail}</div>
+      </div>
+      {action}
+    </div>
+  )
+
+  const renameBox = (id: string) => (
+    <div className="mt-2 flex items-center gap-2 flex-wrap">
+      <input autoFocus className={`${control} max-w-[240px]`} value={renameValue} onChange={(e) => setRenameValue(e.target.value)} placeholder="Friendly label" onKeyDown={(e) => { if (e.key === "Enter") void saveRename(id); if (e.key === "Escape") setRenamingId(null) }} />
+      <button type="button" className={btnPrimary} disabled={busyId === id} onClick={() => void saveRename(id)}>Save</button>
+      <button type="button" className={btn} onClick={() => setRenamingId(null)}>Cancel</button>
+    </div>
+  )
+
+  // ── INSTAGRAM CARD ────────────────────────────────────────────────────────────────────────
+  const instagramCard = (d: Destination, isOwner: boolean) => {
+    const state = connectionStatus({ status: d.status, expired: d.expired })
+    const igMarket = marketChip(d.marketRestriction)
+    const needsComments = !d.commentsScopeGranted || d.autoReply.state === "permission_needed"
+    return card({
+      key: d.id,
+      name: d.agentName || (d.username ? `@${d.username}` : "Instagram account"),
+      handle: d.agentName && d.username ? `@${d.username}` : d.label && !d.agentName ? d.label : null,
+      sub: <>Added {fmtDate(d.addedAt)}{igMarket ? <> · {igMarket}</> : null}</>,
+      photoUrl: d.agentPhotoUrl,
+      isOwner,
+      glyph: <InstagramGlyph />,
+      status: state,
+      facts: (
+        <>
+          {factRow("Auto Posting", <span className={toneFor(d.publishing)}>{autoPostingWord(d.publishing)}</span>, d.publishing.detail)}
+          {factRow("Posts per day", cadence(d.postsPerDay))}
+          {factRow("Auto Reply", <span className={toneFor(d.autoReply)}>{autoReplyWord(d.autoReply)}</span>, d.autoReply.detail)}
+        </>
+      ),
+      note: d.publishing.state !== "active" || d.autoReply.state !== "active" ? (
+        <>{d.publishing.state !== "active" ? d.publishing.detail : d.autoReply.detail}</>
+      ) : null,
+      actions: (
+        <>
+          {state === "reconnect_needed" && <a href={CONNECT} className={`${btnPrimary} text-center`} title={REAUTHORIZE_COMMENTS_TITLE}>Reconnect</a>}
+          {needsComments && (
+            <a href={CONNECT} className={`${btn} text-center`} title={REAUTHORIZE_COMMENTS_TITLE}>{REAUTHORIZE_COMMENTS_LABEL}</a>
+          )}
+          {advancedToggle(d.id)}
+        </>
+      ),
+      advancedKey: d.id,
+      advanced: (
+        <>
+          {renamingId === d.id ? renameBox(d.id) : (
+            <>
+              {advancedRow(
+                d.paused ? "Resume posting to this account" : "Pause just this account",
+                "Separate from the master Auto Posting switch — your other accounts are unaffected.",
+                d.paused
+                  ? <button type="button" className={btn} disabled={busyId === d.id} onClick={() => void manage(d.id, { action: "resume" })}>Resume</button>
+                  : <button type="button" className={btn} disabled={busyId === d.id} onClick={() => void manage(d.id, { action: "pause" })}>Pause</button>,
+              )}
+              {advancedRow("Friendly name", d.label || "Not set", (
+                <button type="button" className={btn} disabled={busyId === d.id} onClick={() => { setRenameValue(d.label ?? ""); setRenamingId(d.id) }}>Rename</button>
+              ))}
+              {advancedRow(
+                "Market restriction",
+                d.marketRestriction && d.marketRestriction.length > 0 ? `${d.marketRestriction.join(", ")} only` : "Every market — unrestricted",
+                <span className="text-[11px] text-[var(--crm-text-muted)]">Set by an administrator</span>,
+              )}
+              {advancedRow("Posting cadence", d.postsPerDay == null ? "Social Beast default — 2 a day" : `${d.postsPerDay} a day`, (
+                <span className="text-[11px] text-[var(--crm-text-muted)]">Set by an administrator</span>
+              ))}
+              {advancedRow("Comment permissions", d.autoReply.detail, (
+                <a href={COMMENTS_PAGE} className={btn}>Manage in Comments</a>
+              ))}
+              {state !== "reconnect_needed" && advancedRow("Re-authorize", "Refreshes the sign-in. Settings, schedules and the queue are kept — sign in with the SAME account.", (
+                <a href={CONNECT} className={btn} title={REAUTHORIZE_COMMENTS_TITLE}>Reconnect</a>
+              ))}
+              {advancedRow("Disconnect this account", "Revokes its authorization. Scheduled posts stay in the Queue; nothing in your Library is deleted.", (
+                <button type="button" className={`${btn} text-[#c0264b] dark:text-[#ff8097]`} disabled={busyId === d.id} onClick={() => disconnect(d)}>Disconnect</button>
+              ))}
+            </>
+          )}
+        </>
+      ),
+    })
   }
 
-  return (
-    <div className="space-y-5">
-      {/* ── Publishing Destinations ─────────────────────────────────────────── */}
-      <section className="rounded-2xl border border-[var(--crm-border)] bg-[var(--crm-panel)] p-4">
-        <div className="flex items-center justify-between gap-3 flex-wrap">
-          <div>
-            <h2 className="text-[14px] font-bold text-[var(--crm-text-primary)]">Publishing Destinations</h2>
-            <p className="text-[11.5px] text-[var(--crm-text-muted)] mt-0.5">Accounts you publish to. Add one by sending a private authorization link.</p>
+  // ── TIKTOK CARD ───────────────────────────────────────────────────────────────────────────
+  const tiktokCard = (t: TikTokConnection, isOwner: boolean) => {
+    const state = connectionStatus({ status: t.status ?? "connected", expired: t.expired })
+    const ttMarket = marketChip(t.marketRestriction)
+    return card({
+      key: t.id,
+      name: t.label || t.username || t.ownerName || "TikTok account",
+      // TikTok reports a DISPLAY NAME, not a handle. Rendering it behind an @ would invent one.
+      handle: t.label && t.username ? t.username : null,
+      sub: <>Added {t.addedAt ? fmtDate(t.addedAt) : "—"}{ttMarket ? <> · {ttMarket}</> : null}</>,
+      photoUrl: t.avatarUrl ?? t.ownerPhotoUrl ?? null,
+      isOwner,
+      glyph: <TikTokGlyph />,
+      status: state,
+      facts: (
+        <>
+          {factRow("Auto Posting", <span className={toneOf(state === "reconnect_needed" ? "attention" : t.paused ? "paused" : "disabled")}>
+            {state === "reconnect_needed" ? "Blocked" : t.paused ? "Paused" : "Follows the master switch"}
+          </span>)}
+          {factRow("Posts per day", cadence(t.postsPerDay))}
+          {factRow("Auto Reply", <span className="text-[var(--crm-text-muted)] italic">Not supported on TikTok</span>)}
+        </>
+      ),
+      note: state === "reconnect_needed"
+        ? "This account's TikTok sign-in has expired — nothing will publish here until it is reconnected."
+        : null,
+      actions: (
+        <>
+          {state === "reconnect_needed" && <a href={TT_CONNECT} className={`${btnPrimary} text-center`} title="Re-authorize this TikTok account. Nothing is disconnected, your other accounts are unaffected, and your scheduled posts stay put — sign in with the SAME TikTok account.">Reconnect TikTok</a>}
+          {advancedToggle(t.id)}
+        </>
+      ),
+      advancedKey: t.id,
+      advanced: (
+        <>
+          {renamingId === t.id ? renameBox(t.id) : (
+            <>
+              {advancedRow(
+                t.paused ? "Resume posting to this account" : "Pause just this account",
+                "Separate from the master Auto Posting switch — your other accounts are unaffected.",
+                t.paused
+                  ? <button type="button" className={btn} disabled={busyId === t.id} onClick={() => void manage(t.id, { action: "resume" })}>Resume</button>
+                  : <button type="button" className={btn} disabled={busyId === t.id} onClick={() => void manage(t.id, { action: "pause" })}>Pause</button>,
+              )}
+              {advancedRow("Friendly name", t.label || "Not set", (
+                <button type="button" className={btn} disabled={busyId === t.id} onClick={() => { setRenameValue(t.label ?? ""); setRenamingId(t.id) }}>Rename</button>
+              ))}
+              {advancedRow(
+                "Market restriction",
+                t.marketRestriction && t.marketRestriction.length > 0 ? `${t.marketRestriction.join(", ")} only` : "Every market — unrestricted",
+                <span className="text-[11px] text-[var(--crm-text-muted)]">Set by an administrator</span>,
+              )}
+              {advancedRow("Posting cadence", t.postsPerDay == null ? "Social Beast default — 2 a day" : `${t.postsPerDay} a day`, (
+                <span className="text-[11px] text-[var(--crm-text-muted)]">Set by an administrator</span>
+              ))}
+              {state !== "reconnect_needed" && advancedRow("Re-authorize", "Refreshes the sign-in. Nothing is disconnected and your other accounts are unaffected — sign in with the SAME TikTok account.", (
+                <a href={TT_CONNECT} className={btn} title="Re-authorize this TikTok account. Nothing is disconnected, your other accounts are unaffected, and your scheduled posts stay put — sign in with the SAME TikTok account.">Reconnect</a>
+              ))}
+              {advancedRow("Disconnect this account", "Revokes its authorization. Scheduled posts stay in the Queue; nothing in your Library is deleted.", (
+                <button type="button" className={`${btn} text-[#c0264b] dark:text-[#ff8097]`} disabled={busyId === t.id} onClick={() => tiktokDisconnect(t)}>Disconnect</button>
+              ))}
+            </>
+          )}
+        </>
+      ),
+    })
+  }
+
+  // ── A PENDING INVITATION ──────────────────────────────────────────────────────────────────
+  // Rendered UNDER the person it was sent to. Two shapes, because an invitation means different
+  // things depending on whether that person already has an account:
+  //   • they do   → a strip beneath their card: an unused link, which is worth knowing about
+  //   • they don't → the invitation IS their card, status Not Connected
+  //
+  // THE RAW LINK IS NEVER REDISPLAYED. It is shown once, at creation, and only a hash is stored —
+  // so the action is "Create New Link" (revoke + mint a fresh one), never "copy".
+  const inviteStrip = (inv: PendingInvite, isOwner: boolean) => (
+    <div key={inv.id} className="rounded-xl border border-[var(--crm-border)] border-l-2 border-l-sky-500 bg-[var(--crm-panel)] px-3.5 py-2.5 flex items-center gap-3 flex-wrap">
+      <div className="min-w-0 flex-1 basis-[240px]">
+        <div className="text-[12.5px] font-semibold text-[var(--crm-text-primary)] flex items-center gap-2 flex-wrap">
+          {dot("bg-sky-500")} Invitation link{isOwner ? " (You)" : ""} <span className="text-[var(--crm-text-muted)] font-normal">· <InstagramGlyph size={12} /> Instagram</span>
+        </div>
+        <div className="text-[11.5px] text-[var(--crm-text-muted)] mt-[1px]">
+          Awaiting authorization · Created {fmtDate(inv.createdAt)} · Expires {fmtDate(inv.expiresAt)}
+        </div>
+      </div>
+      <div className="flex items-center gap-1.5 flex-wrap">
+        <button type="button" className={btn} disabled={busyId === inv.id} onClick={() => void createNewLink(inv)}>Create New Link</button>
+        <button type="button" className={btn} disabled={busyId === inv.id} onClick={() => void revokeInvite(inv.id)}>Revoke</button>
+      </div>
+    </div>
+  )
+
+  const inviteCard = (inv: PendingInvite, group: OwnerGroup) =>
+    card({
+      key: inv.id,
+      name: inv.agentName || inv.label || "Untitled invitation",
+      handle: <span className="italic text-[var(--crm-text-muted)]">no account connected yet</span>,
+      sub: <>Invitation sent {fmtDate(inv.createdAt)} · expires {fmtDate(inv.expiresAt)}</>,
+      photoUrl: inv.agentPhotoUrl,
+      isOwner: group.kind === "mine",
+      glyph: <InstagramGlyph />,
+      status: "not_connected",
+      facts: (
+        <>
+          {factRow("Auto Posting", muted)}
+          {factRow("Posts per day", muted)}
+          {factRow("Auto Reply", muted)}
+        </>
+      ),
+      note: "A link invitation cannot grant comment access, so Auto Reply will be unavailable on an account connected this way.",
+      actions: (
+        <>
+          <button type="button" className={btnPrimary} disabled={busyId === inv.id} onClick={() => void createNewLink(inv)}>Create New Link</button>
+          <button type="button" className={btn} disabled={busyId === inv.id} onClick={() => void revokeInvite(inv.id)}>Revoke</button>
+        </>
+      ),
+    })
+
+  // ── AN EMPTY SLOT ─────────────────────────────────────────────────────────────────────────
+  // Where this owner's next account on this platform goes. Present rather than implied, because
+  // "Lisette has no TikTok yet" is a thing to see, not an absence to infer.
+  const emptySlot = (group: OwnerGroup, platform: Platform) => {
+    const who = group.kind === "mine" ? "you" : group.name
+    const agentHit: AgentHit | null =
+      group.kind === "team" ? { id: group.key, name: group.name, photoUrl: group.photoUrl, email: null } : null
+    return (
+      <div className="rounded-xl border border-dashed border-[var(--crm-border)] px-3.5 py-3 flex items-center gap-3 flex-wrap">
+        <span className="h-9 w-9 rounded-full bg-[var(--crm-card)] text-[var(--crm-text-muted)] inline-flex items-center justify-center flex-none">
+          {platform === "tiktok" ? <TikTokGlyph size={16} /> : <InstagramGlyph size={16} />}
+        </span>
+        <div className="min-w-0 flex-1 basis-[230px]">
+          <div className="text-[12.5px] font-semibold text-[var(--crm-text-primary)]">
+            No {platform === "tiktok" ? "TikTok" : "Instagram"} account connected for {who} yet.
           </div>
-          <button type="button" className={btnPrimary} disabled={!configured} onClick={openAdd}>
-            + Add Publishing Destination
-          </button>
+          <div className="text-[11.5px] text-[var(--crm-text-muted)] mt-[1px]">
+            {platform === "tiktok"
+              ? "TikTok has no invitation link — it is a direct sign-in, so it has to be done from a browser signed in to that TikTok account."
+              : group.kind === "mine"
+                ? "Connect an account you can sign in to, or send someone a one-time authorization link."
+                : "Send a one-time authorization link. They authorize their own Instagram and get no access to Social Beast."}
+          </div>
+        </div>
+        <button
+          type="button"
+          className={btnPrimary}
+          disabled={platform === "tiktok" ? !tiktokConfigured : !configured}
+          onClick={() => openAdd(platform, agentHit)}
+        >
+          + Add {group.kind === "team" ? `${group.name.split(" ")[0]}'s ` : ""}{platform === "tiktok" ? "TikTok" : "Instagram"}
+        </button>
+      </div>
+    )
+  }
+
+  const ownerBand = (group: OwnerGroup, counts: string) => (
+    <div className="flex items-center gap-2.5 rounded-lg border border-[#3d3159] bg-[#2a2140] px-3 py-2 mb-2.5">
+      <span className="text-[#b9a6e8] inline-flex flex-none" aria-hidden>
+        {group.kind === "mine" ? (
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2"><circle cx="12" cy="8" r="4" /><path d="M4 21c0-4.4 3.6-7 8-7s8 2.6 8 7" /></svg>
+        ) : (
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2"><circle cx="9" cy="8" r="3.4" /><path d="M2 20c0-3.9 3.1-6.2 7-6.2s7 2.3 7 6.2" /><path d="M17 11.2A3.2 3.2 0 1 0 17 5" /><path d="M18.5 13.6c2.1.6 3.5 2.3 3.5 4.6" /></svg>
+        )}
+      </span>
+      <span className="text-[13px] font-bold text-white">{group.kind === "mine" ? "My Accounts" : "Team Accounts"}</span>
+      <span className="text-[12px] font-semibold text-[#bdb0da]">{group.name}</span>
+      <span className="ml-auto text-[11px] font-semibold text-[#a295c4]">{counts}</span>
+    </div>
+  )
+
+  const countsFor = (connected: number, pending: number) =>
+    pending > 0 ? `${connected} connected · ${pending} pending` : `${connected} connected`
+
+  const totals = {
+    instagram: groups.reduce((n, g) => n + g.instagram.length, 0),
+    instagramPending: groups.reduce((n, g) => n + g.invites.length, 0),
+    tiktok: groups.reduce((n, g) => n + g.tiktok.length, 0),
+  }
+
+  // ── A PLATFORM SECTION ────────────────────────────────────────────────────────────────────
+  const platformSection = (platform: Platform) => {
+    const isIg = platform === "instagram"
+    const ready = isIg ? configured : tiktokConfigured
+    return (
+      <section className="rounded-2xl border border-[var(--crm-border)] bg-[var(--crm-panel)] p-4">
+        <div className="flex items-center gap-3 flex-wrap mb-3">
+          <span className={`h-9 w-9 rounded-[10px] flex-none inline-flex items-center justify-center text-white ${isIg ? "bg-gradient-to-br from-[#f9ce34] via-[#ee2a7b] to-[#6228d7]" : "bg-black border border-[var(--crm-border)]"}`}>
+            {isIg ? <InstagramGlyph size={19} /> : <TikTokGlyph size={18} />}
+          </span>
+          <h2 className="text-[18px] font-extrabold text-[var(--crm-text-primary)]">{isIg ? "Instagram" : "TikTok"}</h2>
+          <span className="text-[11.5px] font-semibold text-[var(--crm-text-secondary)] bg-[var(--crm-card)] border border-[var(--crm-border)] rounded-full px-2.5 py-1">
+            {isIg ? countsFor(totals.instagram, totals.instagramPending) : countsFor(totals.tiktok, 0)}
+          </span>
         </div>
 
-        {/* Add flow — mint a single-use invitation link (shown once). */}
-        {adding && (
-          <div className="mt-3 rounded-xl border border-[var(--crm-border)] bg-[var(--crm-card)] p-3">
-            {!newLink ? (
-              <div>
-                <div className="text-[13px] font-semibold text-[var(--crm-text-primary)]">Add Publishing Destination</div>
-                <p className="text-[11.5px] text-[var(--crm-text-muted)] mt-0.5">Search for the Locator Beast agent this account belongs to, then create a secure link to send them.</p>
-                {!selectedAgent ? (
-                  <div className="mt-2">
-                    <span className="text-[11px] uppercase tracking-wide text-[var(--crm-text-muted)]">Agent</span>
-                    <div className="mt-1"><AgentSearchField inputClassName={control} onSelect={(a) => setSelectedAgent(a)} placeholder="Search agents by name" /></div>
-                    <div className="mt-2 flex items-center gap-2">
-                      <button type="button" className={btn} disabled={generating} onClick={closeAdd}>Cancel</button>
-                    </div>
+        {!ready ? (
+          <div className="text-[12.5px] text-[var(--crm-text-muted)] py-2">
+            {isIg ? "Instagram isn't configured yet." : "TikTok isn't configured yet."}
+          </div>
+        ) : (
+          <div className="space-y-4">
+            {groups.map((group) => {
+              const accounts = isIg ? group.instagram : group.tiktok
+              const invites = isIg ? group.invites : []
+              // An invitation for someone with NO account on this platform is their card; an
+              // invitation for someone who already has one is a strip beneath it.
+              const asCards = accounts.length === 0 ? invites : []
+              const asStrips = accounts.length === 0 ? [] : invites
+              return (
+                <div key={`${platform}:${group.key}`}>
+                  {ownerBand(group, countsFor(accounts.length, invites.length))}
+                  <div className="space-y-2">
+                    {accounts.map((a) =>
+                      isIg
+                        ? instagramCard(a as Destination, group.kind === "mine")
+                        : tiktokCard(a as TikTokConnection, group.kind === "mine"),
+                    )}
+                    {asStrips.map((inv) => inviteStrip(inv, group.kind === "mine"))}
+                    {asCards.map((inv) => inviteCard(inv, group))}
+                    {accounts.length === 0 && asCards.length === 0 && emptySlot(group, platform)}
+                    {accounts.length > 0 && group.kind === "team" && isIg && (
+                      <div className="text-[11.5px] text-[var(--crm-text-muted)] pl-1">
+                        Any further accounts {group.name.split(" ")[0]} authorizes appear here automatically.
+                      </div>
+                    )}
                   </div>
-                ) : (
-                  <div className="mt-2">
-                    <span className="text-[11px] uppercase tracking-wide text-[var(--crm-text-muted)]">Agent</span>
-                    <div className="mt-1 flex items-center gap-2 flex-wrap">
-                      <span className="inline-flex items-center gap-2 rounded-full border border-[var(--crm-border)] bg-[var(--crm-panel)] pl-1 pr-2.5 py-1">
-                        {avatar(selectedAgent.name, selectedAgent.photoUrl, 22)}
-                        <span className="text-[12.5px] font-semibold text-[var(--crm-text-primary)]">{selectedAgent.name}</span>
-                        <button type="button" aria-label="Clear agent" className="text-[var(--crm-text-muted)] hover:text-[var(--crm-text-primary)]" disabled={generating} onClick={() => setSelectedAgent(null)}>×</button>
-                      </span>
-                      <button type="button" className={btnPrimary} disabled={generating} onClick={() => void generateLink()}>{generating ? "Creating…" : "Create Authorization Link"}</button>
-                      <button type="button" className={btn} disabled={generating} onClick={closeAdd}>Cancel</button>
-                    </div>
-                  </div>
-                )}
-                {addError && <div className="mt-2 text-[11.5px] text-amber-600 dark:text-amber-400">{addError}</div>}
-              </div>
-            ) : (
-              <div>
-                <div className="text-[13px] font-semibold text-[var(--crm-text-primary)]">Authorization link created</div>
-                <p className="text-[11.5px] text-[var(--crm-text-muted)] mt-0.5">This link can be used once and expires in 7 days.</p>
-                <div className="mt-2 flex items-center gap-2 flex-wrap">
-                  <input readOnly value={newLink} onFocus={(e) => e.currentTarget.select()} className={`${control} flex-1 min-w-[220px] font-mono text-[12px]`} />
-                  <button type="button" className={btnPrimary} onClick={() => void copyLink()}>{copied ? "Copied ✓" : "Copy Link"}</button>
-                  <button type="button" className={btn} onClick={closeAdd}>Done</button>
                 </div>
-              </div>
-            )}
+              )
+            })}
           </div>
         )}
-
-        {/* ── Instagram subsection ────────────────────────────────────── */}
-        <div className="mt-4">
-          <h3 className="text-[13px] font-bold text-[var(--crm-text-primary)]">Instagram</h3>
-          <p className="text-[11.5px] text-[var(--crm-text-muted)] mt-0.5">Connect an Instagram account to publish to.</p>
-          <div className="mt-2 space-y-2">
-            {!configured ? (
-              <div className="text-[12.5px] text-[var(--crm-text-muted)] py-2">Instagram isn&apos;t configured yet.</div>
-            ) : destinations.length === 0 ? (
-              <div className="text-[12.5px] text-[var(--crm-text-muted)] py-2">No Instagram account connected yet.</div>
-            ) : (
-              destinations.map((d) => (
-                <div key={d.id} className="rounded-xl border border-[var(--crm-border)] bg-[var(--crm-card)] px-3 py-2.5 flex items-center justify-between gap-3 flex-wrap">
-                  <div className="min-w-0 flex items-center gap-2.5">
-                    {avatar(d.agentName || (d.username ?? "instagram"), d.agentPhotoUrl, 32)}
-                    <div className="min-w-0">
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <span className="text-[13.5px] font-semibold text-[var(--crm-text-primary)] truncate">{d.agentName || `@${d.username ?? "instagram"}`}</span>
-                        <PlatformIcon platform="instagram" />
-                        {!d.agentName && d.label && <span className="text-[11.5px] text-[var(--crm-text-secondary)] rounded-full border border-[var(--crm-border)] px-2 py-0.5">{d.label}</span>}
-                        {statusPill(d)}
-                        {/* THE CADENCE THE SCHEDULER ACTUALLY USES. This line used to read
-                            "scheduling coming soon · saved preference only", which stopped being
-                            true when the autopilot plan cron went live: computeAutopilotPlan reads
-                            posts_per_day per connection and honours it. It also only rendered when
-                            the column was set, so the live accounts — which are both null, i.e. on
-                            the default — showed no cadence at all, and there was nowhere to confirm
-                            that an account asked to post twice a day really does. It now states
-                            the EFFECTIVE value and says when that comes from the default. */}
-                        <span className="text-[11px] text-[var(--crm-text-muted)]" title={d.postsPerDay == null ? "No per-account cadence set, so this destination uses the Social Beast baseline: 07:30 and 19:30 local, offset by its own stagger." : "Set for this destination. The autopilot plan honours it per account."}>
-                          {d.postsPerDay ?? 2} posts/day{d.postsPerDay == null ? " (default)" : ""}
-                        </span>
-                        {marketChip(d.marketRestriction)}
-                      </div>
-                      <div className="text-[11.5px] text-[var(--crm-text-muted)] mt-0.5">
-                        {d.agentName && <span className="text-[var(--crm-text-secondary)]">@{d.username ?? "instagram"} · </span>}
-                        Added {fmtDate(d.addedAt)}
-                      </div>
-                    </div>
-                    {renamingId === d.id && (
-                      <div className="mt-2 flex items-center gap-2">
-                        <input autoFocus className={`${control} max-w-[240px]`} value={renameValue} onChange={(e) => setRenameValue(e.target.value)} placeholder="Friendly label" onKeyDown={(e) => { if (e.key === "Enter") void saveRename(d.id); if (e.key === "Escape") setRenamingId(null) }} />
-                        <button type="button" className={btnPrimary} disabled={busyId === d.id} onClick={() => void saveRename(d.id)}>Save</button>
-                        <button type="button" className={btn} onClick={() => setRenamingId(null)}>Cancel</button>
-                      </div>
-                    )}
-                  </div>
-
-                  {renamingId !== d.id && (
-                    <div className="flex items-center gap-1.5 flex-wrap">
-                      {/* ALWAYS AVAILABLE, not only once the token has expired — the same change
-                          TikTok already made, for the same reason: gating it on expiry left
-                          Disconnect as the only visible control on a healthy connection, i.e. the
-                          one action that throws the connection away. It does NOT disconnect first:
-                          it opens the same OAuth flow, and sa_connect_instagram UPDATEs on
-                          (owner_user_id, provider, external_account_id), so the SAME account lands
-                          back on the SAME row — preserving the connection id, posting_paused,
-                          posts_per_day, the label and every foreign key that points at it. A
-                          cancelled authorization returns before any write. */}
-                      <a href={CONNECT} className={btn} title={REAUTHORIZE_COMMENTS_TITLE}>Reconnect</a>
-                      {d.paused ? (
-                        <button type="button" className={btn} disabled={busyId === d.id} onClick={() => void manage(d.id, { action: "resume" })}>Resume</button>
-                      ) : (
-                        <button type="button" className={btn} disabled={busyId === d.id} onClick={() => void manage(d.id, { action: "pause" })}>Pause</button>
-                      )}
-                      <button type="button" className={btn} disabled={busyId === d.id} onClick={() => { setRenamingId(d.id); setRenameValue(d.label ?? "") }}>Rename</button>
-                      <button type="button" className={btn} disabled={busyId === d.id} onClick={() => disconnect(d)}>Disconnect</button>
-                    </div>
-                  )}
-
-                  {/* ── THE TWO CAPABILITIES, SIDE BY SIDE ───────────────────────────────────
-                      One connection grants two unrelated abilities, and reading them off a single
-                      "Connected" pill is what made publishing look active when Auto Posting was
-                      paused. These lines state each one separately and name the reason nothing is
-                      happening. Keyword, reply and activity management stays on the Comments page;
-                      this is status plus the one action that unblocks it. */}
-                  <div className="w-full basis-full mt-1">
-                    {capabilityRow("Instagram Publishing", d.publishing)}
-                    {capabilityRow("Instagram Auto Reply", d.autoReply, (
-                      <>
-                        {/* Shown ONLY while the permission is actually missing — or reported
-                            revoked, which is the same thing arriving from the other direction.
-                            It used to also appear on any `attention`, on the theory that attention
-                            might mean a revoked scope. In practice attention is usually a FAILED
-                            SEND, and a failed send is not fixed by re-granting a permission we
-                            already hold: offering this as the remedy sent the operator to an OAuth
-                            round trip that changed nothing. A genuine revocation still surfaces
-                            here, because `commentsScopeGranted` is false in that case, and the
-                            ledger now records Meta's numeric code so code 190 (token dead) is
-                            legible instead of hiding inside the word "permission". */}
-                        {(!d.commentsScopeGranted || d.autoReply.state === "permission_needed") && (
-                          <a href={CONNECT} className={`${btn} flex-1 text-center`} title={REAUTHORIZE_COMMENTS_TITLE}>
-                            {REAUTHORIZE_COMMENTS_LABEL}
-                          </a>
-                        )}
-                        <a href={COMMENTS_PAGE} className={`${btn} flex-1 text-center`}>
-                          Manage in Comments
-                        </a>
-                      </>
-                    ))}
-                  </div>
-                </div>
-              ))
-            )}
-          </div>
-          {/* THIS USED TO BE HIDDEN ONCE ANYTHING WAS CONNECTED, on the grounds that beside an
-              existing account it "reads as an invitation to add a SECOND one". Adding a second one
-              is now the point, and this is the ONLY route to it that carries
-              instagram_business_manage_comments: INSTAGRAM_SCOPES (the invitation flow) does not
-              request that permission and cannot, so an account invited by link can publish but can
-              never auto-reply. Hiding this control did not prevent a mistake, it removed the only
-              correct path.
-              THE HAZARD IT WAS HIDING FROM IS REAL AND IS NOT SOLVED BY HIDING. This flow is also
-              the Reconnect flow: sign in as an account that is ALREADY connected and
-              sa_connect_instagram takes its update branch, rotating that account's token and
-              deleting the superseded Vault secret. Its settings and scopes survive
-              (resolveGrantedScopes refuses a grant that would drop a held permission, and the
-              update omits posting_paused / posts_per_day / stagger / label / agent), but the token
-              does change. So the control says plainly which account to sign in as, rather than
-              being removed and leaving no way to add one. */}
-          {configured && (
-            <div className="mt-3 rounded-xl border border-[var(--crm-border)] bg-[var(--crm-card)] px-3 py-2.5">
-              <div className="flex items-center justify-between gap-3 flex-wrap">
-                <div className="min-w-0">
-                  <div className="text-[12.5px] font-semibold text-[var(--crm-text-primary)]">Connect my Instagram</div>
-                  <p className="mt-0.5 mb-0 text-[11.5px] text-[var(--crm-text-muted)]">
-                    For an account you own. This is the only way to grant comment management, which auto-replies need.
-                  </p>
-                </div>
-                <a href={CONNECT} className={btnPrimary}>Connect My Instagram</a>
-              </div>
-              {destinations.length > 0 && (
-                <p className="mt-2 mb-0 text-[11.5px] text-amber-600 dark:text-amber-400">
-                  Sign in as the account you want to <strong>add</strong>. Signing in as an account that is already
-                  connected re-authorizes it instead — its settings are kept, but its access token is replaced.
-                </p>
-              )}
-            </div>
-          )}
-        </div>
-
-        {/* ── TikTok subsection (subtle divider; same row format as Instagram) ── */}
-        <div className="mt-4 pt-4 border-t border-[var(--crm-border)]">
-          <h3 className="text-[13px] font-bold text-[var(--crm-text-primary)]">TikTok</h3>
-          <p className="text-[11.5px] text-[var(--crm-text-muted)] mt-0.5">Connect a TikTok account to publish to.</p>
-          <div className="mt-2 space-y-2">
-            {!tiktokConfigured ? (
-              <div className="text-[12.5px] text-[var(--crm-text-muted)] py-2">TikTok isn&apos;t configured yet.</div>
-            ) : tiktoks.length === 0 ? (
-              <div className="text-[12.5px] text-[var(--crm-text-muted)] py-2">No TikTok account connected yet.</div>
-            ) : (
-              tiktoks.map((tiktok) => (
-              <div key={tiktok.id} className="rounded-xl border border-[var(--crm-border)] bg-[var(--crm-card)] px-3 py-2.5 flex items-center justify-between gap-3 flex-wrap">
-                <div className="min-w-0 flex items-center gap-2.5">
-                  {avatar(tiktok.label ?? tiktok.username ?? tiktok.ownerName ?? null, tiktok.avatarUrl ?? tiktok.ownerPhotoUrl ?? null, 32)}
-                  <div className="min-w-0">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      {/* THE ACCOUNT, not the operator. This line used to lead with the owner's own
-                          name, which was unambiguous while one admin had one TikTok account and
-                          becomes two identical rows the moment they have two. The account's own
-                          label or display name leads now, and the operator moves to the line below
-                          — so Rename is also what disambiguates two similar display names. */}
-                      <span className="text-[13.5px] font-semibold text-[var(--crm-text-primary)] truncate">{tiktok.label || tiktok.username || tiktok.ownerName || "TikTok account"}</span>
-                      <PlatformIcon platform="tiktok" />
-                      {tiktok.expired ? (
-                        <span className="inline-flex items-center gap-1.5 text-[11.5px] font-semibold text-amber-600 dark:text-amber-400">{dot("bg-amber-500")} Reconnect needed</span>
-                      ) : tiktok.paused ? (
-                        /* THIS destination's own pause, not the owner-wide Auto Posting switch. */
-                        <span className="inline-flex items-center gap-1.5 text-[11.5px] font-semibold text-[var(--crm-text-secondary)]">{dot("bg-[var(--crm-text-muted)]")} Paused</span>
-                      ) : (
-                        <span className="inline-flex items-center gap-1.5 text-[11.5px] font-semibold text-emerald-600 dark:text-emerald-400">{dot("bg-emerald-500")} Connected</span>
-                      )}
-                      {marketChip(tiktok.marketRestriction)}
-                    </div>
-                    <div className="text-[11.5px] text-[var(--crm-text-muted)] mt-0.5">
-                      {tiktok.label && tiktok.username && <span className="text-[var(--crm-text-secondary)]">{tiktok.username} · </span>}
-                      {tiktok.ownerName && <span>{tiktok.ownerName} · </span>}
-                      Added {tiktok.addedAt ? fmtDate(tiktok.addedAt) : "\u2014"}
-                    </div>
-                  </div>
-                  {renamingId === tiktok.id && (
-                    <div className="mt-2 flex items-center gap-2">
-                      <input autoFocus className={`${control} max-w-[240px]`} value={renameValue} onChange={(e) => setRenameValue(e.target.value)} placeholder="Friendly label" onKeyDown={(e) => { if (e.key === "Enter") void saveRename(tiktok.id); if (e.key === "Escape") setRenamingId(null) }} />
-                      <button type="button" className={btnPrimary} disabled={busyId === tiktok.id} onClick={() => void saveRename(tiktok.id)}>Save</button>
-                      <button type="button" className={btn} onClick={() => setRenamingId(null)}>Cancel</button>
-                    </div>
-                  )}
-                </div>
-                {renamingId !== tiktok.id && (
-                  <div className="flex items-center gap-1.5 flex-wrap">
-                    {/* ALWAYS available, not only once the access token has expired. Re-authorizing
-                        is the ordinary way to repair a connection, prove it still works, or re-grant
-                        after a scope or password change — and gating it on expiry meant the only
-                        visible control on a healthy connection was Disconnect, i.e. the one action
-                        that throws the connection away. It does NOT disconnect first: it opens the
-                        same OAuth flow, and sa_connect_tiktok upserts on
-                        (owner_user_id, provider, external_account_id), so the SAME account lands back
-                        on the SAME row with fresh tokens — and it now supersedes only THAT account's
-                        Vault secret, so re-authorizing one account cannot invalidate the other. If
-                        authorization is cancelled or fails, the callback returns before any write and
-                        the existing row is untouched. */}
-                    <a href={TT_CONNECT} className={btn} title="Re-authorize this TikTok account. Nothing is disconnected, your other accounts are unaffected, and your scheduled posts stay put — sign in with the SAME TikTok account.">Reconnect</a>
-                    {tiktok.paused ? (
-                      <button type="button" className={btn} disabled={busyId === tiktok.id} onClick={() => void manage(tiktok.id, { action: "resume" })}>Resume</button>
-                    ) : (
-                      <button type="button" className={btn} disabled={busyId === tiktok.id} onClick={() => void manage(tiktok.id, { action: "pause" })}>Pause</button>
-                    )}
-                    <button type="button" className={btn} disabled={busyId === tiktok.id} onClick={() => { setRenamingId(tiktok.id); setRenameValue(tiktok.label ?? "") }}>Rename</button>
-                    <button type="button" className={btn} disabled={busyId === tiktok.id} onClick={() => tiktokDisconnect(tiktok)}>Disconnect</button>
-                  </div>
-                )}
-              </div>
-              ))
-            )}
-          </div>
-          {/* Shown whenever TikTok is configured, for the same reason as the Instagram control
-              above: hiding it once one account existed left no way to add a second, and TikTok's
-              connect RPC has always been able to add one — it keys on (owner, provider, open_id),
-              so a different account is a different row with its own Vault secret.
-              The same caveat applies and is stated rather than hidden: this is also the Reconnect
-              path, so signing in as an account that is already connected takes the ON CONFLICT
-              branch and rotates its token. Its pause, cadence, stagger, label, agent and market
-              restriction are all absent from that update, so they survive. */}
-          {tiktokConfigured && (
-            <div className="mt-3 rounded-xl border border-[var(--crm-border)] bg-[var(--crm-card)] px-3 py-2.5">
-              <div className="flex items-center justify-between gap-3 flex-wrap">
-                <div className="min-w-0">
-                  <div className="text-[12.5px] font-semibold text-[var(--crm-text-primary)]">Connect my TikTok</div>
-                  <p className="mt-0.5 mb-0 text-[11.5px] text-[var(--crm-text-muted)]">
-                    For an account you own. Each account connects as its own destination.
-                  </p>
-                </div>
-                <a href={TT_CONNECT} className={btnPrimary}>Connect My TikTok</a>
-              </div>
-              {tiktoks.length > 0 && (
-                <p className="mt-2 mb-0 text-[11.5px] text-amber-600 dark:text-amber-400">
-                  Sign in as the account you want to <strong>add</strong>. Signing in as an account that is already
-                  connected re-authorizes it instead — its settings are kept, but its access token is replaced.
-                </p>
-              )}
-            </div>
-          )}
-        </div>
       </section>
+    )
+  }
 
-      {/* ── Pending Invitations ─────────────────────────────────────────────── */}
-      {pendingInvites.length > 0 && (
-        <section className="rounded-2xl border border-[var(--crm-border)] bg-[var(--crm-panel)] p-4">
-          <h2 className="text-[14px] font-bold text-[var(--crm-text-primary)]">Pending Invitations</h2>
-          <p className="text-[11.5px] text-[var(--crm-text-muted)] mt-0.5">Links you&apos;ve created that haven&apos;t been used yet. The link itself is shown only once at creation.</p>
-          <div className="mt-3 space-y-2">
-            {pendingInvites.map((inv) => (
-              <div key={inv.id} className="rounded-xl border border-[var(--crm-border)] bg-[var(--crm-card)] px-3 py-2.5 flex items-center justify-between gap-3 flex-wrap">
-                <div className="flex items-center gap-2 flex-wrap text-[12.5px]">
-                  {inv.agentName && avatar(inv.agentName, inv.agentPhotoUrl, 32)}
-                  <span className="font-semibold text-[var(--crm-text-primary)]">{inv.agentName || inv.label || "Untitled invitation"}</span>
-                  <span className="inline-flex items-center gap-1.5 text-[11.5px] font-semibold text-[var(--crm-text-secondary)]"><PlatformIcon platform="instagram" /> {dot("bg-sky-500")} Awaiting authorization</span>
-                  <span className="text-[11px] text-[var(--crm-text-muted)]">Created {fmtDate(inv.createdAt)} · Expires {fmtDate(inv.expiresAt)}</span>
-                </div>
-                <div className="flex items-center gap-1.5 flex-wrap">
-                  <button type="button" className={btn} disabled={busyId === inv.id} onClick={() => void createNewLink(inv)}>Create New Link</button>
-                  <button type="button" className={btn} disabled={busyId === inv.id} onClick={() => void revokeInvite(inv.id)}>Revoke</button>
-                </div>
-              </div>
-            ))}
+  // ── ADD ACCOUNT ───────────────────────────────────────────────────────────────────────────
+  // ONE button. It used to be three — "+ Add Publishing Destination", "Connect My Instagram" and
+  // "Connect My TikTok" — whose differences were explained in amber small print underneath.
+  //
+  // THE TWO INSTAGRAM ROUTES ARE NOT INTERCHANGEABLE AND THE SHEET SAYS SO. The invitation flow
+  // requests INSTAGRAM_SCOPES, which does not include instagram_business_manage_comments and
+  // cannot, so an account added by link can publish but can never auto-reply. Collapsing the two
+  // into one silent path would quietly cost the operator Auto Reply; stating the difference at
+  // the moment of choosing is the whole point of merging the buttons.
+  const addSheet = (
+    <div className="rounded-2xl border border-[var(--crm-border)] bg-[var(--crm-panel)] p-4">
+      {newLink ? (
+        <div>
+          <div className="text-[13px] font-semibold text-[var(--crm-text-primary)]">Authorization link created</div>
+          <p className="text-[11.5px] text-[var(--crm-text-muted)] mt-0.5">
+            This link can be used once and expires in 7 days. Copy it now — it is never shown again.
+          </p>
+          <div className="mt-2 flex items-center gap-2 flex-wrap">
+            <input readOnly value={newLink} onFocus={(e) => e.currentTarget.select()} className={`${control} flex-1 min-w-[220px] font-mono text-[12px]`} />
+            <button type="button" className={btnPrimary} onClick={() => void copyLink()}>{copied ? "Copied ✓" : "Copy Link"}</button>
+            <button type="button" className={btn} onClick={closeAdd}>Done</button>
           </div>
-        </section>
+        </div>
+      ) : !addPlatform ? (
+        <div>
+          <div className="text-[13px] font-semibold text-[var(--crm-text-primary)]">Add an account</div>
+          <p className="text-[11.5px] text-[var(--crm-text-muted)] mt-0.5">Which platform?</p>
+          <div className="mt-2.5 flex items-center gap-2 flex-wrap">
+            <button type="button" className={btnPrimary} disabled={!configured} onClick={() => openAdd("instagram")}>Instagram</button>
+            <button type="button" className={btnPrimary} disabled={!tiktokConfigured} onClick={() => openAdd("tiktok")}>TikTok</button>
+            <button type="button" className={btn} onClick={closeAdd}>Cancel</button>
+          </div>
+        </div>
+      ) : addPlatform === "tiktok" ? (
+        <div>
+          <div className="text-[13px] font-semibold text-[var(--crm-text-primary)]">Add a TikTok account</div>
+          <p className="text-[11.5px] text-[var(--crm-text-muted)] mt-0.5">
+            TikTok has no invitation link, so this is a direct sign-in: whoever is at this browser authorizes the
+            account. Each account connects as its own destination.
+          </p>
+          <p className="mt-1.5 mb-0 text-[11.5px] text-amber-600 dark:text-amber-400">
+            Sign in as the account you want to <strong>add</strong>. Signing in as an account that is already
+            connected re-authorizes it instead — its settings are kept, but its access token is replaced.
+          </p>
+          <div className="mt-2.5 flex items-center gap-2 flex-wrap">
+            <a href={TT_CONNECT} className={btnPrimary}>Continue to TikTok</a>
+            <button type="button" className={btn} onClick={closeAdd}>Cancel</button>
+          </div>
+        </div>
+      ) : !addRoute ? (
+        <div>
+          <div className="text-[13px] font-semibold text-[var(--crm-text-primary)]">Add an Instagram account</div>
+          <p className="text-[11.5px] text-[var(--crm-text-muted)] mt-0.5">
+            Both routes end with a connected publishing destination. They differ in one way that matters.
+          </p>
+          <button type="button" className="mt-2.5 w-full text-left rounded-xl border border-[var(--crm-border)] bg-[var(--crm-card)] p-3 hover:border-[var(--crm-text-muted)]" onClick={() => setAddRoute("self")}>
+            <div className="text-[12.5px] font-semibold text-[var(--crm-text-primary)]">An account I can sign in to right now</div>
+            <div className="text-[11.5px] text-[var(--crm-text-muted)] mt-0.5">
+              You authorize it yourself in the next step. <strong className="text-[var(--crm-text-secondary)]">The only route that can grant comment
+              management</strong>, so this is the one to use if the account needs Auto Reply.
+            </div>
+          </button>
+          <button type="button" className="mt-2 w-full text-left rounded-xl border border-[var(--crm-border)] bg-[var(--crm-card)] p-3 hover:border-[var(--crm-text-muted)]" onClick={() => setAddRoute("invite")}>
+            <div className="text-[12.5px] font-semibold text-[var(--crm-text-primary)]">Someone else&apos;s account — send them a link</div>
+            <div className="text-[11.5px] text-[var(--crm-text-muted)] mt-0.5">
+              Pick the agent, and Social Beast creates a one-time link that expires in 7 days. They authorize their
+              own Instagram and get no access to Social Beast.{" "}
+              <span className="text-amber-600 dark:text-amber-400">Publishing only — Auto Reply cannot be granted this way.</span>
+            </div>
+          </button>
+          <div className="mt-2.5"><button type="button" className={btn} onClick={closeAdd}>Cancel</button></div>
+        </div>
+      ) : addRoute === "self" ? (
+        <div>
+          <div className="text-[13px] font-semibold text-[var(--crm-text-primary)]">Connect an Instagram account you own</div>
+          <p className="text-[11.5px] text-[var(--crm-text-muted)] mt-0.5">
+            This is the only way to grant comment management, which auto-replies need.
+          </p>
+          <p className="mt-1.5 mb-0 text-[11.5px] text-amber-600 dark:text-amber-400">
+            Sign in as the account you want to <strong>add</strong>. Signing in as an account that is already
+            connected re-authorizes it instead — its settings are kept, but its access token is replaced.
+          </p>
+          <div className="mt-2.5 flex items-center gap-2 flex-wrap">
+            <a href={CONNECT} className={btnPrimary}>Continue to Instagram</a>
+            <button type="button" className={btn} onClick={() => setAddRoute(null)}>Back</button>
+            <button type="button" className={btn} onClick={closeAdd}>Cancel</button>
+          </div>
+        </div>
+      ) : (
+        <div>
+          <div className="text-[13px] font-semibold text-[var(--crm-text-primary)]">Send an authorization link</div>
+          <p className="text-[11.5px] text-[var(--crm-text-muted)] mt-0.5">
+            Search for the Locator Beast agent this account belongs to, then create a secure link to send them.
+          </p>
+          {!selectedAgent ? (
+            <div className="mt-2">
+              <span className="text-[11px] uppercase tracking-wide text-[var(--crm-text-muted)]">Agent</span>
+              <div className="mt-1"><AgentSearchField inputClassName={control} onSelect={(a) => setSelectedAgent(a)} placeholder="Search agents by name" /></div>
+              <div className="mt-2 flex items-center gap-2">
+                <button type="button" className={btn} disabled={generating} onClick={() => setAddRoute(null)}>Back</button>
+                <button type="button" className={btn} disabled={generating} onClick={closeAdd}>Cancel</button>
+              </div>
+            </div>
+          ) : (
+            <div className="mt-2">
+              <span className="text-[11px] uppercase tracking-wide text-[var(--crm-text-muted)]">Agent</span>
+              <div className="mt-1 flex items-center gap-2 flex-wrap">
+                <span className="inline-flex items-center gap-2 rounded-full border border-[var(--crm-border)] bg-[var(--crm-card)] pl-1 pr-2.5 py-1">
+                  {avatar(selectedAgent.name, selectedAgent.photoUrl, 22)}
+                  <span className="text-[12.5px] font-semibold text-[var(--crm-text-primary)]">{selectedAgent.name}</span>
+                  <button type="button" aria-label="Clear agent" className="text-[var(--crm-text-muted)] hover:text-[var(--crm-text-primary)]" disabled={generating} onClick={() => setSelectedAgent(null)}>×</button>
+                </span>
+                <button type="button" className={btnPrimary} disabled={generating} onClick={() => void generateLink()}>{generating ? "Creating…" : "Create Authorization Link"}</button>
+                <button type="button" className={btn} disabled={generating} onClick={closeAdd}>Cancel</button>
+              </div>
+            </div>
+          )}
+          {addError && <div className="mt-2 text-[11.5px] text-amber-600 dark:text-amber-400">{addError}</div>}
+        </div>
       )}
+    </div>
+  )
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between gap-3 flex-wrap">
+        <p className="text-[12px] text-[var(--crm-text-muted)] m-0">
+          Accounts you publish to, grouped by owner. Pending invitations sit under the person they were sent to.
+        </p>
+        <button type="button" className={btnPrimary} disabled={!configured && !tiktokConfigured} onClick={() => openAdd(null)}>
+          + Add Account
+        </button>
+      </div>
+
+      {adding && addSheet}
+
+      {platformSection("instagram")}
+      {platformSection("tiktok")}
 
       {/* YouTube stays out of scope for now. */}
       <div className="text-[11px] text-[var(--crm-text-muted)]">YouTube destinations are coming later.</div>
