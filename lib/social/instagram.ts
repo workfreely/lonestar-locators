@@ -244,6 +244,71 @@ export function unwrapShortToken(json: unknown): ShortToken {
 }
 
 /** Exchange a short-lived token for a LONG-lived (~60 day) token. */
+/**
+ * Meta's error body, reduced to the three fields that NAME a cause.
+ *
+ * ── WHY THIS EXISTS ─────────────────────────────────────────────────────────────────────────
+ * The long-lived exchange used to throw the HTTP status and nothing else, so a refusal arrived
+ * as "400" — true, and useless. Meta puts the actual reason in the body as error.code /
+ * error_subcode / message, and those three turn "something went wrong" into a named fault.
+ *
+ * ── WHAT IT MUST NEVER DO ───────────────────────────────────────────────────────────────────
+ * The request URL for this call carries client_secret AND the short-lived access token in its
+ * query string, which is why the caller logs a message rather than the error object. So:
+ *   · the URL is never part of the output — it is not passed in, and cannot be
+ *   · a body that is not JSON returns "" rather than being echoed (an HTML error page from a
+ *     proxy can contain the request line, and with it the secret)
+ *   · whatever Meta puts in `message` is redacted the same way sanitizeDbError redacts, because
+ *     a provider message can quote a value back at you
+ *   · the result is length-bounded, so a hostile or enormous body cannot flood the log
+ *
+ * Pure, and exported, so the redaction is testable without a network call.
+ */
+export function describeGraphError(body: string): string {
+  if (!body) return ""
+  let parsed: unknown
+  try {
+    // Bounded BEFORE parsing: an oversized body is not worth the CPU, and a body that does not
+    // parse is never echoed in any form.
+    parsed = JSON.parse(body.slice(0, 4000))
+  } catch {
+    return ""
+  }
+  const err = (parsed as { error?: unknown } | null)?.error
+  if (!err || typeof err !== "object") return ""
+  const e = err as Record<string, unknown>
+
+  const parts: string[] = []
+  const scalar = (v: unknown) => (typeof v === "number" || (typeof v === "string" && v.trim() !== "") ? String(v).trim() : null)
+  const code = scalar(e.code)
+  const sub = scalar(e.error_subcode)
+  const type = scalar(e.type)
+  if (code) parts.push(`code ${code}`)
+  if (sub) parts.push(`subcode ${sub}`)
+  if (type) parts.push(type)
+  const message = typeof e.message === "string" ? redactProviderText(e.message) : ""
+  if (message) parts.push(message)
+  return parts.join(" · ")
+}
+
+/** The same redactions sanitizeDbError applies, for the same reason: a provider's own text is
+ *  not a safe place to assume no identifier appears. */
+function redactProviderText(raw: string): string {
+  let m = raw.trim()
+    // Anything shaped like a credential in a query string, whatever surrounds it.
+    .replace(/\b(access_token|client_secret|client_id|code)=[^\s&"')]+/gi, "$1=<redacted>")
+    // JWT-ish and bearer-ish runs.
+    .replace(/\b[A-Za-z0-9_-]{24,}\.[A-Za-z0-9_-]{8,}(?:\.[A-Za-z0-9_-]+)?/g, "<redacted>")
+    // Instagram/Facebook token prefixes.
+    .replace(/\b(?:IG|EA)[A-Za-z0-9]{16,}\b/g, "<redacted>")
+    // Any remaining long opaque run that could be a token or an authorization code.
+    .replace(/\b[A-Za-z0-9_-]{40,}\b/g, "<redacted>")
+    // A URL in the message would carry the query string with it.
+    .replace(/https?:\/\/\S+/gi, "<url>")
+  if (m.length > 300) m = `${m.slice(0, 300)}…`
+  return m
+}
+
 export async function exchangeForLongLivedToken(shortToken: string): Promise<LongToken> {
   const params = new URLSearchParams({
     grant_type: "ig_exchange_token",
@@ -251,7 +316,13 @@ export async function exchangeForLongLivedToken(shortToken: string): Promise<Lon
     access_token: shortToken,
   })
   const res = await fetch(`${GRAPH_BASE}/access_token?${params.toString()}`)
-  if (!res.ok) throw new Error(`ig long-lived exchange failed: ${res.status}`)
+  if (!res.ok) {
+    // DIAGNOSTIC ONLY — the control flow is unchanged: this still throws, the callback still
+    // catches it, logs the message and redirects with an opaque ?error=exchange. Reading the body
+    // cannot fail the request: a body that will not read is simply absent from the message.
+    const detail = describeGraphError(await res.text().catch(() => ""))
+    throw new Error(`ig long-lived exchange failed: ${res.status}${detail ? ` — ${detail}` : ""}`)
+  }
   return (await res.json()) as LongToken
 }
 
