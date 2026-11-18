@@ -142,9 +142,9 @@ ok("the card invokes no publishing endpoint or handler (its only 'publish' is th
   })())
   ok("…and its buttons are only the expected per-account controls", (() => {
     const labels = [...connectedCard.matchAll(/>([A-Za-z ]+)<\/button>/g)].map((m) => m[1].trim())
-    // Pause/Resume, Rename and Disconnect are the per-account controls. Save/Cancel moved to the
-    // shared rename field, which is rendered outside this card by both platforms.
-    const allowed = new Set(["Resume", "Pause", "Rename", "Disconnect"])
+    // Pause/Resume, Change (the relabelled Rename) and Disconnect are the per-account controls.
+    // Save/Cancel moved to the shared rename field, rendered outside this card by both platforms.
+    const allowed = new Set(["Resume", "Pause", "Change", "Disconnect"])
     return labels.length === 4 && labels.every((l) => allowed.has(l))
   })())
   ok("…exactly one of which is the destructive one",

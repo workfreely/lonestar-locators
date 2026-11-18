@@ -455,7 +455,7 @@ export default function PublishingDestinations({
           {opts.note && <div className="text-[11.5px] text-[var(--crm-text-muted)] mt-1.5 leading-snug">{opts.note}</div>}
         </div>
 
-        {opts.actions && <div className="flex-none flex flex-col gap-1.5 w-[150px]">{opts.actions}</div>}
+        {opts.actions && <div className="flex-none flex flex-col gap-1.5 w-[162px]">{opts.actions}</div>}
       </div>
 
       {opts.advanced && opts.advancedKey && openAdvanced === opts.advancedKey && (
@@ -538,15 +538,15 @@ export default function PublishingDestinations({
                   ? <button type="button" className={btn} disabled={busyId === d.id} onClick={() => void manage(d.id, { action: "resume" })}>Resume</button>
                   : <button type="button" className={btn} disabled={busyId === d.id} onClick={() => void manage(d.id, { action: "pause" })}>Pause</button>,
               )}
-              {advancedRow("Friendly name", d.label || "Not set", (
-                <button type="button" className={btn} disabled={busyId === d.id} onClick={() => { setRenameValue(d.label ?? ""); setRenamingId(d.id) }}>Rename</button>
+              {advancedRow("Agent Name", d.label || "Not set", (
+                <button type="button" className={btn} disabled={busyId === d.id} onClick={() => { setRenameValue(d.label ?? ""); setRenamingId(d.id) }}>Change</button>
               ))}
               {advancedRow(
                 "Market restriction",
                 d.marketRestriction && d.marketRestriction.length > 0 ? `${d.marketRestriction.join(", ")} only` : "Every market — unrestricted",
                 <span className="text-[11px] text-[var(--crm-text-muted)]">Set by an administrator</span>,
               )}
-              {advancedRow("Posting cadence", d.postsPerDay == null ? "Social Beast default — 2 a day" : `${d.postsPerDay} a day`, (
+              {advancedRow("Posting cadence", d.postsPerDay == null ? "Social Beast Default — 2×/day" : `${d.postsPerDay}×/day`, (
                 <span className="text-[11px] text-[var(--crm-text-muted)]">Set by an administrator</span>
               ))}
               {advancedRow("Comment permissions", d.autoReply.detail, (
@@ -609,15 +609,15 @@ export default function PublishingDestinations({
                   ? <button type="button" className={btn} disabled={busyId === t.id} onClick={() => void manage(t.id, { action: "resume" })}>Resume</button>
                   : <button type="button" className={btn} disabled={busyId === t.id} onClick={() => void manage(t.id, { action: "pause" })}>Pause</button>,
               )}
-              {advancedRow("Friendly name", t.label || "Not set", (
-                <button type="button" className={btn} disabled={busyId === t.id} onClick={() => { setRenameValue(t.label ?? ""); setRenamingId(t.id) }}>Rename</button>
+              {advancedRow("Agent Name", t.label || "Not set", (
+                <button type="button" className={btn} disabled={busyId === t.id} onClick={() => { setRenameValue(t.label ?? ""); setRenamingId(t.id) }}>Change</button>
               ))}
               {advancedRow(
                 "Market restriction",
                 t.marketRestriction && t.marketRestriction.length > 0 ? `${t.marketRestriction.join(", ")} only` : "Every market — unrestricted",
                 <span className="text-[11px] text-[var(--crm-text-muted)]">Set by an administrator</span>,
               )}
-              {advancedRow("Posting cadence", t.postsPerDay == null ? "Social Beast default — 2 a day" : `${t.postsPerDay} a day`, (
+              {advancedRow("Posting cadence", t.postsPerDay == null ? "Social Beast Default — 2×/day" : `${t.postsPerDay}×/day`, (
                 <span className="text-[11px] text-[var(--crm-text-muted)]">Set by an administrator</span>
               ))}
               {state !== "reconnect_needed" && advancedRow("Re-authorize", "Refreshes the sign-in. Nothing is disconnected and your other accounts are unaffected — sign in with the SAME TikTok account.", (
@@ -644,8 +644,10 @@ export default function PublishingDestinations({
   const inviteStrip = (inv: PendingInvite, isOwner: boolean) => (
     <div key={inv.id} className="rounded-xl border border-[var(--crm-border)] border-l-2 border-l-sky-500 bg-[var(--crm-panel)] px-3.5 py-2.5 flex items-center gap-3 flex-wrap">
       <div className="min-w-0 flex-1 basis-[240px]">
-        <div className="text-[12.5px] font-semibold text-[var(--crm-text-primary)] flex items-center gap-2 flex-wrap">
-          {dot("bg-sky-500")} Invitation link{isOwner ? " (You)" : ""} <span className="text-[var(--crm-text-muted)] font-normal">· <InstagramGlyph size={12} /> Instagram</span>
+        <div className="text-[12.5px] font-semibold text-[var(--crm-text-primary)] flex items-center gap-2">
+          {dot("bg-sky-500")}
+          <span className="whitespace-nowrap">Invitation link{isOwner ? " (You)" : ""}</span>
+          <span className="text-[var(--crm-text-muted)] font-normal inline-flex items-center gap-1 whitespace-nowrap">· <InstagramGlyph size={12} /> Instagram</span>
         </div>
         <div className="text-[11.5px] text-[var(--crm-text-muted)] mt-[1px]">
           Awaiting authorization · Created {fmtDate(inv.createdAt)} · Expires {fmtDate(inv.expiresAt)}
@@ -675,10 +677,15 @@ export default function PublishingDestinations({
           {factRow("Auto Reply", muted)}
         </>
       ),
-      note: "A link invitation cannot grant comment access, so Auto Reply will be unavailable on an account connected this way.",
+      note: group.kind === "mine"
+        ? "This is your own account, so you can sign in to it directly — which also grants comment access. The invitation link stays valid until you use it or revoke it."
+        : "A link invitation cannot grant comment access, so Auto Reply will be unavailable on an account connected this way.",
       actions: (
         <>
-          <button type="button" className={btnPrimary} disabled={busyId === inv.id} onClick={() => void createNewLink(inv)}>Create New Link</button>
+          {group.kind === "mine" && (
+            <a href={CONNECT} className={`${btnPrimary} text-center`} title="Sign in to this Instagram account yourself. This is the only route that can grant comment management, which Auto Reply needs.">Connect account</a>
+          )}
+          <button type="button" className={btn} disabled={busyId === inv.id} onClick={() => void createNewLink(inv)}>Create New Link</button>
           <button type="button" className={btn} disabled={busyId === inv.id} onClick={() => void revokeInvite(inv.id)}>Revoke</button>
         </>
       ),
@@ -687,7 +694,9 @@ export default function PublishingDestinations({
   // ── AN EMPTY SLOT ─────────────────────────────────────────────────────────────────────────
   // Where this owner's next account on this platform goes. Present rather than implied, because
   // "Lisette has no TikTok yet" is a thing to see, not an absence to infer.
-  const emptySlot = (group: OwnerGroup, platform: Platform) => {
+  /** empty = nothing in this band at all · pending = only an unused invitation · another = a
+ *  connected account already exists. The three read differently and only the last is "another". */
+  const emptySlot = (group: OwnerGroup, platform: Platform, slot: "empty" | "pending" | "another" = "empty") => {
     const who = group.kind === "mine" ? "you" : group.name
     const agentHit: AgentHit | null =
       group.kind === "team" ? { id: group.key, name: group.name, photoUrl: group.photoUrl, email: null } : null
@@ -698,7 +707,15 @@ export default function PublishingDestinations({
         </span>
         <div className="min-w-0 flex-1 basis-[230px]">
           <div className="text-[12.5px] font-semibold text-[var(--crm-text-primary)]">
-            No {platform === "tiktok" ? "TikTok" : "Instagram"} account connected for {who} yet.
+            {slot === "empty"
+              ? `No ${platform === "tiktok" ? "TikTok" : "Instagram"} account connected for ${who} yet.`
+              : slot === "another"
+                ? group.kind === "mine"
+                  ? `Add another ${platform === "tiktok" ? "TikTok" : "Instagram"} account of your own.`
+                  : `Add another ${platform === "tiktok" ? "TikTok" : "Instagram"} account for ${who}.`
+                : group.kind === "mine"
+                  ? `Add an ${platform === "tiktok" ? "TikTok" : "Instagram"} account of your own.`
+                  : `Add an ${platform === "tiktok" ? "TikTok" : "Instagram"} account for ${who}.`}
           </div>
           <div className="text-[11.5px] text-[var(--crm-text-muted)] mt-[1px]">
             {platform === "tiktok"
@@ -752,7 +769,7 @@ export default function PublishingDestinations({
       <section className="rounded-2xl border border-[var(--crm-border)] bg-[var(--crm-panel)] p-4">
         <div className="flex items-center gap-3 flex-wrap mb-3">
           <span className={`h-9 w-9 rounded-[10px] flex-none inline-flex items-center justify-center text-white ${isIg ? "bg-gradient-to-br from-[#f9ce34] via-[#ee2a7b] to-[#6228d7]" : "bg-black border border-[var(--crm-border)]"}`}>
-            {isIg ? <InstagramGlyph size={19} /> : <TikTokGlyph size={18} />}
+            {isIg ? <InstagramGlyph size={18} /> : <TikTokGlyph size={18} />}
           </span>
           <h2 className="text-[18px] font-extrabold text-[var(--crm-text-primary)]">{isIg ? "Instagram" : "TikTok"}</h2>
           <span className="text-[11.5px] font-semibold text-[var(--crm-text-secondary)] bg-[var(--crm-card)] border border-[var(--crm-border)] rounded-full px-2.5 py-1">
@@ -771,8 +788,17 @@ export default function PublishingDestinations({
               const invites = isIg ? group.invites : []
               // An invitation for someone with NO account on this platform is their card; an
               // invitation for someone who already has one is a strip beneath it.
-              const asCards = accounts.length === 0 ? invites : []
-              const asStrips = accounts.length === 0 ? [] : invites
+              const named = new Set(
+                accounts.flatMap((a) => [a.label, "agentName" in a ? a.agentName : null, a.username])
+                  .filter((n): n is string => !!n)
+                  .map((n) => n.trim().toLowerCase()),
+              )
+              const isSpareLinkFor = (inv: PendingInvite) => {
+                const l = (inv.agentName || inv.label || "").trim().toLowerCase()
+                return l.length > 0 && named.has(l)
+              }
+              const asStrips = invites.filter(isSpareLinkFor)
+              const asCards = invites.filter((inv) => !isSpareLinkFor(inv))
               return (
                 <div key={`${platform}:${group.key}`}>
                   {ownerBand(group, countsFor(accounts.length, invites.length))}
@@ -784,12 +810,7 @@ export default function PublishingDestinations({
                     )}
                     {asStrips.map((inv) => inviteStrip(inv, group.kind === "mine"))}
                     {asCards.map((inv) => inviteCard(inv, group))}
-                    {accounts.length === 0 && asCards.length === 0 && emptySlot(group, platform)}
-                    {accounts.length > 0 && group.kind === "team" && isIg && (
-                      <div className="text-[11.5px] text-[var(--crm-text-muted)] pl-1">
-                        Any further accounts {group.name.split(" ")[0]} authorizes appear here automatically.
-                      </div>
-                    )}
+                    {emptySlot(group, platform, accounts.length > 0 ? "another" : asCards.length > 0 ? "pending" : "empty")}
                   </div>
                 </div>
               )

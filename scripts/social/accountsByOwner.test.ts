@@ -113,10 +113,21 @@ ok("both platforms render the same groups, so an owner cannot be missing from on
 // ── 4. INVITATIONS SIT UNDER THEIR PERSON ─────────────────────────────────────────────────────
 console.log("\nan invitation is shown with the person it was sent to:")
 
-ok("an owner with an account gets a strip beneath it",
-  /const asStrips = accounts\.length === 0 \? \[\] : invites/.test(UI))
-ok("…and an owner with none gets the invitation AS their card",
-  /const asCards = accounts\.length === 0 \? invites : \[\]/.test(UI))
+// DECIDED PER INVITATION, not by counting. Counting was wrong as soon as an owner had one account
+// and a link for a DIFFERENT one: every invitation became a strip, so the second account had no
+// row and no status at all. A link naming an account already in the band is a spare link for it;
+// a link naming anything else is an account that does not exist yet.
+ok("a link naming an existing account is a strip beneath it",
+  /const asStrips = invites\.filter\(isSpareLinkFor\)/.test(UI)
+    && /return l\.length > 0 && named\.has\(l\)/.test(UI))
+ok("…and a link naming anything else becomes its own card",
+  /const asCards = invites\.filter\(\(inv\) => !isSpareLinkFor\(inv\)\)/.test(UI))
+ok("…matched against the account's label, agent name AND handle",
+  /accounts\.flatMap\(\(a\) => \[a\.label, "agentName" in a \? a\.agentName : null, a\.username\]\)/.test(UI))
+// An owner's OWN unconnected account should be signed in to, not sent a link to themselves — and
+// direct sign-in is the only route that can grant comment access.
+ok("an unconnected account of your own offers direct sign-in first",
+  /group\.kind === "mine" && \(\s*\n?\s*<a href=\{CONNECT\}/.test(UI))
 ok("that card reads Not Connected", /status: "not_connected"/.test(UI))
 ok("there is no separate Pending Invitations section any more",
   !/Pending Invitations/.test(UI_RAW))

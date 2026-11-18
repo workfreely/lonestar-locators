@@ -151,12 +151,14 @@ console.log("\n4. THE ACCOUNTS PAGE WIRES THE GATE, AND KEEPS EVERY EXISTING CON
     /publishing:\s*publishingCapability\(/.test(page) && /autoReply:\s*autoReplyCapability\(/.test(page))
 
   // THE PRESERVATION ASSERTIONS. These controls existed before and must still be here.
-  for (const control of ["Resume", "Pause", "Rename", "Disconnect"]) {
+  // Rename was relabelled "Change" at the operator's request — the CONTROL is what must survive,
+  // and that it still posts action:"label" is asserted in accountsByOwner.test.ts.
+  for (const control of ["Resume", "Pause", "Change", "Disconnect"]) {
     if (!new RegExp(`>${control}<`).test(comp)) {
       fail++; console.log(`  ✗ the existing ${control} control is gone`)
     }
   }
-  ok("Pause, Resume, Rename and Disconnect all still render", true)
+  ok("Pause, Resume, Change (was Rename) and Disconnect all still render", true)
   ok("the per-destination manage endpoint is unchanged",
     /\/destinations\/manage/.test(comp) || /const MANAGE =/.test(comp))
   ok("pause and resume still go through manage()",
@@ -186,7 +188,7 @@ console.log("\n4. THE ACCOUNTS PAGE WIRES THE GATE, AND KEEPS EVERY EXISTING CON
   // column, everything else behind Advanced. The crowding this once guarded against cannot recur,
   // because no action is rendered beside the status at all.
   ok("actions render in their own column, never beside the status",
-    /\{opts\.actions && <div className="flex-none flex flex-col gap-1\.5 w-\[150px\]">/.test(comp))
+    /\{opts\.actions && <div className="flex-none flex flex-col gap-1\.5 w-\[\d+px\]">/.test(comp))
 
   // ── THE REDUNDANT LINK ────────────────────────────────────────────────────────────────
   ok("the standalone connect link is hidden once an account is connected",

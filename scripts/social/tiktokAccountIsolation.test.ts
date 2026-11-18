@@ -402,8 +402,10 @@ console.log("\nTHE DASHBOARD — N TikTok accounts, not one:")
   ok("the component takes a list", /tiktok: TikTokConnection\[\]/.test(UI))
   ok("…and renders one row per account, keyed by connection id",
     /accounts\.map\(\(a\) =>/.test(UI) && /tiktokCard\(a as TikTokConnection/.test(UI) && /key: t\.id,/.test(UI))
+  // The slot now renders for EVERY band — an owner with one account still needs somewhere to add
+  // a second — so what it says is chosen from the list's length rather than its existence.
   ok("the empty state is the empty LIST, not a null row",
-    /accounts\.length === 0 && asCards\.length === 0 && emptySlot\(group, platform\)/.test(UI))
+    /emptySlot\(group, platform, accounts\.length > 0 \? "another" : asCards\.length > 0 \? "pending" : "empty"\)/.test(UI))
   ok("a TikTok row leads with the ACCOUNT, so two rows are distinguishable",
     /name: t\.label \|\| t\.username \|\| t\.ownerName \|\| "TikTok account",/.test(UI))
   ok("…and can be renamed to disambiguate, like the Instagram rows", /setRenamingId\(t\.id\)/.test(UI))
