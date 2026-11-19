@@ -53,10 +53,19 @@ async function run(req: NextRequest) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
   }
 
+  // THE SCHEDULED CALL CARRIES NO QUERY STRING. vercel.json invokes this path bare, so a rule of
+  // "persist only when ?mode=persist is present" meant the cron could never renew anything: it
+  // would dry-run daily for ever and the token would expire on schedule anyway. The env flag is
+  // therefore the switch that decides what a bare call does, which is what setting it is FOR.
+  //
+  //   flag unset / not "true"  →  preview, whatever the caller asks for  (inert, unchanged)
+  //   flag "true", bare call   →  persist                                (armed: the cron renews)
+  //   flag "true", ?mode=preview → preview                               (dry run on demand)
   const requested = new URL(req.url).searchParams.get("mode")
-  const mode: RunMode = requested === "persist" ? "persist" : "preview"
+  const armed = refreshEnabled()
+  const mode: RunMode = requested === "preview" ? "preview" : armed ? "persist" : "preview"
 
-  if (mode === "persist" && !refreshEnabled()) {
+  if (requested === "persist" && !armed) {
     return NextResponse.json({
       ok: true,
       skipped: "refresh_disabled",

@@ -85,14 +85,39 @@ ok("vercel.json registers the trigger", !!entry)
 ok("...hourly", entry?.schedule === "0 * * * *")
 ok("the publish worker's schedule is untouched",
   vercel.crons.find((c) => c.path === "/api/cron/social-instagram-publish")?.schedule === "*/5 * * * *")
-// NINE, not eight. This said 8 and had been failing since social-comment-poll shipped in
-// ec83f71 ("comment automation, deployed inert"), which this suite predates. Verified before
-// changing the number rather than after: all nine entries resolve to a real route handler under
-// app/api/cron/, and each traces to its own deliberate feature commit — auto-archive /
+// THE SET, NOT THE COUNT. This was `length === 9` and had drifted twice: once when
+// social-tiktok-publish shipped, and again when social-instagram-token-refresh did. A count
+// tells you something changed without telling you what, so it gets bumped on sight — which is
+// how it ended up stale instead of informative. The list below makes an addition name itself.
+//
+// Every entry verified against the filesystem before this was rewritten: all eleven resolve to
+// a real handler at app/<path>/route.ts, and each traces to a deliberate feature — auto-archive /
 // archive-monthly / trial-reminders (CRM automation), meta-insights-sync, followup-tick,
-// insights-refresh, social-instagram-publish, social-comment-poll, social-autopilot-plan. None is
-// accidental, so the count was stale and the crons were not. vercel.json is NOT modified.
-ok("no other cron was changed or removed", vercel.crons.length === 9)
+// insights-refresh, the three social publish/poll workers, social-autopilot-plan, and
+// social-instagram-token-refresh (60-day Instagram token renewal). vercel.json is NOT modified
+// by this suite.
+const EXPECTED_CRONS = [
+  "/api/cron/archive-monthly-closed",
+  "/api/cron/auto-archive-no-response",
+  "/api/cron/followup-tick",
+  "/api/cron/insights-refresh",
+  "/api/cron/meta-insights-sync",
+  "/api/cron/social-autopilot-plan",
+  "/api/cron/social-comment-poll",
+  "/api/cron/social-instagram-publish",
+  "/api/cron/social-instagram-token-refresh",
+  "/api/cron/social-tiktok-publish",
+  "/api/cron/trial-ending-reminders",
+]
+ok("no other cron was changed or removed", (() => {
+  const actual = vercel.crons.map((c) => c.path).sort()
+  const expected = [...EXPECTED_CRONS].sort()
+  if (actual.length === expected.length && actual.every((p, i) => p === expected[i])) return true
+  const added = actual.filter((p) => !expected.includes(p))
+  const gone = expected.filter((p) => !actual.includes(p))
+  console.log(`      added: ${added.join(", ") || "none"}   removed: ${gone.join(", ") || "none"}`)
+  return false
+})())
 // THE POINT about DST, asserted rather than only commented: the firing expression contains no
 // Central-time hour, because the posting time comes from the plan, not from when the cron fires.
 ok("the cron expression encodes NO posting hour — DST cannot drift it",

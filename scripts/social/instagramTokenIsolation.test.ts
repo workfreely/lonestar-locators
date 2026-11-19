@@ -34,6 +34,8 @@ import {
   REFRESH_WINDOW_DAYS,
   MIN_TOKEN_AGE_HOURS,
 } from "../../lib/social/instagramTokenRefresh"
+import { alertSubjects, buildRefreshAlert } from "../../lib/social/instagramTokenRefreshAlert"
+import type { RefreshOutcome as AlertOutcome } from "../../lib/social/instagramTokenRefreshRun"
 
 let pass = 0, fail = 0
 const ok = (l: string, c: boolean, d = "") => { if (c) { pass++; console.log(`  ✓ ${l}`) } else { fail++; console.log(`  ✗ ${l}${d ? `  — ${d}` : ""}`) } }
@@ -45,6 +47,7 @@ const MIG = sqlOf(read("supabase/migrations/20261119000000_instagram_connection_
 const RUN = code(read("lib/social/instagramTokenRefreshRun.ts"))
 const ROUTE = code(read("app/api/cron/social-instagram-token-refresh/route.ts"))
 const POLICY = code(read("lib/social/instagramTokenRefresh.ts"))
+const ALERT = code(read("lib/social/instagramTokenRefreshAlert.ts"))
 
 const NOW = new Date("2026-11-19T12:00:00Z")
 const at = (days: number) => new Date(NOW.getTime() + days * 86_400_000).toISOString()
@@ -163,12 +166,113 @@ ok("a missing token is reported rather than assumed", /no_token_returned/.test(R
 console.log("\nnothing rotates until it is deliberately switched on:")
 
 ok("the route requires CRON_SECRET", /auth !== `Bearer \$\{cronSecret\}`/.test(ROUTE))
-ok("…defaults to a dry run", /requested === "persist" \? "persist" : "preview"/.test(ROUTE))
-ok("…and refuses to persist without the env flag",
-  /mode === "persist" && !refreshEnabled\(\)/.test(ROUTE)
+
+// THE DEFECT THIS PAIR EXISTS TO CATCH.
+// The first version of this route persisted only when the request carried ?mode=persist, and
+// vercel.json invokes the path BARE. So the armed cron would have dry-run every day for ever
+// and the token would have expired on schedule regardless of the env flag — the one failure the
+// whole module exists to prevent, reintroduced by a default. The env flag now decides what a
+// bare call does, and the two files are checked against each other below.
+ok("the env flag is what decides a bare call's mode",
+  /const armed = refreshEnabled\(\)/.test(ROUTE)
+  && /requested === "preview" \? "preview" : armed \? "persist" : "preview"/.test(ROUTE)
   && /SOCIAL_INSTAGRAM_REFRESH_ENABLED \?\? ""\)\.trim\(\) === "true"/.test(ROUTE))
+
+ok("…so the SCHEDULED path can actually renew — route and vercel.json agree", (() => {
+  const crons = JSON.parse(read("vercel.json")).crons as { path: string; schedule: string }[]
+  const entry = crons.find((c) => c.path.includes("social-instagram-token-refresh"))
+  if (!entry) return false
+  const carriesPersist = /[?&]mode=persist\b/.test(entry.path)
+  // Exactly one of the two must supply "persist" for a scheduled call. Neither = the dead cron.
+  const armedDefaultPersists = /armed \? "persist"/.test(ROUTE)
+  return carriesPersist || armedDefaultPersists
+})())
+
+ok("…while the flag being unset still means preview, whatever is asked",
+  /armed \? "persist" : "preview"/.test(ROUTE))
+ok("…and an explicit persist request is refused outright while disarmed",
+  /requested === "persist" && !armed/.test(ROUTE)
+  && /skipped: "refresh_disabled"/.test(ROUTE))
+ok("…and a dry run can still be forced once armed", /requested === "preview" \? "preview"/.test(ROUTE))
 ok("a dry run makes no provider call", /if \(mode === "preview"\)[\s\S]{0,200}action: "would_refresh"/.test(RUN))
 ok("the route publishes nothing", !/media_publish|createReelContainer|social_posts/.test(ROUTE))
+
+// ── 6. A FAILURE REACHES A HUMAN ──────────────────────────────────────────────────────────────
+// Renewal fails SILENTLY and on a TIMER: the old token stays valid, so nothing looks wrong until
+// the day it dies. Every other cron here reports failure with console.error and nothing else,
+// which for this job means nobody finds out until posting stops.
+console.log("\na failed renewal is actionable:")
+
+const H = (u: string | null, over: Partial<AlertOutcome> = {}): AlertOutcome => ({
+  connectionId: "c1", username: u, daysLeft: 9, action: "failed", ...over,
+})
+const url = "https://locatorbeast.com/admin/social-autopilot/accounts"
+const build = (os: AlertOutcome[]) => buildRefreshAlert({ subjects: alertSubjects(os), accountsUrl: url })
+
+ok("a healthy run says nothing at all", build([
+  { connectionId: "c1", username: "a", daysLeft: 33, action: "skipped", reason: "not_due_yet" },
+  { connectionId: "c2", username: "b", daysLeft: 40, action: "would_refresh" },
+]) === null)
+ok("…and a successful renewal is not an alert either",
+  build([{ connectionId: "c1", username: "a", daysLeft: 9, action: "refreshed" }]) === null)
+ok("a failed renewal names the account", (() => {
+  const a = build([H("realestatepro_tx")])
+  return !!a && a.subject.includes("@realestatepro_tx")
+})())
+ok("…and says how long the operator has", (() => {
+  const a = build([H("x", { daysLeft: 9 })])
+  return !!a && a.text.includes("expires in 9 days") && a.text.includes("retry")
+})())
+ok("…and says what to do when time is short", (() => {
+  const a = build([H("x", { daysLeft: 1 })])
+  return !!a && /one more attempt/.test(a.text) && /Reconnect/.test(a.text)
+})())
+ok("an expired account is reported as needing reconnection, not retrying", (() => {
+  const a = build([{ connectionId: "c1", username: "x", daysLeft: -1, action: "skipped", reason: "already_expired", attention: true }])
+  return !!a && /has expired/.test(a.text) && /Reconnect/.test(a.text)
+})())
+ok("a missing expiry is reported honestly rather than guessed", (() => {
+  const a = build([{ connectionId: "c1", username: "x", daysLeft: null, action: "skipped", reason: "no_expiry_recorded", attention: true }])
+  return !!a && /No expiry date recorded/.test(a.text)
+})())
+ok("the WORST account leads the subject when several are wrong", (() => {
+  const a = build([
+    H("fine_but_failed", { daysLeft: 10 }),
+    { connectionId: "c2", username: "dead", daysLeft: -2, action: "skipped", reason: "already_expired", attention: true },
+  ])
+  return !!a && a.subject.includes("2 accounts") && a.text.indexOf("@dead") < a.text.indexOf("@fine_but_failed")
+})())
+ok("a routine skip is never alerted on — the quiet days must stay quiet", (() => {
+  for (const reason of ["not_due_yet", "too_new"] as const) {
+    if (build([{ connectionId: "c1", username: "x", daysLeft: 20, action: "skipped", reason }]) !== null) return false
+  }
+  return true
+})())
+
+// NO CREDENTIAL, EVER. An alert that leaks a secret into an inbox is worse than no alert.
+ok("the message carries no token, secret id or connection id", (() => {
+  const a = build([H("realestatepro_tx", { daysLeft: 3 })])
+  if (!a) return false
+  const all = `${a.subject} ${a.html} ${a.text}`
+  return !/c1/.test(all) && !/token_secret|decrypted|access_token|IGQ/.test(all)
+})())
+ok("the alert builder cannot reach the network or the database",
+  !/supabase|fetch\(|rpc\(/.test(ALERT))
+
+// RETRIES ARE THE SCHEDULE, and the window has to be wide enough to make that true.
+ok("the daily schedule gives a fortnight of automatic retries", (() => {
+  const crons = JSON.parse(read("vercel.json")).crons as { path: string; schedule: string }[]
+  const entry = crons.find((c) => c.path.includes("social-instagram-token-refresh"))
+  // A daily schedule (fixed hour, every day) means attempts === window days.
+  return !!entry && /^\d+ \d+ \* \* \*$/.test(entry.schedule) && REFRESH_WINDOW_DAYS >= 14
+})())
+ok("alerting runs last and cannot change an outcome",
+  /await notifyOwners\(rows, outcomes\)/.test(RUN)
+  && RUN.indexOf("await notifyOwners") < RUN.indexOf("return {\n    mode,"))
+ok("…and is wrapped so a mail failure cannot fail the run",
+  /async function notifyOwners[\s\S]*?try \{[\s\S]*?catch \(e\) \{/.test(RUN))
+ok("…and reads a profile only when there is something to report",
+  RUN.indexOf("if (pending.length === 0) return") < RUN.indexOf('.from("profiles")'))
 
 console.log(`\nInstagram token isolation: ${pass} passed, ${fail} failed`)
 process.exit(fail ? 1 : 0)

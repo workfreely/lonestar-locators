@@ -27,6 +27,8 @@ import {
   needsHumanAttention,
   type RefreshSkip,
 } from "@/lib/social/instagramTokenRefresh"
+import { alertSubjects, buildRefreshAlert } from "@/lib/social/instagramTokenRefreshAlert"
+import { sendNotification, absoluteUrl } from "@/lib/notifications"
 
 export type RunMode = "preview" | "persist"
 
@@ -50,6 +52,7 @@ export type RefreshRunResult = {
 
 type ConnRow = {
   id: string
+  owner_user_id: string | null
   username: string | null
   status: string | null
   token_expires_at: string | null
@@ -74,7 +77,7 @@ export async function runInstagramTokenRefresh(opts: {
   // is read inside the database by the RPC; this process never holds the stored one.
   const { data, error } = await supabaseAdmin
     .from("social_connections")
-    .select("id, username, status, token_expires_at, updated_at")
+    .select("id, owner_user_id, username, status, token_expires_at, updated_at")
     .eq("provider", "instagram")
     .order("created_at", { ascending: true })
 
@@ -147,6 +150,11 @@ export async function runInstagramTokenRefresh(opts: {
     }
   }
 
+  // ── TELL SOMEBODY ─────────────────────────────────────────────────────────────────────────
+  // Last, and unconditionally non-fatal. A renewal that worked must not be reported as failed
+  // because an email bounced, so this cannot throw and cannot change a single outcome above.
+  await notifyOwners(rows, outcomes)
+
   return {
     mode,
     checked: rows.length,
@@ -154,5 +162,68 @@ export async function runInstagramTokenRefresh(opts: {
     failed: outcomes.filter((o) => o.action === "failed").length,
     attention: outcomes.filter((o) => o.attention).length,
     outcomes,
+  }
+}
+
+/**
+ * Email each owner about THEIR OWN problem accounts, once per run.
+ *
+ * ── WHY THE OWNER AND NOT THE AGENT ─────────────────────────────────────────────────────────
+ * A connection has an agent_user_id (whose account it is) and an owner_user_id (whose Social
+ * Beast it lives in). Renewal is an operator concern: the owner is the one who can see the
+ * Accounts page, read the connection's status and decide whether to reconnect. An agent cannot
+ * act on "the token did not renew" without being told what to do by the owner anyway.
+ *
+ * ── IT CANNOT BREAK A RUN ───────────────────────────────────────────────────────────────────
+ * sendNotification never throws by contract, and everything else here is wrapped regardless:
+ * a missing profile, an unreachable database or an unconfigured mail provider must leave the
+ * refresh result exactly as it was. Nothing is retried — the next scheduled pass re-evaluates
+ * and re-alerts while the condition lasts, which is the behaviour an operator wants from a
+ * daily job: a message every day until it is fixed, and silence the day it is.
+ */
+async function notifyOwners(rows: ConnRow[], outcomes: RefreshOutcome[]): Promise<void> {
+  try {
+    const ownerOf = new Map(rows.map((r) => [r.id, r.owner_user_id]))
+
+    // Group by owner, keeping each owner's outcomes together.
+    const byOwner = new Map<string, RefreshOutcome[]>()
+    for (const o of outcomes) {
+      const owner = ownerOf.get(o.connectionId)
+      if (!owner) continue
+      const list = byOwner.get(owner)
+      if (list) list.push(o)
+      else byOwner.set(owner, [o])
+    }
+
+    // Decide BEFORE reading any profile, so a healthy run touches nothing at all.
+    const pending = [...byOwner.entries()]
+      .map(([owner, os]) => ({ owner, subjects: alertSubjects(os) }))
+      .filter((p) => p.subjects.length > 0)
+    if (pending.length === 0) return
+
+    const accountsUrl = absoluteUrl("/admin/social-autopilot/accounts")
+
+    for (const { owner, subjects } of pending) {
+      const alert = buildRefreshAlert({ subjects, accountsUrl })
+      if (!alert) continue
+
+      const { data: profile } = await supabaseAdmin
+        .from("profiles")
+        .select("email")
+        .eq("id", owner)
+        .maybeSingle()
+      const to = (profile as { email?: string | null } | null)?.email ?? null
+      if (!to) {
+        console.error(`[instagram-token-refresh] no email on file for owner ${owner} — alert not sent`)
+        continue
+      }
+
+      const sent = await sendNotification({ to, subject: alert.subject, html: alert.html, text: alert.text })
+      console.log(
+        `[instagram-token-refresh] alert for ${subjects.length} account(s): ${sent.ok ? "sent" : `not sent (${sent.error})`}`,
+      )
+    }
+  } catch (e) {
+    console.error(`[instagram-token-refresh] alerting failed: ${(e as Error).message}`)
   }
 }
