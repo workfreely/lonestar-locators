@@ -43,9 +43,25 @@ if (openId) {
   patched = patched.replace(FROM, `const [openAdvanced, setOpenAdvanced] = useState<string | null>(${JSON.stringify(openId)})`)
   substitutions++
 }
+// Optional: open the add sheet for one platform. Same reason as --advanced: the sheet is now
+// rendered INSIDE a platform's section rather than once at the top of the page, and a static
+// render cannot click the button that opens it. Two lines, so two more declared substitutions.
+const addFor = process.argv.find((a) => a.startsWith("--add="))?.slice("--add=".length)
+if (addFor) {
+  if (addFor !== "instagram" && addFor !== "tiktok") throw new Error(`accountsPreview: --add= must be instagram or tiktok, got ${addFor}`)
+  const ADDING_FROM = "const [adding, setAdding] = useState(false)"
+  const PLATFORM_FROM = "const [addPlatform, setAddPlatform] = useState<Platform | null>(null)"
+  for (const f of [ADDING_FROM, PLATFORM_FROM]) {
+    if (!patched.includes(f)) throw new Error(`accountsPreview: add-flow state no longer looks as expected (${f})`)
+  }
+  patched = patched
+    .replace(ADDING_FROM, "const [adding, setAdding] = useState(true)")
+    .replace(PLATFORM_FROM, `const [addPlatform, setAddPlatform] = useState<Platform | null>(${JSON.stringify(addFor)})`)
+  substitutions += 2
+}
 const diffLines = original.split("\n").filter((l, i) => l !== patched.split("\n")[i])
 if (diffLines.length !== substitutions) throw new Error(`accountsPreview: expected ${substitutions} changed line(s), got ${diffLines.length}`)
-console.log(`substituted (${substitutions} line${substitutions > 1 ? "s" : ""}): ${STUB_FROM}\n            → ${STUB_TO}${openId ? `\n            + openAdvanced seeded to ${openId}` : ""}`)
+console.log(`substituted (${substitutions} line${substitutions > 1 ? "s" : ""}): ${STUB_FROM}\n            → ${STUB_TO}${openId ? `\n            + openAdvanced seeded to ${openId}` : ""}${addFor ? `\n            + add sheet seeded open for ${addFor}` : ""}`)
 
 // Inside the project: a shim in the system temp dir cannot resolve react, because Node resolves
 // node_modules by walking up from the FILE. node_modules/.cache is already ignored by git.
@@ -69,8 +85,9 @@ async function loadComponent(): Promise<(p: Props) => JSX.Element> {
 }
 
 // ── THE LIVE RECORDS ────────────────────────────────────────────────────────────────────────
-// Verified against production on 18 Nov 2026. Two connections, three live invitations, one owner
-// and one agent. Nothing invented: an account with no handle is given none.
+// Verified against production on 19 Nov 2026. Three connections (two Instagram, one TikTok),
+// three live invitations, one owner and one agent. Nothing invented: an account with no handle is
+// given none, and every capability is computed by the same gate the page calls.
 const OWNER = "c567c077-d3f4-4532-8807-a54795f753f5"
 const LISETTE = "27d7bde4-00f0-433c-b32b-b243623ad20a"
 
@@ -98,6 +115,28 @@ const groups: OwnerGroup[] = [
       autoReply: autoReplyCapability(accountAutomationGate({
         settingsReadOk: true, globalEnabled: true, accountEnabled: true,
         activatedAt: "2026-10-18T21:07:24.142Z", permissionsOk: true,
+      })),
+      commentsScopeGranted: true,
+    }, {
+      // CONNECTED 19 NOV through the admin Add-account route, which is why it holds the comments
+      // scope. posting_paused is true — new destinations start paused — so this card is the one
+      // that shows Auto Posting and Auto Reply disagreeing, which is worth seeing in review.
+      id: "671b758b-2135-45fe-9fda-22cb3e0b815d",
+      username: "locatorbeast",
+      label: null,
+      agentUserId: OWNER,
+      status: "connected",
+      paused: true,
+      postsPerDay: null,
+      marketRestriction: null,
+      expired: false,
+      addedAt: "2026-11-19T16:14:38.904Z",
+      agentName: "Jay Morris",
+      agentPhotoUrl: null,
+      publishing: publishingCapability({ connectionStatus: "connected", expired: false, destinationPaused: true, autoPosting: "paused" }),
+      autoReply: autoReplyCapability(accountAutomationGate({
+        settingsReadOk: true, globalEnabled: true, accountEnabled: true,
+        activatedAt: "2026-11-19T16:48:12.361Z", permissionsOk: true,
       })),
       commentsScopeGranted: true,
     }],
@@ -182,7 +221,7 @@ async function main() {
   <style>body{background:var(--crm-background);padding:24px;margin:0}.wrap{max-width:1000px;margin:0 auto}
   .flag{font:600 12px system-ui;color:var(--crm-text-muted);margin:0 0 14px}</style></head>
   <body><div class="wrap">
-  <p class="flag">PublishingDestinations.tsx, server-rendered with this workspace's live account records — 18 Nov 2026. Buttons are inert.</p>
+  <p class="flag">PublishingDestinations.tsx, server-rendered with this workspace's live account records — 19 Nov 2026. Buttons are inert.</p>
   ${body}
   </div></body></html>`)
   console.log(out)

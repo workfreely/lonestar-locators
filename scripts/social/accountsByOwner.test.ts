@@ -140,14 +140,33 @@ ok("…which revokes the old link before minting one",
 ok("invitations are Instagram-only, as the authorize flow is",
   /const invites = isIg \? group\.invites : \[\]/.test(UI))
 
-// ── 5. ONE ADD BUTTON, BOTH ROUTES INTACT ─────────────────────────────────────────────────────
+// ── 5. THE ADD BUTTONS LIVE IN THE SECTIONS, BOTH ROUTES INTACT ───────────────────────────────
 // The two Instagram routes are NOT interchangeable: the invitation flow requests INSTAGRAM_SCOPES,
 // which does not include instagram_business_manage_comments and cannot, so an account added by
 // link can publish but can never auto-reply. Merging the buttons without stating that would
 // quietly cost the operator Auto Reply.
-console.log("\none Add Account button, with the difference stated:")
+//
+// The header's "+ Add Account" is gone with this release. It opened the sheet on a question the
+// click could not have answered — which platform — while each section's own button already names
+// the platform AND the owner. Its removal is asserted rather than assumed, because a second
+// control that reappears here is exactly the redundancy that was cleaned up.
+console.log("\nper-platform Add buttons, with the difference stated:")
 
-ok("there is one Add Account control", (UI.match(/\+ Add Account/g) ?? []).length === 1)
+ok("the redundant top-level Add Account control is gone", !/\+ Add Account/.test(UI))
+ok("…and each section's own button still names its platform",
+  /\+ Add \{group\.kind === "team"[\s\S]{0,160}platform === "tiktok" \? "TikTok" : "Instagram"\}/.test(UI))
+// THE POINT OF THE CHANGE. The sheet used to render once at the top of the page for every
+// platform, so "+ Add TikTok" at the foot of the TikTok section answered somewhere off screen.
+ok("…the sheet opens inside the section whose button opened it, never once at the top",
+  /adding && addPlatform === platform &&/.test(UI) && !/\{adding && addSheet\}/.test(UI))
+ok("…and is scrolled into view without yanking a sheet already on screen",
+  /scrollIntoView\(\{ behavior: "smooth", block: "nearest" \}\)/.test(UI))
+// A null platform belonged to no section, so it could not have rendered the sheet anywhere. The
+// signature forbids it rather than the layout tolerating it.
+ok("…and the platform can no longer be absent when the flow opens",
+  /const openAdd = \(platform: Platform,/.test(UI))
+// Removed with the header button: prose the sections now say for themselves, per owner.
+ok("the top-level explanatory sentence is gone", !/Accounts you publish to, grouped by owner/.test(UI_RAW))
 // Against the comment-stripped source: the header explains what the three used to be, and prose
 // must never be able to fail an assertion about what the screen renders.
 ok("…and the three old ones are gone",

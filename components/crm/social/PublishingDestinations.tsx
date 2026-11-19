@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import { useRouter } from "next/navigation"
 import AgentSearchField, { type AgentHit } from "@/components/crm/social/AgentSearchField"
 import {
@@ -204,6 +204,20 @@ export default function PublishingDestinations({
   const [copied, setCopied] = useState(false)
   const [addError, setAddError] = useState<string | null>(null)
 
+  // ── WHERE THE SHEET OPENS ────────────────────────────────────────────────────────────────
+  // It used to render once at the top of the page for every platform, so clicking "+ Add TikTok"
+  // at the foot of the TikTok section put the instructions somewhere the operator wasn't looking —
+  // on a page this tall, off screen entirely. The sheet now renders inside the section it belongs
+  // to (see platformSection), and this scrolls it into view.
+  //
+  // `block: "nearest"` deliberately: a sheet already on screen must not yank the page, which is
+  // what "start" or "center" would do every time on a short list.
+  const addSheetRef = useRef<HTMLDivElement | null>(null)
+  useEffect(() => {
+    if (!adding) return
+    addSheetRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" })
+  }, [adding, addPlatform])
+
   const btn = "text-[12px] font-semibold px-2.5 py-1.5 rounded-lg border border-[var(--crm-border)] text-[var(--crm-text-secondary)] hover:bg-[var(--crm-card)] transition-colors disabled:opacity-50"
   const btnPrimary = "text-[12.5px] font-semibold px-3 py-1.5 rounded-lg bg-[var(--crm-text-primary)] text-[var(--crm-panel)] disabled:opacity-50"
   const control = "w-full text-[13px] rounded-lg border border-[var(--crm-border)] bg-[var(--crm-card)] text-[var(--crm-text-primary)] px-2.5 py-1.5"
@@ -298,7 +312,11 @@ export default function PublishingDestinations({
   }
 
   // ALWAYS start a fresh flow. Never reopen a previously created show-once link.
-  const openAdd = (platform: Platform | null, agent: AgentHit | null = null) => {
+  // PLATFORM IS REQUIRED. Every entry point into this flow now names its platform — the
+  // "+ Add Instagram" / "+ Add TikTok" buttons in each section — so there is no caller that needs
+  // the sheet to ask which one. That also removes a state the sheet could not render: it now lives
+  // inside a platform's section, and a null platform would have belonged to no section at all.
+  const openAdd = (platform: Platform, agent: AgentHit | null = null) => {
     setNewLink(null)
     setInviteLabel("")
     setSelectedAgent(agent)
@@ -817,13 +835,25 @@ export default function PublishingDestinations({
             })}
           </div>
         )}
+
+        {/* The add sheet, in the section whose button opened it. */}
+        {adding && addPlatform === platform && (
+          <div ref={addSheetRef} className="mt-4">{addSheet}</div>
+        )}
       </section>
     )
   }
 
   // ── ADD ACCOUNT ───────────────────────────────────────────────────────────────────────────
-  // ONE button. It used to be three — "+ Add Publishing Destination", "Connect My Instagram" and
-  // "Connect My TikTok" — whose differences were explained in amber small print underneath.
+  // THE BUTTONS LIVE IN THE SECTIONS, NOT IN A HEADER. There were once three at the top
+  // ("+ Add Publishing Destination", "Connect My Instagram", "Connect My TikTok"), then one
+  // ("+ Add Account") that opened the sheet asking which platform. Both are gone: each platform
+  // section carries its own "+ Add Instagram" / "+ Add TikTok", which already says the platform
+  // and the owner, so a header button could only repeat them — and a chooser could only ask
+  // something the click had already answered.
+  //
+  // RENDERED BY platformSection, which is defined ABOVE this const but only CALLED from the
+  // return block below it, so this is initialized by the time it is read.
   //
   // THE TWO INSTAGRAM ROUTES ARE NOT INTERCHANGEABLE AND THE SHEET SAYS SO. The invitation flow
   // requests INSTAGRAM_SCOPES, which does not include instagram_business_manage_comments and
@@ -842,16 +872,6 @@ export default function PublishingDestinations({
             <input readOnly value={newLink} onFocus={(e) => e.currentTarget.select()} className={`${control} flex-1 min-w-[220px] font-mono text-[12px]`} />
             <button type="button" className={btnPrimary} onClick={() => void copyLink()}>{copied ? "Copied ✓" : "Copy Link"}</button>
             <button type="button" className={btn} onClick={closeAdd}>Done</button>
-          </div>
-        </div>
-      ) : !addPlatform ? (
-        <div>
-          <div className="text-[13px] font-semibold text-[var(--crm-text-primary)]">Add an account</div>
-          <p className="text-[11.5px] text-[var(--crm-text-muted)] mt-0.5">Which platform?</p>
-          <div className="mt-2.5 flex items-center gap-2 flex-wrap">
-            <button type="button" className={btnPrimary} disabled={!configured} onClick={() => openAdd("instagram")}>Instagram</button>
-            <button type="button" className={btnPrimary} disabled={!tiktokConfigured} onClick={() => openAdd("tiktok")}>TikTok</button>
-            <button type="button" className={btn} onClick={closeAdd}>Cancel</button>
           </div>
         </div>
       ) : addPlatform === "tiktok" ? (
@@ -946,17 +966,6 @@ export default function PublishingDestinations({
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between gap-3 flex-wrap">
-        <p className="text-[12px] text-[var(--crm-text-muted)] m-0">
-          Accounts you publish to, grouped by owner. Pending invitations sit under the person they were sent to.
-        </p>
-        <button type="button" className={btnPrimary} disabled={!configured && !tiktokConfigured} onClick={() => openAdd(null)}>
-          + Add Account
-        </button>
-      </div>
-
-      {adding && addSheet}
-
       {platformSection("instagram")}
       {platformSection("tiktok")}
 
