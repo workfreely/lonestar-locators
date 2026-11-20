@@ -120,11 +120,19 @@ ok("…it never touches place_id", !/setPlaceId/.test(titleCell))
 ok("…it does not regenerate copy either", !/syncGenerated/.test(titleCell))
 ok("…and it warns that editing freezes auto-naming",
   /stops it\s+updating automatically/.test(titleCell))
-ok("it reads the display_name the GET already returns", /setDisplayName\(p\.source\?\.displayName \?\? ""\)/.test(editor))
+// RESTATED FOR THE MM-DD-YYYY FIELD. The column keeps ISO, the field shows MM-DD-YYYY, so both
+// claims below now cross that conversion and the old literals could no longer match. Neither claim
+// is relaxed: the first additionally pins the UNFORMATTED value being kept for the comparison, and
+// the second is tightened from "a comparison happens" to "the comparison is shown-against-shown",
+// because comparing the shown value against the stored one would read as an edit on every open —
+// which is exactly the silent freezing of auto-naming this pair exists to prevent.
+ok("it reads the display_name the GET already returns",
+  /setDisplayName\(formatSocialEditableDate\(p\.source\?\.displayName \?\? ""\)\)/.test(editor)
+    && /loadedDisplayName\.current = p\.source\?\.displayName \?\? ""/.test(editor))
 // The content PATCH sets name_customized = true for ANY displayName it receives, so sending it
 // unconditionally would freeze every video's auto-naming on the first unrelated save.
 ok("displayName is sent ONLY when the operator changed it",
-  /displayName !== loadedDisplayName\.current \? \{ displayName \} : \{\}/.test(editor))
+  /displayName !== formatSocialEditableDate\(loadedDisplayName\.current\)\s*\? \{ displayName: parseSocialEditableDate\(displayName\) \}\s*: \{\}/.test(editor))
 ok("…and the server still marks a received title customized", /patch\.name_customized = true/.test(patchRoute))
 ok("…while an untouched title keeps regenerating from property + market",
   /cur\.name_customized !== true && \("propertyName" in body \|\| "market" in body\)/.test(patchRoute))

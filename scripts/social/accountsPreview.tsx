@@ -145,16 +145,40 @@ const groups: OwnerGroup[] = [
       label: null,
       agentUserId: null,
       paused: false,
-      // TikTok reports a display name, never an @handle. Shown as stored.
+      // ── WHY THERE IS NO @HANDLE ON A TIKTOK CARD ──────────────────────────────────────────
+      // `username` holds what TikTok CALLS a display name. The connect callback writes
+      // user.display_name into it, and user.display_name is the only identity string the
+      // user.info.basic scope returns. TikTok's real @handle is the separate `username` FIELD of
+      // its user-info API, which sits behind the user.info.profile scope this app does not hold
+      // and has never requested. So a TikTok card shows a display name where an Instagram card
+      // shows an @handle — not an oversight in the card, an absence in the data.
       username: "Jay | TX Apartment Locator",
       status: "connected",
       avatarUrl: null,
       postsPerDay: null,
       ownerName: "Jay Morris",
       ownerPhotoUrl: null,
-      // token_expires_at 2026-11-10 — already past.
-      expired: true,
+      // RE-AUTHORIZED 19 Nov: token_expires_at is 2026-11-20, so the card is no longer in the
+      // reconnect state the previous fixture froze.
+      expired: false,
       addedAt: "2026-09-20T01:06:33.720Z",
+      marketRestriction: null,
+    }, {
+      // CONNECTED 19 Nov 17:56, once the account was added as a TikTok sandbox target user —
+      // the second TikTok account the non_sandbox_target error had been refusing. New
+      // destinations start paused, so this card shows Auto Posting off while the token is good.
+      id: "1b5e4878-06b7-47ea-b9e2-73a11aa44e83",
+      label: null,
+      agentUserId: OWNER,
+      paused: true,
+      username: "Jay Morris | Dallas Locator",
+      status: "connected",
+      avatarUrl: null,
+      postsPerDay: null,
+      ownerName: "Jay Morris",
+      ownerPhotoUrl: null,
+      expired: false,
+      addedAt: "2026-11-19T17:56:40.133Z",
       marketRestriction: null,
     }],
     invites: [

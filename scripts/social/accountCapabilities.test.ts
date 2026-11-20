@@ -191,12 +191,22 @@ console.log("\n4. THE ACCOUNTS PAGE WIRES THE GATE, AND KEEPS EVERY EXISTING CON
     /\{opts\.actions && <div className="flex-none flex flex-col gap-1\.5 w-\[\d+px\]">/.test(comp))
 
   // ── THE REDUNDANT LINK ────────────────────────────────────────────────────────────────
-  ok("the standalone connect link is hidden once an account is connected",
-    /configured && destinations\.length === 0 && \(/.test(comp))
+  // RESTATED FOR THE OWNER-GROUPED PAGE (20bc5f2). The old claim named `destinations.length === 0`
+  // — the flat array that the grouping rewrite replaced with owner bands — so for three releases
+  // it has been asserting the presence of a variable that no longer exists, which no edit to the
+  // connect routes could pass. What it was protecting is still worth protecting, so it is restated
+  // structurally rather than dropped: every route to an OAuth sign-in is reached from a card, an
+  // empty slot or the add sheet, never as a bare page-level link.
+  const pageLevel = comp.slice(comp.lastIndexOf("\n  return ("))
+  ok("no connect link renders at page level",
+    /platformSection\("instagram"\)/.test(pageLevel) && !/CONNECT/.test(pageLevel))
   ok("…and the old always-visible wording is gone",
     !/Connect my own Instagram directly/.test(comp))
-  ok("…while a connect option REMAINS for an admin with no account",
-    /Connect my Instagram account →/.test(comp))
+  // The other half of the old pair: an admin with no account must still have a way in. It is no
+  // longer a standalone link but the owner's OWN invitation card, and this is the route that
+  // matters — a link invitation cannot grant comment management, a direct sign-in can.
+  ok("…while the owner's own invitation keeps the direct sign-in that grants comments",
+    /group\.kind === "mine" && \( <a href=\{CONNECT\}[^>]*>Connect account<\/a>/.test(comp.replace(/\s+/g, " ")))
 }
 
 console.log("\n5. RE-AUTHORIZATION IS SAFE, AND REUSES THE ONE FLOW:")
