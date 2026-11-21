@@ -24,12 +24,37 @@ const FONT_HEAD = '"OverlayHead", Georgia, "Times New Roman", serif'
 
 function blockStyle(b: OverlayBlock, weight: number, fontFamily: string, t: OverlayTextStyle): CSSProperties {
   const H = OVERLAY_CANVAS.h
-  const W = OVERLAY_CANVAS.w
   return {
     position: "absolute",
     top: `${(b.topPx / H) * 100}%`,
-    left: `${(b.sideMarginPx / W) * 100}%`,
-    right: `${(b.sideMarginPx / W) * 100}%`,
+    // ── CENTRED ON THE CANVAS, NOT INSIDE THE MARGIN BOX ──────────────────────────────────────
+    // The rule both surfaces are meant to share is platformSafeArea's: "Both renderers centre text
+    // on the CANVAS, not inside the box" — FFmpeg draws every line at x=(w-text_w)/2.
+    //
+    // This used to be expressed as left: sideMargin / right: sideMargin + textAlign:center, which
+    // centres on the canvas ONLY WHILE THE LINE FITS THE BOX. text-align can only distribute space
+    // that exists: once a line is wider than its box there is none, the line starts at the box's
+    // left content edge and the whole overflow goes to the RIGHT, so the ink centre moves right by
+    // half the overflow. Nothing warns — it degrades silently, and only for long copy.
+    //
+    // It bit T1 + AI Presenter. The presenter narrows the detail box to 764px; "Exact unit shown:
+    // $1,200/month" measures 894px against "Starting at $1,200/month" at 688px, so the same
+    // template with the same price drew one mode centred and the other 65px right of centre, out
+    // of agreement with its own headline AND with the burned-in render.
+    //
+    // Centring the shrink-wrapped line on the canvas axis states the rule directly, so it holds at
+    // any length instead of only short ones. For every line that already fit, this is arithmetically
+    // the same position it had — a symmetric box centred at 540 and the canvas centred at 540 are
+    // the same axis — so nothing that fits moves by a pixel.
+    //
+    // The margins keep their real job, which was never positioning: they are the FIT/wrap budget
+    // (headlineFit, DETAIL_TEXT_AVAIL_PX) and the safe-area contract. b.sideMarginPx is therefore
+    // still carried on the block and still asserted by the layout suites; it is simply no longer
+    // asked to do an alignment job it cannot do.
+    left: "50%",
+    transform: "translateX(-50%)",
+    width: "max-content",
+    maxWidth: "none",
     textAlign: "center",
     color: "white",
     fontFamily,
@@ -50,9 +75,10 @@ const faceOf = (_b: OverlayBlock): [number, string] => [700, FONT_HEAD]
 const blockText = (b: OverlayBlock) => (b.uppercase ? b.lines.join("\n").toUpperCase() : b.lines.join("\n"))
 
 // COMPOUND two-line hero: the block carries a size AND a top per line, so each line is its own
-// absolutely-positioned div at that exact top. Both keep the block's symmetric side margins and
-// textAlign:center, so they centre on the SAME axis — the same axis FFmpeg's x=(w-text_w)/2 uses —
-// with no padding applied to either. Returns null when the block has no per-line geometry.
+// absolutely-positioned div at that exact top. Both go through blockStyle, so both are centred on
+// the canvas axis — the same axis FFmpeg's x=(w-text_w)/2 uses — with no padding applied to
+// either, and they stay on it even when one line is wider than the safe box (which is where the
+// old symmetric-margin centring quietly stopped holding). Null when there is no per-line geometry.
 function perLineBlocks(b: OverlayBlock, t: OverlayTextStyle): React.ReactElement[] | null {
   if (!b.linePx || !b.lineTopPx) return null
   const [weight, fontFamily] = faceOf(b)

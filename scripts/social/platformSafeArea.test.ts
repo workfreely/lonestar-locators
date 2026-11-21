@@ -5,7 +5,9 @@
  * the canvas is what put a published Reel's headline against Instagram's engagement rail.
  *
  * The load-bearing property is symmetry: both renderers centre text on the CANVAS (FFmpeg
- * x=(w-text_w)/2, CSS equal margins), so a box whose centre is not 540 cannot be honoured. An
+ * x=(w-text_w)/2, CSS left:50% + translateX(-50%)), so a box whose centre is not 540 cannot be
+ * honoured. The CSS side once expressed this as equal left/right margins, which is NOT the same
+ * rule — see the block at the foot of this file for how and when the two diverge. An
  * asymmetric draft TikTok box put an 820px line 20px past its own edge — caught in testing, now
  * impossible by construction.
  *
@@ -159,6 +161,55 @@ console.log("\nTHE OVERLAY IS PRESENTATIONAL ONLY:")
   ok("the engine consumes only width and left margin — which is why y/h was inert",
     textAvailPx("instagram") === safeAreaFor("instagram").text.w
     && sideMarginPx("instagram") === safeAreaFor("instagram").text.x)
+}
+
+// ── CANVAS CENTRING SURVIVES OVERFLOW ────────────────────────────────────────────────────────
+// Equal left/right margins centre a line on the canvas ONLY WHILE IT FITS THE BOX. text-align can
+// only distribute space that exists; once a line is wider than its box there is none, so it starts
+// at the box's left content edge and the whole overflow goes right — moving the ink centre right by
+// half of it. Silent, and only for long copy.
+//
+// Measured on T1 + AI Presenter: the presenter composes Instagram as TikTok, narrowing the detail
+// box from 930px to 764px. "Starting at $1,200/month" is 690px and was centred; "Exact unit shown:
+// $1,200/month" is 896px, overflowed by 132px, and sat 66px right of centre — disagreeing with its
+// own headline AND with the burned-in render, which had been correct all along.
+//
+// The preview now states the rule the renderer uses instead of an idiom that approximates it.
+console.log("\nCANVAS CENTRING — holds at any line length, not just short ones:")
+{
+  const PREVIEW = read("components/crm/social/PreviewOverlay.tsx")
+
+  // STRUCTURAL: the preview centres on the canvas axis, and the idiom that silently stopped
+  // holding is gone. Both halves matter — adding the new one while leaving the old margins in
+  // place would reintroduce the box constraint and the bug with it.
+  ok("the preview centres blocks on the canvas axis",
+    /left: "50%"/.test(PREVIEW) && /transform: "translateX\(-50%\)"/.test(PREVIEW))
+  ok("…and no longer pins blocks to the margin box",
+    !/left: `\$\{\(b\.sideMarginPx/.test(PREVIEW) && !/right: `\$\{\(b\.sideMarginPx/.test(PREVIEW))
+  ok("…so the block shrink-wraps its text rather than filling the box",
+    /width: "max-content"/.test(PREVIEW))
+  // The margins keep their real job. If this fails, the fix went too far: sideMarginPx is the
+  // fit/wrap budget and the safe-area contract, and removing it from the layout would re-fit
+  // headlines across every template.
+  ok("…while sideMarginPx is still carried, as the fit budget it always was",
+    /sideMarginPx/.test(read("lib/social/overlaySpec.ts")))
+
+  // BEHAVIOURAL: the scenario is real and still reachable. If a geometry change ever makes this
+  // line fit, this assertion is the prompt to re-measure rather than assume — it is the only
+  // overflow case we have measured.
+  const L = computeOverlayLayout("market_type", "DALLAS APARTMENTS", "Exact unit shown: $1,200/month", "instagram", true) as unknown as
+    { detail: { lines: string[]; fontPx: number; sideMarginPx: number } }
+  const box = SOCIAL_CANVAS.w - 2 * L.detail.sideMarginPx
+  const ink = headlineTextWidthPx(L.detail.lines.join(" "), L.detail.fontPx)
+  ok("T1 + presenter still narrows the detail box to 764px", box === 764, `got ${box}`)
+  ok("…and the exact_unit price line still overflows it", ink > box, `ink ${ink.toFixed(0)} vs box ${box}`)
+  // The control. A line that FITS must be where it has always been, or the fix moved approved
+  // layouts: a symmetric box centred at 540 and the canvas centred at 540 are the same axis.
+  const F = computeOverlayLayout("market_type", "DALLAS APARTMENTS", "Starting at $1,200/month", "instagram", true) as unknown as
+    { detail: { lines: string[]; fontPx: number; sideMarginPx: number } }
+  const fitInk = headlineTextWidthPx(F.detail.lines.join(" "), F.detail.fontPx)
+  ok("…while the starting_at line still FITS, so its position cannot have moved",
+    fitInk <= SOCIAL_CANVAS.w - 2 * F.detail.sideMarginPx, `ink ${fitInk.toFixed(0)}`)
 }
 
 console.log(`\n${pass} passed, ${fail} failed\n`)
