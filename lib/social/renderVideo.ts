@@ -8,7 +8,7 @@ import { execFile } from "node:child_process"
 import { promises as fs } from "node:fs"
 import path from "node:path"
 import os from "node:os"
-import { OVERLAY_TEXT, computeOverlayLayout, overlayTextFor, presenterCompositionPlatform, type OverlayLayout, type OverlayFace, type OverlayTextStyle } from "@/lib/social/overlaySpec"
+import { OVERLAY_TEXT, OVERLAY_LAYER, computeOverlayLayout, overlayTextFor, presenterCompositionPlatform, type OverlayLayout, type OverlayFace, type OverlayTextStyle } from "@/lib/social/overlaySpec"
 import { DELIVERY_SIZE } from "@/lib/social/deliverySize"
 import { buildPresenterFilter, buildPresenterPlan, decoderForPresenterClip, type PresenterPlan } from "@/lib/social/presenterSpec"
 import { trimPresenterClip } from "@/lib/social/presenterTrim"
@@ -79,6 +79,15 @@ export function buildVideoFilter(
    *  never be given different shadows. Defaults to the baseline, so every existing caller (and every
    *  template without an override) produces the exact filter string it produced before. */
   textStyle: OverlayTextStyle = OVERLAY_TEXT,
+  /**
+   * The ffmpeg input index of a pre-flattened RGBA text layer.
+   *
+   * When given, the text is NOT drawn here: the layer — letters, drop shadow and ambient lift,
+   * already composited into one image by buildOverlayLayerFilter — is overlaid in a single step.
+   * When omitted every existing caller gets byte-for-byte the drawtext graph it got before, which
+   * is why the editor's own preview renders, the tests and any other caller are untouched.
+   */
+  overlayInputIndex: number | null = null,
 ): string {
   const depth = (fontPx: number) => {
     const edge = Math.max(1, Math.round(textStyle.edgeEm * fontPx))
@@ -97,6 +106,14 @@ export function buildVideoFilter(
     graph.push(buildPresenterFilter(presenter, "withpres"))
     label = "withpres"
   }
+  if (overlayInputIndex !== null) {
+    // ONE composite for the whole lockup. The layer is static for the entire clip, so it is built
+    // once and overlaid per frame — cheaper than the drawtext path below, which re-rasterises
+    // every glyph on every frame.
+    if (items.length > 0) graph.push(`[${label}][${overlayInputIndex}:v]overlay=x=0:y=0:format=auto[v]`)
+    else graph.push(`[${label}]null[v]`)
+    return graph.join(";")
+  }
   items.forEach((it, i) => {
     const next = i === items.length - 1 ? "v" : `t${i}`
     const font = escFilterPath(it.font ?? fontPath) // per-item font, chosen from the block's face
@@ -112,6 +129,56 @@ export function buildVideoFilter(
 
 /** Full ffmpeg argument list. audioChoice 'none' mutes; 'lb_track' currently falls back to the
  *  source audio (the Locator Beast Music library ships in a later checkpoint). */
+/**
+ * The filter graph that rasterises the lockup into ONE flattened RGBA image.
+ *
+ * Built and run as its own short ffmpeg invocation before the video pass, for a reason that is
+ * not stylistic: a gaussian inside the per-frame graph re-blurs a full-resolution alpha plane on
+ * every frame. Measured on a 12-second 1080x1920 clip, that took minutes; flattening once and
+ * overlaying takes seconds, and the output is identical because the lockup never moves.
+ *
+ * The order is lift, then drop, then letters — widest and faintest at the bottom, the glyphs
+ * always on top, so nothing can tint the white.
+ */
+export function buildOverlayLayerFilter(
+  fontPath: string,
+  items: readonly DrawItem[],
+  layer: typeof OVERLAY_LAYER = OVERLAY_LAYER,
+): string {
+  const SS = layer.supersample
+  const W = DELIVERY.w * SS, H = DELIVERY.h * SS
+  const graph: string[] = [`color=c=#00000000:s=${W}x${H}:d=1,format=rgba[ss0]`]
+  let label = "ss0"
+  items.forEach((it, i) => {
+    const next = `ss${i + 1}`
+    const font = escFilterPath(it.font ?? fontPath)
+    // borderw with a WHITE bordercolor. drawtext's text_w excludes the border, so centring,
+    // advance widths, line spacing and wrap are all exactly what they were.
+    graph.push(
+      `[${label}]drawtext=fontfile='${font}':textfile='${escFilterPath(it.file)}':fontcolor=white:fontsize=${it.fontPx * SS}` +
+        `:line_spacing=${it.lineSpacing * SS}:borderw=${Math.round(layer.strokePx * SS)}:bordercolor=white@1.0` +
+        `:x=(w-text_w)/2:y=${Math.round(it.topPx * SS)}[${next}]`,
+    )
+    label = next
+  })
+  graph.push(`[${label}]scale=${DELIVERY.w}:${DELIVERY.h}:flags=lanczos,format=rgba,split=3[tx][shd][lft]`)
+  // Recolour to black keeping the alpha, blur the ALPHA only (planes=8), then dim it.
+  graph.push(`[shd]colorchannelmixer=rr=0:gg=0:bb=0,gblur=sigma=${layer.dropSigmaPx}:steps=3:planes=8,colorchannelmixer=aa=${layer.dropAlpha}[drop]`)
+  graph.push(`[lft]colorchannelmixer=rr=0:gg=0:bb=0,gblur=sigma=${layer.liftSigmaPx}:steps=3:planes=8,colorchannelmixer=aa=${layer.liftAlpha}[lift]`)
+  graph.push(`color=c=#00000000:s=${DELIVERY.w}x${DELIVERY.h}:d=1,format=rgba[plate]`)
+  graph.push(`[plate][lift]overlay=x=0:y=0:format=auto[p1]`)
+  graph.push(`[p1][drop]overlay=x=0:y=${layer.dropOffsetPx}:format=auto[p2]`)
+  graph.push(`[p2][tx]overlay=x=0:y=0:format=auto[v]`)
+  return graph.join(";")
+}
+
+/** The whole layer pass as ffmpeg arguments. A 16x16 dummy input exists only because -filter_complex
+ *  needs one; every pixel of the output comes from the graph's own color source. */
+export function buildOverlayLayerArgs(input: { filter: string; outputPath: string }): string[] {
+  return ["-y", "-f", "lavfi", "-i", "color=c=black:s=16x16:d=1",
+    "-filter_complex", input.filter, "-map", "[v]", "-frames:v", "1", input.outputPath]
+}
+
 export function buildFfmpegArgs(input: {
   sourcePath: string
   outputPath: string
@@ -134,6 +201,9 @@ export function buildFfmpegArgs(input: {
    *  mix — and adding a second avatar input cannot change that, because the mapping names streams
    *  explicitly rather than excluding them. */
   presenterInputs?: readonly { path: string; decoder: string | null }[] | null
+  /** The flattened RGBA text layer, appended as the VERY LAST input so neither the voice-clip
+   *  indices nor the presenter indices above it can shift. */
+  overlayInput?: string | null
 }): string[] {
   // The graph is a labelled -filter_complex ending in [v]; map that plus the source audio through.
   const args = ["-y", "-i", input.sourcePath]
@@ -144,6 +214,8 @@ export function buildFfmpegArgs(input: {
     if (pres.decoder) args.push("-c:v", pres.decoder)
     args.push("-i", pres.path)
   }
+  // LAST of all, after the presenters — see overlayInput.
+  if (input.overlayInput) args.push("-i", input.overlayInput)
   // The VIDEO graph is untouched. When an audio graph exists it is appended as further chains in the
   // same -filter_complex, so there is still exactly ONE graph and one render invocation.
   const filter = input.audioFilter ? `${input.filter};${input.audioFilter}` : input.filter
@@ -681,18 +753,45 @@ export async function renderReel(ffmpegPath: string, input: RenderInput): Promis
         // never come from two different platforms.
         platform: presenterCompositionPlatform(input.template ?? "market_type", input.platform ?? "instagram") })
     : null
+  // ── THE TEXT LAYER, BUILT FIRST AND ONCE ──────────────────────────────────────────────────
+  // Its own ffmpeg invocation, before the video pass. The lockup does not move for the whole
+  // clip, so rasterising it once and overlaying the result is both faster than drawing the text
+  // on every frame and the only way to give it a real gaussian shadow — drawtext has no blur.
+  //
+  // A post with NO overlay text skips this entirely and takes the unchanged path below.
+  const presenterInputs = [
+    ...(presenterLocal ? [{ path: presenterLocal, decoder: decoderForPresenterClip(presenterLocal) }] : []),
+    ...(presenterCtaLocal ? [{ path: presenterCtaLocal, decoder: decoderForPresenterClip(presenterCtaLocal) }] : []),
+  ]
+  let overlayPath: string | null = null
+  let overlayInputIndex: number | null = null
+  if (items.length > 0) {
+    overlayPath = path.join(input.workDir, "overlay-layer.png")
+    const layerArgs = buildOverlayLayerArgs({
+      filter: buildOverlayLayerFilter(input.fontPath, items),
+      outputPath: overlayPath,
+    })
+    await new Promise<void>((resolve, reject) => {
+      execFile(ffmpegPath, layerArgs, { maxBuffer: 1024 * 1024 * 16 }, (err, _o, stderr) => {
+        if (err) reject(new Error(`ffmpeg overlay layer failed: ${String(stderr).split("\n").slice(-4).join(" ").slice(0, 500)}`))
+        else resolve()
+      })
+    })
+    // Appended after the source, the voice clips and the presenters — the same order
+    // buildFfmpegArgs emits them in, so this index is the layer's and nothing else moves.
+    overlayInputIndex = 1 + voiceCount + presenterInputs.length
+  }
+
   // Same template string the layout above was computed from, so the burned-in treatment and the
   // geometry can never come from two different templates.
-  const filter = buildVideoFilter(input.fontPath, items, buildSourceChain(sourceInfo), presenterPlan, overlayTextFor(input.template ?? "market_type"))
+  const filter = buildVideoFilter(input.fontPath, items, buildSourceChain(sourceInfo), presenterPlan, overlayTextFor(input.template ?? "market_type"), overlayInputIndex)
 
   const args = buildFfmpegArgs({
     sourcePath: input.sourcePath, outputPath: input.outputPath, filter,
     audioChoice: input.audioChoice, extraInputs, audioFilter, source: sourceInfo,
     // In plan order, which is the order the indices above assume.
-    presenterInputs: [
-      ...(presenterLocal ? [{ path: presenterLocal, decoder: decoderForPresenterClip(presenterLocal) }] : []),
-      ...(presenterCtaLocal ? [{ path: presenterCtaLocal, decoder: decoderForPresenterClip(presenterCtaLocal) }] : []),
-    ],
+    presenterInputs,
+    overlayInput: overlayPath,
   })
 
   await new Promise<void>((resolve, reject) => {

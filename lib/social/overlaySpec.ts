@@ -180,6 +180,56 @@ export type OverlayTextStyle = {
   shadowAlpha: number; shadowDxEm: number; shadowDyEm: number; shadowBlurEm: number
 }
 
+// ── THE OVERLAY LAYER — approved 24 Nov 2026 ────────────────────────────────────────────────
+//
+// The text is no longer burned onto the frame by drawtext. It is rasterised into its own RGBA
+// layer at 4x, resolved down with lanczos, given a real gaussian shadow on its ALPHA, flattened
+// once, and composited. Three things forced it:
+//
+//   1. drawtext has NO blur parameter. shadowBlurEm has only ever existed in the CSS preview, so
+//      the editor has always shown a softer, better-separated lockup than the export.
+//   2. edgeEm/shadowDyEm are EM-RELATIVE and were tuned on type at 66px/52px, where they round to
+//      2px. Every template in the registry today lays out at 36-47px, where they round to ONE
+//      pixel — measured across all of them. The approved 2px halo has never actually shipped.
+//      A 1px ring at 22% alpha darkens its surroundings by a measured 9%, which is the washout.
+//   3. a thicker BLACK ring was rejected on sight: it reads as a drawn outline and takes the
+//      luxury out of the mark.
+//
+// SO THE VALUES BELOW ARE ABSOLUTE PIXELS, not ems, and that is the fix for the class of bug as
+// well as the instance. 36px and 47px type get the same treatment, because the eye reads an
+// absolute edge, and because an em value that rounds differently per template is exactly how the
+// approved look stopped being the shipped look.
+//
+// THE LETTERS ARE UNTOUCHED: pure white, full opacity, same family, same size, same position,
+// same spacing, same wrap, same centring. drawtext's text_w excludes the border, so the stroke
+// cannot move a glyph. Nothing here changes a layout.
+export const OVERLAY_LAYER = {
+  /** Rasterise at this multiple and resolve down. 4x samples each glyph 16x more densely before
+   *  it is resolved to a pixel: measured as 11,630 antialiased edge pixels against 6,107, for the
+   *  same total ink. Smoother edges, which also survive h264 better; NOT more ink. */
+  supersample: 4,
+  /** White, applied at the supersampled size so this is three quarters of a FINAL pixel. Libre
+   *  Baskerville is a high-contrast serif: heavy stems, hairline horizontals, and at 38px those
+   *  hairlines land under a pixel. A uniform stroke adds the same absolute width everywhere, so
+   *  proportionally it does most for the hairlines — measured +27.9% ink, and glyph pixels at
+   *  full white going from 7,904 to 10,251. This is where perceived brightness comes from. */
+  strokePx: 0.75,
+  /** The drop shadow: a gaussian on the layer's alpha, offset down. Not an outline — there is no
+   *  hard edge anywhere in it. */
+  dropSigmaPx: 2.2,
+  dropAlpha: 0.85,
+  dropOffsetPx: 2,
+  /** A wider, centred, much fainter pass. This is what makes the lockup read as sitting above the
+   *  footage rather than printed on it, and it is what separates white text from a bright wall. */
+  liftSigmaPx: 7,
+  liftAlpha: 0.28,
+} as const
+
+/** CSS text-shadow's third value is a BLUR RADIUS, which is roughly twice the gaussian sigma it
+ *  corresponds to. The preview and the render are driven from the same numbers through this, so
+ *  they cannot drift the way shadowBlurEm did. */
+export const cssBlurRadiusForSigma = (sigmaPx: number) => Math.round(sigmaPx * 2 * 10) / 10
+
 export const OVERLAY_TEXT_OVERRIDES: Record<string, Partial<OverlayTextStyle>> = {}
 
 /** The text treatment for one template: the baseline, plus an override if one is being trialled.

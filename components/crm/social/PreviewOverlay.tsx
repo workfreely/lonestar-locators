@@ -1,16 +1,22 @@
 import type { CSSProperties } from "react"
-import { OVERLAY_CANVAS, overlayTextFor, type OverlayBlock, type OverlayLayout, type OverlayTextStyle } from "@/lib/social/overlaySpec"
+import { OVERLAY_CANVAS, OVERLAY_LAYER, cssBlurRadiusForSigma, type OverlayBlock, type OverlayLayout } from "@/lib/social/overlaySpec"
 
-// Typography depth: a localized black DROP SHADOW (small offset + tiny blur) that lifts the white
-// letters off bright footage, plus a MINIMAL 8-direction EDGE — not a heavy outline, no band. The
-// tiny blur is kept close to FFmpeg's hard-offset shadow (drawtext has no blur) so preview↔render
-// read materially the same.
-function depthShadow(t: OverlayTextStyle): string {
-  const e = t.edgeEm
-  const dirs: [number, number][] = [[-1, -1], [1, -1], [-1, 1], [1, 1], [0, -1], [0, 1], [-1, 0], [1, 0]]
-  const edge = dirs.map(([x, y]) => `${(x * e).toFixed(3)}em ${(y * e).toFixed(3)}em 0 rgba(0,0,0,${t.edgeAlpha})`).join(", ")
-  const drop = `${t.shadowDxEm}em ${t.shadowDyEm}em ${t.shadowBlurEm}em rgba(0,0,0,${t.shadowAlpha})`
-  return `${edge}, ${drop}`
+// ── THE PREVIEW IS DRIVEN FROM THE RENDERER'S OWN NUMBERS ───────────────────────────────────
+// It used to approximate: an 8-direction black edge at edgeEm plus a hard-ish drop, with a
+// shadowBlurEm that EXISTED ONLY HERE because drawtext has no blur parameter. So the editor
+// always showed a softer, better separated lockup than the video it was previewing, and the
+// export came to be judged by a preview that did not match it.
+//
+// Both sides now read OVERLAY_LAYER. The render blurs the layer's alpha with a gaussian of
+// `sigma`; CSS text-shadow takes a BLUR RADIUS, which is about twice that sigma — the one
+// conversion between them, in cssBlurRadiusForSigma, shared rather than guessed at each end.
+//
+// The white stroke is -webkit-text-stroke with paint-order: stroke fill, so the stroke is painted
+// UNDER the fill exactly as borderw is. Painted over it, a stroke eats into the glyph's own shape.
+function depthShadow(): string {
+  const drop = `0 ${OVERLAY_LAYER.dropOffsetPx}px ${cssBlurRadiusForSigma(OVERLAY_LAYER.dropSigmaPx)}px rgba(0,0,0,${OVERLAY_LAYER.dropAlpha})`
+  const lift = `0 0 ${cssBlurRadiusForSigma(OVERLAY_LAYER.liftSigmaPx)}px rgba(0,0,0,${OVERLAY_LAYER.liftAlpha})`
+  return `${lift}, ${drop}`
 }
 
 // SHARED overlay composition (pre-render CSS approximation) used by BOTH the inline Post Editor
@@ -22,7 +28,7 @@ function depthShadow(t: OverlayTextStyle): string {
 // detail alike. The second face this component used to carry has been removed from the system.
 const FONT_HEAD = '"OverlayHead", Georgia, "Times New Roman", serif'
 
-function blockStyle(b: OverlayBlock, weight: number, fontFamily: string, t: OverlayTextStyle): CSSProperties {
+function blockStyle(b: OverlayBlock, weight: number, fontFamily: string): CSSProperties {
   const H = OVERLAY_CANVAS.h
   return {
     position: "absolute",
@@ -61,8 +67,11 @@ function blockStyle(b: OverlayBlock, weight: number, fontFamily: string, t: Over
     fontWeight: weight,
     lineHeight: 1.12,
     fontSize: `${(b.fontPx / H) * 100}cqh`,
-    letterSpacing: `${t.trackingEm}em`,
-    textShadow: depthShadow(t),
+    letterSpacing: "0em",
+    textShadow: depthShadow(),
+    // The same 0.75px of white the render adds with borderw, under the fill rather than over it.
+    WebkitTextStroke: `${OVERLAY_LAYER.strokePx}px #ffffff`,
+    paintOrder: "stroke fill",
     whiteSpace: "pre",
   }
 }
@@ -79,29 +88,29 @@ const blockText = (b: OverlayBlock) => (b.uppercase ? b.lines.join("\n").toUpper
 // the canvas axis — the same axis FFmpeg's x=(w-text_w)/2 uses — with no padding applied to
 // either, and they stay on it even when one line is wider than the safe box (which is where the
 // old symmetric-margin centring quietly stopped holding). Null when there is no per-line geometry.
-function perLineBlocks(b: OverlayBlock, t: OverlayTextStyle): React.ReactElement[] | null {
+function perLineBlocks(b: OverlayBlock): React.ReactElement[] | null {
   if (!b.linePx || !b.lineTopPx) return null
   const [weight, fontFamily] = faceOf(b)
   return b.lines.map((line, i) => (
     <div key={i} style={{
-      ...blockStyle({ ...b, fontPx: b.linePx![i], topPx: b.lineTopPx![i] }, weight, fontFamily, t),
+      ...blockStyle({ ...b, fontPx: b.linePx![i], topPx: b.lineTopPx![i] }, weight, fontFamily),
     }}>{b.uppercase ? line.toUpperCase() : line}</div>
   ))
 }
 
 export default function PreviewOverlay({ layout }: { layout: OverlayLayout | null }) {
   if (!layout) return null
-  // Resolved ONCE, from the layout's own template, and passed to the headline AND the detail. A
-  // per-block lookup is what would let the two lines drift apart again.
-  const text = overlayTextFor(layout.template)
+  // No per-template text style is resolved any more: OVERLAY_LAYER is one treatment for every
+  // template, in absolute pixels. That is the point — an em-relative value that rounded to 2px on
+  // one template and 1px on another is how the approved look stopped being the shipped look.
   return (
     <div className="pointer-events-none absolute inset-0" aria-hidden style={{ containerType: "size" }}>
       {/* Libre Baskerville Bold is a single baked weight (700); the @font-face maps 100–900 onto it
           with no synthetic bolding, so the preview cannot be heavier than the render. Headline AND
           detail both use it. There is no outline — the face carries its own weight. */}
-      {layout.headline.lines.length > 0 && (perLineBlocks(layout.headline, text)
-        ?? <div style={blockStyle(layout.headline, ...faceOf(layout.headline), text)}>{blockText(layout.headline)}</div>)}
-      {layout.detail && layout.detail.lines.length > 0 && <div style={blockStyle(layout.detail, ...faceOf(layout.detail), text)}>{blockText(layout.detail)}</div>}
+      {layout.headline.lines.length > 0 && (perLineBlocks(layout.headline)
+        ?? <div style={blockStyle(layout.headline, ...faceOf(layout.headline))}>{blockText(layout.headline)}</div>)}
+      {layout.detail && layout.detail.lines.length > 0 && <div style={blockStyle(layout.detail, ...faceOf(layout.detail))}>{blockText(layout.detail)}</div>}
     </div>
   )
 }

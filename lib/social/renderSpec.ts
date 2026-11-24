@@ -27,8 +27,14 @@ import type { AudioChoice } from "@/lib/social/renderVideo"
  * too. Without it, fixing a template bug would leave every existing artifact stale while still
  * matching the fingerprint of a fresh render, which is the quiet version of serving the wrong
  * video. Changing this invalidates every stored fingerprint, deliberately.
+ *
+ * 1 -> 2 on 24 Nov 2026: the overlay stopped being burned on by drawtext and became a flattened
+ * RGBA layer — 4x supersampled glyphs, a 0.75px white stroke, and a real gaussian shadow that
+ * drawtext could never produce. Same font, same sizes, same positions, same spacing, same wrap;
+ * different pixels. Every artifact rendered under version 1 carries the old 1px halo and is
+ * genuinely stale, which is what this number exists to say.
  */
-export const RENDERER_VERSION = 1
+export const RENDERER_VERSION = 2
 
 /**
  * Input media, named by IMMUTABLE STORAGE PATH rather than by the local file a run downloads it
