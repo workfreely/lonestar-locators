@@ -103,9 +103,24 @@ ok("the database enforces one Story per Reel",
   // the TARGET: the row being updated must be the story's.
   ok("…and it targets the STORY row, never the Reel",
     updates.every((u) => /\.eq\("id", storyRow!\.id\)/.test(u)) && !/\.eq\("id", reelId\)[\s\S]{0,120}\.update\(/.test(src))
+  // The select grew when the Story started taking the Reel's CURRENT artifact at release, so
+  // pinning its exact text would fail for a reason that has nothing to do with the invariant.
+  // The invariant is what is asserted: the Reel is read by id, and never updated by id.
   ok("the Reel is only ever READ, never updated",
-    /\.select\("id, status, published_at, external_post_id, connection_id"\)\.eq\("id", reelId\)/.test(src) &&
+    /\.select\("id, status, published_at, external_post_id, connection_id, rendered_storage_path, render_id, render_version"\)/.test(src) &&
+    /\.eq\("id", reelId\)\.maybeSingle\(\)/.test(src) &&
     !new RegExp('update\\([^)]*\\)[\\s\\S]{0,80}eq\\("id", reelId').test(src))
+  // ── THE STALE-ARTIFACT BUG ────────────────────────────────────────────────────────────────
+  // companionRowFrom copies the Reel's rendered file at CREATION, which is approval time. A Reel
+  // re-rendered after that leaves its companion pointing at the previous file, and the Story
+  // publishes the old video 45 minutes behind a Reel showing the new one. It happened on 24 Nov
+  // when the overlay treatment changed, and was caught by hand.
+  ok("the Story takes the Reel's CURRENT artifact when it is released",
+    /rendered_storage_path: reelArtifact/.test(src) && /render_id: \(reelRow as/.test(src) && /render_version: \(reelRow as/.test(src))
+  ok("…and only when the Reel has one, so a null cannot blank the Story's own copy",
+    /const artifactPatch = reelArtifact\s*\?\s*\{/.test(src) && /:\s*\{\}/.test(src))
+  ok("…in the same statement that gives it its slot, account and approval",
+    /\.\.\.artifactPatch,\s*\}\)/.test(src))
   ok("the Story inherits the Reel's connection, so the worker can resolve a destination",
     /connection_id: \(reelRow as \{ connection_id\?: string \| null \}\)\.connection_id/.test(src))
   ok("…and inherits approval from the Reel a human already approved", /approved_at: nowIso/.test(src))
@@ -186,6 +201,24 @@ console.log("\nthe four requirements, unchanged by any of this:")
   ok("no extra approval is asked of anyone — the Story inherits the Reel's",
     /approved_at: nowIso/.test(read("lib/social/storyFollowUp.ts")))
 }
+
+// ── THE WORKERS NEED A TIME BUDGET ───────────────────────────────────────────────────────────
+// A Vercel Node function without maxDuration gets the platform default, which is seconds. The
+// Buffer worker makes several round trips per post and allows createPost 30 seconds on its own,
+// so on 24 Nov it was killed mid-publish: the row was left claimed with no post id and NO
+// error_message, because the catch that records Buffer's own words never ran. The stranded sweep
+// then reported a generic message and the real cause was simply missing.
+console.log("\nevery publish worker declares a time budget:")
+for (const [label, file] of [
+  ["Buffer", "app/api/cron/social-buffer-publish/route.ts"],
+  ["Instagram", "app/api/cron/social-instagram-publish/route.ts"],
+  ["TikTok", "app/api/cron/social-tiktok-publish/route.ts"],
+  ["render", "app/api/cron/social-render/route.ts"],
+] as const) {
+  ok(`the ${label} worker sets maxDuration`, /export const maxDuration = \d+/.test(read(file)))
+}
+ok("the Buffer worker's budget is at least its own createPost timeout",
+  Number(read("app/api/cron/social-buffer-publish/route.ts").match(/maxDuration = (\d+)/)?.[1] ?? 0) >= 60)
 
 console.log(`\nStory follow-up: ${pass} passed, ${fail} failed`)
 process.exit(fail === 0 ? 0 : 1)

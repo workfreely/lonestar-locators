@@ -98,7 +98,8 @@ export async function releaseStoryForReel(
   client: FollowUpClient, reelId: string, env: NodeJS.ProcessEnv = process.env,
 ): Promise<{ scheduled: boolean; storyId?: string; dueAt?: string; reason: string }> {
   const { data: reelRow, error: reelErr } = await client.from("social_posts")
-    .select("id, status, published_at, external_post_id, connection_id").eq("id", reelId).maybeSingle()
+    .select("id, status, published_at, external_post_id, connection_id, rendered_storage_path, render_id, render_version")
+    .eq("id", reelId).maybeSingle()
   if (reelErr || !reelRow) return { scheduled: false, reason: "reel_lookup_failed" }
 
   const { data: storyRow } = await client.from("social_posts")
@@ -126,12 +127,40 @@ export async function releaseStoryForReel(
   // a second surface. Stamping it here means approval still comes from a human decision — the one
   // made about the Reel — rather than the Story bypassing the gate. Without it the publish worker
   // would correctly refuse to publish the Story at all.
+  // ── THE ARTIFACT IS RE-COPIED FROM THE REEL, AT RELEASE ─────────────────────────────────
+  //
+  // companionRowFrom copies the Reel's rendered file when the companion is CREATED, which is at
+  // approval. If the Reel is re-rendered after that — a new overlay treatment, an edited
+  // headline, a re-render to fix anything at all — the companion keeps pointing at the file it
+  // copied, and the Story goes out showing the previous video. That happened: Lisette's debut was
+  // re-rendered onto the approved overlay on 24 Nov and its companion still named the `-1.mp4`
+  // while the Reel named the `-2.mp4`. It was caught by hand, which is not a mechanism.
+  //
+  // RELEASE IS THE RIGHT MOMENT, and deliberately the only one. It is the point where the Story
+  // stops being a draft and acquires a schedule, an account and an approval, so taking the Reel's
+  // CURRENT artifact in the same statement makes the whole row consistent at once. It is also the
+  // last moment anything can change: the Reel has, by definition, already published, and a
+  // published post is never re-rendered. Syncing at render time as well would put the same fact
+  // in two places and let them disagree.
+  //
+  // Only when the Reel actually has one: a null here would blank the Story's own copy and turn a
+  // releasable Story into an unpublishable one.
+  const reelArtifact = (reelRow as { rendered_storage_path?: string | null }).rendered_storage_path ?? null
+  const artifactPatch = reelArtifact
+    ? {
+        rendered_storage_path: reelArtifact,
+        render_id: (reelRow as { render_id?: string | null }).render_id ?? null,
+        render_version: (reelRow as { render_version?: number | null }).render_version ?? null,
+      }
+    : {}
+
   const nowIso = new Date().toISOString()
   const { data: updated } = await client.from("social_posts")
     .update({
       scheduled_at: decision.dueAt, status: "scheduled", updated_at: nowIso,
       connection_id: (reelRow as { connection_id?: string | null }).connection_id ?? null,
       approved_at: nowIso,
+      ...artifactPatch,
     })
     .eq("id", storyRow!.id)
     .is("scheduled_at", null)          // the race guard: a second finalizer matches nothing

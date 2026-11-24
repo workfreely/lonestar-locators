@@ -1,4 +1,17 @@
 export const runtime = "nodejs"
+// ── WHY THIS ROUTE DECLARES A TIME BUDGET ───────────────────────────────────────────────────
+// Without maxDuration a Vercel Node function gets the platform default, which is seconds. This
+// worker makes several network round trips per post — a channel health read, createPost, and a
+// status read — and createPost alone is allowed 30 seconds by the client. On 24 Nov Lisette's
+// debut was claimed, sent to Buffer, and the function was killed before anything could be
+// written back: the row was left `publishing` with no post id and NO error_message, because the
+// catch that records Buffer's own words never ran. Three minutes later the stranded sweep marked
+// it needs_attention with a generic message, and the real cause was simply absent.
+//
+// 300 is the same ceiling social-render uses. It is a CEILING, not a cost: a run with nothing due
+// returns in milliseconds, and MAX_PER_RUN already bounds how much work one invocation can take.
+export const maxDuration = 300
+
 export const dynamic = "force-dynamic"
 
 import { NextResponse, type NextRequest } from "next/server"
