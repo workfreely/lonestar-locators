@@ -74,26 +74,52 @@ export function isBufferRouted(conn: RoutableConnection | null | undefined): boo
 }
 
 // ── WHICH DESTINATIONS BUFFER CAN ACTUALLY CARRY ────────────────────────────────────────────
-// Buffer's InstagramPostMetadataInput.type is a PostType, whose values include `reel` and
-// `story`; TikTok's metadata input carries no type at all, because a TikTok post is a video.
+// Read off Buffer's LIVE schema, 24 Nov 2026, by introspection rather than from documentation:
 //
-// instagram_story is DELIBERATELY EXCLUDED. Buffer's own documentation is explicit that text,
-// links and stickers on a story force reminder-based publishing — a push notification to a phone,
-// not an API publish. An unattended cron has no phone to tap, so routing a story through Buffer
-// would produce a post that silently never goes out. It is excluded here rather than left to fail
-// at Buffer, so the refusal names the real reason.
+//   InstagramPostMetadataInput { firstComment, geolocation, isAiGenerated, link,
+//                                shouldShareToFeed, stickerFields, type: PostType }
+//   PostType = carousel | event | ghost_post | offer | post | reel | short | story | thread
+//   TikTokPostMetadataInput    { isAiGenerated, title }
 //
-// tiktok_story is excluded for the plainer reason that destinations.ts already declares it
-// unsupported by the provider.
-export const BUFFER_DESTINATIONS: readonly SocialDestination[] = ["instagram_reel", "tiktok_video"] as const
+// So instagram_story is EXPRESSIBLE — `metadata.instagram.type = "story"` — and a TikTok Story is
+// not, because TikTok's metadata input has no type field at all and the schema defines no TikTok
+// post-type enum. There is nothing to send. That matches destinations.ts, which already records
+// that TikTok's own Content Posting API documents video and photo publishing only.
+//
+// ── WHY instagram_story USED TO BE EXCLUDED, AND WHY IT NO LONGER IS ────────────────────────
+// The reason given was real: text, links and stickers on a Story force Buffer into REMINDER
+// publishing — a push notification to a phone instead of an API publish — and an unattended cron
+// has no phone to tap, so the post would silently never go out. Three things settle it now.
+//
+//   1. OUR STORY CARRIES NONE OF THOSE. companionRowFrom copies no caption (a Story has no
+//      caption on Instagram), and the worker sends no link and no stickerFields. The publish body
+//      sends empty text for a Story deliberately, so the condition cannot be met by accident.
+//   2. THE CHANNEL ITSELF SAYS NO. Channel.metadata on an InstagramMetadata reports
+//      defaultToReminders, and it reads false for the destination in question. Buffer is not
+//      defaulting that channel to reminders.
+//   3. A REMINDER WOULD NO LONGER BE SILENT. The worker reads notificationStatus on every
+//      reconcile and FAILS the row with a named reason when Buffer handled a post as a phone
+//      reminder — a guard added after this exclusion was written. Every other non-`sent` status
+//      (scheduled, draft, needs_approval, unrecognised) is a named failure too, via
+//      bufferOutcomeFor. So the failure mode the exclusion was standing in for is now reported
+//      rather than lost, which is the only thing that made excluding it the safer choice.
+//
+// Nothing here publishes a Story on its own: the companion is created at approval and released
+// 45 minutes after its Reel actually publishes (lib/social/storyFollowUp.ts), which is unchanged.
+export const BUFFER_DESTINATIONS: readonly SocialDestination[] = ["instagram_reel", "instagram_story", "tiktok_video"] as const
 
 /** Buffer's PostType for this destination, or null when Buffer takes no type (TikTok). */
 export type BufferPostType = "reel" | "post" | "story"
 
 export function bufferPostTypeFor(destination: SocialDestination): BufferPostType | null {
   if (destination === "instagram_reel") return "reel"
+  if (destination === "instagram_story") return "story"
   return null
 }
+
+/** Does Buffer carry this destination as a Story? The publish body sends no text for one — see
+ *  the note above on reminder publishing. */
+export const isBufferStory = (destination: SocialDestination): boolean => destination === "instagram_story"
 
 export type BufferDestinationRefusal =
   | "not_a_destination"

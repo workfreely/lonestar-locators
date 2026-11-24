@@ -102,13 +102,35 @@ console.log("\nonly the surfaces Buffer can publish automatically are carried:")
 
 ok("instagram_reel is carried", BUFFER_DESTINATIONS.includes("instagram_reel"))
 ok("tiktok_video is carried", BUFFER_DESTINATIONS.includes("tiktok_video"))
-ok("instagram_story is NOT carried — Buffer would send a phone reminder nobody can tap",
-  !BUFFER_DESTINATIONS.includes("instagram_story"))
-ok("tiktok_story is NOT carried", !BUFFER_DESTINATIONS.includes("tiktok_story"))
+// instagram_story IS now carried, and these two assertions used to say the opposite. The reason
+// they gave was real — text, links or stickers on a Story push Buffer into reminder publishing,
+// which an unattended cron cannot complete — so the change is recorded with what settled it
+// rather than simply flipped:
+//
+//   * Buffer's live schema (24 Nov 2026) has InstagramPostMetadataInput.type: PostType, and
+//     PostType includes `story`. The surface is expressible.
+//   * our Story carries no text, no link and no stickerFields — asserted below, so the
+//     reminder condition cannot be met by accident rather than merely not being met today.
+//   * the channel reports defaultToReminders = false.
+//   * and a reminder is no longer silent: recordOutcome fails the row on any notificationStatus,
+//     and bufferOutcomeFor fails it on every non-`sent` status. The failure the exclusion stood
+//     in for is now reported.
+ok("instagram_story IS carried, now that a reminder cannot be silent",
+  BUFFER_DESTINATIONS.includes("instagram_story"))
+ok("…and it asks Buffer for PostType 'story'", bufferPostTypeFor("instagram_story") === "story")
+ok("…and sends no text, which is what would force a reminder",
+  /text: isBufferStory\(destination\) \? "" : /.test(WORKER))
+ok("…with no link and no stickerFields anywhere in the worker",
+  !/stickerFields/.test(WORKER) && !/\blink:/.test(WORKER))
+ok("…and a notificationStatus of any kind still fails the row",
+  /if \(snap\.notificationStatus\)[\s\S]{0,200}markFailed/.test(WORKER))
+ok("tiktok_story is NOT carried — Buffer's TikTok metadata input has no type field at all",
+  !BUFFER_DESTINATIONS.includes("tiktok_story"))
 
 ok("instagram_reel passes the refusal check", bufferDestinationRefusal("instagram_reel") === null)
-ok("instagram_story is refused as not carried",
-  bufferDestinationRefusal("instagram_story") === "not_carried_by_buffer")
+ok("instagram_story passes it too", bufferDestinationRefusal("instagram_story") === null)
+ok("tiktok_story is still refused as not carried",
+  bufferDestinationRefusal("tiktok_story") === "not_carried_by_buffer")
 ok("an unknown destination is refused", bufferDestinationRefusal("facebook_post") === "not_a_destination")
 ok("null is refused", bufferDestinationRefusal(null) === "not_a_destination")
 // THE AUDIT GATE WAS REPLACED, NOT REMOVED — and this is the before/after.

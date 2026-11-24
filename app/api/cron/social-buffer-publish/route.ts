@@ -11,11 +11,12 @@ import { renderRefusalFor, REFUSAL_MESSAGE, type RenderIdentityState } from "@/l
 import { marketRestrictionViolation, parseMarketRestriction } from "@/lib/social/marketRestriction"
 import { marketRestrictionWaived } from "@/lib/social/personalOwnership"
 import { debutRefusalFor, DEBUT_REFUSAL_MESSAGE } from "@/lib/social/debutGate"
+import { releaseStoryForReel } from "@/lib/social/storyFollowUp"
 import { contentOwnershipCache, debutStateCache } from "@/lib/social/ownershipServer"
 import { effectiveAgent } from "@/lib/social/agentIdentity"
 import {
   BUFFER_DESTINATIONS, BUFFER_REFUSAL_MESSAGE, BUFFER_SIGN_TTL_SECONDS,
-  bufferDestinationRefusal, bufferOutcomeFor, bufferPostTypeFor, isBufferRouted,
+  bufferDestinationRefusal, bufferOutcomeFor, bufferPostTypeFor, isBufferRouted, isBufferStory,
 } from "@/lib/social/bufferRoute"
 import { bufferAutopublishEnabled, bufferTikTokEnabled } from "@/lib/social/bufferGate"
 import { bufferDestinationCache, type BufferDestination } from "@/lib/social/bufferServer"
@@ -740,9 +741,16 @@ async function run(req: NextRequest) {
 
       const created = await createBufferPost(dest.apiKey, {
         channelId: dest.channelId,
+        // A STORY SENDS NO TEXT, and that is load-bearing rather than cosmetic. An Instagram Story
+        // has no caption, so there is nothing to say; and text on a Story is one of the three
+        // things (with links and stickers) that push Buffer into reminder publishing, which an
+        // unattended cron cannot complete. The caption is still BUILT above — the same builder the
+        // native routes use — so a Reel and its Story cannot drift; it is simply not sent for the
+        // surface that has no place to put it.
+        //
         // Buffer applies each network's own limit; truncating to TikTok's 2200 runes keeps the two
         // routes identical, since the native TikTok path does exactly this.
-        text: truncateToRunes(caption, 2200),
+        text: isBufferStory(destination) ? "" : truncateToRunes(caption, 2200),
         videoUrl: signed.signedUrl,
         thumbnailOffsetMs: Number(row.cover_thumb_offset_ms ?? 0) || 0,
         postType: bufferPostTypeFor(destination),
@@ -911,6 +919,28 @@ async function recordOutcome(
       .eq("id", postId)
     result.published++
     if (tally) tally.published++
+
+    // ── THE COMPANION STORY, 45 MINUTES BEHIND ITS REEL ───────────────────────────────────
+    // The same call instagramFinalize makes at the same moment, for the same reason: a Story is
+    // released by its Reel's SUCCESS, never by a schedule. Reached only here, after published_at
+    // and status are written, so decideStoryFollowUp sees the publish facts it gates on.
+    //
+    // Buffer-routed Instagram was the gap. The native finalizer has always called this; the Buffer
+    // worker never did, so a companion created at approval on a Buffer-routed account sat as an
+    // unscheduled draft for ever. Everything that makes it safe is in releaseStoryForReel and is
+    // unchanged: it is called with the REEL's id and returns `no_story` for anything without a
+    // companion, so calling it for every published row — Stories and TikToks included — is a
+    // no-op except where there is genuinely a Story to release.
+    //
+    // NON-FATAL, deliberately. A Story that could not be scheduled must not call a successful Reel
+    // publish into question, and the row is already recorded published above.
+    try {
+      const rel = await releaseStoryForReel(supabaseAdmin as never, postId)
+      if (rel.scheduled) console.log("[buffer-worker]", postId, `story ${rel.storyId} released for ${rel.dueAt}`)
+      else if (rel.reason !== "no_story") console.log("[buffer-worker]", postId, `story not scheduled: ${rel.reason}`)
+    } catch (e) {
+      console.warn("[buffer-worker]", postId, "story release failed:", describe(e))
+    }
     return
   }
   if (outcome.kind === "failed") {

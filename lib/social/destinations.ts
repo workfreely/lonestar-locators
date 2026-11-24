@@ -118,7 +118,7 @@ export const DESTINATIONS: Record<SocialDestination, DestinationSpec> = {
     // only ways to "support" it would be browser automation or an undocumented endpoint, and
     // neither is something to build.
     publish: "unsupported_by_provider",
-    publishNote: "TikTok's Content Posting API documents video and photo publishing only — no Story endpoint exists (verified against the official reference, 2026-10-08). The asset can still be rendered and exported for a manual upload in the TikTok app.",
+    publishNote: "TikTok's Content Posting API documents video and photo publishing only — no Story endpoint exists (verified against the official reference, 2026-10-08). Buffer cannot carry one either: its TikTok post metadata takes only a title and an AI-generated flag, with no post-type field to ask for a Story (verified against Buffer's live schema, 2026-11-24). The asset can still be rendered and exported for a manual upload in the TikTok app.",
     renderable: true,
   },
 }

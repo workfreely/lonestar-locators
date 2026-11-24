@@ -7,6 +7,7 @@ import {
   DEFAULT_STORY_DELAY_MINUTES, STORY_DELAY_FLAG, MAX_STORY_DELAY_MINUTES,
 } from "@/lib/social/storyFollowUp"
 import { ineligibleReason } from "@/lib/social/autopilotEligibility"
+import { BUFFER_DESTINATIONS, bufferPostTypeFor, isBufferStory } from "@/lib/social/bufferRoute"
 
 let pass = 0, fail = 0
 const ok = (l: string, c: boolean) => { if (c) { pass++; console.log(`  ✓ ${l}`) } else { fail++; console.log(`  ✗ ${l}`) } }
@@ -108,6 +109,82 @@ ok("the database enforces one Story per Reel",
   ok("the Story inherits the Reel's connection, so the worker can resolve a destination",
     /connection_id: \(reelRow as \{ connection_id\?: string \| null \}\)\.connection_id/.test(src))
   ok("…and inherits approval from the Reel a human already approved", /approved_at: nowIso/.test(src))
+}
+
+// ── ALL THREE INSTAGRAM ACCOUNTS, INCLUDING THE BUFFER-ROUTED ONE ────────────────────────────
+//
+// The companion was created at approval for every Instagram Reel regardless of transport, and
+// released by instagramFinalize — which only the NATIVE path calls. So a Buffer-routed account's
+// companion was created and then never scheduled: an unapproved-looking draft that sat for ever.
+// The release now happens in both publishers, at the same point in each: the moment the row is
+// recorded published.
+console.log("\nthe release happens in BOTH publishers, at the moment the Reel is recorded published:")
+{
+  const native = read("lib/social/instagramFinalize.ts")
+  const buffer = read("app/api/cron/social-buffer-publish/route.ts")
+  ok("the native finalizer still releases it", /releaseStoryForReel\(/.test(native))
+  ok("the Buffer worker releases it too", /releaseStoryForReel\(/.test(buffer))
+  ok("…from the same module, not a second implementation",
+    /from "@\/lib\/social\/storyFollowUp"/.test(buffer) && (buffer.match(/releaseStoryForReel/g) ?? []).length <= 3)
+  // ORDER IS THE WHOLE GATE. decideStoryFollowUp reads published_at and external_post_id off the
+  // Reel, so a release called before those are written would see an unpublished Reel and skip.
+  const published = buffer.split('status: "published"')[1] ?? ""
+  ok("…after published_at is written, never before",
+    published.indexOf("releaseStoryForReel") > -1 && published.indexOf("releaseStoryForReel") < 2000)
+  ok("and it cannot fail the publish it follows", /try \{[\s\S]{0,400}releaseStoryForReel[\s\S]{0,400}catch/.test(buffer))
+  ok("a failed Reel releases nothing — the release is only in the published branch",
+    !/markFailed\([\s\S]{0,200}releaseStoryForReel/.test(buffer))
+}
+
+// ── WHAT BUFFER WILL AND WILL NOT CARRY ──────────────────────────────────────────────────────
+// Read off Buffer's live schema on 24 Nov 2026, not from documentation.
+console.log("\nBuffer carries an Instagram Story and asks for the right PostType:")
+{
+  const route = read("lib/social/bufferRoute.ts")
+  ok("instagram_story is carried", BUFFER_DESTINATIONS.includes("instagram_story"))
+  ok("instagram_reel still is", BUFFER_DESTINATIONS.includes("instagram_reel"))
+  ok("tiktok_video still is", BUFFER_DESTINATIONS.includes("tiktok_video"))
+  ok("tiktok_story is NOT — Buffer's TikTok metadata input has no type field at all",
+    !BUFFER_DESTINATIONS.includes("tiktok_story"))
+  ok("a Story asks Buffer for PostType 'story'", bufferPostTypeFor("instagram_story") === "story")
+  ok("a Reel still asks for 'reel'", bufferPostTypeFor("instagram_reel") === "reel")
+  ok("TikTok still asks for no type", bufferPostTypeFor("tiktok_video") === null)
+  ok("isBufferStory names exactly the one surface",
+    isBufferStory("instagram_story") && !isBufferStory("instagram_reel") && !isBufferStory("tiktok_video"))
+  ok("the live schema evidence is recorded where the decision is made",
+    /TikTokPostMetadataInput\s*\{ isAiGenerated, title \}/.test(route))
+  ok("…including why the old exclusion was lifted rather than forgotten",
+    /defaultToReminders/.test(route) && /notificationStatus/.test(route))
+}
+
+// A Story must send NO TEXT. Text, links and stickers are what push Buffer into reminder
+// publishing, which an unattended cron cannot complete — and a Story has no caption anyway.
+console.log("\na Story sends no text, and a Reel still sends its caption:")
+{
+  const buffer = read("app/api/cron/social-buffer-publish/route.ts")
+  ok("the publish body branches on the surface",
+    /text: isBufferStory\(destination\) \? "" : truncateToRunes\(caption, 2200\)/.test(buffer))
+  ok("the caption is still built by the shared builder, for both surfaces",
+    /buildInstagramCaptionPayload\(/.test(buffer))
+  ok("no link and no stickerFields are ever sent", !/stickerFields/.test(buffer) && !/\blink:/.test(buffer))
+}
+
+// ── AND THE GUARANTEES THAT MUST SURVIVE ALL OF THAT ─────────────────────────────────────────
+console.log("\nthe four requirements, unchanged by any of this:")
+{
+  const companion = read("lib/social/storyCompanion.ts")
+  ok("same rendered video as the Reel — the artifact is copied, never re-rendered",
+    /rendered_storage_path: reel\.rendered_storage_path/.test(companion) && /render_id: reel\.render_id/.test(companion))
+  ok("45 minutes after the Reel ACTUALLY publishes", DEFAULT_STORY_DELAY_MINUTES === 45
+    && storyDueAt("2026-11-24T13:30:00.000Z") === "2026-11-24T14:15:00.000Z")
+  ok("no duplicate Stories — one per Reel, by a unique index on follows_post_id",
+    /follows_post_id: reelId/.test(companion))
+  ok("a Reel that did not publish releases nothing",
+    decideStoryFollowUp({ reel: { status: "needs_attention", publishedAt: null, externalPostId: null }, story: STORY_READY }).schedule === false)
+  ok("…and neither does one with an id but no publish time",
+    decideStoryFollowUp({ reel: { status: "published", publishedAt: null, externalPostId: "x" }, story: STORY_READY }).schedule === false)
+  ok("no extra approval is asked of anyone — the Story inherits the Reel's",
+    /approved_at: nowIso/.test(read("lib/social/storyFollowUp.ts")))
 }
 
 console.log(`\nStory follow-up: ${pass} passed, ${fail} failed`)
