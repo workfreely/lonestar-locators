@@ -16,6 +16,7 @@ import {
   autoReplyWord,
   REAUTHORIZE_COMMENTS_LABEL, REAUTHORIZE_COMMENTS_TITLE,
 } from "@/lib/social/accountCapabilities"
+import { dailyTimesForPostsPerDay } from "@/lib/social/autopilotDestination"
 
 // Beast Social → Accounts → Publishing Destinations (admin-only management UI).
 //
@@ -42,8 +43,12 @@ import {
 
 export type Destination = {
   id: string // connection_id — used only to address backend actions; never displayed
+  /** The platform HANDLE, rendered behind an @. Both providers store a handle here. */
   username: string | null
   label: string | null
+  /** The ACCOUNT's own face. From Buffer where the destination is Buffer-routed, otherwise null.
+   *  Distinct from agentPhotoUrl, which is the PERSON's. */
+  avatarUrl?: string | null
   /** Whose account this is. NULL is the OWNER's own, never "no agent". */
   agentUserId: string | null
   status: string
@@ -81,8 +86,11 @@ export type TikTokConnection = {
   /** This destination's OWN pause switch (social_connections.posting_paused), not the owner-wide
    *  Auto Posting master switch. */
   paused: boolean
-  /** The stored TikTok identity (display_name). NOT a real @handle — TikTok does not give us one,
-   *  so the card never renders this with an @ in front of it. */
+  /** The platform HANDLE — `locator.beast`, `realestatepro_tx`. It used to hold TikTok's display
+   *  name, which is why the card once refused to render it behind an @ while the Instagram card
+   *  did. scripts/refresh-buffer-profiles.mjs now fills it from Buffer's `name`, so both providers
+   *  store a handle here and the two cards can finally use one shape. The operator-facing name is
+   *  `label`, which Buffer cannot supply and Rename sets. */
   username: string | null
   /** social_connections.status, so a TikTok row reads the same three statuses an Instagram row
    *  does rather than inferring health from expiry alone. */
@@ -93,8 +101,6 @@ export type TikTokConnection = {
    *  takes its daily times from this column regardless of provider, so this is as real here as it
    *  is on an Instagram card. */
   postsPerDay?: number | null
-  ownerName?: string | null
-  ownerPhotoUrl?: string | null
   expired: boolean
   /** Publishes through Buffer, so `expired` above describes a credential it does not use. */
   bufferRouted: boolean
@@ -200,6 +206,10 @@ export default function PublishingDestinations({
   // Add-account flow.
   const [adding, setAdding] = useState(false)
   const [addPlatform, setAddPlatform] = useState<Platform | null>(null)
+  /** Which owner's block opened the sheet. The platform alone no longer identifies one block:
+   *  Instagram and TikTok each appear once per owner now, so the sheet needs both coordinates or
+   *  it renders under every person at once. */
+  const [addOwnerKey, setAddOwnerKey] = useState<string | null>(null)
   const [addRoute, setAddRoute] = useState<"self" | "invite" | null>(null)
   const [inviteLabel, setInviteLabel] = useState("")
   const [selectedAgent, setSelectedAgent] = useState<AgentHit | null>(null)
@@ -320,8 +330,9 @@ export default function PublishingDestinations({
   // "+ Add Instagram" / "+ Add TikTok" buttons in each section — so there is no caller that needs
   // the sheet to ask which one. That also removes a state the sheet could not render: it now lives
   // inside a platform's section, and a null platform would have belonged to no section at all.
-  const openAdd = (platform: Platform, agent: AgentHit | null = null) => {
+  const openAdd = (platform: Platform, agent: AgentHit | null = null, ownerKey: string | null = null) => {
     setNewLink(null)
+    setAddOwnerKey(ownerKey)
     setInviteLabel("")
     setSelectedAgent(agent)
     setAddError(null)
@@ -335,6 +346,7 @@ export default function PublishingDestinations({
   const closeAdd = () => {
     setAdding(false)
     setAddPlatform(null)
+    setAddOwnerKey(null)
     setAddRoute(null)
     setInviteLabel("")
     setSelectedAgent(null)
@@ -354,6 +366,12 @@ export default function PublishingDestinations({
       setBusyId(null)
     }
   }
+
+  /** The band an invitation is rendered in. Looked up rather than re-derived from agentUserId,
+   *  because the page decides that mapping (an agent id that IS the owner collapses into "mine")
+   *  and a second derivation here could disagree with where the invitation is actually drawn. */
+  const groupOfInvite = (inv: PendingInvite) =>
+    groups.find((g) => g.invites.some((i) => i.id === inv.id)) ?? null
 
   // Create New Link for a PENDING invitation: revoke the old one, mint a fresh invitation with the
   // SAME label, and show the new raw link ONCE. The old invitation's raw token is never
@@ -380,6 +398,7 @@ export default function PublishingDestinations({
         setSelectedAgent(inv.agentUserId ? { id: inv.agentUserId, name: inv.agentName ?? inv.label ?? "Agent", photoUrl: inv.agentPhotoUrl, email: null } : null)
         setCopied(false)
         setAddPlatform("instagram")
+        setAddOwnerKey(groupOfInvite(inv)?.key ?? null)
         setAddRoute("invite")
         setNewLink(data.link as string)
         setAdding(true) // surface the created-link view
@@ -387,6 +406,7 @@ export default function PublishingDestinations({
       } else {
         setAddError("Couldn't create a new link. Please try again.")
         setAddPlatform("instagram")
+        setAddOwnerKey(groupOfInvite(inv)?.key ?? null)
         setAddRoute("invite")
         setAdding(true)
       }
@@ -426,14 +446,33 @@ export default function PublishingDestinations({
   const toneOf = (state: CapabilityState) => `${CAPABILITY_TONE[state]} font-semibold`
   const toneFor = (cap: Capability) => toneOf(cap.state)
 
-  const cadence = (postsPerDay: number | null | undefined) => (
-    <span className="font-semibold text-[var(--crm-text-primary)]">
-      {postsPerDay ?? 2}
-      <span className="font-normal text-[var(--crm-text-muted)]">
-        {postsPerDay == null ? " (default — 7:30 AM & 7:30 PM CT)" : " per day"}
+  // ── POSTING TIMES, THE SAME WAY ON EVERY CARD ────────────────────────────────────────────
+  // This used to print the times only when posts_per_day was NULL — "2 (default — 7:30 AM & 7:30
+  // PM CT)" — and just "2 per day" when the column held an explicit 2. Those are the SAME
+  // schedule, so two destinations on identical times read as though they differed, which is
+  // exactly what Lisette's rows (explicit 2) did next to Jay's (NULL).
+  //
+  // The times are now derived from dailyTimesForPostsPerDay — the function the planner itself uses
+  // — so the card cannot drift from what will actually be scheduled. "default" still marks a NULL
+  // column, because that is a real difference worth seeing: nobody has chosen a cadence.
+  const clockOf = (minutes: number) => {
+    const h24 = Math.floor(minutes / 60)
+    const m = minutes % 60
+    const h12 = h24 % 12 === 0 ? 12 : h24 % 12
+    return `${h12}:${String(m).padStart(2, "0")} ${h24 < 12 ? "AM" : "PM"}`
+  }
+  const cadence = (postsPerDay: number | null | undefined) => {
+    const times = dailyTimesForPostsPerDay(postsPerDay ?? null)
+    return (
+      <span className="font-semibold text-[var(--crm-text-primary)]">
+        {postsPerDay ?? times.length}
+        <span className="font-normal text-[var(--crm-text-muted)]">
+          {` per day · ${times.map(clockOf).join(" & ")} CT`}
+          {postsPerDay == null ? " (default)" : ""}
+        </span>
       </span>
-    </span>
-  )
+    )
+  }
 
   const muted = <span className="text-[var(--crm-text-muted)]">—</span>
 
@@ -515,17 +554,34 @@ export default function PublishingDestinations({
     </div>
   )
 
+  // ── ONE NAME/HANDLE/FACE RULE, FOR BOTH PROVIDERS ────────────────────────────────────────
+  // The band above a card already says whose accounts these are, so a card titles on the ACCOUNT:
+  // the operator's own label if there is one, else the handle. The handle is always shown behind an
+  // @, and the face is the ACCOUNT's own, falling back to the person whose band this is.
+  //
+  // THE FALLBACK IS THE BAND'S PERSON, NEVER A GLOBAL "OWNER". That global was the bug: every
+  // TikTok row carried the signed-in admin's photo, so Lisette's account — which had no avatar of
+  // its own — wore his face. A row no longer carries anyone else's identity to fall back to.
+  const identityOf = (
+    a: { label: string | null; username: string | null; avatarUrl?: string | null },
+    group: OwnerGroup,
+    fallbackName: string,
+  ) => ({
+    name: a.label || (a.username ? `@${a.username}` : fallbackName),
+    handle: a.label && a.username ? `@${a.username}` : null,
+    photoUrl: a.avatarUrl ?? group.photoUrl ?? null,
+  })
+
   // ── INSTAGRAM CARD ────────────────────────────────────────────────────────────────────────
-  const instagramCard = (d: Destination, isOwner: boolean) => {
+  const instagramCard = (d: Destination, group: OwnerGroup) => {
+    const isOwner = group.kind === "mine"
     const state = connectionStatus({ status: d.status, expired: d.expired, bufferRouted: d.bufferRouted })
     const igMarket = marketChip(d.marketRestriction)
     const needsComments = !d.commentsScopeGranted || d.autoReply.state === "permission_needed"
     return card({
       key: d.id,
-      name: d.agentName || (d.username ? `@${d.username}` : "Instagram account"),
-      handle: d.agentName && d.username ? `@${d.username}` : d.label && !d.agentName ? d.label : null,
+      ...identityOf(d, group, "Instagram account"),
       sub: <>Added {fmtDate(d.addedAt)}{igMarket ? <> · {igMarket}</> : null}</>,
-      photoUrl: d.agentPhotoUrl,
       isOwner,
       glyph: <InstagramGlyph />,
       status: state,
@@ -588,16 +644,14 @@ export default function PublishingDestinations({
   }
 
   // ── TIKTOK CARD ───────────────────────────────────────────────────────────────────────────
-  const tiktokCard = (t: TikTokConnection, isOwner: boolean) => {
+  const tiktokCard = (t: TikTokConnection, group: OwnerGroup) => {
+    const isOwner = group.kind === "mine"
     const state = connectionStatus({ status: t.status ?? "connected", expired: t.expired, bufferRouted: t.bufferRouted })
     const ttMarket = marketChip(t.marketRestriction)
     return card({
       key: t.id,
-      name: t.label || t.username || t.ownerName || "TikTok account",
-      // TikTok reports a DISPLAY NAME, not a handle. Rendering it behind an @ would invent one.
-      handle: t.label && t.username ? t.username : null,
+      ...identityOf(t, group, "TikTok account"),
       sub: <>Added {t.addedAt ? fmtDate(t.addedAt) : "—"}{ttMarket ? <> · {ttMarket}</> : null}</>,
-      photoUrl: t.avatarUrl ?? t.ownerPhotoUrl ?? null,
       isOwner,
       glyph: <TikTokGlyph />,
       status: state,
@@ -751,7 +805,7 @@ export default function PublishingDestinations({
           type="button"
           className={btnPrimary}
           disabled={platform === "tiktok" ? !tiktokConfigured : !configured}
-          onClick={() => openAdd(platform, agentHit)}
+          onClick={() => openAdd(platform, agentHit, group.key)}
         >
           + Add {group.kind === "team" ? `${group.name.split(" ")[0]}'s ` : ""}{platform === "tiktok" ? "TikTok" : "Instagram"}
         </button>
@@ -777,76 +831,80 @@ export default function PublishingDestinations({
   const countsFor = (connected: number, pending: number) =>
     pending > 0 ? `${connected} connected · ${pending} pending` : `${connected} connected`
 
-  const totals = {
-    instagram: groups.reduce((n, g) => n + g.instagram.length, 0),
-    instagramPending: groups.reduce((n, g) => n + g.invites.length, 0),
-    tiktok: groups.reduce((n, g) => n + g.tiktok.length, 0),
-  }
 
-  // ── A PLATFORM SECTION ────────────────────────────────────────────────────────────────────
-  const platformSection = (platform: Platform) => {
+  // ── OWNER FIRST, PLATFORM SECOND ─────────────────────────────────────────────────────────
+  // This was the other way round: a section per platform, with an owner band inside each. So
+  // "Jay Morris" appeared twice and "Lisette Hernandez" twice, and reading one person's accounts
+  // meant looking in two places on the page. Whose account it is is the thing the operator sorts
+  // by — the platform is a property of the account, not a category above it.
+  //
+  // The groups themselves are unchanged, and so is everything in a card: controls, statuses,
+  // market restrictions and posting settings all render exactly as before. Only the nesting moved.
+  const platformBlock = (group: OwnerGroup, platform: Platform) => {
     const isIg = platform === "instagram"
     const ready = isIg ? configured : tiktokConfigured
+    const accounts = isIg ? group.instagram : group.tiktok
+    // Invitations are Instagram-only, as the authorize flow is.
+    const invites = isIg ? group.invites : []
+    // An invitation for someone with NO account on this platform is their card; an invitation for
+    // someone who already has one is a strip beneath it.
+    const named = new Set(
+      accounts.flatMap((a) => [a.label, "agentName" in a ? a.agentName : null, a.username])
+        .filter((n): n is string => !!n)
+        .map((n) => n.trim().toLowerCase()),
+    )
+    const isSpareLinkFor = (inv: PendingInvite) => {
+      const l = (inv.agentName || inv.label || "").trim().toLowerCase()
+      return l.length > 0 && named.has(l)
+    }
+    const asStrips = invites.filter(isSpareLinkFor)
+    const asCards = invites.filter((inv) => !isSpareLinkFor(inv))
     return (
-      <section className="rounded-2xl border border-[var(--crm-border)] bg-[var(--crm-panel)] p-4">
-        <div className="flex items-center gap-3 flex-wrap mb-3">
-          <span className={`h-9 w-9 rounded-[10px] flex-none inline-flex items-center justify-center text-white ${isIg ? "bg-gradient-to-br from-[#f9ce34] via-[#ee2a7b] to-[#6228d7]" : "bg-black border border-[var(--crm-border)]"}`}>
-            {isIg ? <InstagramGlyph size={18} /> : <TikTokGlyph size={18} />}
+      <div key={`${group.key}:${platform}`}>
+        <div className="flex items-center gap-2.5 flex-wrap mb-2">
+          <span className={`h-7 w-7 rounded-[8px] flex-none inline-flex items-center justify-center text-white ${isIg ? "bg-gradient-to-br from-[#f9ce34] via-[#ee2a7b] to-[#6228d7]" : "bg-black border border-[var(--crm-border)]"}`}>
+            {isIg ? <InstagramGlyph size={14} /> : <TikTokGlyph size={14} />}
           </span>
-          <h2 className="text-[18px] font-extrabold text-[var(--crm-text-primary)]">{isIg ? "Instagram" : "TikTok"}</h2>
-          <span className="text-[11.5px] font-semibold text-[var(--crm-text-secondary)] bg-[var(--crm-card)] border border-[var(--crm-border)] rounded-full px-2.5 py-1">
-            {isIg ? countsFor(totals.instagram, totals.instagramPending) : countsFor(totals.tiktok, 0)}
+          <h3 className="text-[14px] font-extrabold text-[var(--crm-text-primary)]">{isIg ? "Instagram" : "TikTok"}</h3>
+          <span className="text-[11px] font-semibold text-[var(--crm-text-secondary)] bg-[var(--crm-card)] border border-[var(--crm-border)] rounded-full px-2 py-[3px]">
+            {countsFor(accounts.length, invites.length)}
           </span>
         </div>
-
         {!ready ? (
           <div className="text-[12.5px] text-[var(--crm-text-muted)] py-2">
             {isIg ? "Instagram isn't configured yet." : "TikTok isn't configured yet."}
           </div>
         ) : (
-          <div className="space-y-4">
-            {groups.map((group) => {
-              const accounts = isIg ? group.instagram : group.tiktok
-              const invites = isIg ? group.invites : []
-              // An invitation for someone with NO account on this platform is their card; an
-              // invitation for someone who already has one is a strip beneath it.
-              const named = new Set(
-                accounts.flatMap((a) => [a.label, "agentName" in a ? a.agentName : null, a.username])
-                  .filter((n): n is string => !!n)
-                  .map((n) => n.trim().toLowerCase()),
-              )
-              const isSpareLinkFor = (inv: PendingInvite) => {
-                const l = (inv.agentName || inv.label || "").trim().toLowerCase()
-                return l.length > 0 && named.has(l)
-              }
-              const asStrips = invites.filter(isSpareLinkFor)
-              const asCards = invites.filter((inv) => !isSpareLinkFor(inv))
-              return (
-                <div key={`${platform}:${group.key}`}>
-                  {ownerBand(group, countsFor(accounts.length, invites.length))}
-                  <div className="space-y-2">
-                    {accounts.map((a) =>
-                      isIg
-                        ? instagramCard(a as Destination, group.kind === "mine")
-                        : tiktokCard(a as TikTokConnection, group.kind === "mine"),
-                    )}
-                    {asStrips.map((inv) => inviteStrip(inv, group.kind === "mine"))}
-                    {asCards.map((inv) => inviteCard(inv, group))}
-                    {emptySlot(group, platform, accounts.length > 0 ? "another" : asCards.length > 0 ? "pending" : "empty")}
-                  </div>
-                </div>
-              )
-            })}
+          <div className="space-y-2">
+            {accounts.map((a) =>
+              isIg
+                ? instagramCard(a as Destination, group)
+                : tiktokCard(a as TikTokConnection, group),
+            )}
+            {asStrips.map((inv) => inviteStrip(inv, group.kind === "mine"))}
+            {asCards.map((inv) => inviteCard(inv, group))}
+            {emptySlot(group, platform, accounts.length > 0 ? "another" : asCards.length > 0 ? "pending" : "empty")}
           </div>
         )}
 
-        {/* The add sheet, in the section whose button opened it. */}
-        {adding && addPlatform === platform && (
+        {/* The add sheet, in the block whose button opened it — the right platform AND the right
+            person. Keyed on both now that one platform appears once per owner. */}
+        {adding && addPlatform === platform && addOwnerKey === group.key && (
           <div ref={addSheetRef} className="mt-4">{addSheet}</div>
         )}
-      </section>
+      </div>
     )
   }
+
+  const ownerSection = (group: OwnerGroup) => (
+    <section key={group.key} className="rounded-2xl border border-[var(--crm-border)] bg-[var(--crm-panel)] p-4">
+      {ownerBand(group, countsFor(group.instagram.length + group.tiktok.length, group.invites.length))}
+      <div className="space-y-4">
+        {platformBlock(group, "instagram")}
+        {platformBlock(group, "tiktok")}
+      </div>
+    </section>
+  )
 
   // ── ADD ACCOUNT ───────────────────────────────────────────────────────────────────────────
   // THE BUTTONS LIVE IN THE SECTIONS, NOT IN A HEADER. There were once three at the top
@@ -970,8 +1028,9 @@ export default function PublishingDestinations({
 
   return (
     <div className="space-y-4">
-      {platformSection("instagram")}
-      {platformSection("tiktok")}
+      {/* `groups` arrives already filtered by the agent selector — the page computes visibleGroups
+          and passes it as this prop, so an empty band is dropped there, not hidden here. */}
+      {groups.map((group) => ownerSection(group))}
 
       {/* YouTube stays out of scope for now. */}
       <div className="text-[11px] text-[var(--crm-text-muted)]">YouTube destinations are coming later.</div>

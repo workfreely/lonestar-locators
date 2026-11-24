@@ -406,8 +406,24 @@ console.log("\nTHE DASHBOARD — N TikTok accounts, not one:")
   // a second — so what it says is chosen from the list's length rather than its existence.
   ok("the empty state is the empty LIST, not a null row",
     /emptySlot\(group, platform, accounts\.length > 0 \? "another" : asCards\.length > 0 \? "pending" : "empty"\)/.test(UI))
-  ok("a TikTok row leads with the ACCOUNT, so two rows are distinguishable",
-    /name: t\.label \|\| t\.username \|\| t\.ownerName \|\| "TikTok account",/.test(UI))
+  // ONE IDENTITY RULE, SHARED WITH THE INSTAGRAM CARD. A TikTok row still leads with the ACCOUNT,
+  // but through identityOf() rather than its own expression — the two cards titled on different
+  // things before (Instagram on the PERSON, TikTok on the account), which is why the page read as
+  // two lists.
+  ok("a TikTok row leads with the ACCOUNT, through the shared identity rule",
+    /\.\.\.identityOf\(t, group, "TikTok account"\)/.test(UI)
+      && /\.\.\.identityOf\(d, group, "Instagram account"\)/.test(UI))
+  ok("…and that rule titles on the account, with the handle behind an @",
+    /name: a\.label \|\| \(a\.username \? `@\$\{a\.username\}` : fallbackName\)/.test(UI))
+  // THE CROSS-ACCOUNT PHOTO LEAK. Every TikTok row used to carry the signed-in admin's
+  // ownerName/ownerPhotoUrl, so a row with no avatar of its own wore his face — which is exactly
+  // what Lisette's TikTok did. The row no longer carries anyone else's identity at all, and the
+  // fallback is the band's own person.
+  ok("…and no row carries another person's name or photo to fall back to",
+    !/ownerName/.test(UI) && !/ownerPhotoUrl/.test(UI),
+    "a global owner photo on a per-account row is how one person's face reached another's card")
+  ok("…the face is the account's own, falling back to the band this card sits in",
+    /photoUrl: a\.avatarUrl \?\? group\.photoUrl \?\? null/.test(UI))
   ok("…and can be renamed to disambiguate, like the Instagram rows", /setRenamingId\(t\.id\)/.test(UI))
   ok("the market chip still renders on a TikTok row (beb7c81, unchanged)", /marketChip\(t\.marketRestriction\)/.test(UI))
   // The Instagram section is untouched by this phase.

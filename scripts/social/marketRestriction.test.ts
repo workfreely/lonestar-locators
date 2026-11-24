@@ -491,10 +491,21 @@ console.log("\nSEEING IT — the restriction is on the destination row, for both
   // Restated for the owner-grouped cards, where ONE renderer serves both platforms — the claim is
   // unchanged and now covers TikTok too, whose cadence the planner has always honoured (it builds
   // a rule from every connection regardless of provider) and which the page simply never selected.
-  ok("…and the EFFECTIVE cadence is shown, marked when it comes from the default",
+  // THE TIMES ARE NOW ON EVERY CARD. They used to appear only when posts_per_day was NULL — so a
+  // destination with an explicit 2 (Lisette's two rows) read as "2 per day" with no times, beside
+  // an identical NULL destination that read "7:30 AM & 7:30 PM CT". The same schedule, stated two
+  // ways. They are derived from dailyTimesForPostsPerDay, the planner's own function, so the card
+  // cannot drift from what gets scheduled; "(default)" still marks a column nobody has set.
+  ok("…and the EFFECTIVE cadence is shown, with the times, on every card",
     /const cadence = \(postsPerDay: number \| null \| undefined\)/.test(UI)
-      && /\{postsPerDay \?\? 2\}/.test(UI)
-      && /\(default — 7:30 AM & 7:30 PM CT\)/.test(UI))
+      && /dailyTimesForPostsPerDay\(postsPerDay \?\? null\)/.test(UI)
+      && /times\.map\(clockOf\)\.join\(" & "\)/.test(UI))
+  ok("…the times come from the planner's own function, never a hardcoded string",
+    /import \{ dailyTimesForPostsPerDay \} from "@\/lib\/social\/autopilotDestination"/.test(UI)
+      && !/7:30 AM & 7:30 PM CT/.test(UI),
+    "a literal would keep claiming 7:30 after BASELINE_DAILY_TIMES changed")
+  ok("…and a cadence nobody chose is still marked as the default",
+    /postsPerDay == null \? " \(default\)" : ""/.test(UI))
   ok("…by ONE renderer, so the two platforms cannot state different cadences",
     (UI.match(/cadence\(/g) ?? []).length === 2
       && /cadence\(d\.postsPerDay\)/.test(UI) && /cadence\(t\.postsPerDay\)/.test(UI))

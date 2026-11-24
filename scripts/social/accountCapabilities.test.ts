@@ -198,8 +198,11 @@ console.log("\n4. THE ACCOUNTS PAGE WIRES THE GATE, AND KEEPS EVERY EXISTING CON
   // structurally rather than dropped: every route to an OAuth sign-in is reached from a card, an
   // empty slot or the add sheet, never as a bare page-level link.
   const pageLevel = comp.slice(comp.lastIndexOf("\n  return ("))
+  // The page-level render is now one section per OWNER rather than one per platform, so the anchor
+  // moved. What is being protected did not: no OAuth route may be reached from the page body — only
+  // from a card, an empty slot or the add sheet, where it is attached to a specific account.
   ok("no connect link renders at page level",
-    /platformSection\("instagram"\)/.test(pageLevel) && !/CONNECT/.test(pageLevel))
+    /groups\.map\(\(group\) => ownerSection\(group\)\)/.test(pageLevel) && !/CONNECT/.test(pageLevel))
   ok("…and the old always-visible wording is gone",
     !/Connect my own Instagram directly/.test(comp))
   // The other half of the old pair: an admin with no account must still have a way in. It is no

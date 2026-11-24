@@ -107,8 +107,18 @@ ok("an empty band survives unfiltered but is dropped under an agent filter",
   /const visibleGroups = selectedAgent\s*\n?\s*\? groups\.filter\(\(g\) => g\.instagram\.length \+ g\.tiktok\.length \+ g\.invites\.length > 0\)\s*\n?\s*: groups/.test(PAGE))
 ok("the bands are labelled exactly My Accounts and Team Accounts",
   /\{group\.kind === "mine" \? "My Accounts" : "Team Accounts"\}/.test(UI))
-ok("both platforms render the same groups, so an owner cannot be missing from one",
-  /platformSection\("instagram"\)/.test(UI) && /platformSection\("tiktok"\)/.test(UI) && /groups\.map\(\(group\) =>/.test(UI))
+// OWNER FIRST. This used to be a section per platform with an owner band inside each, so one
+// person appeared twice on the page and reading their accounts meant looking in two places. Whose
+// account it is is what the operator sorts by; the platform is a property of the account.
+//
+// The guarantee is unchanged and still asserted: every owner renders BOTH platform blocks, so an
+// owner cannot be present on one platform and silently missing from the other.
+ok("the page renders one section per owner, not one per platform",
+  /groups\.map\(\(group\) => ownerSection\(group\)\)/.test(UI) && !/platformSection\(/.test(UI))
+ok("…and every owner section renders BOTH platforms, so none can be missing from one",
+  /platformBlock\(group, "instagram"\)/.test(UI) && /platformBlock\(group, "tiktok"\)/.test(UI))
+ok("…with the owner band as the section's own heading",
+  /\{ownerBand\(group, countsFor\(group\.instagram\.length \+ group\.tiktok\.length, group\.invites\.length\)\)\}/.test(UI))
 
 // ── 4. INVITATIONS SIT UNDER THEIR PERSON ─────────────────────────────────────────────────────
 console.log("\nan invitation is shown with the person it was sent to:")
@@ -233,8 +243,13 @@ ok("the master switch is still rendered by its own component, above the list",
 // The list is pinned in full so a THIRD column cannot arrive unnoticed.
 ok("the TikTok read added only the two routing columns",
   /\.select\("id, username, label, status, posting_paused, posts_per_day, token_expires_at, created_at, avatar_url, market_restriction, agent_user_id, buffer_account_id, buffer_channel_id"\)/.test(PAGE))
-ok("…and the Instagram read added exactly the same two, so the two cards agree",
-  /\.select\("id, username, status, label, posting_paused, posts_per_day, token_expires_at, created_at, agent_user_id, scopes, market_restriction, buffer_account_id, buffer_channel_id"\)/.test(PAGE))
+// avatar_url joined the Instagram read as well, so an Instagram card can show the ACCOUNT's own
+// face the way a TikTok card does. Without it the two cards could not share one identity rule:
+// Instagram had only the PERSON's photo to draw.
+ok("…and the Instagram read added the routing columns and the account's own avatar",
+  /\.select\("id, username, status, label, posting_paused, posts_per_day, token_expires_at, created_at, agent_user_id, scopes, market_restriction, buffer_account_id, buffer_channel_id, avatar_url"\)/.test(PAGE))
+ok("…and the TikTok read carries avatar_url too, so neither card is the special case",
+  /avatar_url, market_restriction, agent_user_id, buffer_account_id, buffer_channel_id"\)/.test(PAGE))
 ok("…and neither select reads a credential",
   !/token_secret_id|external_account_id|owner_user_id/.test(
     (PAGE.match(/\.select\("id, username[^)]*\)/g) ?? []).join(" ")),
@@ -246,6 +261,57 @@ ok("…and the planner really does read it per connection, for every provider",
   /postsPerDay: typeof c\.posts_per_day === "number" && c\.posts_per_day > 0/.test(code(read("lib/social/autopilotPlanRun.ts"))))
 ok("the agent filter still works and is still presentation-only",
   /const visible = \(id: string\) => visibleIds === null \|\| visibleIds\.includes\(id\)/.test(PAGE))
+
+// ── THE PROFILE REFRESH ───────────────────────────────────────────────────────────────────────
+// Both TikTok photos were broken and Lisette's TikTok wore the operator's face. Neither was a
+// layout bug: avatar_url held TikTok's own SIGNED CDN urls, which expired on 2026-11-21 and
+// returned 403, and her row had no avatar at all so the card fell through to a global owner photo.
+// scripts/refresh-buffer-profiles.mjs stores Buffer's avatars instead — plain S3 objects with no
+// signature and no expiry, so they do not come back broken.
+console.log("\nthe profile refresh reads Buffer per account, and writes only display data:")
+
+const REFRESH = (() => { try { return read("scripts/refresh-buffer-profiles.mjs") } catch { return "" } })()
+
+ok("the refresh script exists", REFRESH.length > 0)
+ok("…and defaults to a dry run, writing only with --apply",
+  /const APPLY = process\.argv\.includes\("--apply"\)/.test(REFRESH) && /if \(APPLY\) \{/.test(REFRESH),
+  "a script that rewrites names and faces should show its diff before taking it")
+ok("…and asks each channel with ITS OWN account's key, never one shared key",
+  /keyFor\(account\.label\)/.test(REFRESH) && /accountById\.get\(row\.buffer_account_id\)/.test(REFRESH),
+  "one key for every row is how one person's profile reaches another's card")
+ok("…and refuses a channel answering from the wrong organization",
+  /ch\.organizationId !== account\.organization_id/.test(REFRESH) && /REFUSED/.test(REFRESH),
+  "a plausible name and face from the wrong account would hide a mapping bug, not reveal it")
+ok("…and refuses a channel whose service disagrees with the row",
+  /String\(ch\.service\)\.toLowerCase\(\) !== String\(row\.provider\)\.toLowerCase\(\)/.test(REFRESH))
+// The key goes from psql's stdout straight into a variable (stdout piped, stderr inherited so a
+// failure is still visible) and is interpolated in exactly ONE place: the Authorization header.
+// Counting the interpolations is the check — grepping for the WORD "key" would flag the "no stored
+// key for…" message, which names a key without carrying one.
+ok("…and never prints the key: it is interpolated only into the Authorization header",
+  /stdio: \["ignore", "pipe", "inherit"\]/.test(REFRESH) &&
+  (REFRESH.match(/\$\{key\}/g) ?? []).length === 1 &&
+  /authorization: `Bearer \$\{key\}`/.test(REFRESH),
+  "a second interpolation is the one that ends up in a log line")
+ok("…and writes only display columns — never a credential, a route or a schedule",
+  (() => {
+    const written = Array.from(REFRESH.matchAll(/updates\.([a-z_]+) =/g)).map((m) => m[1]).sort()
+    const allowed = ["avatar_url", "label", "username"]
+    return written.length > 0 && written.every((c) => allowed.includes(c))
+  })(),
+  "this script must not be able to touch buffer_channel_id, posting_paused or market_restriction")
+ok("…and never overwrites a label the operator typed",
+  /!override && !row\.label/.test(REFRESH),
+  "a blank label may be filled; a label somebody chose is theirs")
+ok("…and the two names Buffer cannot supply are keyed by connection id, not matched by name",
+  /OVERRIDE_BY_PREFIX/.test(REFRESH) && /"671b758b": "Jay \| Dallas Apt Locator"/.test(REFRESH) &&
+  /"1b5e4878": "Jay \| Dallas Apt Locator"/.test(REFRESH),
+  "a rename matched on a name could land on the wrong row")
+ok("…and records that Buffer returns the HANDLE in displayName, so the display name is not there",
+  /does NOT carry the profile's display name/i.test(REFRESH),
+  "the next reader will otherwise try to fetch it again")
+ok("…and explains why writing username is safe although the mapping deliberately did not",
+  /nothing in the publishing route reads username/i.test(REFRESH))
 
 console.log(`\nAccounts by owner: ${pass} passed, ${fail} failed`)
 process.exit(fail ? 1 : 0)
