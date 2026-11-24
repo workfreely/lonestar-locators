@@ -37,7 +37,7 @@ const FF = ffmpegPath as unknown as string
 const DIR = "/Users/jaymorris/Desktop/Social Beast Properties/Lisette's (South Side Living) "
 const VOICE = `${DIR}/Lisette Video Voiceover.MOV`
 const MUSIC = `${DIR}/Lisette Video Music.MOV`
-const OUT = "/Users/jaymorris/Desktop/Lisette - Southside Living - Final.mp4"
+const OUT = "/Users/jaymorris/Desktop/Lisette - Southside Living - Final V2.mp4"
 
 // ffmpeg writes EVERYTHING of interest — loudnorm's JSON, silencedetect's lines, the stream
 // summary — to stderr, and exits 0. execFileSync hands back stdout only, which is why the first
@@ -144,16 +144,30 @@ for (const sample of [[windows[0]], [windows[0], windows[1]]] as VoiceWindow[][]
 console.log(`\n  verified: this envelope matches the pipeline's duckVolumeExpr byte-for-byte at 1 and 2 windows`)
 
 const duckExpr = buildDuckExpr(windows)
+// ── THE MIX, AS THE PIPELINE BUILDS IT ───────────────────────────────────────────────────────
+// V1 of this file had the audio stop 2.95 s before the last frame. Two deviations from the
+// renderer caused it, both mine:
+//
+//   1. amix duration=FIRST instead of LONGEST. The voice chain ends in loudnorm, which buffers
+//      ahead; amix took the first input's end as the mix's end and cut roughly a lookahead's
+//      worth off the tail. Measured: duration=first gave 16.99 s, duration=longest 20.21 s.
+//   2. The apad,atrim stage was missing entirely. The renderer's own comment is exact about what
+//      it is for — "apad then atrim pins the audio to EXACTLY the video duration in both
+//      directions" — extending a short mix with silence and hard-cutting a long one.
+//
+// Both are now what renderVideo does. The trim end is the video's container duration, so the
+// audio covers the final frame rather than stopping a few milliseconds inside it.
 const mixGraph =
   `[0:a]${fmt},${voiceChain}[avoice];` +
   `[1:a]${fmt},volume=eval=frame:volume='${duckExpr}'[abed];` +
-  `[avoice][abed]amix=inputs=2:duration=first:normalize=0[amix]`
+  `[avoice][abed]amix=inputs=2:duration=longest:normalize=0[amix];` +
+  `[amix]apad,atrim=end=${dur.toFixed(3)},asetpts=N/SR/TB[amixed]`
 
 console.log(`\nTHE BED ENVELOPE (the pipeline's own duckVolumeExpr)\n  ${duckExpr}`)
 
 // ── MASTER, PASS ONE: measure the finished mix ──────────────────────────────────────────────
 const masterRaw = run([
-  "-i", VOICE, "-i", MUSIC, "-filter_complex", `${mixGraph};[amix]${masterMeasureFilter()}[aout]`,
+  "-i", VOICE, "-i", MUSIC, "-filter_complex", `${mixGraph};[amixed]${masterMeasureFilter()}[aout]`,
   "-map", "[aout]", "-f", "null", "-",
 ])
 const masterProbe = parseLoudnorm(masterRaw)
@@ -167,7 +181,7 @@ console.log(`\nTHE MIX BEFORE MASTERING\n  integrated ${masterProbe.inputI} LUFS
 // ── MASTER, PASS TWO: render ────────────────────────────────────────────────────────────────
 // -c:v copy: her footage is passed through untouched, so resolution, quality and duration are
 // bit-identical to what she shot. -tag:v hvc1 so QuickTime will open the HEVC it contains.
-const finalGraph = `${mixGraph};[amix]${masterApplyFilter(masterProbe)}[aout]`
+const finalGraph = `${mixGraph};[amixed]${masterApplyFilter(masterProbe)}[aout]`
 console.log(`\nrendering ${OUT}`)
 runOrThrow([
   "-y", "-i", VOICE, "-i", MUSIC,
