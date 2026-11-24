@@ -968,9 +968,22 @@ async function recordOutcome(
   if (tally) tally.pending++
 }
 
+// RELEASING THE IN-FLIGHT CLAIM IS PART OF FAILING.
+//
+// media_publish_claimed_at asserts "a publish call is in flight". markFailed used to leave it
+// set, and that made a failed row UNRECOVERABLE BY EVERY ROUTE. The second claim is
+// `.is("media_publish_claimed_at", null)`, so once the column held a stale timestamp the worker
+// took the row, failed that claim, skipped it silently, and the stranded sweep failed it again
+// three minutes later — for ever. Lisette's debut sat in exactly that loop on 24 Nov: claimed at
+// 15:05, failed, and then every later attempt skipped it without ever calling Buffer, while the
+// error message said to check Buffer's queue for a post that was never created.
+//
+// Clearing it here is safe on every path that reaches markFailed. Either the row already has an
+// external_post_id — in which case the first claim's `external_post_id IS NULL` is what prevents
+// a resend, not this column — or it has none, and nothing is in flight to protect.
 async function markFailed(postId: string, reason: string) {
   await supabaseAdmin
     .from("social_posts")
-    .update({ status: "needs_attention", error_message: reason, updated_at: new Date().toISOString() })
+    .update({ status: "needs_attention", error_message: reason, media_publish_claimed_at: null, updated_at: new Date().toISOString() })
     .eq("id", postId)
 }

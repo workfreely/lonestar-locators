@@ -160,6 +160,25 @@ ok("…and tiktok_story cannot reach the check anyway, being uncarried",
 ok("the refusal message for an unswitched route names the tradeoff being accepted",
   /Buffer, not we, chooses the TikTok privacy level/.test(BUFFER_REFUSAL_MESSAGE.route_not_enabled))
 
+// ── FAILING A POST MUST RELEASE ITS IN-FLIGHT CLAIM ──────────────────────────────────────────
+// media_publish_claimed_at asserts "a publish call is in flight", and the SECOND claim is
+// `.is("media_publish_claimed_at", null)`. markFailed used to leave the column set, so a failed
+// row could never be claimed again by anything: the worker took it, failed claim 2, skipped it
+// in silence, and the stranded sweep failed it again three minutes later, for ever. Lisette's
+// debut sat in that loop for four and a half hours on 24 Nov while its error message advised
+// checking Buffer's queue for a post that had never been created.
+{
+  const mf = WORKER.split("async function markFailed")[1]?.split("}")[0] ?? ""
+  ok("markFailed clears the in-flight claim", /media_publish_claimed_at: null/.test(mf))
+  ok("…in the same statement that fails the row", /status: "needs_attention"[\s\S]{0,160}media_publish_claimed_at: null/.test(mf))
+  ok("the second claim is still what guards an in-flight send",
+    /\.is\("media_publish_claimed_at", null\)/.test(WORKER))
+  ok("…and a resend is still prevented by the FIRST claim's external_post_id guard",
+    /\.is\("external_post_id", null\)/.test(WORKER))
+  ok("the TikTok sibling releases it too",
+    /media_publish_claimed_at: null/.test(code(read("app/api/cron/social-tiktok-publish/route.ts")).split("async function markFailed")[1]?.split("}")[0] ?? ""))
+}
+
 // ── BUFFER'S TWO REQUIRED INSTAGRAM FIELDS ───────────────────────────────────────────────────
 // InstagramPostMetadataInput declares shouldShareToFeed: Boolean! and type: PostType!. The client
 // used to send shouldShareToFeed only when a caller passed one, and no caller ever did, so every
