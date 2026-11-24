@@ -1365,14 +1365,24 @@ export default function SocialAutopilotClient() {
         })
       let res = await send()
       if (res.status === 409) {
-        const j = (await res.json().catch(() => ({}))) as { error?: string; detail?: string; counts?: { posts: number; published: number } }
+        const j = (await res.json().catch(() => ({}))) as {
+          error?: string; detail?: string
+          counts?: { posts: number; published: number; blocking?: number; drafts?: number }
+        }
         if (j.error === "source_has_dependents") {
-          // HARD STOP. Dependent posts are never cascaded away, with or without a token.
+          // HARD STOP, unchanged: a published, approved or rendered post is never removed with its
+          // source, with or without a token.
           setError(j.detail ?? "This source video is still used by posts.")
           return
         }
-        // Dependent-free, but protected by default — ask once more, naming what is at stake.
-        if (!confirm("This original video has no posts, but originals are protected by default.\n\nPermanently delete the master file?")) return
+        // Protected by default — ask once more, naming exactly what goes. The draft count comes
+        // from the server rather than being assumed here, so the sentence cannot claim "no posts"
+        // about a source that has drafts (which is what it used to say).
+        const drafts = j.counts?.drafts ?? 0
+        const what = drafts > 0
+          ? `This original video has ${drafts} unpublished draft${drafts === 1 ? "" : "s"}, which will be removed with it.`
+          : "This original video has no posts, but originals are protected by default."
+        if (!confirm(`${what}\n\nPermanently delete the master file?`)) return
         res = await send("delete-source-video")
       }
       if (!res.ok) { setError("Couldn't delete."); return }
@@ -1992,7 +2002,7 @@ export default function SocialAutopilotClient() {
               Delete {selected.size} selected {selected.size === 1 ? "video" : "videos"}?
             </div>
             <div className="text-[11.5px] text-[var(--crm-text-muted)] mt-0.5 mb-3">
-              This permanently removes the <strong className="font-semibold text-[var(--crm-text-primary)]">original uploaded videos</strong> — the masters every Reel is built from. Any source still used by a post is protected and will be skipped, with its posts left untouched.
+              This permanently removes the <strong className="font-semibold text-[var(--crm-text-primary)]">original uploaded videos</strong> — the masters every Reel is built from. Unpublished drafts are removed with their source. Any source used by a published, approved or rendered post is protected and will be skipped, with those posts left untouched.
             </div>
             <div className="flex gap-2 mt-4">
               <button type="button" className={btn} disabled={deleteBusy} onClick={() => setConfirmDelete(false)}>Cancel</button>

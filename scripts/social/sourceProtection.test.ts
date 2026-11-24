@@ -117,10 +117,11 @@ console.log("\n6. the DELETE route refuses before the constraint has to:")
     /\.from\("social_posts"\)[\s\S]{0,160}\.eq\("source_content_id", id\)/.test(code))
   ok("...and counts PUBLISHED separately (those carry external_post_id)",
     /published_at\)\.length/.test(code) || /filter\(\(p\) => \(p as \{ published_at: string \| null \}\)\.published_at\)\.length/.test(code))
-  ok("dependents -> 409 source_has_dependents", /error: "source_has_dependents"[\s\S]{0,420}status: 409/.test(code))
-  ok("...with both counts in the body", /counts: \{ posts: posts\.length, published \}/.test(code))
-  ok("no dependents -> STILL refused without an explicit token",
-    /body\.confirm !== "delete-source-video"[\s\S]{0,420}status: 409/.test(code))
+  ok("a BLOCKING dependent -> 409 source_has_dependents", /error: "source_has_dependents"[\s\S]{0,650}status: 409/.test(code))
+  ok("...with every count in the body, so the refusal is actionable",
+    /counts: \{ posts: posts\.length, published, blocking: blocking\.length, drafts: removableDrafts\.length \}/.test(code))
+  ok("no BLOCKING dependent -> STILL refused without an explicit token",
+    /body\.confirm !== "delete-source-video"[\s\S]{0,800}status: 409/.test(code))
   ok("...and the refusal points at Archive Source rather than a harder override",
     /Archive Source/i.test(route))
 
@@ -134,19 +135,46 @@ console.log("\n6. the DELETE route refuses before the constraint has to:")
   ok("...a failed file removal names the orphan path", /orphanedPath: src\.storage_path/.test(code))
   ok("...and logs it, so an orphan is never silent", /source row deleted but its file remains/.test(route))
 
-  // NO CASCADE, anywhere — the word appears only in prose explaining why there isn't one.
+  // ── STILL NO CASCADE. The word appears only in prose explaining why there isn't one. ──────
+  // The FK is RESTRICT and stays RESTRICT, so nothing is ever destroyed implicitly. What changed
+  // is that this route may now delete a PLAIN UNPUBLISHED DRAFT explicitly, counted in the
+  // confirmation the operator answers.
+  //
+  // WHY IT HAD TO. Refusing on any dependent made the trash icon unusable for the commonest
+  // mistake there is — uploading the wrong file. Opening a new upload in the editor creates a
+  // draft (created_via 'edit_initial') within seconds, and the source was then undeletable, while
+  // the refusal's own hint said to delete those posts first: an action the library has no control
+  // for. The master became permanent by accident, which is not what "protected" was meant to buy.
   ok("the route never cascades", !/cascade/i.test(code))
-  ok("it deletes ONLY the social_content row, never a post", (code.match(/\.delete\(\)/g) ?? []).length === 1 && !/from\("social_posts"\)[\s\S]{0,80}\.delete\(\)/.test(code))
+  ok("the FK is still RESTRICT, so nothing can be destroyed implicitly",
+    /on delete restrict/i.test(migration) && !/on delete cascade/i.test(migration))
+  ok("it deletes the social_content row and, at most, plain drafts",
+    (code.match(/\.delete\(\)/g) ?? []).length === 2 &&
+    /\.from\("social_posts"\)\s*\.delete\(\)/.test(code))
+  ok("...and the draft delete re-asserts every condition on the WRITE, not just the read",
+    /\.from\("social_posts"\)\s*\.delete\(\)[\s\S]{0,300}\.is\("published_at", null\)[\s\S]{0,120}\.is\("external_post_id", null\)[\s\S]{0,120}\.is\("approved_at", null\)[\s\S]{0,120}\.eq\("status", "draft"\)/.test(code),
+    "a post approved between the count and the write must survive, and then RESTRICT stops the source")
+  ok("...and it runs BEFORE the source row, which is what RESTRICT requires",
+    code.indexOf('.from("social_posts")\n      .delete()') < code.indexOf('.from("social_content").delete()') ||
+    code.indexOf('from("social_posts")') < code.indexOf('.from("social_content").delete()'))
+  ok("...and a failed draft delete aborts, leaving the video untouched",
+    /draft_delete_failed/.test(code) && /nothing was deleted\. Your video is untouched/.test(route))
+  ok("published, approved and rendered posts all BLOCK, each for its own reason",
+    /p\.published_at \|\| p\.external_post_id \|\| p\.approved_at \|\| \(p\.status \?\? ""\) !== "draft"/.test(code))
   ok("rendered files are left to their own separate cleanup", !/renders\//.test(code))
 
   // The decision table, modelled.
-  const decide = (posts: number, token: string | null) =>
-    posts > 0 ? "409_dependents" : token === "delete-source-video" ? "deleted" : "409_confirm"
-  ok("3 posts + token -> still refused", decide(3, "delete-source-video") === "409_dependents")
-  ok("1 post + token -> still refused", decide(1, "delete-source-video") === "409_dependents")
-  ok("0 posts, no token -> refused (protected by default)", decide(0, null) === "409_confirm")
-  ok("0 posts, wrong token -> refused", decide(0, "yes") === "409_confirm")
-  ok("0 posts + exact token -> deleted", decide(0, "delete-source-video") === "deleted")
+  // Modelled on the KIND of dependent, which is what now decides. `blocking` is any published,
+  // approved or non-draft post; `drafts` are plain unpublished drafts.
+  const decide = (blocking: number, drafts: number, token: string | null) =>
+    blocking > 0 ? "409_dependents" : token === "delete-source-video" ? "deleted" : "409_confirm"
+  ok("a published post + token -> still refused", decide(1, 0, "delete-source-video") === "409_dependents")
+  ok("3 blocking posts + token -> still refused", decide(3, 2, "delete-source-video") === "409_dependents")
+  ok("1 plain draft, no token -> refused (protected by default)", decide(0, 1, null) === "409_confirm")
+  ok("1 plain draft, wrong token -> refused", decide(0, 1, "yes") === "409_confirm")
+  ok("1 plain draft + exact token -> deleted, draft and all", decide(0, 1, "delete-source-video") === "deleted")
+  ok("0 posts, no token -> refused (protected by default)", decide(0, 0, null) === "409_confirm")
+  ok("0 posts + exact token -> deleted", decide(0, 0, "delete-source-video") === "deleted")
 }
 
 // ── 7. BULK IS NOT A WEAKER PATH ────────────────────────────────────────────

@@ -249,18 +249,44 @@ export async function DELETE(req: NextRequest, ctx: { params: Promise<{ id: stri
   // external_post_id — the only record that something actually reached Instagram.
   const { data: deps, error: depErr } = await supabase
     .from("social_posts")
-    .select("id, published_at")
+    .select("id, published_at, external_post_id, approved_at, status")
     .eq("source_content_id", id)
   if (depErr) return NextResponse.json({ error: "delete_failed" }, { status: 500 })
-  const posts = deps ?? []
-  const published = posts.filter((p) => (p as { published_at: string | null }).published_at).length
+  type DepRow = { id: string; published_at: string | null; external_post_id: string | null; approved_at: string | null; status: string | null }
+  const posts = (deps ?? []) as DepRow[]
+  const published = posts.filter((p) => p.published_at).length
 
-  if (posts.length > 0) {
+  // ── WHAT MAY GO WITH THE SOURCE, AND WHAT MAY NEVER ───────────────────────────────────────
+  // This route used to refuse on ANY dependent post, which made the trash icon unusable for the
+  // commonest mistake there is: uploading the wrong file. Opening a new upload in the editor
+  // creates a draft post (created_via 'edit_initial') within seconds, and from that moment the
+  // source could not be deleted — while the refusal's own hint said to "delete those posts first",
+  // an action the library offers no way to perform. The video became permanent by accident.
+  //
+  // THIS IS NOT A CASCADE, and the database still forbids one: the foreign key remains ON DELETE
+  // RESTRICT, exactly as 20261009000002 made it. Nothing is destroyed implicitly. A plain draft is
+  // deleted by this route EXPLICITLY, counted in the refusal the operator confirms, and only when
+  // every dependent is such a draft.
+  //
+  // A row is removable ONLY if all four hold. Each one is a different way of being real work:
+  //   • not published      — a published row is the only record something reached the platform
+  //   • no external_post_id — it reached a platform even if published_at was never written back
+  //   • not approved        — approval is a deliberate act, not a by-product of opening an editor
+  //   • status 'draft'      — 'ready' means a render exists; that is work, not a stray row
+  // Anything else blocks, and the refusal names what blocked it. The protection this file exists
+  // for is unchanged: a master with published history, approved posts or renders still cannot be
+  // deleted here at all.
+  const blocking = posts.filter(
+    (p) => p.published_at || p.external_post_id || p.approved_at || (p.status ?? "") !== "draft",
+  )
+  const removableDrafts = posts.filter((p) => !blocking.includes(p))
+
+  if (blocking.length > 0) {
     return NextResponse.json({
       error: "source_has_dependents",
-      detail: `This source video is used by ${posts.length} post${posts.length === 1 ? "" : "s"}${published ? `, ${published} of which ${published === 1 ? "is" : "are"} published` : ""}.`,
-      counts: { posts: posts.length, published },
-      hint: "Delete or re-point those posts first. Published posts are historical records and are never deleted automatically.",
+      detail: `This source video is used by ${blocking.length} post${blocking.length === 1 ? "" : "s"} that cannot be removed with it${published ? `, ${published} of which ${published === 1 ? "is" : "are"} published` : ""}.`,
+      counts: { posts: posts.length, published, blocking: blocking.length, drafts: removableDrafts.length },
+      hint: "Published, approved and rendered posts are kept. Re-point or handle those posts first; unpublished drafts can be removed with the source.",
     }, { status: 409 })
   }
 
@@ -272,8 +298,12 @@ export async function DELETE(req: NextRequest, ctx: { params: Promise<{ id: stri
   if (body.confirm !== "delete-source-video") {
     return NextResponse.json({
       error: "confirmation_required",
-      detail: "Original source videos are protected. Deleting one requires explicit confirmation.",
-      counts: { posts: 0, published: 0 },
+      // The draft count is reported so the confirmation names everything it covers. It used to be
+      // hardcoded to zero, which was true only while any dependent at all was a hard refusal.
+      detail: removableDrafts.length > 0
+        ? `Original source videos are protected. This one also has ${removableDrafts.length} unpublished draft${removableDrafts.length === 1 ? "" : "s"}, which will be removed with it.`
+        : "Original source videos are protected. Deleting one requires explicit confirmation.",
+      counts: { posts: posts.length, published: 0, blocking: 0, drafts: removableDrafts.length },
       hint: 'Resend with {"confirm":"delete-source-video"}. An Archive Source option is planned so originals need not be destroyed at all.',
     }, { status: 409 })
   }
@@ -324,6 +354,29 @@ export async function DELETE(req: NextRequest, ctx: { params: Promise<{ id: stri
   //
   // The row delete stays on the RLS client — least privilege, and RLS re-checks ownership at the
   // moment of the write rather than trusting the read above.
+  // THE DRAFTS FIRST, or the foreign key refuses the row below — which is the point of leaving it
+  // RESTRICT. Done after the journal, so a failure here is recorded rather than silent, and on the
+  // RLS client so ownership is re-checked at the moment of the write.
+  if (removableDrafts.length > 0) {
+    const { error: draftErr } = await supabase
+      .from("social_posts")
+      .delete()
+      .in("id", removableDrafts.map((p) => p.id))
+      .is("published_at", null)
+      .is("external_post_id", null)
+      .is("approved_at", null)
+      .eq("status", "draft")
+    // The filters are repeated on the write, not trusted from the read: a post approved between
+    // the count and now must survive, and then RESTRICT stops the source delete below.
+    if (draftErr) {
+      await mark({ status: "aborted", failure_reason: `draft_delete_failed: ${draftErr.message}` })
+      return NextResponse.json({
+        error: "delete_failed",
+        detail: "The unpublished drafts could not be removed, so nothing was deleted. Your video is untouched.",
+      }, { status: 500 })
+    }
+  }
+
   const { error: delErr } = await supabase.from("social_content").delete().eq("id", id)
   if (delErr) {
     // RESTRICT may still fire here if a post was created between the count above and now — the
@@ -360,5 +413,5 @@ export async function DELETE(req: NextRequest, ctx: { params: Promise<{ id: stri
     }
   }
   await mark({ status: "completed", file_removed_at: new Date().toISOString() })
-  return NextResponse.json({ ok: true, journalId })
+  return NextResponse.json({ ok: true, journalId, removedDrafts: removableDrafts.length })
 }
