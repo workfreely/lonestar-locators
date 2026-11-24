@@ -127,7 +127,13 @@ export type CreateBufferPostInput = {
    * field — a TikTok post is a video and Buffer infers it from the asset.
    */
   postType: "reel" | "post" | "story" | null
-  /** Instagram only: whether a Reel is also pushed to the main feed. */
+  /**
+   * Instagram only: whether a Reel is also pushed to the main feed.
+   *
+   * OPTIONAL HERE, REQUIRED ON THE WIRE. Buffer's InstagramPostMetadataInput declares it
+   * `Boolean!`, so omitting it is a GraphQL validation error rather than a default — see the
+   * note in createBufferPost. A caller that does not care gets the right value for its surface.
+   */
   shouldShareToFeed?: boolean
   /** Declared on both networks when the content is AI-assisted. */
   isAiGenerated?: boolean
@@ -160,8 +166,28 @@ export async function createBufferPost(
   input: CreateBufferPostInput,
 ): Promise<CreatedBufferPost> {
   const metadata: Record<string, unknown> = {}
-  if (input.postType) metadata.type = input.postType
-  if (input.shouldShareToFeed !== undefined) metadata.shouldShareToFeed = input.shouldShareToFeed
+  // ── BOTH OF INSTAGRAM'S REQUIRED FIELDS, ALWAYS ─────────────────────────────────────────
+  // Buffer's InstagramPostMetadataInput declares exactly two non-null fields:
+  //
+  //     shouldShareToFeed: Boolean!      type: PostType!
+  //
+  // shouldShareToFeed used to be sent only when the caller passed one, and no caller ever did —
+  // so every Buffer-routed INSTAGRAM post was rejected before it reached the network, with
+  // `Expected value of type "InstagramPostMetadataInput" to include required field
+  // "shouldShareToFeed"`. It went unseen because until today the only Buffer traffic was TikTok,
+  // whose metadata input has no required field at all. The first Instagram Reel to come through
+  // failed on it.
+  //
+  // THE DEFAULT IS PER SURFACE, not a constant. A Reel shared to the feed is Instagram's own
+  // default and is what the native Graph path already produces, so the two transports agree. A
+  // Story is not a feed post and cannot be shared to one, so it declares false. An explicit value
+  // from the caller still wins.
+  if (input.postType) {
+    metadata.type = input.postType
+    metadata.shouldShareToFeed = input.shouldShareToFeed ?? input.postType !== "story"
+  } else if (input.shouldShareToFeed !== undefined) {
+    metadata.shouldShareToFeed = input.shouldShareToFeed
+  }
   if (input.isAiGenerated !== undefined) metadata.isAiGenerated = input.isAiGenerated
 
   const data = await gql(apiKey, CREATE_POST, {

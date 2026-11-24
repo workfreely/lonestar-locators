@@ -160,6 +160,30 @@ ok("…and tiktok_story cannot reach the check anyway, being uncarried",
 ok("the refusal message for an unswitched route names the tradeoff being accepted",
   /Buffer, not we, chooses the TikTok privacy level/.test(BUFFER_REFUSAL_MESSAGE.route_not_enabled))
 
+// ── BUFFER'S TWO REQUIRED INSTAGRAM FIELDS ───────────────────────────────────────────────────
+// InstagramPostMetadataInput declares shouldShareToFeed: Boolean! and type: PostType!. The client
+// used to send shouldShareToFeed only when a caller passed one, and no caller ever did, so every
+// Buffer-routed Instagram post was rejected by GraphQL validation before it reached the network.
+// Invisible while the only Buffer traffic was TikTok, whose metadata input has no required field;
+// the first Instagram Reel through the route failed on it in production on 24 Nov 2026.
+{
+  const client = read("lib/social/buffer.ts")
+  ok("shouldShareToFeed is sent whenever a PostType is sent, not only when a caller asks",
+    /if \(input\.postType\) \{[\s\S]{0,200}metadata\.shouldShareToFeed = input\.shouldShareToFeed \?\? input\.postType !== "story"/.test(client))
+  ok("…and it is never sent for TikTok, whose input has no such field",
+    /\} else if \(input\.shouldShareToFeed !== undefined\)/.test(client))
+  ok("the requirement is recorded where the code is, so it cannot be dropped again",
+    /shouldShareToFeed: Boolean!/.test(client) && /type: PostType!/.test(client))
+  // The per-surface default, evaluated rather than matched: a Reel goes to the feed as Instagram
+  // itself defaults and as the native Graph path already produces; a Story cannot.
+  const shareFor = (postType: string | null, override?: boolean) =>
+    postType ? (override ?? postType !== "story") : undefined
+  ok("a Reel shares to the feed", shareFor("reel") === true)
+  ok("a Story does not", shareFor("story") === false)
+  ok("an explicit value from the caller still wins", shareFor("reel", false) === false)
+  ok("TikTok sends nothing", shareFor(null) === undefined)
+}
+
 ok("instagram_reel maps to Buffer's `reel` PostType", bufferPostTypeFor("instagram_reel") === "reel")
 ok("tiktok_video sends no PostType — Buffer's TikTok metadata has no type field",
   bufferPostTypeFor("tiktok_video") === null)
