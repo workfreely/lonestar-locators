@@ -4,7 +4,7 @@ export const dynamic = "force-dynamic"
 import { NextResponse, type NextRequest } from "next/server"
 import { supabaseAdmin } from "@/lib/supabase/admin"
 import { shouldHoldForReview, publishHoldEnabled, publishHoldDecision } from "@/lib/social/publishHold"
-import { isAgentOwnedPost } from "@/lib/social/agentIdentity"
+import { isAgentOwnedPost, effectiveAgent } from "@/lib/social/agentIdentity"
 import { readAutoPosting, isEligibleAfterResume, isWithinLatenessWindow } from "@/lib/social/autoPosting"
 import { DESTINATIONS, isSocialDestination } from "@/lib/social/destinations"
 import { renderRefusalFor, REFUSAL_MESSAGE, type RenderIdentityState } from "@/lib/social/renderAuthorization"
@@ -332,7 +332,7 @@ async function run(req: NextRequest) {
   const nowIso = new Date().toISOString()
   const { data: due, error: dueErr } = await supabaseAdmin
     .from("social_posts")
-    .select("id, destination, platform, status, scheduled_at, approved_at, needs_review_at, render_status, rendered_storage_path, caption, hashtags, social_special, source_content_id, overlay_template, connection_id, tiktok_privacy_level, tiktok_allowed_interactions, tiktok_disclosure, source:source_content_id(market, property_type, special, budget_range, amenities, available_to_agents), destination_connection:connection_id(agent_user_id, owner_user_id), render:render_id(identity_state, identity_owner_user_id)")
+    .select("id, destination, platform, status, scheduled_at, approved_at, needs_review_at, render_status, rendered_storage_path, caption, hashtags, social_special, source_content_id, overlay_template, connection_id, tiktok_privacy_level, tiktok_allowed_interactions, tiktok_disclosure, source:source_content_id(market, property_type, special, budget_range, amenities, available_to_agents, personal_agent_user_id), destination_connection:connection_id(agent_user_id, owner_user_id), render:render_id(identity_state, identity_owner_user_id)")
     .eq("destination", "tiktok_video")
     .eq("status", "scheduled")
     .lte("scheduled_at", nowIso)
@@ -368,7 +368,12 @@ async function run(req: NextRequest) {
       const holdDecision = publishHoldDecision({
         isAgentOwned: isAgentOwnedPost(row as { connection_id?: string | null }, rowConn),
         needsReviewAt: row.needs_review_at as string | null,
+        // WHOSE PERSONAL VIDEO IT IS, so the withdrawal rule cannot read an ASSIGNMENT as a
+        // withdrawal. An assigned personal video is stored as available_to_agents = false plus a
+        // named person; without these two fields that false held the agent's own video forever.
         availableToAgents: (rowSrc?.available_to_agents as boolean | null | undefined) ?? undefined,
+        personalAgentUserId: (rowSrc?.personal_agent_user_id as string | null | undefined) ?? null,
+        agentUserId: effectiveAgent(rowConn ?? {}),
       })
       if (holdDecision.hold) {
         result.heldForReview++
@@ -435,7 +440,12 @@ async function run(req: NextRequest) {
           identityState: (rowRender?.identity_state as RenderIdentityState | null) ?? null,
           identityOwnerUserId: (rowRender?.identity_owner_user_id as string | null) ?? null,
         },
-        source: { availableToAgents: (rowSrc?.available_to_agents as boolean | null) ?? null },
+        // See the Instagram sibling: an assigned personal video needs its owner named here,
+        // or the identity rule refuses it at the only account it is allowed to reach.
+        source: {
+          availableToAgents: (rowSrc?.available_to_agents as boolean | null) ?? null,
+          personalAgentUserId: (rowSrc?.personal_agent_user_id as string | null) ?? null,
+        },
         destination: { connectionId: (row.connection_id as string | null) ?? null, ...(rowConn ?? {}) },
       })
       if (identityRefusal) {

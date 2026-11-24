@@ -1,3 +1,4 @@
+import { assignedTo } from "@/lib/social/personalOwnership"
 /**
  * THE PUBLISH HOLD — one switch, OFF by default.
  *
@@ -64,6 +65,23 @@ export type AgentHoldInput = {
   needsReviewAt?: string | null
   /** social_content.available_to_agents for this post's master, read at publish time. */
   availableToAgents?: boolean | null
+  /**
+   * social_content.personal_agent_user_id — WHOSE personal video this is, and the two fields
+   * below it are what keep the withdrawal rule from reading an ASSIGNMENT as a withdrawal.
+   *
+   * An assigned personal video necessarily carries available_to_agents = false: that is how the
+   * three states are stored (false + a uuid is "that person's personal video", see
+   * lib/social/personalOwnership.ts). The withdrawal rule predates that column and read the false
+   * as "the admin un-shared this", so an agent's own personal video — her debut, the one post that
+   * gates every other post on her account — was held forever, with a reason telling the operator
+   * to make it available to agents again, which is exactly what he must not do.
+   *
+   * Optional: a caller that does not pass them gets precisely the old behaviour, and no row in the
+   * library today names anybody.
+   */
+  personalAgentUserId?: string | null
+  /** The DESTINATION's effective agent (agent_user_id falling back to owner_user_id). */
+  agentUserId?: string | null
 }
 
 export type HoldDecision =
@@ -88,7 +106,11 @@ export function publishHoldDecision(input: AgentHoldInput, env: NodeJS.ProcessEn
   // precisely is what lets the agent tell "ask the admin" from "re-approve it yourself".
   // `undefined` means the caller did not read it; only an explicit false withholds, so a caller
   // that cannot resolve the master does not silently block every agent post.
-  if (input.availableToAgents === false) return { hold: true, reason: "withdrawn_from_agents" }
+  // ASSIGNED TO THIS VERY PERSON ⇒ NOT WITHDRAWN. Narrow by construction: assignedTo is false for
+  // every unassigned row, so the rule below behaves identically for the whole existing library,
+  // and it can only ever excuse the false on a row that names THIS destination's own agent.
+  const belongsHere = assignedTo({ personalAgentUserId: input.personalAgentUserId }, input.agentUserId)
+  if (!belongsHere && input.availableToAgents === false) return { hold: true, reason: "withdrawn_from_agents" }
   if (input.needsReviewAt) return { hold: true, reason: "needs_review" }
   return { hold: false }
 }

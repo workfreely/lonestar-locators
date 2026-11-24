@@ -2,7 +2,7 @@ export const runtime = "nodejs"
 export const dynamic = "force-dynamic"
 
 import { shouldHoldForReview, publishHoldEnabled, publishHoldDecision } from "@/lib/social/publishHold"
-import { isAgentOwnedPost } from "@/lib/social/agentIdentity"
+import { isAgentOwnedPost, effectiveAgent } from "@/lib/social/agentIdentity"
 import { NextResponse, type NextRequest } from "next/server"
 import { supabaseAdmin } from "@/lib/supabase/admin"
 import { instagramConfigured, createReelContainer, createStoryContainer } from "@/lib/social/instagram"
@@ -246,7 +246,7 @@ async function run(req: NextRequest) {
   // ── 1) SELECT due posts ────────────────────────────────────────────────────────────────────
   const { data: due, error: dueErr } = await supabaseAdmin
     .from("social_posts")
-    .select("id, destination, follows_post_id, needs_review_at, needs_review_reason, owner_user_id, connection_id, scheduled_at, approved_at, caption, hashtags, social_special, overlay_template, cover_thumb_offset_ms, cover_storage_path, render_status, rendered_storage_path, render_version, source_content_id, source:source_content_id(market, property_type, special, budget_range, amenities, available_to_agents), destination_connection:connection_id(agent_user_id, owner_user_id), render:render_id(identity_state, identity_owner_user_id)")
+    .select("id, destination, follows_post_id, needs_review_at, needs_review_reason, owner_user_id, connection_id, scheduled_at, approved_at, caption, hashtags, social_special, overlay_template, cover_thumb_offset_ms, cover_storage_path, render_status, rendered_storage_path, render_version, source_content_id, source:source_content_id(market, property_type, special, budget_range, amenities, available_to_agents, personal_agent_user_id), destination_connection:connection_id(agent_user_id, owner_user_id), render:render_id(identity_state, identity_owner_user_id)")
     .eq("platform", "instagram")
     .eq("status", "scheduled")
     .lte("scheduled_at", now)
@@ -307,7 +307,12 @@ async function run(req: NextRequest) {
       const holdDecision = publishHoldDecision({
         isAgentOwned: isAgentOwnedPost(row as { connection_id?: string | null }, rowConn),
         needsReviewAt: row.needs_review_at as string | null,
+        // WHOSE PERSONAL VIDEO IT IS, so the withdrawal rule cannot read an ASSIGNMENT as a
+        // withdrawal. An assigned personal video is stored as available_to_agents = false plus a
+        // named person; without these two fields that false held the agent's own video forever.
         availableToAgents: (rowSrc?.available_to_agents as boolean | null | undefined) ?? undefined,
+        personalAgentUserId: (rowSrc?.personal_agent_user_id as string | null | undefined) ?? null,
+        agentUserId: effectiveAgent(rowConn ?? {}),
       })
       if (holdDecision.hold) {
         result.heldForReview++
@@ -416,7 +421,13 @@ async function run(req: NextRequest) {
           identityState: (rowRender?.identity_state as RenderIdentityState | null) ?? null,
           identityOwnerUserId: (rowRender?.identity_owner_user_id as string | null) ?? null,
         },
-        source: { availableToAgents: (rowSrc?.available_to_agents as boolean | null) ?? null },
+        // personalAgentUserId travels here too: the identity rule reads a bare false as
+        // "Personal — Only Me, keep it off agents' accounts", which is the wrong reading for a
+        // video assigned to THIS destination's own agent. The Buffer sibling already passes it.
+        source: {
+          availableToAgents: (rowSrc?.available_to_agents as boolean | null) ?? null,
+          personalAgentUserId: (rowSrc?.personal_agent_user_id as string | null) ?? null,
+        },
         destination: { connectionId: (row.connection_id as string | null) ?? null, ...(rowConn ?? {}) },
       })
       if (identityRefusal) {

@@ -7,7 +7,7 @@
 // Run: npx tsx scripts/social/publishHold.test.ts
 import { readFileSync } from "node:fs"
 import path from "node:path"
-import { publishHoldEnabled, shouldHoldForReview, PUBLISH_HOLD_FLAG } from "@/lib/social/publishHold"
+import { publishHoldEnabled, shouldHoldForReview, publishHoldDecision, PUBLISH_HOLD_FLAG } from "@/lib/social/publishHold"
 
 let pass = 0, fail = 0
 const ok = (l: string, c: boolean) => { if (c) { pass++; console.log(`  ✓ ${l}`) } else { fail++; console.log(`  ✗ ${l}`) } }
@@ -94,6 +94,79 @@ ok("the admin route delegates to that shared implementation",
   /renderPostToStorage/.test(read("app/api/admin/social-autopilot/posts/[id]/render/route.ts")))
 ok("and so does the queue worker",
   /renderPostToStorage/.test(read("app/api/admin/social-autopilot/render-jobs/run/route.ts")))
+
+// ── AN ASSIGNED PERSONAL VIDEO IS NOT A WITHDRAWN ONE ────────────────────────────────────────
+//
+// The three ownership states are stored across TWO columns, and the middle and last share a
+// value: available_to_agents = false means "the operator's personal video" when nobody is named
+// and "that person's personal video" when somebody is. The agent withdrawal rule predates the
+// second column and read the false on its own, so an agent's OWN personal video was held with
+// `withdrawn_from_agents` — and the hold is unconditional, with no flag to turn it off.
+//
+// It was Lisette's debut. A debut gates every other post on its account, so one unreadable column
+// took her whole account offline, and the refusal told the operator to make the video available to
+// agents again — the one thing that would un-assign it.
+const HER = "27d7bde4-00f0-433c-b32b-b243623ad20a"
+const HIM = "c567c077-d3f4-4532-8807-a54795f753f5"
+
+console.log("\nan assigned personal video, at the account it is assigned to:")
+ok("is NOT withdrawn, even though available_to_agents is false",
+  publishHoldDecision({ isAgentOwned: true, availableToAgents: false, personalAgentUserId: HER, agentUserId: HER }, env()).hold === false)
+ok("…and the same row at somebody else's agent account IS withdrawn",
+  publishHoldDecision({ isAgentOwned: true, availableToAgents: false, personalAgentUserId: HER, agentUserId: HIM }, env()) .hold === true)
+
+console.log("\nnothing else about the rule moved:")
+ok("an UNASSIGNED un-shared video is still withdrawn from an agent",
+  publishHoldDecision({ isAgentOwned: true, availableToAgents: false, personalAgentUserId: null, agentUserId: HER }, env()).hold === true)
+ok("…and names that as the reason, not review",
+  publishHoldDecision({ isAgentOwned: true, availableToAgents: false, agentUserId: HER }, env()).hold === true)
+ok("a shared video is not withdrawn",
+  publishHoldDecision({ isAgentOwned: true, availableToAgents: true, agentUserId: HER }, env()).hold === false)
+ok("an unread availability does not withhold",
+  publishHoldDecision({ isAgentOwned: true, agentUserId: HER }, env()).hold === false)
+ok("the review flag still holds an agent row unconditionally, flag off",
+  publishHoldDecision({ isAgentOwned: true, availableToAgents: false, personalAgentUserId: HER, agentUserId: HER, needsReviewAt: FLAGGED }, env()).hold === true)
+ok("…and an ADMIN row is still governed only by the flag",
+  publishHoldDecision({ isAgentOwned: false, availableToAgents: false, needsReviewAt: FLAGGED }, env()).hold === false
+  && publishHoldDecision({ isAgentOwned: false, availableToAgents: false, needsReviewAt: FLAGGED }, env("true")).hold === true)
+ok("the withdrawal reason is only ever reached by a row that names nobody here",
+  (publishHoldDecision({ isAgentOwned: true, availableToAgents: false, agentUserId: HER }, env()) as { reason?: string }).reason === "withdrawn_from_agents")
+
+// ── AND EVERY CALLER PASSES IT ───────────────────────────────────────────────────────────────
+// A correct rule reached through four call sites that do not feed it the assignment is still the
+// old bug. Each publish path is checked for both fields.
+console.log("\nevery publish path feeds the rule the assignment:")
+for (const [label, file] of [
+  ["the Buffer worker", "app/api/cron/social-buffer-publish/route.ts"],
+  ["the Instagram worker", "app/api/cron/social-instagram-publish/route.ts"],
+  ["the TikTok worker", "app/api/cron/social-tiktok-publish/route.ts"],
+  ["the manual Publish button", "app/api/admin/social-autopilot/posts/[id]/publish/route.ts"],
+] as const) {
+  const src = read(file)
+  const call = src.split("publishHoldDecision({")[1]?.split("})")[0] ?? ""
+  ok(`${label} passes personalAgentUserId`, /personalAgentUserId:/.test(call))
+  ok(`${label} passes the destination's own agent`, /agentUserId: effectiveAgent\(/.test(call))
+}
+
+// ── AND THE TRIGGER BEHIND THE FLAG ──────────────────────────────────────────────────────────
+// The database writes needs_review_at, so the rule above is only half the story. The trigger used
+// to stamp it on a post's FIRST render, which is not a re-render: there was no earlier artifact to
+// invalidate. Applied as 20261124000000_agent_review_not_on_first_render.sql.
+console.log("\nthe trigger does not call a first render a re-render:")
+const TRIGGER = read("supabase/migrations/20261124000000_agent_review_not_on_first_render.sql")
+ok("it decides from the row's PREVIOUS artifact, not the new one",
+  /v_had_render := old\.rendered_storage_path is not null or coalesce\(old\.render_version, 0\) > 0/.test(TRIGGER))
+ok("a first render yields no reason at all",
+  /then case when v_had_render then 'The video was re-rendered after you approved it\.' else null end/.test(TRIGGER))
+ok("caption and hashtag changes are still judged before the render, so they are unaffected",
+  TRIGGER.indexOf("new.caption  is distinct from old.caption") < TRIGGER.indexOf("v_had_render then"))
+ok("a genuine re-render still clears the approval",
+  /new\.approved_at := null/.test(TRIGGER))
+ok("admin rows still return before any of it",
+  /if v_is_agent is not true then\s*\n\s*return new;/.test(TRIGGER))
+ok("the migration refuses to commit unless both halves took effect",
+  /raise exception 'first-render review flags remain/.test(TRIGGER)
+  && /raise exception 'the trigger function was not replaced'/.test(TRIGGER))
 
 console.log(`\nPublish hold: ${pass} passed, ${fail} failed`)
 process.exit(fail === 0 ? 0 : 1)

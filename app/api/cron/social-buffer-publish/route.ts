@@ -409,20 +409,6 @@ async function run(req: NextRequest) {
       const rowSrc = joinedOne(row.source)
       const rowRender = joinedOne(row.render)
 
-      const holdDecision = publishHoldDecision({
-        isAgentOwned: isAgentOwnedPost(row as { connection_id?: string | null }, rowConn),
-        needsReviewAt: row.needs_review_at as string | null,
-        availableToAgents: (rowSrc?.available_to_agents as boolean | null | undefined) ?? undefined,
-      })
-      if (holdDecision.hold) {
-        result.heldForReview++
-        result.heldReasons.push({ id: postId, reason: holdDecision.reason })
-        continue
-      }
-      if (shouldHoldForReview(row.needs_review_at as string | null) && publishHoldEnabled()) {
-        result.heldForReview++
-        continue
-      }
       if (!isEligibleAfterResume(row.scheduled_at as string | null, settings)) {
         result.missedWhilePaused++
         continue
@@ -437,6 +423,50 @@ async function run(req: NextRequest) {
       }
       if (row.render_status !== "ready" || !row.rendered_storage_path) {
         result.skippedNoRender++
+        continue
+      }
+
+      // ── WHOSE VIDEO IS THIS, AND IS IT STILL ALLOWED HERE? ───────────────────────────────
+      // ONE read, used by the review hold, the first-video hold, the market waiver and the
+      // identity refusal. It used to sit further down, after the destination was resolved, and the
+      // review hold above it read available_to_agents off the due select's join instead — two
+      // reads of one row, which can disagree about a video edited in between. scripts/social/
+      // personalOwnership.test.ts asserts there is only this one.
+      //
+      // It is read HERE, after approval and the render check and still BEFORE the destination is
+      // resolved, for two reasons: an unapproved or unrendered post costs no extra query, and
+      // resolving a destination can FAIL a post for being misconfigured — which must not happen to
+      // a post that was going to be held anyway, because a hold keeps the slot and a failure burns
+      // it. Fails CLOSED: an unreadable answer holds the post, because reading a failure as "no
+      // restriction" would release the protection on exactly the run that could not see it.
+      const destinationIdentity = { connectionId: (row.connection_id as string | null) ?? null, ...(rowConn ?? {}) }
+      const sourceContentId = (row.source_content_id as string | null) ?? null
+      const owned = await ownerships.get(sourceContentId)
+      if (!owned.ok) {
+        console.warn("[buffer-worker]", postId, owned.reason)
+        result.skippedOwnershipUnreadable++
+        continue
+      }
+      const ownership = owned.ownership
+
+      const holdDecision = publishHoldDecision({
+        isAgentOwned: isAgentOwnedPost(row as { connection_id?: string | null }, rowConn),
+        needsReviewAt: row.needs_review_at as string | null,
+        // WHOSE PERSONAL VIDEO IT IS, so the withdrawal rule cannot read an ASSIGNMENT as a
+        // withdrawal. An assigned personal video is stored as available_to_agents = false plus a
+        // named person, and without the assignment that false held the agent's own video for ever
+        // — her debut included, which is the one post that gates every other post on her account.
+        availableToAgents: ownership.availableToAgents ?? undefined,
+        personalAgentUserId: ownership.personalAgentUserId ?? null,
+        agentUserId: effectiveAgent(rowConn ?? {}),
+      })
+      if (holdDecision.hold) {
+        result.heldForReview++
+        result.heldReasons.push({ id: postId, reason: holdDecision.reason })
+        continue
+      }
+      if (shouldHoldForReview(row.needs_review_at as string | null) && publishHoldEnabled()) {
+        result.heldForReview++
         continue
       }
 
@@ -480,16 +510,6 @@ async function run(req: NextRequest) {
       // refused for having none. Both reads fail CLOSED — an unreadable answer holds the post,
       // because both features RESTRICT and reading a failure as "no restriction" would release
       // the protection on exactly the run that could not see it.
-      const destinationIdentity = { connectionId: (row.connection_id as string | null) ?? null, ...(rowConn ?? {}) }
-      const sourceContentId = (row.source_content_id as string | null) ?? null
-      const owned = await ownerships.get(sourceContentId)
-      if (!owned.ok) {
-        console.warn("[buffer-worker]", postId, owned.reason)
-        result.skippedOwnershipUnreadable++
-        continue
-      }
-      const ownership = owned.ownership
-
       // THE FIRST VIDEO. A hold, never a failure: the row keeps its slot and publishes as soon as
       // the debut has landed on every one of this account's destinations. Asked of the
       // DESTINATION's effective agent, so it is this account's own first video that is waited for.

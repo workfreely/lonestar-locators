@@ -1,7 +1,7 @@
 export const runtime = "nodejs"
 
 import { publishHoldDecision } from "@/lib/social/publishHold"
-import { isAgentOwnedPost } from "@/lib/social/agentIdentity"
+import { isAgentOwnedPost, effectiveAgent } from "@/lib/social/agentIdentity"
 
 /** PostgREST embeds a relation as an object or a one-element array; normalised here. */
 function joinedOne(v: unknown): Record<string, unknown> | null {
@@ -33,7 +33,7 @@ export async function POST(_req: NextRequest, ctx: { params: Promise<{ id: strin
   // Ownership is enforced by RLS (owner-scoped): the admin can only read their own post.
   const { data: post } = await supabase
     .from("social_posts")
-    .select("id, destination, approved_at, needs_review_at, needs_review_reason, status, render_status, rendered_storage_path, render_version, connection_id, caption, hashtags, external_post_id, platform, social_special, overlay_template, cover_thumb_offset_ms, cover_storage_path, source_content_id, source:source_content_id(market, property_type, special, budget_range, amenities, available_to_agents), destination_connection:connection_id(agent_user_id, owner_user_id)")
+    .select("id, destination, approved_at, needs_review_at, needs_review_reason, status, render_status, rendered_storage_path, render_version, connection_id, caption, hashtags, external_post_id, platform, social_special, overlay_template, cover_thumb_offset_ms, cover_storage_path, source_content_id, source:source_content_id(market, property_type, special, budget_range, amenities, available_to_agents, personal_agent_user_id), destination_connection:connection_id(agent_user_id, owner_user_id)")
     .eq("id", id)
     .maybeSingle()
   if (!post) return NextResponse.json({ error: "not_found" }, { status: 404 })
@@ -51,6 +51,11 @@ export async function POST(_req: NextRequest, ctx: { params: Promise<{ id: strin
     isAgentOwned: isAgentOwnedPost(post as { connection_id?: string | null }, pubConn),
     needsReviewAt: review.needs_review_at,
     availableToAgents: (pubSrc?.available_to_agents as boolean | null | undefined) ?? undefined,
+    // The same two fields the workers pass, for the same reason: an assigned personal video is
+    // stored as available_to_agents = false, and without the assignment this button would refuse
+    // the agent's own video and tell the operator to re-share it.
+    personalAgentUserId: (pubSrc?.personal_agent_user_id as string | null | undefined) ?? null,
+    agentUserId: effectiveAgent(pubConn ?? {}),
   })
   if (decision.hold) {
     const withdrawn = decision.reason === "withdrawn_from_agents"
