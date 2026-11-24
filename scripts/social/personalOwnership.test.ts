@@ -370,6 +370,37 @@ ok("the picker is hidden when there is nobody to assign to",
   /c\.raw\?\.personal && agents\.length > 0 &&/.test(CLIENT))
 ok("'Only me' is an option, so today's state is reachable in one click",
   /<option value="">Only me<\/option>/.test(CLIENT))
+// ── THE TWO LABELS, AND WHY THE PICKER HAS EXACTLY TWO ENTRIES ─────────────────────────────
+// The checkbox said "Personal — Only Me" while the picker beneath it also said "Only me", so the
+// same fact was stated twice and the checkbox appeared to settle a question the picker then asked
+// again. The checkbox now says only what it is; the picker owns who.
+ok("the checkbox reads 'Personal Video'",
+  /<span className="text-\[11px\] font-semibold text-\[var\(--crm-text-secondary\)\]">Personal Video<\/span>/.test(CLIENT))
+ok("…and no longer repeats 'Only Me', which the picker below it already says",
+  !/Personal — Only Me/.test(CLIENT))
+// THE ADMIN IS NOT AN ASSIGNABLE AGENT. His own destinations carry his user id as their agent, so
+// he arrived in the roster like anybody else and the picker offered "Only me" AND his name — two
+// spellings of one thing, enforced down different code paths. "Only me" is null and is the
+// default; the named duplicate is gone from BOTH the list and the validation, so the UI and the
+// API cannot disagree about who is valid.
+const CONTENT_LIST = (() => { try { return read("app/api/admin/social-autopilot/content/route.ts") } catch { return "" } })()
+const CONTENT_PATCH = (() => { try { return read("app/api/admin/social-autopilot/content/[id]/route.ts") } catch { return "" } })()
+ok("the picker's list excludes the signed-in admin",
+  /a\.id !== UNASSIGNED && a\.id !== userId && a\.connectionIds\.length > 0/.test(code(CONTENT_LIST)))
+ok("…and the PATCH validation excludes him too, by the same rule",
+  /a\.id !== UNASSIGNED && a\.id !== userId && a\.connectionIds\.length > 0/.test(code(CONTENT_PATCH)),
+  "a picker that hides an option the API still accepts is a difference waiting to be found")
+ok("…and assignment still requires connected destinations",
+  /connectionIds\.length > 0/.test(code(CONTENT_PATCH)))
+ok("the picker shows a first name, the idiom the Accounts page already uses",
+  /\{a\.name\.split\(" "\)\[0\] \|\| a\.name\}/.test(CLIENT))
+// Unchanged by the rename: the three states and the first-post hold.
+ok("'Only me' is still the default — the empty value",
+  /value=\{c\.raw\.personalAgentUserId \?\? ""\}/.test(CLIENT))
+ok("…the picker still appears only once Personal is checked",
+  /c\.raw\?\.personal && agents\.length > 0/.test(CLIENT))
+ok("…and 'Publish this first' still appears only once it belongs to somebody",
+  /c\.raw\.personalAgentUserId && \(/.test(CLIENT) && /Publish this first/.test(CLIENT))
 ok("the first-video toggle appears only once the video belongs to somebody",
   /c\.raw\.personalAgentUserId && \(/.test(CLIENT))
 ok("un-checking Personal clears the assignment",

@@ -47,9 +47,14 @@ export async function GET() {
   // WHO A VIDEO MAY BE ASSIGNED TO. The same roster the Accounts page uses, so the picker cannot
   // offer a person the destinations do not know about — and so an assignment target is validated
   // against real connections rather than being any uuid the client sends.
+  // THE ADMIN IS NOT ONE OF THE PEOPLE A VIDEO CAN BE ASSIGNED TO. His own accounts carry his user
+  // id as their agent, so he arrived in this roster like anybody else and the picker offered
+  // "Only me" AND "Jay Morris" — two options meaning one thing, with no way to tell which the
+  // enforcement would honour. "Only me" is how the operator says himself, and it is the default,
+  // so the named duplicate is removed rather than explained.
   const agents = ownershipReadable
     ? (await loadAgentRoster(supabase, null))
-        .filter((a) => a.id !== UNASSIGNED && a.connectionIds.length > 0)
+        .filter((a) => a.id !== UNASSIGNED && a.id !== userId && a.connectionIds.length > 0)
         .map((a) => ({ id: a.id, name: a.name, instagram: a.instagram, tiktok: a.tiktok }))
     : []
 

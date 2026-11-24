@@ -1641,7 +1641,7 @@ export default function SocialAutopilotClient() {
                         checked={c.raw.personal}
                         onChange={(e) => void setPersonal(c.raw!.id, e.target.checked)}
                       />
-                      <span className="text-[11px] font-semibold text-[var(--crm-text-secondary)]">Personal — Only Me</span>
+                      <span className="text-[11px] font-semibold text-[var(--crm-text-secondary)]">Personal Video</span>
                     </label>
                   )}
                   {/* WHOSE personal video — shown only when Personal is checked AND there is
@@ -1665,8 +1665,12 @@ export default function SocialAutopilotClient() {
                           onClick={(e) => e.stopPropagation()}
                         >
                           <option value="">Only me</option>
+                          {/* First name, the same idiom the Accounts page uses for "+ Add
+                              Lisette's Instagram". The full name is on the owner band above the
+                              cards, so repeating it in a two-item picker read as a form to fill
+                              rather than a choice between two people. */}
                           {agents.map((a) => (
-                            <option key={a.id} value={a.id}>{a.name}</option>
+                            <option key={a.id} value={a.id}>{a.name.split(" ")[0] || a.name}</option>
                           ))}
                         </select>
                       </label>
@@ -1934,7 +1938,7 @@ export default function SocialAutopilotClient() {
       {bulkKind && (
         <div className="fixed inset-0 z-[60] bg-black/50 flex items-center justify-center p-4" onClick={() => !bulkBusy && setBulkKind(null)}>
           <div className="w-full max-w-sm rounded-2xl border border-[var(--crm-border)] bg-[var(--crm-panel)] p-4" onClick={(e) => e.stopPropagation()}>
-            <div className="text-[15px] font-bold text-[var(--crm-text-primary)]">{bulkKind === "market" ? "Change Market" : bulkKind === "property" ? "Change Property" : "Personal — Only Me"}</div>
+            <div className="text-[15px] font-bold text-[var(--crm-text-primary)]">{bulkKind === "market" ? "Change Market" : bulkKind === "property" ? "Change Property" : "Personal Video"}</div>
             <div className="text-[11.5px] text-[var(--crm-text-muted)] mt-0.5 mb-3">
               Applies to {selected.size} selected {selected.size === 1 ? "video" : "videos"}.{" "}
               {bulkKind === "personal"
@@ -1944,7 +1948,7 @@ export default function SocialAutopilotClient() {
             {bulkKind === "personal" ? (
               <select className={inputCls} value={bulkValue} onChange={(e) => setBulkValue(e.target.value)}>
                 <option value="">Choose…</option>
-                <option value="personal">Personal — Only Me</option>
+                <option value="personal">Personal Video</option>
                 <option value="shared">Shared with eligible agents</option>
               </select>
             ) : bulkKind === "market" ? (

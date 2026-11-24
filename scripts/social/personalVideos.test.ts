@@ -1,4 +1,6 @@
-// THE PERSONAL CHECKBOX — "Personal — Only Me", over the EXISTING available_to_agents column.
+// THE PERSONAL CHECKBOX — "Personal Video", over the EXISTING available_to_agents column.
+// (It read "Personal — Only Me" until the Belongs-to picker arrived, at which point the "Only Me"
+// half moved into the picker as its default and the checkbox stopped being the place that said so.)
 //
 // There is no new column and no migration. The operator's checkbox and the enforcement column are
 // INVERSES of each other, and the inversion is the whole risk: get it backwards once and a video

@@ -43,7 +43,7 @@ const MAX_LEN: Partial<Record<(typeof EDITABLE)[number], number>> = { district: 
 export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
   const guard = await requirePlatformAdmin()
   if (!guard.ok) return guard.response
-  const { supabase } = guard
+  const { supabase, userId } = guard
 
   const { id } = await ctx.params
   if (!id) return NextResponse.json({ error: "id required" }, { status: 400 })
@@ -104,8 +104,11 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
     const named = [owner, debut].filter((v): v is string => typeof v === "string")
     if (named.length > 0) {
       const roster = await loadAgentRoster(supabase, null)
+      // Same exclusion the picker applies, for the same reason: the operator says himself with
+      // "Only me", which is null. Accepting his own id here would store a second spelling of that
+      // and leave two rows meaning the same thing enforced by different code paths.
       const assignable = new Set(
-        roster.filter((a) => a.id !== UNASSIGNED && a.connectionIds.length > 0).map((a) => a.id),
+        roster.filter((a) => a.id !== UNASSIGNED && a.id !== userId && a.connectionIds.length > 0).map((a) => a.id),
       )
       const unknown = named.filter((id) => !assignable.has(id))
       if (unknown.length > 0) {
