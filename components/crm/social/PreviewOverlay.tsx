@@ -13,9 +13,18 @@ import { OVERLAY_CANVAS, OVERLAY_LAYER, cssBlurRadiusForSigma, type OverlayBlock
 //
 // The white stroke is -webkit-text-stroke with paint-order: stroke fill, so the stroke is painted
 // UNDER the fill exactly as borderw is. Painted over it, a stroke eats into the glyph's own shape.
+//
+// EVERY LENGTH IS CANVAS-RELATIVE, like the font size above it. The treatment's numbers are
+// pixels of the 1080x1920 delivery canvas, and this element is rendered at whatever width the
+// editor gives it — a few hundred pixels inline, more in the lightbox. Writing `0.75px` here
+// would be three quarters of a SCREEN pixel at every preview size, which at a 300px-wide preview
+// is about 3.6x too heavy. `cqh` resolves against the container's height, which is the same
+// proportion the render uses, so the preview holds at any size.
+const cq = (px: number) => `${((px / OVERLAY_CANVAS.h) * 100).toFixed(4)}cqh`
+
 function depthShadow(): string {
-  const drop = `0 ${OVERLAY_LAYER.dropOffsetPx}px ${cssBlurRadiusForSigma(OVERLAY_LAYER.dropSigmaPx)}px rgba(0,0,0,${OVERLAY_LAYER.dropAlpha})`
-  const lift = `0 0 ${cssBlurRadiusForSigma(OVERLAY_LAYER.liftSigmaPx)}px rgba(0,0,0,${OVERLAY_LAYER.liftAlpha})`
+  const drop = `0 ${cq(OVERLAY_LAYER.dropOffsetPx)} ${cq(cssBlurRadiusForSigma(OVERLAY_LAYER.dropSigmaPx))} rgba(0,0,0,${OVERLAY_LAYER.dropAlpha})`
+  const lift = `0 0 ${cq(cssBlurRadiusForSigma(OVERLAY_LAYER.liftSigmaPx))} rgba(0,0,0,${OVERLAY_LAYER.liftAlpha})`
   return `${lift}, ${drop}`
 }
 
@@ -70,7 +79,7 @@ function blockStyle(b: OverlayBlock, weight: number, fontFamily: string): CSSPro
     letterSpacing: "0em",
     textShadow: depthShadow(),
     // The same 0.75px of white the render adds with borderw, under the fill rather than over it.
-    WebkitTextStroke: `${OVERLAY_LAYER.strokePx}px #ffffff`,
+    WebkitTextStroke: `${cq(OVERLAY_LAYER.strokePx)} #ffffff`,
     paintOrder: "stroke fill",
     whiteSpace: "pre",
   }

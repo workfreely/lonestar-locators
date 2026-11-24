@@ -122,7 +122,14 @@ console.log("\nthe editor preview reads the renderer's numbers, not its own:")
 const PV = read("components/crm/social/PreviewOverlay.tsx")
 ok("it imports OVERLAY_LAYER", /OVERLAY_LAYER/.test(PV))
 ok("the stroke is the same 0.75px, painted under the fill as borderw is",
-  /WebkitTextStroke: `\$\{OVERLAY_LAYER\.strokePx\}px #ffffff`/.test(PV) && /paintOrder: "stroke fill"/.test(PV))
+  /WebkitTextStroke: `\$\{cq\(OVERLAY_LAYER\.strokePx\)\} #ffffff`/.test(PV) && /paintOrder: "stroke fill"/.test(PV))
+// Every length canvas-relative, like the font size. An absolute px stroke would be 0.75 SCREEN
+// pixels at any preview width — about 3.6x too heavy in a 300px-wide editor preview — which is
+// the preview/export mismatch this change exists to remove, reintroduced by a unit.
+ok("…and every length is cqh, not px, so the preview holds at any size",
+  /const cq = \(px: number\) => `\$\{\(\(px \/ OVERLAY_CANVAS\.h\) \* 100\)\.toFixed\(4\)\}cqh`/.test(PV)
+  && !/\$\{OVERLAY_LAYER\.dropOffsetPx\}px/.test(PV)
+  && !/cssBlurRadiusForSigma\(OVERLAY_LAYER\.dropSigmaPx\)\}px/.test(PV))
 ok("both shadows come from the same sigmas through one shared conversion",
   /cssBlurRadiusForSigma\(OVERLAY_LAYER\.dropSigmaPx\)/.test(PV) && /cssBlurRadiusForSigma\(OVERLAY_LAYER\.liftSigmaPx\)/.test(PV))
 ok("the preview-only blur that never existed in the export is no longer USED",
