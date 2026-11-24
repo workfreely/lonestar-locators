@@ -220,5 +220,29 @@ for (const [label, file] of [
 ok("the Buffer worker's budget is at least its own createPost timeout",
   Number(read("app/api/cron/social-buffer-publish/route.ts").match(/maxDuration = (\d+)/)?.[1] ?? 0) >= 60)
 
+// ── THE TRIGGER MUST NOT UNDO THE RELEASE ────────────────────────────────────────────────────
+// Copying the Reel's artifact at release looks, to social_posts_agent_review_on_change, exactly
+// like "the video was re-rendered after you approved it" — so on an agent-owned companion it
+// stamped needs_review_at and cleared the approved_at that releaseStoryForReel had just set, in
+// the same statement. The Story came out scheduled, flagged and unapprovable: it could never
+// publish. That is what happened to Lisette's debut Story, released for 20:26:47 and arriving
+// held. Applied as 20261124000001_agent_review_skips_companions.sql.
+console.log("\nthe review trigger leaves companions alone:")
+{
+  const SQL = read("supabase/migrations/20261124000001_agent_review_skips_companions.sql")
+  ok("a row with follows_post_id returns early", /if new\.follows_post_id is not null then\s*\n\s*return new;/.test(SQL))
+  ok("…before the approved-or-scheduled test, so a released Story is never reached",
+    SQL.indexOf("new.follows_post_id is not null") < SQL.indexOf("new.approved_at is null and new.status is distinct from"))
+  ok("an agent's own Reel still loses its approval when its content changes",
+    /new\.approved_at := null/.test(SQL) && /The video was re-rendered after you approved it\./.test(SQL))
+  ok("admin rows still return early as they always did", /if v_is_agent is not true then/.test(SQL))
+  ok("the first-render exemption from the earlier migration is carried forward, not dropped",
+    /v_had_render := old\.rendered_storage_path is not null/.test(SQL))
+  ok("it refuses to commit unless both halves took effect",
+    /raise exception 'companion Stories still blocked/.test(SQL) && /raise exception 'the trigger function was not replaced'/.test(SQL))
+  ok("the repair only touches companions whose Reel actually published",
+    /and r\.published_at is not null/.test(SQL))
+}
+
 console.log(`\nStory follow-up: ${pass} passed, ${fail} failed`)
 process.exit(fail === 0 ? 0 : 1)
