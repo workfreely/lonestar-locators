@@ -225,8 +225,23 @@ ok("the master switch is still rendered by its own component, above the list",
 // posts_per_day joined the TikTok select so the card can state a cadence. It is a READ: the
 // planner has always honoured the column for every provider — computeAutopilotPlan builds a rule
 // from each connection and takes its daily times from it — the page simply never selected it.
-ok("the TikTok read added a column and nothing else",
-  /\.select\("id, username, label, status, posting_paused, posts_per_day, token_expires_at, created_at, avatar_url, market_restriction, agent_user_id"\)/.test(PAGE))
+//
+// buffer_account_id and buffer_channel_id joined it for the same kind of reason, and are also
+// reads. The card has to know whether a destination publishes through Buffer, because a routed row
+// holds none of our tokens and its token_expires_at therefore says nothing about whether it can
+// publish. Without them both TikTok cards read "Reconnect Needed" while publishing perfectly well.
+// The list is pinned in full so a THIRD column cannot arrive unnoticed.
+ok("the TikTok read added only the two routing columns",
+  /\.select\("id, username, label, status, posting_paused, posts_per_day, token_expires_at, created_at, avatar_url, market_restriction, agent_user_id, buffer_account_id, buffer_channel_id"\)/.test(PAGE))
+ok("…and the Instagram read added exactly the same two, so the two cards agree",
+  /\.select\("id, username, status, label, posting_paused, posts_per_day, token_expires_at, created_at, agent_user_id, scopes, market_restriction, buffer_account_id, buffer_channel_id"\)/.test(PAGE))
+ok("…and neither select reads a credential",
+  !/token_secret_id|external_account_id|owner_user_id/.test(
+    (PAGE.match(/\.select\("id, username[^)]*\)/g) ?? []).join(" ")),
+  "these are display queries; a credential column in one would leak into the page's props")
+ok("…and routing is decided by the shared predicate, not re-derived here",
+  /isBufferRouted\(/.test(PAGE) && !/buffer_channel_id\s*!==\s*null/.test(PAGE),
+  "a second interpretation of the columns could disagree with where a post actually goes")
 ok("…and the planner really does read it per connection, for every provider",
   /postsPerDay: typeof c\.posts_per_day === "number" && c\.posts_per_day > 0/.test(code(read("lib/social/autopilotPlanRun.ts"))))
 ok("the agent filter still works and is still presentation-only",

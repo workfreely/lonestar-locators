@@ -90,12 +90,25 @@ ok("the publish worker's schedule is untouched",
 // tells you something changed without telling you what, so it gets bumped on sight — which is
 // how it ended up stale instead of informative. The list below makes an addition name itself.
 //
-// Every entry verified against the filesystem before this was rewritten: all eleven resolve to
+// Every entry verified against the filesystem before this was rewritten: all twelve resolve to
 // a real handler at app/<path>/route.ts, and each traces to a deliberate feature — auto-archive /
 // archive-monthly / trial-reminders (CRM automation), meta-insights-sync, followup-tick,
-// insights-refresh, the three social publish/poll workers, social-autopilot-plan, and
+// insights-refresh, the three native social publish/poll workers, social-autopilot-plan, and
 // social-instagram-token-refresh (60-day Instagram token renewal). vercel.json is NOT modified
 // by this suite.
+//
+// ADDED 23 Nov 2026: social-buffer-publish, the third publishing worker. It is the Buffer route's
+// own cron and it does NOT overlap the two native ones — all three ask isBufferRouted() about the
+// same row, so a post is claimable by exactly one of them (see lib/social/bufferRoute.ts). Its
+// presence here is a cron entry, not an activation: SOCIAL_BUFFER_AUTOPUBLISH_ENABLED is unset, so
+// every tick returns before reading a row. scripts/social/bufferPublish.test.ts asserts that.
+// social-render is the thirteenth. It drains the render queue that approving a video fills — work
+// that until now happened ONLY when a platform admin pressed a button, behind requirePlatformAdmin.
+// Automatic publishing cannot be automatic while the step before it is manual: the publish workers
+// require `rendered_storage_path is not null`, so an unrendered queue means nothing to send at
+// 07:30. It is the same drain as the admin route — same lb_claim_render_job, same
+// renderPostToStorage, same lb_finish_render_job — on a schedule, and it is gated by CRON_SECRET
+// like every other worker here.
 const EXPECTED_CRONS = [
   "/api/cron/archive-monthly-closed",
   "/api/cron/auto-archive-no-response",
@@ -103,9 +116,11 @@ const EXPECTED_CRONS = [
   "/api/cron/insights-refresh",
   "/api/cron/meta-insights-sync",
   "/api/cron/social-autopilot-plan",
+  "/api/cron/social-buffer-publish",
   "/api/cron/social-comment-poll",
   "/api/cron/social-instagram-publish",
   "/api/cron/social-instagram-token-refresh",
+  "/api/cron/social-render",
   "/api/cron/social-tiktok-publish",
   "/api/cron/trial-ending-reminders",
 ]

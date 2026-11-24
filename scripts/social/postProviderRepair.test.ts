@@ -269,24 +269,64 @@ console.log("\nTHE SIBLING WORKFLOW — what it is, and what blocks it:")
     /if \(row\.follows_post_id\)/.test(sibCode) && /spec\.provider === "tiktok"/.test(sibCode) && /spec\.surface !== "reel"/.test(sibCode))
   ok("it touches nothing on the Instagram original", !/update\(/.test(sibCode))
 
-  // IT HAS NO CALLER, and the module says why: its uniqueness index is not applied.
+  // IT NOW HAS ONE CALLER, AND THAT CALLER IS GATED SHUT.
+  //
+  // This block used to assert the module had NO caller at all. That claim has been replaced rather
+  // than relaxed: what it was really protecting is that nothing creates a sibling automatically
+  // while the uniqueness index is unapplied, because read-then-insert is not atomic and two
+  // overlapping runs would give one Instagram post two TikTok siblings. The protection is now the
+  // env gate, so that is what is asserted — and the caller count is still pinned, so a second,
+  // ungated caller cannot appear unnoticed.
+  //
+  // `git grep` deliberately, with --untracked: the previous version used plain `git grep`, which
+  // sees only tracked files and would therefore have reported "no callers" for a brand-new
+  // untracked module — passing while the claim it makes was false.
+  // Matched as a CALL — `name(` — not as a mention. The looser pattern also hit
+  // mirroredSchedule.ts, whose header explains why a sibling needs its own render; a module that
+  // names this one in prose is not a module that invokes it.
   const callers = execSync(
-    `git grep -l -E "ensureTikTokSibling|tiktokSiblingRowFrom|canCreateTikTokSibling" -- app lib components || true`,
-    { encoding: "utf8" }).trim().split("\n").filter(Boolean)
-  eq("nothing in app/, lib/ or components/ calls it except the module itself",
-    callers.filter((f) => f !== "lib/social/tiktokSibling.ts"), [])
+    `git grep -l --untracked -E "(ensureTikTokSibling|tiktokSiblingRowFrom|canCreateTikTokSibling)\\(" -- app lib components || true`,
+    { encoding: "utf8" }).trim().split("\n").filter(Boolean).sort()
+  eq("exactly one module outside tiktokSibling.ts calls it",
+    callers.filter((f) => f !== "lib/social/tiktokSibling.ts"), ["lib/social/siblingAutoCreate.ts"])
+  const auto = code(read("lib/social/siblingAutoCreate.ts"))
+  ok("that caller refuses before reading or writing anything unless its switch is set",
+    /if \(!report\.enabled\) \{/.test(auto) && /siblingAutoCreateEnabled\(\)/.test(auto))
+  // The switch and the cap live in their own module, with no `server-only`, so a test runner can
+  // import them and assert their semantics rather than matching this file's source text.
+  const gate = code(read("lib/social/siblingGate.ts"))
+  ok("…and the switch is strict-true, so a missing variable means no",
+    /SOCIAL_TIKTOK_SIBLING_AUTOCREATE \?\? ""\)\.trim\(\) === "true"/.test(gate))
+  ok("…and it is capped per run, so a long plan cannot fan out",
+    /MAX_SIBLINGS_PER_RUN = \d+/.test(gate) && /slice\(0, MAX_SIBLINGS_PER_RUN\)/.test(auto))
+  ok("it queues renders rather than rendering, so a plan run cannot become an ffmpeg session",
+    /enqueueRenderJobs\(/.test(auto) && !/ffmpeg|spawn|execFile/.test(auto))
   ok("the module states the blocker: its unique index is prepared and not applied",
     /PREPARED AND NOT APPLIED/.test(sib))
-  ok("…and that it must not be wired until the index exists",
-    /must not be wired to[\s\S]{0,12}an automatic trigger/.test(sib))
+  ok("…and names the switch that must stay unset until it is applied",
+    /SOCIAL_TIKTOK_SIBLING_AUTOCREATE/.test(sib))
 
-  // AND THE PREPARED INDEX CANNOT APPLY AS WRITTEN — production has four tiktok_video rows sharing
-  // one source_content_id (three of them published). This is the fact that decides the next step.
+  // THE OLD PREPARED INDEX IS UNRUNNABLE, AND IS NOW ALSO THE WRONG KEY. Production has four
+  // tiktok_video rows sharing one source_content_id (three published), so CREATE UNIQUE INDEX
+  // raises; and with a second agent, one creative legitimately has two TikTok posts. Both facts
+  // are asserted, because together they are why the replacement keys on the ORIGINAL POST.
   const idx = read("supabase/prepared/20261103000000_tiktok_sibling_unique.sql")
-  ok("the prepared index is unique on source_content_id for tiktok_video",
+  ok("the old prepared index is unique on source_content_id for tiktok_video",
     /unique index[\s\S]{0,160}\(source_content_id\)[\s\S]{0,120}destination = 'tiktok_video'/.test(idx))
   ok("…and does NOT exclude published rows, which is why it cannot be created today",
     !/published_at is null/.test(idx))
+  const newIdx = read("supabase/prepared/20261123000001_tiktok_sibling_of_post.sql")
+  ok("the replacement keys on the original post, not the creative",
+    /unique index[\s\S]{0,200}\(sibling_of_post_id\)[\s\S]{0,80}where sibling_of_post_id is not null/.test(newIdx))
+  ok("…is creatable against live data, because every historical row is NULL",
+    /every historical row has NULL|every historical row is NULL/.test(newIdx))
+  ok("…and does not reuse follows_post_id, which carries release semantics",
+    /NOT follows_post_id/.test(newIdx))
+  ok("the sibling row records which original it came from",
+    /sibling_of_post_id: originalId,/.test(sibCode))
+  ok("…and the existence check keys on that, so two agents can each have their own sibling",
+    /\.eq\("sibling_of_post_id", originalId\)/.test(sibCode)
+    && !/\.eq\("source_content_id", original\.source_content_id\)/.test(sibCode))
 }
 
 // ── 7. RELEASE SCOPE ─────────────────────────────────────────────────────────────────────────
@@ -352,7 +392,13 @@ console.log("\nRELEASE SCOPE:")
       ["scripts/social/manualTikTokDestination.test.ts", 5, "the diff range"],
       ["scripts/social/releaseIntegrationAudit.test.ts", 5, "the audited range"],
     ] as const) {
-      const removed = lines(`git diff --unified=0 ${BASELINE} -- ${f}`)
+      // PINNED TO THE RELEASE, like `changed` above. This line was left open-ended when that one
+      // was pinned, so it measured BASELINE against the WORKING TREE — the budgets below then
+      // reported on whatever came after the release instead of on the release they describe, and
+      // the next unrelated edit to one of these files failed the guard. The budgets themselves are
+      // unchanged and every file is still well inside its own: at the pinned range planRun removes
+      // 2 of its allowed 4, eligibility 1 of 3, the admin route 8 of 10.
+      const removed = lines(`git diff --unified=0 ${BASELINE} ${RELEASE} -- ${f}`)
         .filter((l) => l.startsWith("-") && !l.startsWith("---"))
       ok(`${f} removes at most the ${allowed} line(s) it replaces (${why})`, removed.length <= allowed,
         `removed ${removed.length}`)

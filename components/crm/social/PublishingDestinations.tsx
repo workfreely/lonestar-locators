@@ -54,6 +54,8 @@ export type Destination = {
    *  consult, so this chip cannot describe a different rule than the one being enforced. */
   marketRestriction: string[] | null
   expired: boolean
+  /** Publishes through Buffer, so `expired` above describes a credential it does not use. */
+  bufferRouted: boolean
   addedAt: string
   agentName: string | null // selected Locator Beast agent (display identity)
   agentPhotoUrl: string | null
@@ -94,6 +96,8 @@ export type TikTokConnection = {
   ownerName?: string | null
   ownerPhotoUrl?: string | null
   expired: boolean
+  /** Publishes through Buffer, so `expired` above describes a credential it does not use. */
+  bufferRouted: boolean
   addedAt: string | null
   /** Same meaning as the Instagram row's — the restriction is a property of the DESTINATION, not
    *  of the platform, so both rows read the same column through the same helper. */
@@ -513,7 +517,7 @@ export default function PublishingDestinations({
 
   // ── INSTAGRAM CARD ────────────────────────────────────────────────────────────────────────
   const instagramCard = (d: Destination, isOwner: boolean) => {
-    const state = connectionStatus({ status: d.status, expired: d.expired })
+    const state = connectionStatus({ status: d.status, expired: d.expired, bufferRouted: d.bufferRouted })
     const igMarket = marketChip(d.marketRestriction)
     const needsComments = !d.commentsScopeGranted || d.autoReply.state === "permission_needed"
     return card({
@@ -585,7 +589,7 @@ export default function PublishingDestinations({
 
   // ── TIKTOK CARD ───────────────────────────────────────────────────────────────────────────
   const tiktokCard = (t: TikTokConnection, isOwner: boolean) => {
-    const state = connectionStatus({ status: t.status ?? "connected", expired: t.expired })
+    const state = connectionStatus({ status: t.status ?? "connected", expired: t.expired, bufferRouted: t.bufferRouted })
     const ttMarket = marketChip(t.marketRestriction)
     return card({
       key: t.id,

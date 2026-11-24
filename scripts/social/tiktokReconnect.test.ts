@@ -46,9 +46,31 @@ ok("…and is never harder to reach than Disconnect",
   ttCard.indexOf('advancedRow("Re-authorize"') > 0
     && ttCard.indexOf('advancedRow("Re-authorize"') < ttCard.indexOf('advancedRow("Disconnect this account"'))
 ok("Disconnect is still offered beside it", /onClick=\{\(\) => tiktokDisconnect\(t\)\}>Disconnect<\/button>/.test(ttCard))
-ok("the Connected / Reconnect-needed STATUS is still driven by expiry (unchanged)",
-  /connectionStatus\(\{ status: t\.status \?\? "connected", expired: t\.expired \}\)/.test(ttCard)
-    && /input\.status === "error" \|\| input\.expired \? "reconnect_needed" : "connected"/.test(caps))
+// EXPIRY STILL DRIVES THE STATUS — for a destination that publishes with OUR token. It no longer
+// does for a Buffer-routed one, and that is a deliberate change rather than a loosening.
+//
+// A Buffer-routed row holds none of our credentials: sa_get_buffer_destination returns an api_key
+// and a channel id, with no token and no expiry anywhere in its signature. Its token_expires_at is
+// a leftover from however the account was first connected. Reading it as "Reconnect Needed" told
+// the operator to repair an account that publishes perfectly well — which is precisely what both
+// of Jay's TikTok cards would have said, their native tokens having expired on 2026-11-20, and
+// what Lisette's two would say from the day they were created, having never held a token at all.
+//
+// A Buffer channel that genuinely cannot publish says so through isDisconnected / isLocked, which
+// the worker checks per publish. So nothing stopped being watched; the watch moved to the thing
+// that actually reports.
+ok("the status is driven by expiry for a destination that uses our own token",
+  /input\.status === "error" \|\| \(input\.expired && !input\.bufferRouted\)/.test(caps))
+ok("…and expiry is ignored for a Buffer-routed destination, which holds no token of ours",
+  /bufferRouted/.test(caps) && /\(input\.expired && !input\.bufferRouted\)/.test(caps),
+  "a routed row's token_expires_at describes a credential it does not publish with")
+ok("…and the TikTok card passes the routing flag through, so the badge can act on it",
+  /connectionStatus\(\{ status: t\.status \?\? "connected", expired: t\.expired, bufferRouted: t\.bufferRouted \}\)/.test(ttCard))
+ok("…and a connection error is STILL reconnect-needed even when routed",
+  /input\.status === "error" \|\|/.test(caps),
+  "routing excuses a stale token, never a broken connection")
+ok("…and the reason is recorded where the next reader will be standing",
+  /holds none of our tokens|publishes with the Buffer key/i.test(caps))
 ok("Reconnect does NOT call disconnect first — it is a plain link, not a handler",
   !/tiktokDisconnect[\s\S]{0,120}TT_CONNECT/.test(ttCard)
     && (ttCard.match(/<a href=\{TT_CONNECT\}/g) ?? []).length === (ttCard.match(/TT_CONNECT/g) ?? []).length)

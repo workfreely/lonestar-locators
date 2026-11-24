@@ -2,6 +2,10 @@ import { NextResponse, type NextRequest } from "next/server"
 import { requirePlatformAdmin } from "@/lib/auth/requirePlatformAdmin"
 import { supabaseAdmin } from "@/lib/supabase/admin"
 import { buildSocialDisplayName } from "@/lib/social/displayName"
+import { loadAgentRoster, UNASSIGNED } from "@/lib/social/agentRoster"
+
+/** The same shape the content routes already use for a client-supplied id. */
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
 // PATCH /api/admin/social-autopilot/content/:id → edit internal metadata / display name.
 // DELETE → remove the source video (storage object + row). Platform-admin ONLY; RLS
@@ -73,6 +77,72 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
   // Personal. Only a real boolean is a decision.
   if ("personal" in body && typeof body.personal === "boolean") {
     patch.available_to_agents = !body.personal
+  }
+
+  // ── WHOSE PERSONAL VIDEO, AND WHOSE FIRST VIDEO ───────────────────────────────────────────
+  // Both columns arrive with a prepared migration, so both are written ONLY when the request
+  // actually names them. A call of today's shape — `{ personal: boolean }` and nothing else —
+  // touches neither, which is what keeps this route working before the migration and keeps the
+  // operator's existing checkbox behaving exactly as it does now.
+  //
+  // THE TARGET IS VALIDATED AGAINST THE ROSTER, not merely shaped like a uuid. An assignment is a
+  // restriction: a typo'd id would reserve a video for a person who does not exist, and nothing
+  // would ever publish it. Only someone who actually holds connected destinations may be named.
+  const wantsOwner = "personalAgentUserId" in body
+  const wantsDebut = "debutForAgentUserId" in body
+  if (wantsOwner || wantsDebut) {
+    const asTarget = (v: unknown): string | null | "invalid" => {
+      if (v === null) return null
+      if (typeof v !== "string" || !UUID_RE.test(v.trim())) return "invalid"
+      return v.trim()
+    }
+    const owner = wantsOwner ? asTarget(body.personalAgentUserId) : undefined
+    const debut = wantsDebut ? asTarget(body.debutForAgentUserId) : undefined
+    if (owner === "invalid" || debut === "invalid") {
+      return NextResponse.json({ error: "personalAgentUserId and debutForAgentUserId must be a uuid or null" }, { status: 400 })
+    }
+    const named = [owner, debut].filter((v): v is string => typeof v === "string")
+    if (named.length > 0) {
+      const roster = await loadAgentRoster(supabase, null)
+      const assignable = new Set(
+        roster.filter((a) => a.id !== UNASSIGNED && a.connectionIds.length > 0).map((a) => a.id),
+      )
+      const unknown = named.filter((id) => !assignable.has(id))
+      if (unknown.length > 0) {
+        return NextResponse.json({ error: "that person has no connected destinations to assign a video to" }, { status: 400 })
+      }
+    }
+    // ASSIGNING SOMEBODY IMPLIES PERSONAL. A row that is both shared with agents and reserved for
+    // one person is a contradiction, and leaving the existing column alone would create exactly
+    // that. Written here rather than demanded of the client, so the two cannot disagree.
+    if (owner !== undefined) {
+      patch.personal_agent_user_id = owner
+      if (owner !== null) patch.available_to_agents = false
+      // ── NO APARTMENT OVERLAY ON SOMEBODY'S PERSONAL VIDEO, UNLESS ASKED FOR ───────────────
+      // The upload route defaults every new source to overlay_mode 'generate', because a library
+      // that is overwhelmingly property tours wants the headline, the price band and the
+      // branding composited on. A personal video wants none of that: it is a person, and
+      // stamping "Starting at $1,450" over it is the specific thing being ruled out.
+      //
+      // Applied only when this call does NOT name an overlay mode, so "unless explicitly
+      // selected" is literally true — sending overlayMode in the same request wins, and the
+      // EDITABLE loop above has already written it. Only ever applied when ASSIGNING; clearing
+      // the owner leaves the mode alone rather than silently undoing a deliberate choice.
+      if (owner !== null && !("overlayMode" in body)) patch.overlay_mode = "existing"
+    }
+    if (debut !== undefined) patch.debut_for_agent_user_id = debut
+    // THE TWO MUST NAME THE SAME PERSON. The database constraint refuses an incoherent pair; this
+    // says so in a sentence instead of surfacing a constraint name. Evaluated against the row as
+    // it WILL be, so changing one of the two in a single call is checked against the other's new
+    // value rather than its old one.
+    const finalOwner = (patch.personal_agent_user_id ?? cur.personal_agent_user_id ?? null) as string | null
+    const finalDebut = (patch.debut_for_agent_user_id ?? cur.debut_for_agent_user_id ?? null) as string | null
+    if (finalOwner && finalDebut && finalOwner !== finalDebut) {
+      return NextResponse.json(
+        { error: "a video reserved for one person cannot be another person's first video — it could never publish there" },
+        { status: 400 },
+      )
+    }
   }
 
   // Prepared PUBLIC post (overlay/caption/hashtags) — SA-only overrides stored inside the

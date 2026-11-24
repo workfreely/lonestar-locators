@@ -47,11 +47,25 @@ const straight = /available_to_agents\s*=\s*(?!!)\s*(?:\(?\s*)?body\.personal/
 ok("bulk never assigns it un-negated", !straight.test(bulk), "a Personal video would be SHARED")
 ok("the single row never assigns it un-negated", !straight.test(one), "a Personal video would be SHARED")
 
-// Count the writers, so a third one cannot appear unnoticed.
-for (const [label, src] of [["bulk", bulk], ["single", one]] as const) {
+// Count the writers, so another one cannot appear unnoticed.
+//
+// The single-row route now has TWO, and the second is a different kind of statement: assigning a
+// video to a person writes `available_to_agents = false` as a LITERAL, because a video reserved
+// for one person cannot also be shared with every agent. It is not derived from body.personal and
+// cannot be, so the inversion risk this section exists for is untouched — which is asserted
+// below rather than taken on trust.
+for (const [label, src, expected] of [["bulk", bulk, 1], ["single", one, 2]] as const) {
   const writes = [...src.matchAll(/available_to_agents\s*=/g)].length
-  ok(`${label}: exactly ONE write of the column (${writes})`, writes === 1)
+  ok(`${label}: exactly ${expected} write(s) of the column (${writes})`, writes === expected)
 }
+ok("the single row's second write is a literal false, tied to assigning an owner",
+  /if \(owner !== null\) patch\.available_to_agents = false/.test(one))
+ok("…and no write of the column anywhere reads body.personal without negating it",
+  [...one.matchAll(/available_to_agents\s*=\s*([^\n;]+)/g)].every(
+    (m) => m[1].trim() === "!body.personal" || m[1].trim() === "false"),
+  [...one.matchAll(/available_to_agents\s*=\s*([^\n;]+)/g)].map((m) => m[1].trim()).join(" | "))
+ok("clearing the owner does NOT re-share the video — only assigning writes the column",
+  !/if \(owner === null\)[\s\S]{0,120}available_to_agents/.test(one))
 
 // ── 2. ONLY A REAL BOOLEAN IS A DECISION ──────────────────────────────────────────────────────
 console.log("\na missing or non-boolean key is not a decision:")

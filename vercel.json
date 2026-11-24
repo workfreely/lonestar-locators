@@ -25,11 +25,19 @@
       "schedule": "*/2 * * * *"
     },
     {
+      "path": "/api/cron/social-render",
+      "schedule": "*/5 * * * *"
+    },
+    {
       "path": "/api/cron/social-instagram-publish",
       "schedule": "*/5 * * * *"
     },
     {
       "path": "/api/cron/social-tiktok-publish",
+      "schedule": "*/5 * * * *"
+    },
+    {
+      "path": "/api/cron/social-buffer-publish",
       "schedule": "*/5 * * * *"
     },
     {

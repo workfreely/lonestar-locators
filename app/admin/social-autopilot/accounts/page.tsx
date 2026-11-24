@@ -11,6 +11,7 @@ import { readAutoPosting } from "@/lib/social/autoPosting"
 import { accountAutomationGate } from "@/lib/social/commentSafety"
 import { INSTAGRAM_COMMENTS_SCOPE } from "@/lib/social/commentScope"
 import { publishingCapability, autoReplyCapability, actionNeedsAttention, type AutoReplyAttention } from "@/lib/social/accountCapabilities"
+import { isBufferRouted } from "@/lib/social/bufferRoute"
 import { dmGate } from "@/lib/social/commentSendPolicy"
 import { parseMarketRestriction } from "@/lib/social/marketRestriction"
 
@@ -37,7 +38,7 @@ export default async function SocialAutopilotAccountsPage({ searchParams }: { se
     // `market_restriction` joins the safe display fields: it is this destination's permitted
     // market list (NULL = every market), which the operator has to be able to SEE — a Dallas-only
     // account that quietly stopped posting looks identical to a broken one otherwise.
-    .select("id, username, status, label, posting_paused, posts_per_day, token_expires_at, created_at, agent_user_id, scopes, market_restriction")
+    .select("id, username, status, label, posting_paused, posts_per_day, token_expires_at, created_at, agent_user_id, scopes, market_restriction, buffer_account_id, buffer_channel_id")
     .eq("provider", "instagram")
     .order("created_at", { ascending: true })
 
@@ -51,7 +52,7 @@ export default async function SocialAutopilotAccountsPage({ searchParams }: { se
   // same way the Instagram destinations are, so the two sections behave identically.
   const { data: ttRows } = await supabase
     .from("social_connections")
-    .select("id, username, label, status, posting_paused, posts_per_day, token_expires_at, created_at, avatar_url, market_restriction, agent_user_id")
+    .select("id, username, label, status, posting_paused, posts_per_day, token_expires_at, created_at, avatar_url, market_restriction, agent_user_id, buffer_account_id, buffer_channel_id")
     .eq("provider", "tiktok")
     .order("created_at", { ascending: true })
 
@@ -73,7 +74,7 @@ export default async function SocialAutopilotAccountsPage({ searchParams }: { se
     }
   }
 
-  type TtRow = { id: string; username: string | null; label: string | null; status: string; posting_paused: boolean | null; posts_per_day: number | null; token_expires_at: string | null; created_at: string; avatar_url: string | null; market_restriction: string[] | null; agent_user_id: string | null }
+  type TtRow = { id: string; username: string | null; label: string | null; status: string; posting_paused: boolean | null; posts_per_day: number | null; token_expires_at: string | null; created_at: string; avatar_url: string | null; market_restriction: string[] | null; agent_user_id: string | null; buffer_account_id: string | null; buffer_channel_id: string | null }
   const tiktoks: TikTokConnection[] = ((ttRows ?? []) as TtRow[]).map((r) => ({
     // The connection id addresses the connection-scoped backend actions (pause / resume / label /
     // disconnect) — the same ones the Instagram rows use. It is never displayed.
@@ -94,6 +95,11 @@ export default async function SocialAutopilotAccountsPage({ searchParams }: { se
     ownerName,
     ownerPhotoUrl,
     expired: !!r.token_expires_at && new Date(r.token_expires_at).getTime() < Date.now(),
+    // Routed through Buffer? Decided by isBufferRouted — the same predicate the planner and both
+    // publish workers use — so the badge cannot disagree with where a post actually goes. A routed
+    // destination publishes with the Buffer key and holds none of our tokens, so `expired` above
+    // describes a credential it does not use.
+    bufferRouted: isBufferRouted(r),
     addedAt: r.created_at,
     marketRestriction: parseMarketRestriction(r.market_restriction),
   }))
@@ -111,7 +117,7 @@ export default async function SocialAutopilotAccountsPage({ searchParams }: { se
 
   // Resolve the selected-agent display fields (photo + name) for every referenced agent, via the
   // admin-gated definer RPC — profiles' own-profile-only RLS blocks a direct cross-user read.
-  type ConnRow = { id: string; username: string | null; status: string; label: string | null; posting_paused: boolean | null; posts_per_day: number | null; token_expires_at: string | null; created_at: string; agent_user_id: string | null; scopes: string[] | null; market_restriction: string[] | null }
+  type ConnRow = { id: string; username: string | null; status: string; label: string | null; posting_paused: boolean | null; posts_per_day: number | null; token_expires_at: string | null; created_at: string; agent_user_id: string | null; scopes: string[] | null; market_restriction: string[] | null; buffer_account_id: string | null; buffer_channel_id: string | null }
   type InviteRow = { id: string; label: string | null; created_at: string; expires_at: string; agent_user_id: string | null }
   const conns = (connRows ?? []) as ConnRow[]
   const invites = (inviteRows ?? []) as InviteRow[]
@@ -260,12 +266,14 @@ export default async function SocialAutopilotAccountsPage({ searchParams }: { se
       addedAt: row.created_at,
       agentName: agent?.name ?? null,
       agentPhotoUrl: agent?.photoUrl ?? null,
+      bufferRouted: isBufferRouted(row),
       publishing: publishingCapability({
         connectionStatus: row.status,
         expired,
         destinationPaused: !!row.posting_paused,
         autoPosting: autoPosting.state,
         autoPostingUnreadable: autoPosting.unreadable,
+        bufferRouted: isBufferRouted(row),
       }),
       autoReply: autoReplyCapability(gate, attentionOf.get(row.id)),
       // Drives the Re-authorize Comments action. Derived from the granted scopes, never assumed.

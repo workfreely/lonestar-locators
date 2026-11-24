@@ -20,6 +20,8 @@ import { planRotation, rotatePool, type RotationCollision } from "@/lib/social/a
 import { ineligibleReason, type EligibilityInput, type Ineligible } from "@/lib/social/autopilotEligibility"
 import { renderRefusalFor, type RenderIdentityState } from "@/lib/social/renderAuthorization"
 import { parseMarketRestriction, isMarketAllowed } from "@/lib/social/marketRestriction"
+import { balancedMarketRequest, marketImbalance } from "@/lib/social/marketBalance"
+import { assignedTo } from "@/lib/social/personalOwnership"
 
 export type PoolPost = EligibilityInput & {
   id: string
@@ -36,6 +38,10 @@ export type PoolPost = EligibilityInput & {
   identityOwnerUserId?: string | null
   /** social_content.available_to_agents — the operator's sharing decision for the SOURCE. */
   availableToAgents?: boolean | null
+  /** social_content.personal_agent_user_id — WHOSE personal video this is, when it is assigned to
+   *  one person's accounts. Absent on every row that predates the column, which reads as
+   *  unassigned and is governed exactly as today. See lib/social/personalOwnership.ts. */
+  personalAgentUserId?: string | null
 }
 
 /**
@@ -107,6 +113,23 @@ export type AutopilotRule = {
    * it wrong still cannot publish the wrong market.
    */
   allowedMarkets: readonly string[] | null
+  /**
+   * WHILE SET, this destination may be offered ONLY this source content — its first video.
+   *
+   * Resolved by the caller rather than computed here, because "has the debut published on every
+   * one of this agent's destinations?" is a question about rows, and this module is pure. Null
+   * once it is satisfied, and null for every destination that never had one, so the pool is the
+   * same object it has always been. See lib/social/debutGate.ts.
+   */
+  debutContentId?: string | null
+  /**
+   * Ask for the LEAST-POSTED permitted market rather than the one the slot index names.
+   *
+   * OPT-IN, and absent means the parity rule this planner has always used — so a destination that
+   * does not set it takes the identical code path and produces the identical plan. See
+   * lib/social/marketBalance.ts for why parity drifts once one market runs dry.
+   */
+  balanceMarkets?: boolean
   marketRotationSeed: number | null
   /** social_connections.stagger_offset_minutes — null ⇒ derived. */
   staggerOffsetMinutes: number | null
@@ -331,7 +354,28 @@ export function planAutopilot(input: {
       // accounting as before. An unrestricted rule reuses the group's own map by identity, so it
       // is not merely equivalent to today's behaviour — it is the same object.
       const allowed = parseMarketRestriction(rule.allowedMarkets)
-      const marketPool = allowed ? pool.filter((p) => isMarketAllowed(allowed, p.market)) : pool
+      // ── THE FIRST VIDEO, NARROWING THE POOL BEFORE THE MARKET EVEN MATTERS ───────────────
+      // While a debut is outstanding this destination has exactly one thing it may be offered, so
+      // the earliest slot takes the debut rather than taking whatever the rotation preferred and
+      // leaving the first video for later. Null for every destination without one, which hands
+      // the SAME array object on to the market filter below.
+      const debutOnly = (rule.debutContentId ?? "").trim()
+      const debutPool = debutOnly ? pool.filter((p) => (p.sourceContentId ?? "").trim() === debutOnly) : pool
+      if (debutOnly && debutPool.length === 0) {
+        notes.push(`Destination ${rule.connectionId} is held for its first video (content ${debutOnly}), which is not in the eligible pool — render and approve it, or clear the designation. Every slot is left UNFILLED rather than publishing something ahead of it.`)
+      }
+      // ── THE MARKET RESTRICTION, WAIVED ONLY FOR THIS PERSON'S OWN PERSONAL VIDEO ──────────
+      // A personal video is a person, not a property, so it carries no market and a restricted
+      // destination would refuse it for having none — which would make "Lisette — Personal"
+      // unpublishable on the only accounts it is allowed to reach. The waiver is as narrow as it
+      // can be: the row must NAME somebody, and that somebody must be THIS destination's own
+      // effective agent. An unassigned row is never waived, so the restriction is unchanged for
+      // the whole existing library, and the identity refusal below still asks the same question
+      // independently rather than trusting the order of two checks.
+      const ruleAgent = rule.agentUserId ?? rule.ownerUserId ?? null
+      const marketPool = allowed
+        ? debutPool.filter((p) => isMarketAllowed(allowed, p.market) || assignedTo(p, ruleAgent))
+        : debutPool
 
       // ── CHECKPOINT 1 of 3: WHAT THIS DESTINATION'S AGENT MAY BE OFFERED ──────────────────
       // Asked here because this is already the place the pool narrows to one destination. A post
@@ -346,7 +390,7 @@ export function planAutopilot(input: {
       for (const p of marketPool) {
         const refusal = renderRefusalFor({
           render: { identityState: p.identityState ?? null, identityOwnerUserId: p.identityOwnerUserId ?? null },
-          source: { availableToAgents: p.availableToAgents ?? null },
+          source: { availableToAgents: p.availableToAgents ?? null, personalAgentUserId: p.personalAgentUserId ?? null },
           destination: { connectionId: rule.connectionId, agent_user_id: rule.agentUserId ?? null, owner_user_id: rule.ownerUserId ?? null },
         })
         if (refusal) identityRefused.add(p.id)
@@ -356,7 +400,7 @@ export function planAutopilot(input: {
       }
       const rulePool = identityRefused.size === 0 ? marketPool : marketPool.filter((p) => !identityRefused.has(p.id))
       let rulePostsByProperty = postsByProperty
-      if (allowed || identityRefused.size > 0) {
+      if (allowed || debutOnly || identityRefused.size > 0) {
         const m = new Map<string, PoolPost[]>()
         for (const p of rulePool) {
           const k = propertyKeyOf(p)
@@ -398,6 +442,10 @@ export function planAutopilot(input: {
       }
       // Which creative was last used for a property, so a recycle prefers a different one.
       const usedCreatives = new Map<string, Set<string>>()
+      // What this destination has PLACED per market, which is what balancedMarketRequest reads.
+      // Counted from pick.market — the market that actually went out — never from wantMarket,
+      // because a slot that fell forward posted the market it landed on, not the one it asked for.
+      const achievedMarkets = new Map<string, number>()
       let reuseRecorded = false
       let lastFilledDay: string | null = null, lastFreshDay: string | null = null
 
@@ -407,7 +455,14 @@ export function planAutopilot(input: {
           continue
         }
         const slotMs = Date.parse(input.wallClockToUtc(pl.dateKey, pl.minute, rule.timezone))
-        const wantMarket = order.length ? order[placements.indexOf(pl) % order.length] : null
+        // THE PARITY RULE STAYS THE DEFAULT. `balanceMarkets` replaces it with a choice made from
+        // what this destination has actually placed, which is the same answer whenever both
+        // markets have inventory and a different one only where parity would have drifted.
+        const wantMarket = order.length
+          ? (rule.balanceMarkets === true
+              ? balancedMarketRequest(order, achievedMarkets)
+              : order[placements.indexOf(pl) % order.length])
+          : null
         const marketOf = (k: string) => rulePostsByProperty.get(k)?.[0]?.market ?? null
 
         const fresh = orderedProps.filter((k) => !lastPosted.has(k))
@@ -447,7 +502,12 @@ export function planAutopilot(input: {
         // because "a restricted destination never carries another market" is the property this
         // feature exists to provide, and a property nobody can observe is one nobody notices
         // breaking. The slot is left unfilled and the count is reported; it must always be 0.
-        if (!isMarketAllowed(allowed, pick.market)) {
+        // THE SAME WAIVER AS THE POOL FILTER ABOVE. Without it this assertion fires on exactly
+        // the row the filter deliberately admitted — an assigned personal video, which carries no
+        // market — and reports a planner BUG for the one case that is correct. Recomputed from the
+        // row rather than carried down as a flag, so the two can only ever disagree if the row
+        // changed, which is what an invariant check is for.
+        if (!isMarketAllowed(allowed, pick.market) && !assignedTo(pick, ruleAgent)) {
           marketRestrictionViolations++
           unfilledSlots++
           continue
@@ -471,6 +531,8 @@ export function planAutopilot(input: {
           marketFallbacks.push({ connectionId: rule.connectionId, dateKey: pl.dateKey, minute: pl.minute, requestedMarket: wantMarket, selectedMarket: pick.market, reason: fallbackReason })
         }
         lastPosted.set(key, slotMs)
+        const placedMarket = (pick.market ?? "").trim()
+        if (placedMarket) achievedMarkets.set(placedMarket, (achievedMarkets.get(placedMarket) ?? 0) + 1)
         placedOnDay.set(pl.dateKey, (placedOnDay.get(pl.dateKey) ?? 0) + 1)
         lastFilledDay = pl.dateKey
         planned.push({
@@ -482,6 +544,12 @@ export function planAutopilot(input: {
           propertyKey: key, isRecycled: recycled, lastPostedAt: prevMs === null ? null : new Date(prevMs).toISOString(),
           daysSinceLastPosted: days,
         })
+      }
+      if (rule.balanceMarkets === true && order.length > 1) {
+        const spread = marketImbalance(order, achievedMarkets)
+        if (spread > 1) {
+          notes.push(`Destination ${rule.connectionId} asked for a balanced ${order.join("/")} rotation but placed them ${order.map((m) => `${m} ${achievedMarkets.get(m) ?? 0}`).join(", ")} — a spread of ${spread}. The thinner market has no eligible inventory; balance returns on its own once it does.`)
+        }
       }
       const dayIndex = (d: string | null) => (d ? dayKeys.indexOf(d) + 1 : 0)
       groupDaysFilled = Math.max(groupDaysFilled, dayIndex(lastFilledDay))

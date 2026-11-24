@@ -63,6 +63,12 @@ type Item = {
   placeId: string | null
   /** social_content.available_to_agents, inverted by the API: true = mine only. */
   personal: boolean
+  /** social_content.personal_agent_user_id. Null on a Personal video means what it always has:
+   *  MINE. A uuid means the video is reserved for that person's accounts instead. */
+  personalAgentUserId: string | null
+  /** social_content.debut_for_agent_user_id — the one video that must publish first on that
+   *  person's accounts. Null for everything else, which is almost everything. */
+  debutForAgentUserId: string | null
   createdAt: string
   /** social_content.duration_s — null for anything uploaded before it was captured. */
   durationSeconds: number | null
@@ -625,6 +631,9 @@ export default function SocialAutopilotClient() {
   // Per-source lane facts, so Working can drop a property whose every creative is finished.
   const [sourceLane, setSourceLane] = useState<Record<string, DraftFacts[]>>({})
   const [editMenuFor, setEditMenuFor] = useState<string | null>(null) // source id whose picker is open
+  /** Who a video can be reserved for. Empty until the ownership migration is applied, which is
+   *  what hides the picker rather than showing a control whose saves would fail. */
+  const [agents, setAgents] = useState<{ id: string; name: string; instagram: number; tiktok: number }[]>([])
 
   const load = useCallback(async () => {
     setError(null)
@@ -635,8 +644,15 @@ export default function SocialAutopilotClient() {
         setItems([])
         return
       }
-      const json = (await res.json()) as { items?: Item[] }
+      const json = (await res.json()) as {
+        items?: Item[]
+        agents?: { id: string; name: string; instagram: number; tiktok: number }[]
+        ownershipReadable?: boolean
+      }
       setItems(Array.isArray(json.items) ? json.items : [])
+      // The API says whether the ownership columns were readable. An empty roster is the signal
+      // to keep the new controls hidden — a picker that cannot save is worse than no picker.
+      setAgents(json.ownershipReadable && Array.isArray(json.agents) ? json.agents : [])
     } catch {
       setError("Couldn't load the library.")
       setItems([])
@@ -928,12 +944,78 @@ export default function SocialAutopilotClient() {
       const res = await fetch(`/api/admin/social-autopilot/content/${encodeURIComponent(id)}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ personal }),
+        // Un-checking Personal CLEARS the owner: a video shared with every agent cannot also be
+        // reserved for one of them, and leaving the column set would create exactly that pair.
+        // Sent only when there is a roster — i.e. only when the column exists — so a call before
+        // the migration is byte-identical to the one this route has always received.
+        body: JSON.stringify(personal || agents.length === 0 ? { personal } : { personal, personalAgentUserId: null }),
       })
       if (!res.ok) throw new Error("save_failed")
     } catch {
       setItems((prev) => prev?.map((it) => (it.id === id ? { ...it, personal: !personal } : it)) ?? prev)
       setError("Couldn't save that change.")
+    }
+  }, [agents.length])
+
+  /**
+   * WHOSE personal video this is, saved on change.
+   *
+   * Null is "mine", which is what a Personal video with no owner has always meant — so choosing it
+   * returns the row to today's exact behaviour rather than to a third, new state.
+   *
+   * `personal: true` travels with it deliberately: a video reserved for somebody cannot also be
+   * shared with every agent, and sending both in one call means the server never has to infer one
+   * from the other. Clearing the owner leaves Personal checked; un-checking Personal is the
+   * separate action below, which clears the owner.
+   */
+  const setPersonalOwner = useCallback(async (id: string, agentId: string | null) => {
+    const prevRow = (prev: Item[] | null) => prev?.find((it) => it.id === id) ?? null
+    let previous: string | null = null
+    setItems((prev) => {
+      previous = prevRow(prev)?.personalAgentUserId ?? null
+      return prev?.map((it) => (it.id === id ? { ...it, personal: true, personalAgentUserId: agentId } : it)) ?? prev
+    })
+    setError(null)
+    try {
+      const res = await fetch(`/api/admin/social-autopilot/content/${encodeURIComponent(id)}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ personal: true, personalAgentUserId: agentId }),
+      })
+      if (!res.ok) throw new Error("save_failed")
+    } catch {
+      setItems((prev) => prev?.map((it) => (it.id === id ? { ...it, personalAgentUserId: previous } : it)) ?? prev)
+      setError("Couldn't save who that video belongs to.")
+    }
+  }, [])
+
+  /**
+   * DESIGNATE (or clear) this video as the first that must publish on that person's accounts.
+   *
+   * While it is set, that person's destinations are narrowed to this video and nothing else may
+   * publish there — so clearing it is also the operator's only override when one platform fails
+   * and they decide to proceed anyway.
+   */
+  const setDebut = useCallback(async (id: string, agentId: string | null) => {
+    let previous: string | null = null
+    setItems((prev) => {
+      previous = (prev?.find((it) => it.id === id)?.debutForAgentUserId) ?? null
+      return prev?.map((it) => (it.id === id ? { ...it, debutForAgentUserId: agentId } : it)) ?? prev
+    })
+    setError(null)
+    try {
+      const res = await fetch(`/api/admin/social-autopilot/content/${encodeURIComponent(id)}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ debutForAgentUserId: agentId }),
+      })
+      if (!res.ok) {
+        const j = (await res.json().catch(() => ({}))) as { error?: string }
+        throw new Error(j.error ?? "save_failed")
+      }
+    } catch (e) {
+      setItems((prev) => prev?.map((it) => (it.id === id ? { ...it, debutForAgentUserId: previous } : it)) ?? prev)
+      setError(e instanceof Error && e.message !== "save_failed" ? e.message : "Couldn't save the first-video setting.")
     }
   }, [])
 
@@ -1400,7 +1482,7 @@ export default function SocialAutopilotClient() {
       <div className="mb-3 flex items-center gap-1.5 flex-wrap" role="tablist" aria-label="Library view">
         {([
           ["working", "Working", workingCount, "Drafts, unrendered, rendering and render errors"],
-          ["personal", "Personal", personalCards.length, "Marked Personal — Only Me. Still in Working and still publishes on your own accounts"],
+          ["personal", "Personal", personalCards.length, "Marked Personal. Still in Working — yours publish on your own accounts, and one assigned to somebody publishes only on theirs"],
           ["rendered", "Rendered / Ready", renderedCards.length, "Finished videos — ready, scheduled and published"],
         ] as const).map(([id, label, count, hint]) => (
           <button
@@ -1561,6 +1643,53 @@ export default function SocialAutopilotClient() {
                       />
                       <span className="text-[11px] font-semibold text-[var(--crm-text-secondary)]">Personal — Only Me</span>
                     </label>
+                  )}
+                  {/* WHOSE personal video — shown only when Personal is checked AND there is
+                      somebody to assign to. Three states, in one control the operator already
+                      understands: unchecked above is general apartment content, checked with
+                      "Only me" is exactly what the checkbox has always meant, and checked with a
+                      name reserves the video for that person's accounts in both directions.
+
+                      Hidden entirely when the roster is empty, which is also how it behaves
+                      before the ownership migration — a picker whose saves would fail is worse
+                      than no picker. So nothing about the operator's existing library changes
+                      appearance until he has an agent with connected destinations. */}
+                  {c.raw?.personal && agents.length > 0 && (
+                    <div className="mt-1.5 flex flex-col gap-1.5 pl-5">
+                      <label className="flex items-center gap-1.5">
+                        <span className="text-[10.5px] text-[var(--crm-text-muted)]">Belongs to</span>
+                        <select
+                          className="text-[11px] font-semibold rounded-md border border-[var(--crm-border)] bg-[var(--crm-panel)] px-1.5 py-0.5 text-[var(--crm-text-primary)]"
+                          value={c.raw.personalAgentUserId ?? ""}
+                          onChange={(e) => void setPersonalOwner(c.raw!.id, e.target.value || null)}
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          <option value="">Only me</option>
+                          {agents.map((a) => (
+                            <option key={a.id} value={a.id}>{a.name}</option>
+                          ))}
+                        </select>
+                      </label>
+                      {/* FIRST VIDEO. Only offered once the video belongs to somebody, because
+                          that is the only case this has been built for: while it is set, that
+                          person's destinations publish nothing else. Clearing it is also the
+                          operator's override if one platform stays broken. */}
+                      {c.raw.personalAgentUserId && (
+                        <label className="flex items-center gap-1.5 cursor-pointer select-none"
+                          title="Nothing else publishes on their accounts until this video has gone out on all of them">
+                          <input
+                            type="checkbox"
+                            className="h-3.5 w-3.5 accent-[var(--crm-text-primary)] cursor-pointer"
+                            checked={c.raw.debutForAgentUserId === c.raw.personalAgentUserId}
+                            onChange={(e) => void setDebut(c.raw!.id, e.target.checked ? c.raw!.personalAgentUserId : null)}
+                            onClick={(ev) => ev.stopPropagation()}
+                          />
+                          <span className="text-[11px] font-semibold text-[var(--crm-text-secondary)]">
+                            Publish this first
+                          </span>
+                        </label>
+                      )}
+                    </div>
                   )}
                   {/* RENDERED/READY footer. Same card shell, same typography, same button class as
                       the Working footer below — only the labels and the destination differ. */}

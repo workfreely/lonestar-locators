@@ -15,6 +15,9 @@ import {
 } from "@/lib/social/autoPosting"
 import { DESTINATIONS, isSocialDestination, destinationFromLegacyPlatform } from "@/lib/social/destinations"
 import { parseMarketRestriction, marketRestrictionViolation } from "@/lib/social/marketRestriction"
+// THE PARTITION between this worker and social-buffer-publish. One predicate, asked by both, so
+// a post is claimable by exactly one of them and can never be published twice.
+import { isBufferRouted } from "@/lib/social/bufferRoute"
 import { renderRefusalFor, REFUSAL_MESSAGE, type RenderIdentityState } from "@/lib/social/renderAuthorization"
 
 /**
@@ -142,7 +145,7 @@ async function run(req: NextRequest) {
   const now = new Date().toISOString()
   // heldReasons says WHY each held post was held. A bare count cannot distinguish "the agent needs
   // to re-approve" from "the admin withdrew this video", and those need different actions.
-  const result = { reconciled: 0, published: 0, pending: 0, failed: 0, skippedNoRender: 0, skippedNotApproved: 0, claimed: 0, missedWhilePaused: 0, tooLate: 0, skippedDestinationPaused: 0, reconcileSkippedPaused: 0, skippedDestinationUnreadable: 0, blockedByMarketRestriction: 0, blockedByIdentity: 0, flaggedForReview: 0, heldForReview: 0, heldReasons: [] as { id: string; reason: string }[] }
+  const result = { reconciled: 0, published: 0, pending: 0, failed: 0, skippedNoRender: 0, skippedNotApproved: 0, claimed: 0, missedWhilePaused: 0, tooLate: 0, skippedDestinationPaused: 0, reconcileSkippedPaused: 0, skippedDestinationUnreadable: 0, skippedBufferRouted: 0, blockedByMarketRestriction: 0, blockedByIdentity: 0, flaggedForReview: 0, heldForReview: 0, heldReasons: [] as { id: string; reason: string }[] }
 
   // ── 0) RECONCILE unacknowledged publishes FIRST ────────────────────────────────────────────
   // Rows whose media_publish call was claimed but never acknowledged locally. These are the crash
@@ -199,6 +202,10 @@ async function run(req: NextRequest) {
       // say so. A guarantee nobody can observe is one nobody notices breaking.
       if (!dest.ok) {
         if (dest.kind === "paused") result.reconcileSkippedPaused++
+        // A Buffer-routed row's reconciliation belongs to social-buffer-publish, which has the
+        // Buffer post id and the key to ask about it. Counted rather than silently skipped so a
+        // misrouted row is visible in the run report.
+        if (dest.kind === "buffer_routed") result.skippedBufferRouted++
         continue
       }
       if (!r.ig_container_id) continue
@@ -360,6 +367,14 @@ async function run(req: NextRequest) {
           // failed, so the post publishes normally on the next run once the row reads again.
           console.warn("[ig-worker]", postId, dest.reason)
           result.skippedDestinationUnreadable++
+          continue
+        }
+        if (dest.kind === "buffer_routed") {
+          // NOT OURS. Untouched — no claim, no status change, still scheduled — so
+          // social-buffer-publish finds it exactly as it was. Falling through to fail() here
+          // would mark a healthy post needs_attention for the sole reason that it publishes
+          // through the other route.
+          result.skippedBufferRouted++
           continue
         }
         // A fault is worth a claim: moving it out of 'scheduled' is what makes it visible and
@@ -547,11 +562,35 @@ type DestinationResult =
   | { ok: false; kind: "unreadable"; reason: string }
   /** Disconnected, missing, or an unusable token — a real problem that must be surfaced. */
   | { ok: false; kind: "fault"; reason: string }
+  /** This destination publishes through Buffer, so it is social-buffer-publish's row and not
+   *  ours. Not a fault, not a pause: THIS worker simply does not own it. */
+  | { ok: false; kind: "buffer_routed" }
 
 /** Resolve the Instagram destination for one connection, server-side. The RPC is provider-scoped
  *  to Instagram, so a connection id pointing at any other provider resolves to nothing. */
 async function resolveDestination(connectionId: string | null): Promise<DestinationResult> {
   if (!connectionId) return { ok: false, kind: "fault", reason: "no publishing destination selected for this post" }
+
+  // ── IS THIS ROW OURS AT ALL? ──────────────────────────────────────────────────────────────
+  // Asked BEFORE the token RPC, and that order is the whole point. A Buffer-routed destination
+  // holds no Instagram OAuth token of ours and never will — Buffer holds the network credential —
+  // so its token_secret_id is null. sa_get_instagram_token_by_connection INNER JOINs
+  // vault.decrypted_secrets on that column, so it returns no row, and the code below would report
+  // "publishing destination not found (disconnected or removed)" and fail a perfectly healthy
+  // post. Asking first means a Buffer destination never has to have an Instagram token to be
+  // considered valid, which is exactly the property required of it.
+  //
+  // Unreadable is NOT treated as "ours": if we cannot tell who owns the row, neither worker should
+  // publish it, and leaving it untouched lets the next run decide with a clean read.
+  const { data: routing, error: routingErr } = await supabaseAdmin
+    .from("social_connections")
+    .select("buffer_account_id, buffer_channel_id")
+    .eq("id", connectionId)
+    .maybeSingle()
+  if (routingErr) {
+    return { ok: false, kind: "unreadable", reason: `could not read publishing route: ${routingErr.message.slice(0, 160)}` }
+  }
+  if (isBufferRouted(routing)) return { ok: false, kind: "buffer_routed" }
 
   const { data, error } = await supabaseAdmin.rpc("sa_get_instagram_token_by_connection", { p_connection_id: connectionId })
   if (error) return { ok: false, kind: "fault", reason: `could not read destination: ${error.message.slice(0, 200)}` }

@@ -148,19 +148,34 @@ async function main() {
     // was scheduled and never added here, so the guard has been reporting a difference rather than
     // protecting anything. Both missing entries are added WITH the reason each is allowed, and the
     // assertion below still proves independently that neither can publish to Instagram.
+    //
+    // ADDED 23 Nov 2026: social-buffer-publish. It needs a reason of a different KIND from the
+    // others, and that is worth being plain about rather than tucking into a trailing comment.
+    // Every other entry here is allowed because it cannot reach Instagram at all. The Buffer
+    // worker CAN reach Instagram — that is what it is for — so the old claim "this worker is the
+    // only cron that can publish to Instagram" simply stopped being true the moment it was
+    // scheduled. The assertion below is rewritten accordingly: it now states the property that is
+    // actually true and actually protective, which is about the ROUTE, not about exclusivity.
     const ALLOWED_SOCIAL_CRONS = [
-      "/api/cron/social-instagram-publish",        // the only route that may publish to Instagram
+      "/api/cron/social-instagram-publish",        // the only route that publishes to Instagram with OUR Graph token
       "/api/cron/social-tiktok-publish",           // publishes to TikTok only; cannot touch Instagram
+      "/api/cron/social-buffer-publish",           // may reach Instagram, but ONLY via Buffer and ONLY for Buffer-routed rows
       "/api/cron/social-autopilot-plan",           // schedules; cannot publish
       "/api/cron/social-comment-poll",             // reconciles comments; cannot publish
       "/api/cron/social-instagram-token-refresh",  // renews a credential; creates nothing, publishes nothing
+      "/api/cron/social-render",                   // renders queued jobs to storage; publishes nothing, reaches no network
     ]
     const socialCrons = vercel.crons.filter((c) => /social/.test(c.path))
-    ok("the social crons are exactly the three reviewed ones, and no others",
+    ok("the social crons are exactly the reviewed ones, and no others",
       socialCrons.length === ALLOWED_SOCIAL_CRONS.length
       && ALLOWED_SOCIAL_CRONS.every((p) => socialCrons.some((c) => c.path === p)),
       JSON.stringify(socialCrons.map((c) => c.path)))
-    ok("…and this worker is the ONLY cron that can publish to Instagram",
+
+    // THE PROPERTY THAT REPLACED EXCLUSIVITY. This worker is the only cron that calls Instagram's
+    // Graph API with an OAuth token of ours. That is what protects the existing accounts: a row
+    // with no Buffer mapping — which is every Instagram row in production — can be published by
+    // nothing else, because the Buffer worker refuses it before it ever reaches a network.
+    ok("this worker is the only cron that calls Instagram's Graph API with our own token",
       socialCrons
         .filter((c) => c.path !== "/api/cron/social-instagram-publish")
         .every((c) => {
@@ -172,6 +187,21 @@ async function main() {
           // Instagram rather than about a word appearing in the file.
           return !/createReelContainer|createStoryContainer|finalizeInstagramPublish|\/media_publish|graph\.facebook|graph\.instagram/.test(src)
         }))
+
+    // …AND THE PARTITION THAT KEEPS THE BUFFER WORKER OFF A NATIVE ROW. Without this, the two
+    // workers could both claim one post and publish it twice — once through Meta, once through
+    // Buffer — which is the one failure a per-row flag has to prevent.
+    const bufferWorker = read("app/api/cron/social-buffer-publish/route.ts")
+      .replace(/\/\/[^\n]*|\/\*[\s\S]*?\*\//g, "")
+    ok("the Buffer worker refuses any row that is not Buffer-routed",
+      /isBufferRouted/.test(bufferWorker))
+    ok("…and this worker refuses any row that IS Buffer-routed",
+      /isBufferRouted/.test(worker),
+      "both sides must ask the same question, or one post is claimable by two workers")
+    ok("…and the Buffer worker never calls Meta directly",
+      !/graph\.facebook|graph\.instagram|createReelContainer|finalizeInstagramPublish/.test(bufferWorker))
+    ok("…and holds no Instagram OAuth token of ours",
+      !/sa_get_instagram_token/.test(bufferWorker))
   }
 
   console.log("\nTHE AUTOPUBLISH LAUNCH GATE (deployed but disarmed):")

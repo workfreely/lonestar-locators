@@ -95,6 +95,28 @@ export function readSavedSettings(row: Record<string, unknown> | null | undefine
   return { privacyLevel, allowedInteractions, disclosure }
 }
 
+/**
+ * THE DISCLOSURE ALONE — the part of the creator's decision that a third-party publisher can
+ * actually carry.
+ *
+ * readSavedSettings above requires all three values because the NATIVE route transmits all three:
+ * it calls TikTok's Content Posting API itself and sets privacy_level and the interaction toggles
+ * on the request. A route that publishes through Buffer transmits exactly one of them — Buffer's
+ * TikTokPostMetadataInput has `title` and `isAiGenerated` and nothing else — so requiring the
+ * other two there would refuse posts without protecting anything, which is the worst kind of
+ * gate: it looks like a safeguard and enforces nothing.
+ *
+ * The disclosure is the one that is BOTH ours to honour and transmissible, and it is the one with
+ * a policy behind it: TikTok requires AI-generated and branded content to be disclosed. So that is
+ * what the Buffer route requires. Privacy and interactions fall to the channel's own TikTok
+ * defaults, which is a fact to state in the UI, not a value to pretend we set.
+ */
+export function readSavedDisclosure(row: Record<string, unknown> | null | undefined): TikTokDisclosure | null {
+  if (!row) return null
+  const disclosure = row.tiktok_disclosure
+  return isDisclosure(disclosure) ? disclosure : null
+}
+
 /** Are these settings complete enough to schedule? Same rule as readSavedSettings, named for the
  *  gate that asks it so the call site reads as the requirement. */
 export function hasCompleteTikTokSettings(row: Record<string, unknown> | null | undefined): boolean {

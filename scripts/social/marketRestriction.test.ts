@@ -312,13 +312,26 @@ console.log("\nWIRING — computeAutopilotPlan carries each destination's own re
   // REQUIRED, not optional. A rule built without it fails to compile rather than silently reading
   // as unrestricted — which is the only reason this field being forgotten stays cheap to notice.
   ok("AutopilotRule.allowedMarkets is a REQUIRED field", /\n\s*allowedMarkets: readonly string\[\] \| null\n/.test(PLANNER))
-  // Phase C inserted the identity filter beside this one, so the market narrowing now lands in
-  // `marketPool` and `rulePool` is what survives BOTH. The subject is unchanged: the pool is
-  // narrowed per rule, not per platform group, and an unrestricted rule still reuses the group's
-  // own array by identity.
+  // Phase C inserted the identity filter beside this one, so the market narrowing lands in
+  // `marketPool` and `rulePool` is what survives BOTH; the first-video hold then narrowed the
+  // input from `pool` to `debutPool`, and the personal-video waiver added a second clause to the
+  // predicate. The SUBJECT is unchanged and is what is asserted: the narrowing happens per RULE
+  // rather than per platform group, it reads this rule's own `allowed`, and `rulePool` is what
+  // survives both filters. The exact expression is deliberately no longer pinned — pinning it
+  // meant that adding the waiver, which the restriction's own design calls for, read as a
+  // regression in the restriction.
   ok("the planner filters the pool per RULE, not per platform group",
-    /marketPool\s*=\s*allowed\s*\?\s*pool\.filter\(\(p\)\s*=>\s*isMarketAllowed\(allowed, p\.market\)\)\s*:\s*pool/.test(PLANNER)
+    /marketPool\s*=\s*allowed[\s\S]{0,240}?isMarketAllowed\(allowed, p\.market\)/.test(PLANNER)
     && /rulePool\s*=\s*identityRefused\.size === 0\s*\?\s*marketPool\s*:/.test(PLANNER))
+  // AND THE WAIVER IS THE ONLY WAY PAST IT. Asserted positively, so a second, broader exemption
+  // cannot be added without this failing: the predicate may admit a row the restriction excludes
+  // only when that row is assigned to this very destination's agent.
+  ok("the one exemption is a video assigned to this destination's own agent",
+    /isMarketAllowed\(allowed, p\.market\) \|\| assignedTo\(p, ruleAgent\)/.test(PLANNER))
+  ok("…and ruleAgent is the destination's own agent, falling back to the owner",
+    /const ruleAgent = rule\.agentUserId \?\? rule\.ownerUserId \?\? null/.test(PLANNER))
+  ok("…and nothing else widens the candidate set",
+    (PLANNER.match(/isMarketAllowed\(allowed/g) ?? []).length === 2)
   // The ordering IS the guarantee: everything that selects reads the restricted map.
   for (const [what, re] of [
     ["the rotation order", /rotatePool\(\[\.\.\.rulePostsByProperty\.keys\(\)\]/],
@@ -330,7 +343,9 @@ console.log("\nWIRING — computeAutopilotPlan carries each destination's own re
   }
   ok("the unfilled branch is what an empty restricted pool reaches", /unfilledSlots\+\+;\s*continue/.test(PLANNER))
   ok("and the post-selection invariant is asserted inside the planner too",
-    /if \(!isMarketAllowed\(allowed, pick\.market\)\)/.test(PLANNER))
+    /if \(!isMarketAllowed\(allowed, pick\.market\) && !assignedTo\(pick, ruleAgent\)\)/.test(PLANNER))
+  ok("…and it honours the SAME waiver the filter does, so the correct case is not reported as a bug",
+    /!assignedTo\(pick, ruleAgent\)/.test(PLANNER) && /marketRestrictionViolations\+\+/.test(PLANNER))
 }
 
 // ── 4. ENFORCEMENT POINT TWO — BOTH PUBLISH WORKERS ───────────────────────────────────────────
@@ -377,11 +392,19 @@ for (const [name, src] of [["Instagram", IG_WORKER], ["TikTok", TT_WORKER]] as c
   ok("Instagram: the token RPC is unchanged — the restriction comes from a separate row read",
     /sa_get_instagram_token_by_connection/.test(IG_WORKER)
     && /from\("social_connections"\)[\s\S]{0,120}select\("market_restriction"\)/.test(IG_WORKER))
+  // The select now asks for the two Buffer routing columns alongside market_restriction — the same
+  // id-scoped read answers "what may this destination carry" and "is this row even ours", which
+  // keeps the partition between social-tiktok-publish and social-buffer-publish free of an extra
+  // query. So these two assertions match the PROPERTY (read per connection, from the connection
+  // row, keyed by id) rather than the exact column list, which is now allowed to grow. The
+  // behaviour they were written to protect is unchanged.
   ok("TikTok: reads the restriction per CONNECTION, so a second TikTok account needs no new path",
-    /from\("social_connections"\)[\s\S]{0,120}select\("market_restriction"\)/.test(TT_WORKER)
+    /from\("social_connections"\)[\s\S]{0,160}select\("market_restriction/.test(TT_WORKER)
     && /\.eq\("id", connectionId\)/.test(TT_WORKER))
+  ok("…and that read is still a plain row select, not a widening of the token RPC",
+    !/sa_get_tiktok_token[a-z_]*\([^)]*market_restriction/.test(TT_WORKER))
   ok("TikTok: a row with no connection id is unrestricted, which is how every TikTok post reads today",
-    /if \(!connectionId\) return \{ ok: true, restriction: null \}/.test(TT_WORKER))
+    /if \(!connectionId\) return \{ ok: true, restriction: null/.test(TT_WORKER))
 }
 
 // ── 5. THE MIGRATION ──────────────────────────────────────────────────────────────────────────

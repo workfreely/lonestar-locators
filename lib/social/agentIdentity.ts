@@ -43,6 +43,22 @@ export function isExternalAgentConnection(c: ConnectionIdentity | null | undefin
 }
 
 /**
+ * The destination's effective agent: whoever's audience actually sees the post.
+ *
+ * A connection with no agent_user_id is the OWNER's own account — that is the live TikTok row's
+ * shape, and reading a missing agent as "not the owner" would refuse every post the operator
+ * publishes there.
+ *
+ * DEFINED HERE, beside ConnectionIdentity and the classifier above, because two modules now need
+ * it: renderAuthorization (which re-exports it, so its own importers are unaffected) and
+ * personalOwnership. Importing it from renderAuthorization instead would make those two modules
+ * import each other.
+ */
+export function effectiveAgent(c: ConnectionIdentity | null | undefined): string | null {
+  return c?.agent_user_id ?? c?.owner_user_id ?? null
+}
+
+/**
  * Do the external-agent publishing safeguards apply to this post?
  *
  * Takes the post's JOINED connection, because a post alone cannot answer it — the distinction

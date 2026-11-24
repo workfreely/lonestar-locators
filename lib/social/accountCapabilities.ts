@@ -48,8 +48,17 @@ export function publishingCapability(input: {
   destinationPaused: boolean
   autoPosting: AutoPostingState
   autoPostingUnreadable?: boolean
+  /** True when this destination publishes through Buffer — both buffer columns present. */
+  bufferRouted?: boolean
 }): Capability {
-  if (input.connectionStatus === "error" || input.expired) {
+  // A BUFFER-ROUTED DESTINATION HOLDS NONE OF OUR TOKENS. Its publishing credential is the Buffer
+  // API key in Vault, and sa_get_buffer_destination returns no token and no expiry at all. So
+  // token_expires_at on such a row is a leftover from however it was first connected, and reading
+  // it as "reconnect needed" would tell the operator to fix an account that publishes perfectly
+  // well — which is exactly what both TikTok rows would have said, their native tokens having
+  // expired on 2026-11-20. A Buffer channel that genuinely cannot publish reports itself through
+  // isDisconnected / isLocked, which the worker already surfaces per publish.
+  if (input.connectionStatus === "error" || (input.expired && !input.bufferRouted)) {
     return {
       state: "attention",
       badge: "Reconnect needed",
@@ -290,8 +299,17 @@ export type ConnectionStatus = "connected" | "not_connected" | "reconnect_needed
  * wear the same pill. A row with no connection at all (an invitation that nobody has accepted) is
  * not passed here; it has no status to read and renders as not_connected.
  */
-export function connectionStatus(input: { status: string; expired: boolean }): ConnectionStatus {
-  return input.status === "error" || input.expired ? "reconnect_needed" : "connected"
+export function connectionStatus(input: {
+  status: string
+  expired: boolean
+  /** True when this destination publishes through Buffer — both buffer columns present. */
+  bufferRouted?: boolean
+}): ConnectionStatus {
+  // Expiry is only evidence of a problem for a destination that publishes with OUR token. See the
+  // note in publishingCapability: a Buffer-routed row does not, so its expiry says nothing.
+  return input.status === "error" || (input.expired && !input.bufferRouted)
+    ? "reconnect_needed"
+    : "connected"
 }
 
 export const CONNECTION_STATUS_LABEL: Record<ConnectionStatus, string> = {

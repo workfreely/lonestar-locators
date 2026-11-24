@@ -9,6 +9,9 @@ import { readAutoPosting, isEligibleAfterResume, isWithinLatenessWindow } from "
 import { DESTINATIONS, isSocialDestination } from "@/lib/social/destinations"
 import { renderRefusalFor, REFUSAL_MESSAGE, type RenderIdentityState } from "@/lib/social/renderAuthorization"
 import { parseMarketRestriction, marketRestrictionViolation } from "@/lib/social/marketRestriction"
+// THE PARTITION between this worker and social-buffer-publish. One predicate, asked by both, so
+// a post is claimable by exactly one of them and can never be published twice.
+import { isBufferRouted } from "@/lib/social/bufferRoute"
 import { tiktokConfigured, truncateToRunes } from "@/lib/social/tiktok"
 import { tiktokAutopublishEnabled } from "@/lib/social/tiktokGate"
 import {
@@ -146,6 +149,7 @@ async function run(req: NextRequest) {
     missingSettings: 0, settingsNoLongerValid: 0,
     notPublishableDestination: 0,
     blockedByMarketRestriction: 0, blockedByIdentity: 0, skippedDestinationUnreadable: 0,
+    skippedBufferRouted: 0,
     noDestinationToken: 0, destinationTokenUnusable: 0,
     skippedDestinationPaused: 0, reconcileSkippedPaused: 0,
     heldReasons: [] as { id: string; reason: string }[],
@@ -165,27 +169,38 @@ async function run(req: NextRequest) {
   // The owner-scoped entry point survives for the request-time routes and answers null — never a
   // guess — once two accounts exist. Cached for the run: MAX_PER_RUN is 3, and the value cannot
   // change mid-run in a way we would want to act on.
-  const restrictionCache = new Map<string, string[] | null>()
+  //
+  // THIS ALSO ANSWERS WHOSE ROW IT IS. The select already reads social_connections by id, so the
+  // two Buffer routing columns come back for free and the partition between this worker and
+  // social-buffer-publish costs no extra query. A Buffer-routed TikTok destination holds no TikTok
+  // OAuth token of ours — Buffer holds the network credential — so without this check the row
+  // would fall through to "destination has no usable token", be skipped untouched, and log that
+  // warning every five minutes for ever. Correct in its effect, wrong in its reason, and noisy.
+  const restrictionCache = new Map<string, { restriction: string[] | null; bufferRouted: boolean }>()
   const destinationRestriction = async (
     connectionId: string | null,
-  ): Promise<{ ok: true; restriction: string[] | null } | { ok: false; reason: string }> => {
+  ): Promise<{ ok: true; restriction: string[] | null; bufferRouted: boolean } | { ok: false; reason: string }> => {
     // A TikTok row with no connection id has no destination row to be restricted by, so this is
     // "unrestricted". That is still the shape of most TikTok posts, not because of how the token
     // resolves — it resolves per connection now — but because connection_id is assigned when a
     // post is scheduled or manually targeted, and an untargeted draft carries none.
-    if (!connectionId) return { ok: true, restriction: null }
-    if (restrictionCache.has(connectionId)) return { ok: true, restriction: restrictionCache.get(connectionId) ?? null }
+    if (!connectionId) return { ok: true, restriction: null, bufferRouted: false }
+    const hit = restrictionCache.get(connectionId)
+    if (hit) return { ok: true, ...hit }
     const { data, error } = await supabaseAdmin
       .from("social_connections")
-      .select("market_restriction")
+      .select("market_restriction, buffer_account_id, buffer_channel_id")
       .eq("id", connectionId)
       .maybeSingle()
     // FAIL CLOSED, non-destructively: the caller leaves the post untouched and still due rather
     // than publishing on an unknown restriction or failing it over a transient read.
     if (error) return { ok: false, reason: `could not read destination market restriction: ${error.message.slice(0, 160)}` }
-    const parsed = parseMarketRestriction((data as { market_restriction?: unknown } | null)?.market_restriction)
-    restrictionCache.set(connectionId, parsed)
-    return { ok: true, restriction: parsed }
+    const entry = {
+      restriction: parseMarketRestriction((data as { market_restriction?: unknown } | null)?.market_restriction),
+      bufferRouted: isBufferRouted(data),
+    }
+    restrictionCache.set(connectionId, entry)
+    return { ok: true, ...entry }
   }
 
   // ── THE TOKEN BELONGS TO THE DESTINATION, NOT TO THE OWNER ────────────────────────────────
@@ -246,6 +261,14 @@ async function run(req: NextRequest) {
     // into a cleared queue. The row keeps its claim and is swept on the first run after a resume,
     // which is also when the operator can act on it. Same choice the Instagram worker makes when a
     // paused account meets its reconcile sweep.
+    // A Buffer-routed row's reconciliation belongs to social-buffer-publish, which holds the
+    // Buffer post id and the key to ask about it. Asked before the token, which a Buffer
+    // destination does not have.
+    const strandedRoute = await destinationRestriction((r.connection_id as string | null) ?? null)
+    if (strandedRoute.ok && strandedRoute.bufferRouted) {
+      result.skippedBufferRouted++
+      continue
+    }
     const strandedTok = await tokenFor((r.connection_id as string | null) ?? null)
     if (strandedTok?.postingPaused) {
       result.reconcileSkippedPaused++
@@ -275,6 +298,12 @@ async function run(req: NextRequest) {
       // THIS ROW'S destination. A publish_id belongs to the account that created it, so asking
       // with another account's token is not merely wrong, it would report a stranger's post or
       // nothing at all. Unresolvable → left pending for the next run, never guessed at.
+      // Same partition check as the stranded sweep, and before the token for the same reason.
+      const pendingRoute = await destinationRestriction((r.connection_id as string | null) ?? null)
+      if (pendingRoute.ok && pendingRoute.bufferRouted) {
+        result.skippedBufferRouted++
+        continue
+      }
       const rowTok = await tokenFor((r.connection_id as string | null) ?? null)
       if (!rowTok) { result.pending++; continue }
       const status = await fetchTikTokPostStatus(rowTok.accessToken, String(r.external_post_id))
@@ -379,6 +408,14 @@ async function run(req: NextRequest) {
         console.warn("[tiktok-worker]", postId, restriction.reason)
         result.skippedDestinationUnreadable++
         continue // untouched: no claim, no status change, still scheduled
+      }
+      // NOT OURS. Untouched — no claim, no status change, still scheduled — so
+      // social-buffer-publish finds the row exactly as it was. Checked here, before the token
+      // resolution below, because that resolution would answer null for a Buffer-routed
+      // destination and the row would be logged as a broken token rather than another worker's.
+      if (restriction.bufferRouted) {
+        result.skippedBufferRouted++
+        continue
       }
       const marketViolation = marketRestrictionViolation(restriction.restriction, (rowSrc?.market as string | null) ?? null)
       if (marketViolation) {

@@ -39,19 +39,26 @@ export const SIBLING_SOURCE_COLUMNS =
   "audio_choice, audio_track_id, voice_hook_id, voice_cta_id, source_storage_path, approved_at, " +
   "follows_post_id, presenter_id, presenter_intro_seconds, presenter_side, presenter_width_px"
 
+/**
+ * Why a sibling was not created.
+ *
+ * NAMED, rather than inferred back out of SiblingResult with
+ * `SiblingResult extends { created: false; reason: infer R } ? R : never`, which is what this was.
+ * That conditional is not distributive over a concrete union — the whole union has to extend the
+ * pattern, the `{ created: true }` member does not, so the type collapsed to `never` and every
+ * `reason:` in canCreateTikTokSibling below was an error. It went unreported until this module
+ * acquired its first importer outside its own tests and entered the type-check graph.
+ */
+export type SiblingRefusal =
+  | "already_exists"
+  | "source_not_found"
+  | "not_approved"
+  | "not_a_publishable_original"
+  | "insert_failed"
+
 export type SiblingResult =
   | { created: true; postId: string }
-  | {
-      created: false
-      reason:
-        | "already_exists"
-        | "source_not_found"
-        | "not_approved"
-        | "not_a_publishable_original"
-        | "insert_failed"
-      postId?: string
-      message?: string
-    }
+  | { created: false; reason: SiblingRefusal; postId?: string; message?: string }
 
 /**
  * Is this row something we may copy to TikTok?
@@ -60,7 +67,7 @@ export type SiblingResult =
  * a companion Story is not an original, a row that is already a TikTok post is not copied again,
  * and an unapproved post has not been through the gate that makes copying safe.
  */
-export function canCreateTikTokSibling(row: Row | null): { ok: true } | { ok: false; reason: SiblingResult extends { created: false; reason: infer R } ? R : never } {
+export function canCreateTikTokSibling(row: Row | null): { ok: true } | { ok: false; reason: SiblingRefusal } {
   if (!row) return { ok: false, reason: "source_not_found" }
   // A Story companion is a derivative, not an original. Copying one would produce a TikTok post
   // from a row that itself has no independent meaning.
@@ -135,6 +142,10 @@ export function tiktokSiblingRowFrom(original: Row, originalId: string): Row {
     // NOT a companion: this row stands alone. follows_post_id stays null deliberately, so the
     // Story release machinery never sees it and the Instagram row never points at it.
     follows_post_id: null,
+    // WHICH original this came from — provenance, and the uniqueness key that makes creating one
+    // automatically idempotent. A plain record, with none of follows_post_id's release semantics:
+    // nothing reads this to decide whether the row may be scheduled or published.
+    sibling_of_post_id: originalId,
     created_via: "variation",
   }
 }
@@ -153,13 +164,21 @@ export type SiblingClient = { from: (t: string) => Q }
  *
  * IDEMPOTENCY, HONESTLY STATED. This reads first and treats a 23505 as success, exactly as the
  * Story companion does — but the Story companion is backed by a partial unique index, and the
- * equivalent index for TikTok siblings is PREPARED AND NOT APPLIED (see
- * supabase/migrations/.../tiktok_sibling_unique.sql, held back while the Content Posting API
- * audit is under review). Until that index exists, the read-then-insert is the only guard and it
- * is NOT atomic: two simultaneous callers can both see "none" and both insert.
+ * equivalent index for TikTok siblings is PREPARED AND NOT APPLIED. Until it exists, the
+ * read-then-insert is the only guard and it is NOT atomic: two simultaneous callers can both see
+ * "none" and both insert.
  *
- * That is acceptable only because nothing calls this automatically yet. It must not be wired to
- * an automatic trigger, and the worker must not be armed, until the index is applied.
+ * WHICH INDEX, AND WHY IT CHANGED. The original one — unique on (source_content_id) where
+ * destination = 'tiktok_video', in supabase/prepared/20261103000000_tiktok_sibling_unique.sql —
+ * could never be created: production already holds four tiktok_video rows sharing one
+ * source_content_id, three of them published. It is also the wrong key now that a second agent
+ * exists, since one creative legitimately has two TikTok posts. The replacement keys on the
+ * ORIGINAL post (supabase/prepared/20261123000001_tiktok_sibling_of_post.sql), which is exact,
+ * creatable against live data because every historical row is NULL, and atomic.
+ *
+ * SO THE AUTOMATIC CALLER IS GATED. lib/social/siblingAutoCreate.ts calls this, and refuses to
+ * unless SOCIAL_TIKTOK_SIBLING_AUTOCREATE is set — which must not be set until that index is
+ * applied. A hand-driven call from the editor was always safe and is unchanged.
  *
  * Returns a reason rather than throwing: a missing sibling is a degraded feature, and throwing
  * here would fail whatever approval triggered it — approval being the more important act.
@@ -175,12 +194,18 @@ export async function ensureTikTokSibling(client: SiblingClient, originalId: str
   const allowed = canCreateTikTokSibling(original)
   if (!allowed.ok) return { created: false, reason: allowed.reason }
 
-  // Already there? Keyed on the same pair the prepared index keys on.
+  // ALREADY THERE? KEYED ON THE ORIGINAL, NOT ON THE CREATIVE.
+  //
+  // This used to ask "is there any tiktok_video row for this source content", matching the index
+  // prepared at the time. With a second agent that question gives the wrong answer: one creative
+  // legitimately has two TikTok posts, the operator's and Lisette's, and the old read would see
+  // his and conclude hers already existed. The original post is the thing a sibling is a sibling
+  // OF, so it is what both the read and the unique index key on — see
+  // supabase/prepared/20261123000001_tiktok_sibling_of_post.sql.
   const { data: existing } = await client
     .from("social_posts")
     .select("id")
-    .eq("source_content_id", original.source_content_id)
-    .eq("destination", "tiktok_video")
+    .eq("sibling_of_post_id", originalId)
     .maybeSingle()
   if (existing?.id) return { created: false, reason: "already_exists", postId: String(existing.id) }
 

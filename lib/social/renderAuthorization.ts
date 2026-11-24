@@ -19,7 +19,13 @@
 // non-identifying voiceovers are all clean. A render is not suspect because it has a soundtrack;
 // it is suspect because somebody recognisable is in it. Those are different questions and this
 // module never confuses them.
-import { isExternalAgentConnection, type ConnectionIdentity } from "@/lib/social/agentIdentity"
+import { isExternalAgentConnection, effectiveAgent, type ConnectionIdentity } from "@/lib/social/agentIdentity"
+
+// Re-exported so every existing importer of effectiveAgent is unaffected by the move. The
+// definition lives in agentIdentity now, beside ConnectionIdentity, because personalOwnership
+// needs it too and importing it from here would make those two modules import each other.
+export { effectiveAgent }
+import { personalAssignmentRefusal, assignedTo } from "@/lib/social/personalOwnership"
 
 /** unknown: nobody has checked. owned: it carries a specific person. clean: certified empty of
  *  anyone's identity. The ONLY value an external agent may receive is 'clean'. */
@@ -33,6 +39,12 @@ export type RenderIdentity = {
 export type SourceSharing = {
   /** social_content.available_to_agents — the operator's SHARING decision, not an identity fact. */
   availableToAgents: boolean | null | undefined
+  /**
+   * social_content.personal_agent_user_id — WHOSE personal video this is, when it is assigned to
+   * one person's accounts. Optional, so every existing caller passes the object it already built
+   * and reads as null: see lib/social/personalOwnership.ts for the three states.
+   */
+  personalAgentUserId?: string | null
 }
 
 export type Destination = ConnectionIdentity & {
@@ -47,6 +59,10 @@ export type RenderRefusal =
   | "identity_mismatch"
   /** A Personal — Only Me source may never reach another agent's account. */
   | "personal_video"
+  /** A personal video ASSIGNED to one person, at a destination that is not theirs. The only
+   *  refusal here that can fire at the operator's own account — and only for a row that names
+   *  somebody else, which no row does until one is assigned. */
+  | "personal_other_agent"
 
 export const REFUSAL_MESSAGE: Record<RenderRefusal, string> = {
   identity_not_certified:
@@ -55,17 +71,8 @@ export const REFUSAL_MESSAGE: Record<RenderRefusal, string> = {
     "This video carries someone else's face or voice and cannot be published to this account.",
   personal_video:
     "This video is marked Personal — Only Me and cannot be published to an agent's account.",
-}
-
-/**
- * The destination's effective agent: whoever's audience actually sees the post.
- *
- * A connection with no agent_user_id is the OWNER's own account — that is the live TikTok row's
- * shape, and reading a missing agent as "not the owner" would refuse every post the operator
- * publishes there.
- */
-export function effectiveAgent(c: ConnectionIdentity | null | undefined): string | null {
-  return c?.agent_user_id ?? c?.owner_user_id ?? null
+  personal_other_agent:
+    "This video is a personal video belonging to another account and cannot be published here.",
 }
 
 /**
@@ -88,6 +95,29 @@ export function renderRefusalFor(input: {
   // No destination, no question.
   if (!destination?.connectionId) return null
 
+  // ── AN ASSIGNED PERSONAL VIDEO, ASKED IN BOTH DIRECTIONS ──────────────────────────────────
+  // Deliberately OUTSIDE the `external` branch below. Everything in that branch protects an
+  // agent's audience from the operator's content; this protects BOTH ways round, because a video
+  // reserved for one person's accounts must no more reach the operator's queue than his reaches
+  // hers. It is therefore the one rule in this module that can refuse at the operator's own
+  // destination — and it can only do so for a row that names somebody else, which no row does
+  // until the operator assigns one. Every existing row reads as unassigned and is untouched.
+  const assigned = personalAssignmentRefusal(source, destination)
+  if (assigned) return assigned
+
+  // ── AND THE OTHER HALF OF THE SAME FACT ───────────────────────────────────────────────────
+  // Having established that this video may be here, record that it BELONGS here. Without this,
+  // the external-agent branch below would refuse it anyway: an assigned personal video carries
+  // available_to_agents = false — it is a personal video — and that branch reads a false there as
+  // "Personal — Only Me, keep it off agents' accounts". True of the operator's own personal
+  // videos, which is what that check was written for; exactly wrong for one that names this very
+  // agent, which could then never publish on the only account it is allowed to reach.
+  //
+  // So the sharing check is skipped for, and only for, a video assigned to THIS destination's own
+  // agent. Narrow by construction: assignedTo is false for every unassigned row, so the check
+  // behaves identically for the entire existing library.
+  const belongsHere = assignedTo(source, effectiveAgent(destination))
+
   const external = isExternalAgentConnection(destination)
   const state = render?.identityState ?? "unknown"
 
@@ -96,7 +126,7 @@ export function renderRefusalFor(input: {
     // Reported first because it is the operator's own explicit choice and the most useful thing
     // to tell them. Read LIVE from social_content, so un-sharing a video refuses every render of
     // it on the next evaluation — no stored state can go stale behind it.
-    if (source?.availableToAgents !== true) return "personal_video"
+    if (!belongsHere && source?.availableToAgents !== true) return "personal_video"
 
     // ── NO RECORD OF WHAT WENT IN ⇒ REFUSE ────────────────────────────────────────────────
     // A missing identity_state is not "nothing was composited", it is "nobody wrote it down".

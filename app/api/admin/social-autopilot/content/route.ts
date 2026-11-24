@@ -3,6 +3,7 @@ import { requirePlatformAdmin } from "@/lib/auth/requirePlatformAdmin"
 import { buildSocialDisplayName } from "@/lib/social/displayName"
 import { isPropertyType } from "@/lib/social/propertyTypes"
 import { signMedia, mapWithConcurrency, SIGN_CONCURRENCY } from "@/lib/social/signedMedia"
+import { loadAgentRoster, UNASSIGNED } from "@/lib/social/agentRoster"
 
 // Social Autopilot Content Library API — platform-admin ONLY (requirePlatformAdmin
 // gates every method). RLS on social_content + the social-media bucket is the second
@@ -15,18 +16,47 @@ export async function GET() {
   if (!guard.ok) return guard.response
   const { supabase, userId } = guard
 
-  const { data, error } = await supabase
+  const BASE_COLUMNS =
+    "id, storage_path, thumb_storage_path, kind, original_filename, content_type, size_bytes, duration_s, display_name, name_customized, upload_batch_id, batch_seq, property_name, property_type, market, area_neighborhood, special, budget_range, price_label_mode, amenities, tags, notes, place_id, details, available_to_agents, created_at, updated_at"
+  // The two ownership columns arrive with a prepared migration. PostgREST fails the WHOLE select
+  // when one names a column that does not exist, so asking for them unconditionally would turn an
+  // un-migrated deploy into an empty library. Tried, then dropped — and the response SAYS which it
+  // got, so the UI shows the new controls only when they would actually save.
+  const OWNERSHIP_COLUMNS = `${BASE_COLUMNS}, personal_agent_user_id, debut_for_agent_user_id`
+  let ownershipReadable = true
+  // Widened to a plain row map rather than letting each select infer its own shape: the two
+  // selects differ by exactly the columns in question, so a shared variable cannot hold both
+  // inferred types. Every field is read defensively below in any case.
+  let rows: Record<string, unknown>[] = []
+  const first = await supabase
     .from("social_content")
-    .select(
-      "id, storage_path, thumb_storage_path, kind, original_filename, content_type, size_bytes, duration_s, display_name, name_customized, upload_batch_id, batch_seq, property_name, property_type, market, area_neighborhood, special, budget_range, price_label_mode, amenities, tags, notes, place_id, details, available_to_agents, created_at, updated_at",
-    )
+    .select(OWNERSHIP_COLUMNS)
     .order("created_at", { ascending: false })
-  if (error) return NextResponse.json({ error: "list_failed" }, { status: 500 })
+  if (first.error) {
+    ownershipReadable = false
+    const fallback = await supabase
+      .from("social_content")
+      .select(BASE_COLUMNS)
+      .order("created_at", { ascending: false })
+    if (fallback.error) return NextResponse.json({ error: "list_failed" }, { status: 500 })
+    rows = (fallback.data ?? []) as unknown as Record<string, unknown>[]
+  } else {
+    rows = (first.data ?? []) as unknown as Record<string, unknown>[]
+  }
+
+  // WHO A VIDEO MAY BE ASSIGNED TO. The same roster the Accounts page uses, so the picker cannot
+  // offer a person the destinations do not know about — and so an assignment target is validated
+  // against real connections rather than being any uuid the client sends.
+  const agents = ownershipReadable
+    ? (await loadAgentRoster(supabase, null))
+        .filter((a) => a.id !== UNASSIGNED && a.connectionIds.length > 0)
+        .map((a) => ({ id: a.id, name: a.name, instagram: a.instagram, tiktok: a.tiktok }))
+    : []
 
   // BOUNDED, not Promise.all over the whole library. With a thumbnail per row this was 2 signings
   // x every row fired at once — 284 for a 142-clip library, on every load. The ceiling bounds that
   // burst; signMedia's re-use then makes a repeat load cost almost no signing at all.
-  const items = await mapWithConcurrency(data ?? [], SIGN_CONCURRENCY, async (r: Record<string, unknown>) => {
+  const items = await mapWithConcurrency(rows, SIGN_CONCURRENCY, async (r: Record<string, unknown>) => {
       const path = typeof r.storage_path === "string" ? r.storage_path : null
       const previewUrl = (await signMedia(supabase, path, userId)).url
       // The INTERNAL library preview — a small JPEG beside the source, never a social cover and
@@ -60,6 +90,12 @@ export async function GET() {
         // THE PRIVACY CHECKBOX, as the UI states it. Inverted once, here, so the client never
         // reasons about availability — it only knows whether this video is the operator's own.
         personal: r.available_to_agents !== true,
+        // WHOSE personal video, when it is assigned to one person. Null means what it has always
+        // meant for a Personal row: the operator's own. Absent entirely when the column is not
+        // readable yet, which the response reports separately rather than implying here.
+        personalAgentUserId: (r.personal_agent_user_id as string | null) ?? null,
+        // Designated as the FIRST video that must publish on that person's accounts.
+        debutForAgentUserId: (r.debut_for_agent_user_id as string | null) ?? null,
         createdAt: r.created_at,
         previewUrl,
         thumbUrl,
@@ -70,7 +106,13 @@ export async function GET() {
             : null,
       }
   })
-  return NextResponse.json({ items })
+  return NextResponse.json({
+    items,
+    // Stated, not inferred. A client that cannot tell whether ownership is readable would show a
+    // picker whose saves fail, which is worse than not showing it.
+    ownershipReadable,
+    agents,
+  })
 }
 
 // POST → record ONE source video AFTER a direct browser→storage upload. The row id is
