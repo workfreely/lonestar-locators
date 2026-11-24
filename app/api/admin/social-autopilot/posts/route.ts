@@ -15,6 +15,10 @@ const SELECT =
   "id, platform, post_type, post_name, caption, on_video_text, on_video_config, " +
   "overlay_headline, overlay_subheadline, overlay_mode, overlay_template, hashtags, audio_choice, audio_track_id, rendered_storage_path, render_status, render_error, render_version, source_storage_path, approved_at, draft_saved_at, " +
   "status, scheduled_at, published_at, external_post_url, created_at, updated_at, source_content_id, recurring_rule_id, recurrence_slot, " +
+  // WHICH ACCOUNT, not just which platform. Six destinations share two platforms, so a list that
+  // reports only `platform` cannot say whether a post goes to the main Instagram, the Dallas one
+  // or Lisette's. Read-only join on the post's own connection_id.
+  "connection_id, destination_connection:connection_id(provider, username, label), " +
   "source:source_content_id(display_name, property_name, property_type, market, special, budget_range, amenities, storage_path, thumb_storage_path, original_filename, kind)"
 
 type SourceEmbed = {
@@ -81,6 +85,16 @@ async function shape(supabase: PlatformAdminGuardOk["supabase"], rows: Record<st
         sourceContentId: r.source_content_id,
         recurring: !!r.recurring_rule_id, // this instance was auto-placed by a Repeat rule
         recurringRuleId: (r.recurring_rule_id as string | null) ?? null,
+        connectionId: (r.connection_id as string | null) ?? null,
+        account: (() => {
+          // PostgREST returns a to-one embed as an object, and as a one-element array when it
+          // cannot prove the relationship is to-one. Both shapes are handled rather than one
+          // being assumed, because the difference is a schema-cache detail and a wrong guess here
+          // would silently blank the account on every row.
+          const raw = r.destination_connection as unknown
+          const c = (Array.isArray(raw) ? raw[0] : raw) as { provider?: string | null; username?: string | null; label?: string | null } | null | undefined
+          return c ? { provider: c.provider ?? null, username: c.username ?? null, label: c.label ?? null } : null
+        })(),
         recurrenceSlot: (r.recurrence_slot as string | null) ?? null,
         source: src
           ? {

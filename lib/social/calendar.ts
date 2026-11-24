@@ -14,6 +14,9 @@ export type CalPost = {
   source: { displayName: string | null; propertyName: string | null; propertyType: string | null; market: string | null; originalFilename: string | null; kind: string | null } | null
   previewUrl: string | null
   recurring?: boolean // auto-placed by a Repeat rule (shown with a small "Recurring" badge)
+  /** WHICH ACCOUNT this post publishes to (social_posts.connection_id, resolved). Null until the
+   *  post has a destination. */
+  account?: { provider: string | null; username: string | null; label: string | null } | null
 }
 
 export const MONTH_CELL_MAX = 3 // posts shown in a month cell before "+N more"
@@ -68,3 +71,22 @@ export function monthCells(cursor: Date): (number | null)[] {
 }
 
 export const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"]
+
+/**
+ * The account a post publishes to, as short as it can be said: "@locatorbeast".
+ *
+ * ONE definition, because `platform` is not an account. Six destinations across two platforms
+ * means three of them read "Instagram" and three read "TikTok", so a queue of 84 posts showed
+ * which SURFACE each one was for and never which FEED — the one thing the operator needed to
+ * check a week's assignments. Falls back to the typed label when a connection has no username,
+ * and to null when the post has no destination at all, which the caller renders as nothing rather
+ * than as a guess.
+ */
+export const accountHandle = (p: Pick<CalPost, "account">) => {
+  const a = p.account
+  if (!a) return null
+  const user = (a.username ?? "").trim()
+  if (user) return `@${user}`
+  const label = (a.label ?? "").trim()
+  return label || null
+}

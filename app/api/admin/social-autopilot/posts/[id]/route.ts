@@ -1,4 +1,5 @@
 import { NextResponse, type NextRequest } from "next/server"
+import { isBufferRouted, type RoutableConnection } from "@/lib/social/bufferRoute"
 import { requirePlatformAdmin, type PlatformAdminGuardOk } from "@/lib/auth/requirePlatformAdmin"
 import { signMedia } from "@/lib/social/signedMedia"
 import { supabaseAdmin } from "@/lib/supabase/admin"
@@ -745,7 +746,27 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
     // settings and scheduling in one call works, while scheduling a post whose settings were
     // cleared since the request began does not.
     const destNow = (patch.destination ?? stored?.destination) as string | null
+    // ── WHOSE API CARRIES IT DECIDES WHOSE SETTINGS APPLY ───────────────────────────────────
+    // The gate below exists for TikTok's own Content Posting API, where WE send the post and must
+    // therefore replay privacy, interactions and disclosure the creator chose. A Buffer-routed
+    // destination does not use that API: Buffer publishes it under the channel's own settings,
+    // held in Buffer, and our three columns have nothing to do with it. Demanding them here made
+    // every Buffer TikTok post unschedulable from the editor — on columns that are not in the
+    // database — which is the same shape of defect as the disclosure refusal already removed from
+    // the Buffer worker. Read from the post's own destination row; a post with no connection, or
+    // a half-configured one, is NOT Buffer-routed and keeps the full gate.
+    let tiktokViaBuffer = false
     if (destNow === "tiktok_video") {
+      const { data: connRow } = await supabase
+        .from("social_posts")
+        .select("destination_connection:connection_id(buffer_account_id, buffer_channel_id)")
+        .eq("id", id)
+        .maybeSingle()
+      const raw = (connRow as { destination_connection?: unknown } | null)?.destination_connection
+      const conn = (Array.isArray(raw) ? raw[0] : raw) as RoutableConnection | null | undefined
+      tiktokViaBuffer = isBufferRouted(conn ?? null)
+    }
+    if (destNow === "tiktok_video" && !tiktokViaBuffer) {
       // Without the columns there is no stored decision to replay, which is exactly what this gate
       // refuses — so it answers with the same 409 it always did, reached without running a query
       // that would fail on a column PostgREST cannot find.

@@ -82,13 +82,13 @@ export async function renderPostToStorage(args: {
   const { supabase, id, userId } = args
   const { data: post, error: readErr } = await supabase
     .from("social_posts")
-    .select("id, platform, destination, source_content_id, source_storage_path, overlay_headline, overlay_subheadline, overlay_mode, overlay_template, audio_choice, voice_hook_id, voice_cta_id, render_version, presenter_id, presenter_intro_seconds, presenter_clip_storage_path, presenter_cta_clip_storage_path, presenter_audio_storage_path, presenter_side, presenter_width_px, connection_id, source:source_content_id(storage_path, available_to_agents, identity_cleared_at), destination_connection:connection_id(agent_user_id, owner_user_id)")
+    .select("id, platform, destination, source_content_id, source_storage_path, overlay_headline, overlay_subheadline, overlay_mode, overlay_template, audio_choice, voice_hook_id, voice_cta_id, render_version, presenter_id, presenter_intro_seconds, presenter_clip_storage_path, presenter_cta_clip_storage_path, presenter_audio_storage_path, presenter_side, presenter_width_px, connection_id, source:source_content_id(storage_path, available_to_agents, personal_agent_user_id, identity_cleared_at), destination_connection:connection_id(agent_user_id, owner_user_id)")
     .eq("id", id)
     .maybeSingle()
   if (readErr) return { ok: false as const, code: "read_failed", message: readErr.message }
   if (!post) return { ok: false as const, code: "not_found", message: "post not found" }
   const p = post as Record<string, unknown>
-  const source = (p.source ?? null) as { storage_path?: string; available_to_agents?: boolean | null; identity_cleared_at?: string | null } | null
+  const source = (p.source ?? null) as { storage_path?: string; available_to_agents?: boolean | null; personal_agent_user_id?: string | null; identity_cleared_at?: string | null } | null
   // THE POST'S OWN FOOTAGE WINS, when it has any.
   //
   // social_content carries both the property facts and a source video. A post that needs different
@@ -118,7 +118,19 @@ export async function renderPostToStorage(args: {
       identityState: p.presenter_id ? "owned" : source?.identity_cleared_at ? "clean" : "unknown",
       identityOwnerUserId: p.presenter_id ? userId : null,
     },
-    source: { availableToAgents: source?.available_to_agents ?? null },
+    // WHOSE VIDEO IT IS, not only whether it is shared — and this line is the whole reason an
+    // assigned personal video could not render.
+    //
+    // available_to_agents alone cannot express "Lisette's personal video": it is false, which at
+    // an agent's destination reads as "Personal — Only Me, keep it off agents' accounts". So the
+    // preflight refused her own debut at her own account, with the message for somebody else's
+    // personal video. The three publish workers all pass personalAgentUserId for exactly this
+    // reason; the renderer was the one caller left reading the old two-state world, and it is the
+    // FIRST gate, so nothing downstream ever got the chance to disagree.
+    source: {
+      availableToAgents: source?.available_to_agents ?? null,
+      personalAgentUserId: source?.personal_agent_user_id ?? null,
+    },
     destination: { connectionId: (p.connection_id as string | null) ?? null, ...(destinationConn ?? {}) },
   })
   if (preflight) {

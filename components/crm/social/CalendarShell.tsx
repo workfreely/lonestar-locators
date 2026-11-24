@@ -7,7 +7,7 @@ import { platformMeta } from "@/lib/social/platformMeta"
 import { PLATFORM_ICON_SIZE, platformIconColor } from "@/lib/ui/platformIcon"
 // Shared calendar data + formatting — the SAME source of truth the Post Editor's scheduling
 // workspace uses, so the two views never disagree about what is scheduled.
-import { type CalPost, WEEKDAYS, addDays, sameDay, dateKey, timeLabel, marketAbbr, shortLabel, calLabel as label, groupByDay } from "@/lib/social/calendar"
+import { type CalPost, WEEKDAYS, addDays, sameDay, dateKey, timeLabel, marketAbbr, shortLabel, calLabel as label, accountHandle, groupByDay } from "@/lib/social/calendar"
 
 // Beast Social → Calendar. Month | Week | List over REAL scheduled posts
 // (social_posts, status='scheduled'). Interactive: single-click selects a day (theme-aware
@@ -205,7 +205,7 @@ function CellPost({ p, onOpenPost }: { p: CalPost; onOpenPost: (id: string) => v
         onOpenPost(p.id)
       }}
       onDoubleClick={stop}
-      title={`${label(p)} · ${platformMeta(p.platform).label} · ${timeLabel(p.scheduledAt)}`}
+      title={`${label(p)} · ${platformMeta(p.platform).label}${accountHandle(p) ? ` · ${accountHandle(p)}` : ""} · ${timeLabel(p.scheduledAt)}`}
       className="w-full flex items-center gap-1 rounded px-1 py-0.5 text-left bg-[var(--crm-card)] hover:bg-[var(--crm-border)] transition-colors"
     >
       <Thumb p={p} className="h-4 w-3 flex-none rounded-[2px]" />
@@ -225,12 +225,13 @@ function MonthEntry({ p, onOpenPost }: { p: CalPost; onOpenPost: (id: string) =>
   const stop = (e: React.SyntheticEvent) => e.stopPropagation()
   const t = timeLabel(p.scheduledAt) // includes AM/PM, e.g. "8:31 PM"
   const mkt = marketAbbr(p.source?.market)
+  const handle = accountHandle(p)
   return (
     <button
       type="button"
       onClick={(e) => { stop(e); onOpenPost(p.id) }}
       onDoubleClick={stop}
-      title={`${platformMeta(p.platform).label} · ${t}${mkt ? ` · ${mkt}` : ""} · ${label(p)}`}
+      title={`${platformMeta(p.platform).label}${handle ? ` · ${handle}` : ""} · ${t}${mkt ? ` · ${mkt}` : ""} · ${label(p)}`}
       className="w-full flex items-center gap-1 rounded px-1 py-0.5 text-left hover:bg-[var(--crm-card)] transition-colors leading-tight"
     >
       <PlatformIcon platform={p.platform} className="flex-none" />
@@ -402,6 +403,9 @@ function ListView({ cursor, today, byDay, onOpenPost }: GridProps) {
                       <span className={"h-1.5 w-1.5 rounded-full flex-none " + (STATUS_DOT[p.status] ?? "bg-[var(--crm-text-muted)]")} />
                       <span className="text-[12.5px] text-[var(--crm-text-primary)] font-semibold tabular-nums">{timeLabel(p.scheduledAt)}</span>
                       <PlatformIcon platform={p.platform} className="flex-none" />
+                      {accountHandle(p) && (
+                        <span className="text-[12px] font-semibold text-[var(--crm-text-secondary)] flex-none">{accountHandle(p)}</span>
+                      )}
                       <span className="text-[12.5px] text-[var(--crm-text-secondary)] truncate">{label(p)}</span>
                     </button>
                   ))}
@@ -458,7 +462,7 @@ function DayView({
                 <div className="flex items-center gap-1.5">
                   <PlatformIcon platform={p.platform} className="flex-none" />
                   <span className="text-[12px] font-semibold text-[var(--crm-text-primary)] tabular-nums">
-                    {platformMeta(p.platform).label} · {timeLabel(p.scheduledAt)}
+                    {platformMeta(p.platform).label}{accountHandle(p) ? ` · ${accountHandle(p)}` : ""} · {timeLabel(p.scheduledAt)}
                   </span>
                   {p.recurring && <span title="Recurring" aria-label="Recurring" className="text-[11px] text-[var(--crm-text-muted)]">↻</span>}
                   <span className="ml-auto flex items-center gap-1 text-[10.5px] font-semibold text-[var(--crm-text-secondary)]">

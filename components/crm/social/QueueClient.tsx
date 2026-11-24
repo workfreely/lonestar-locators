@@ -7,6 +7,7 @@ import { platformMeta } from "@/lib/social/platformMeta"
 import { PLATFORM_ICON_SIZE_COMPACT, platformIconColor } from "@/lib/ui/platformIcon"
 import { POST_STATUS_LABEL, type PostStatus } from "@/lib/social/postStatus"
 import { formatSocialDisplayDate } from "@/lib/social/displayName"
+import { accountHandle } from "@/lib/social/calendar"
 
 // Social Autopilot → Queue (REAL post model). Shows this admin's posts that have not yet
 // published, with compact status filters. Clicking a row opens the post editor. No sample
@@ -21,6 +22,7 @@ type QueuePost = {
   source: { displayName: string | null; propertyName: string | null; market: string | null; originalFilename: string | null } | null
   previewUrl: string | null
   recurring?: boolean
+  account?: { provider: string | null; username: string | null; label: string | null } | null
 }
 
 // No generic "Needs Attention" filter — specific failure states (Render Failed, Publish Failed,
@@ -145,6 +147,7 @@ export default function QueueClient() {
         <div className="rounded-2xl border border-[var(--crm-border)] bg-[var(--crm-panel)] overflow-hidden divide-y divide-[var(--crm-border)]">
           {visible.map((p) => {
             const pm = platformMeta(p.platform)
+            const handle = accountHandle(p)
             const openEditor = () => router.push(`/admin/social-autopilot/posts/${encodeURIComponent(p.id)}?from=queue`)
             return (
             <div
@@ -174,7 +177,11 @@ export default function QueueClient() {
                   {/* Shared colour; the COMPACT size (same 12px as before) because this is a dense
                       11.5px secondary line — see PLATFORM_ICON_SIZE_COMPACT. */}
                   <pm.Icon className="flex-none" size={PLATFORM_ICON_SIZE_COMPACT} color={platformIconColor(p.platform)} aria-hidden />
-                  <span>{pm.label}{p.source?.market ? ` · ${p.source.market}` : ""}</span>
+                  {/* ACCOUNT before market. Six destinations across two platforms meant three rows
+                      read "Instagram" and three read "TikTok", and a week of 84 posts could not be
+                      checked for who was publishing what. The handle is the answer; the platform
+                      icon beside it already says which surface. */}
+                  <span>{pm.label}{handle ? ` · ${handle}` : ""}{p.source?.market ? ` · ${p.source.market}` : ""}</span>
                 </div>
                 <div className="text-[11px] text-[var(--crm-text-muted)] mt-0.5">{fmtWhen(p.scheduledAt)}</div>
               </div>

@@ -132,7 +132,13 @@ export function tiktokSiblingRowFrom(original: Row, originalId: string): Row {
     // publish route refuses an Instagram-geometry render outright.
     rendered_storage_path: null,
     render_status: "none",
-    render_version: null,
+    // ZERO, NOT NULL. social_posts.render_version is NOT NULL DEFAULT 0, so writing null here
+    // failed the insert outright — `null value in column "render_version" violates not-null
+    // constraint`. Every sibling creation did: the hand-driven one from the editor and the gated
+    // automatic one alike, which is why it went unnoticed while the gate was off and no sibling
+    // had yet been created in production. 0 is what the default would have given it: no render
+    // has been made for this row.
+    render_version: 0,
 
     // Inert until a human schedules, approves and renders it.
     status: "draft",
