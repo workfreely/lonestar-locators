@@ -21,12 +21,12 @@
 
 /**
  * The stored vocabulary for property_catalog.washer_dryer_included. Verbatim — these strings
- * are the values already in the column, so an edit never orphans an existing row.
+ * are the values already in the column.
  *
- * MENU ORDER, not precedence: the answers a locator actually records lead, and "Not Verified"
- * sits at the end because it is the state they are leaving rather than one they choose. It is
- * still the SELECTED option for an unverified field — a <select> matches its value wherever
- * that option appears in the list, so last in the menu and current in the box are compatible.
+ * NO LONGER A MENU. It described one of the two dropdowns the map used to render; both are now
+ * a single control over the shared vocabulary. What is left is a description of what the column
+ * CONTAINS, which the validator and the legacy fallback still need. The empty entry is kept so
+ * the set round-trips an unset value rather than rejecting it.
  */
 export const CATALOG_WD_INCLUDED_OPTIONS = [
   { value: "Yes", label: "Yes" },
@@ -36,8 +36,8 @@ export const CATALOG_WD_INCLUDED_OPTIONS = [
   { value: "", label: "Not Verified" },
 ] as const
 
-/** The stored vocabulary for property_catalog.washer_dryer_connections. Same menu order; it has
- *  no "Specific Floor Plans" because the column has never held one. */
+/** The stored vocabulary for property_catalog.washer_dryer_connections — likewise a description
+ *  of the column, not a menu. It has no "Specific Floor Plans": the column never held one. */
 export const CATALOG_WD_CONNECTIONS_OPTIONS = [
   { value: "Yes", label: "Yes" },
   { value: "No", label: "No" },
