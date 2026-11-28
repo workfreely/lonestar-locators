@@ -36,7 +36,7 @@ export type ClientProperty = {
   giftCardStatus?: string | null
   giftCardAmount?: number | null
   googleRating: number | null
-  /** Frozen client-facing washer/dryer status: "included" | "hookups". Absent = not verified. */
+  /** Frozen client-facing washer/dryer status: "included" | "hookups" | "laundry_onsite". Absent = not verified. */
   washerDryer?: string | null
   /**
    * The frozen average-rent result, already computed by lb_compose_average_rent — or absent when

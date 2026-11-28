@@ -212,6 +212,10 @@ const CSS = `
   border-radius:999px;font-size:12.5px;font-weight:700;line-height:1.2;white-space:nowrap}
 .lbr-wd--inc{background:var(--pill-bg);color:var(--pill-tx)}
 .lbr-wd--hk{background:var(--line-soft);color:var(--ink)}
+/* A shared laundry room is not an in-unit machine, so it takes the same neutral treatment as
+   hookups rather than the green of "Included" — but through its own class, because the two say
+   different things and only happen to look alike. */
+.lbr-wd--fac{background:var(--line-soft);color:var(--ink)}
 .lbr-check{color:var(--green);flex:none;margin-top:2px}
 .lbr-cardfoot{display:flex;align-items:flex-end;justify-content:space-between;gap:12px;margin-top:16px}
 .lbr-pl{font-size:12px;color:var(--muted)}
