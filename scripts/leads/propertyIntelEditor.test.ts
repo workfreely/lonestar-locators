@@ -99,20 +99,30 @@ console.log("\n=== 2. THE OWNER CAN CORRECT A POPULATED VALUE — AND ONLY AS AN
     decideFieldWrite({ field: "property_type", ...base, candidateOwnerOverride: true }).outcome, "skip")
 }
 
-console.log("\n=== 2b. THE LABELS SAY WASHER/DRYER, AND CONNECTIONS COMES FIRST ===")
+console.log("\n=== 2b. ONE WASHER & DRYER DROPDOWN, IN THE SHARED VOCABULARY ===")
 {
   const ed = raw("components/crm/PropertyPricingEditor.tsx")
   // Stripped: the comment recording WHY "Appliances included" was wrong is worth keeping, and a
   // comment is not a label. What must not survive is the rendered word.
   ok("no RENDERED label says 'Appliances'", !/Appliances/i.test(read("components/crm/PropertyPricingEditor.tsx")))
-  ok("both labels name W/D", /W\/D Connections/.test(ed) && /W\/D Included/.test(ed))
-  ok("Connections is rendered LEFT of Included",
-    ed.indexOf("W/D Connections") < ed.indexOf("W/D Included"))
-  ok("each label still sits with its own field",
-    /W\/D Connections<\/span>[\s\S]{0,160}setWdConnections/.test(ed) &&
-    /W\/D Included<\/span>[\s\S]{0,160}setWdIncluded/.test(ed))
-  // The database mapping is what must NOT move.
+  // THE PAIR IS GONE FROM THE UI. Two dropdowns in a vocabulary of their own are what let the
+  // map and the reasons editor disagree about the same property.
+  ok("the separate Connections dropdown is gone", !/W\/D Connections/.test(ed))
+  ok("the separate Included dropdown is gone", !/W\/D Included/.test(ed))
+  ok("one dropdown, labelled in the client's words", /<span className=\{label\}>Washer &amp; Dryer<\/span>/.test(ed))
+  ok("its label sits with its own field",
+    /Washer &amp; Dryer<\/span>[\s\S]{0,200}setWdStatus/.test(ed))
+  ok("it reads its options from the SHARED module, not a local list",
+    /WASHER_DRYER_OPTIONS\.map/.test(ed) && /@\/lib\/leads\/washerDryer/.test(ed))
+  ok("'Not verified' is rendered once, by the shared list",
+    (ed.match(/Not verified/g) ?? []).length === 0)
+
+  // The database mapping: the UI now writes the unified column, and the two legacy columns are
+  // still ACCEPTED by the route — their data is deliberately kept, and a script may still send
+  // them — but nothing in the UI does.
   const route = read("app/api/admin/owner/property-pricing/route.ts")
+  ok("washerDryerStatus writes washer_dryer_status",
+    /asWasherDryerStatus\(body\.washerDryerStatus\)[\s\S]{0,160}add\("washer_dryer_status", v\)/.test(route))
   ok("washerDryerConnections still writes washer_dryer_connections",
     /asCatalogWasherDryerConnections\(body\.washerDryerConnections\)[\s\S]{0,160}add\("washer_dryer_connections", v\)/.test(route))
   ok("washerDryerIncluded still writes washer_dryer_included",
@@ -122,9 +132,9 @@ console.log("\n=== 2b. THE LABELS SAY WASHER/DRYER, AND CONNECTIONS COMES FIRST 
 console.log("\n=== 3. 'NOT VERIFIED' KEEPS THE STORED VALUE ===")
 {
   const ed = read("components/crm/PropertyPricingEditor.tsx")
-  ok("the editor sends a dropdown only when it CHANGED",
-    /wdIncluded && wdIncluded !== loadedWd\.inc/.test(ed) && /wdConnections && wdConnections !== loadedWd\.conn/.test(ed))
-  ok("an empty selection is never sent", !/body\.washerDryerIncluded = ""/.test(ed))
+  ok("the editor sends the dropdown only when it CHANGED",
+    /wdStatus && wdStatus !== loadedWd\.status/.test(ed))
+  ok("an empty selection is never sent", !/body\.washerDryerStatus = ""/.test(ed))
 
   const route = read("app/api/admin/owner/property-pricing/route.ts")
   ok("the route writes only a validated value", /asCatalogWasherDryerIncluded\(body\.washerDryerIncluded\)/.test(route))

@@ -922,6 +922,23 @@ export default function DashboardClient({ leads, nextActions, favorites, recomme
     const okSaved = await saveWasherDryer(selectedLeadId, canonicalPropertyKey, next)
     if (!okSaved) return false
     setWasherDryerByKey((prev) => new Map(prev).set(String(canonicalPropertyKey), next))
+    // saveWasherDryer also promotes a confirmed status to the PROPERTY record, so the map's
+    // Edit Property panel shows it. Mirror that locally, or the card beside this one would go
+    // on reading the pre-save property value until the next load. A cleared status promotes
+    // nothing — taking a pill off one client's card says nothing about the building — so the
+    // property value is left exactly as it was.
+    if (next) {
+      setCatalogWasherDryerByKey((prev) => {
+        const key = String(canonicalPropertyKey)
+        const cur = prev.get(key)
+        if (!cur && !key.startsWith("pid:")) return prev
+        return new Map(prev).set(key, {
+          status: next,
+          included: cur?.included ?? null,
+          connections: cur?.connections ?? null,
+        })
+      })
+    }
     return true
   }
 

@@ -7,9 +7,8 @@ import { StarRating } from "@/components/crm/StarRating"
 import { commissionToInput } from "@/components/crm/PropertyPricingEditor"
 import DateTimePicker from "@/components/crm/DateTimePicker"
 import {
-  CATALOG_WD_INCLUDED_OPTIONS, CATALOG_WD_CONNECTIONS_OPTIONS,
-  asCatalogWasherDryerIncluded, asCatalogWasherDryerConnections,
-} from "@/lib/propertyIntel/washerDryerCatalog"
+  WASHER_DRYER_OPTIONS, asWasherDryerStatus, type WasherDryerStatus,
+} from "@/lib/leads/washerDryer"
 import { MOVE_IN_SPECIAL_OPTIONS, specialToSelection, selectionToSpecial } from "@/lib/propertyIntel/moveInSpecials"
 import { ageLabel, updatedLabel, formatDayLabel } from "@/lib/propertyIntel/relativeAge"
 import {
@@ -52,8 +51,7 @@ type Loaded = {
   sendCommission: string | null
   escortCommission: string | null
   bonusFlat: string | null
-  washerDryerIncluded: string | null
-  washerDryerConnections: string | null
+  washerDryerStatus: string | null
   giftCardStatus: string | null
   /** CREDIT SCREENING. Null status = nobody asked; it is NOT "they don't check". */
   creditMinimumStatus: string | null
@@ -143,8 +141,7 @@ export default function MapPropertyEditor({
   const [creditScore, setCreditScore] = useState("")
   const [creditObserved, setCreditObserved] = useState("")
   const [creditNotes, setCreditNotes] = useState("")
-  const [wdIncluded, setWdIncluded] = useState("")
-  const [wdConnections, setWdConnections] = useState("")
+  const [wdStatus, setWdStatus] = useState<"" | WasherDryerStatus>("")
   const [attrs, setAttrs] = useState<Record<string, Tri>>({})
   const [landmark, setLandmark] = useState("")
   const [crossStreets, setCrossStreets] = useState("")
@@ -173,8 +170,7 @@ export default function MapPropertyEditor({
     setCreditScore(d.creditMinimumScore === null ? "" : String(d.creditMinimumScore))
     setCreditObserved(d.creditObservedApprovalScore === null ? "" : String(d.creditObservedApprovalScore))
     setCreditNotes(d.creditScreeningNotes ?? "")
-    setWdIncluded(d.washerDryerIncluded ?? "")
-    setWdConnections(d.washerDryerConnections ?? "")
+    setWdStatus(asWasherDryerStatus(d.washerDryerStatus) ?? "")
     const a: Record<string, Tri> = {}
     for (const { key } of ATTRIBUTES) {
       const v = d.attributes?.[key]
@@ -281,8 +277,7 @@ export default function MapPropertyEditor({
     }
     if (creditNotes.trim() !== (loaded.creditScreeningNotes ?? "")) out.creditScreeningNotes = creditNotes.trim()
 
-    if (wdIncluded !== (loaded.washerDryerIncluded ?? "")) out.washerDryerIncluded = wdIncluded
-    if (wdConnections !== (loaded.washerDryerConnections ?? "")) out.washerDryerConnections = wdConnections
+    if (wdStatus !== (asWasherDryerStatus(loaded.washerDryerStatus) ?? "")) out.washerDryerStatus = wdStatus
     for (const { key, field } of ATTRIBUTES) {
       const stored = loaded.attributes?.[key] === "yes" || loaded.attributes?.[key] === "no" ? loaded.attributes[key] : "unknown"
       if ((attrs[key] ?? "unknown") !== stored) out[field] = attrs[key]
@@ -311,7 +306,7 @@ export default function MapPropertyEditor({
     return out
   }, [loaded, send, escort, bonus, specialChoice, specialDetails, giftStatus, giftAmount,
       creditStatus, creditScore, creditObserved, creditNotes,
-      wdIncluded, wdConnections, attrs, landmark, crossStreets, approval])
+      wdStatus, attrs, landmark, crossStreets, approval])
 
   const dirty = Object.keys(changes).length > 0
   // "Yes" means a confirmed offer, and a confirmed offer has a value. Caught here so the locator
@@ -784,18 +779,24 @@ export default function MapPropertyEditor({
             {/* ── AMENITIES ──────────────────────────────────────────────────────────── */}
             <section className="space-y-3 border-t border-[var(--crm-border-soft)] pt-4">
               <h3 className={sectionTitle}>Amenities / Features</h3>
+              {/* ONE dropdown, one vocabulary. This was two — "Washer / Dryer" and "W/D
+                  Connections" — in a different set of words from the reasons editor, so a
+                  laundry room confirmed for a client left this panel reading "Not verified".
+                  Both now write property_catalog.washer_dryer_status, which the reasons editor
+                  and the client pill read.
+
+                  "Not verified" appears ONCE. Each select used to hardcode one above a list
+                  that already ended in another. */}
               <div>
-                <label className={label}>Washer / Dryer</label>
-                <select className={field} value={wdIncluded} onChange={(e) => setWdIncluded(asCatalogWasherDryerIncluded(e.target.value) ?? "")}>
-                  <option value="">Not verified</option>
-                  {CATALOG_WD_INCLUDED_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
-                </select>
-              </div>
-              <div>
-                <label className={label}>W/D Connections</label>
-                <select className={field} value={wdConnections} onChange={(e) => setWdConnections(asCatalogWasherDryerConnections(e.target.value) ?? "")}>
-                  <option value="">Not verified</option>
-                  {CATALOG_WD_CONNECTIONS_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+                <label className={label}>Washer &amp; Dryer</label>
+                <select
+                  className={field}
+                  value={wdStatus}
+                  onChange={(e) => setWdStatus(asWasherDryerStatus(e.target.value) ?? "")}
+                >
+                  {WASHER_DRYER_OPTIONS.map((o) => (
+                    <option key={o.value || "none"} value={o.value}>{o.label}</option>
+                  ))}
                 </select>
               </div>
               {ATTRIBUTES.map(({ key, label: lbl }) => (

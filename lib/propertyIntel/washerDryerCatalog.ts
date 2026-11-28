@@ -1,21 +1,22 @@
 /**
- * PROPERTY-LEVEL washer/dryer — what property_catalog already records.
+ * PROPERTY-LEVEL washer/dryer — the read path, and the legacy columns it still understands.
  *
- * SEPARATE FROM lib/leads/washerDryer.ts ON PURPOSE. That module is imported by the PUBLIC
- * client recommendation page for its pill; anything living beside it ships to every renter's
- * browser. These constants are Property Intelligence's own vocabulary and have no business
- * there, so they live here, where only the CRM editor and its API route import them.
+ * ── THE VOCABULARY MOVED OUT OF HERE ────────────────────────────────────────────────────────
+ * This module used to define a SECOND vocabulary — washer_dryer_included (Yes · No · Select
+ * Units · Specific Floor Plans) and washer_dryer_connections (Yes · No · Select Units) — kept
+ * deliberately apart from the client-facing pair in lib/leads/washerDryer.ts. The two could not
+ * talk to each other: a status confirmed for a client left the map's Edit Property panel
+ * reading "Not verified".
  *
- * A DIFFERENT vocabulary from the client-facing pair, and deliberately so. The catalog models
- * two independent facts, each with a qualifier the client-facing status cannot express:
+ * There is now ONE vocabulary, in lib/leads/washerDryer.ts, stored in
+ * property_catalog.washer_dryer_status as well as on the pair. The map, the reasons editor, the
+ * Lead Board card and the client list all read and write that.
  *
- *   washer_dryer_included     Yes 971 · Select Units 224 · No 13 · Specific Floor Plans 3
- *   washer_dryer_connections  Yes 302 · Select Units 61  · No 5
- *
- * "Select Units" is exactly why the client-facing status is confirmed per client rather than
- * read from here: a property-level Yes is not a promise about the floor plan one client would
- * lease. These options exist so the editor can RECORD what was verified about the property;
- * nothing maps them onto a client's card automatically.
+ * ── THE TWO LEGACY COLUMNS ARE STILL READ ───────────────────────────────────────────────────
+ * They were not collapsed, because 107 properties hold a distinct fact in each. The constants
+ * below describe what those columns contain so the card can still fall back to them for a row
+ * whose unified status was never derived or set, and so a migration or a repair script can map
+ * them. Nothing WRITES them any more: both editors now write the unified column.
  */
 
 /**
@@ -64,10 +65,19 @@ export function asCatalogWasherDryerConnections(v: unknown): string | null {
 // rather than throwing, so the card renders exactly as it does today instead of breaking. An
 // empty map is "nothing is known", which renders no line — never "no washer/dryer".
 import type { SupabaseClient } from "@supabase/supabase-js"
-import { WASHER_DRYER_LABEL, type WasherDryerStatus } from "@/lib/leads/washerDryer"
+import {
+  WASHER_DRYER_LABEL, asWasherDryerStatus, deriveWasherDryerStatus, type WasherDryerStatus,
+} from "@/lib/leads/washerDryer"
 
-/** The property-level pair, as recorded. Either side may be null. */
-export type CatalogWasherDryer = { included: string | null; connections: string | null }
+/**
+ * What the catalog holds for one property: the unified status, plus the two legacy columns the
+ * fallback still understands. Any of the three may be null.
+ */
+export type CatalogWasherDryer = {
+  status: WasherDryerStatus | null
+  included: string | null
+  connections: string | null
+}
 
 const CATALOG_WD_BATCH = 60
 
@@ -86,6 +96,10 @@ export async function loadCatalogWasherDryer(
     if (error || !data) continue
     for (const r of data as Array<Record<string, unknown>>) {
       out.set(String(r.place_id), {
+        // A database that predates the unified column returns undefined here, which validates
+        // to null and leaves the legacy fallback below in charge — the same honest degradation
+        // as a missing function.
+        status: asWasherDryerStatus(r.washer_dryer_status),
         included: asCatalogWasherDryerIncluded(r.washer_dryer_included),
         connections: asCatalogWasherDryerConnections(r.washer_dryer_connections),
       })
@@ -98,28 +112,26 @@ export async function loadCatalogWasherDryer(
  * THE ONE LINE THE CARD SHOWS, and the precedence behind it.
  *
  * A status CONFIRMED for this client and this property outranks everything: a person checked
- * the floor plan this client would lease, which is the question the catalog cannot answer. Only
- * when there is no confirmation does the property-level record speak, and then it says exactly
- * what is recorded — including the two qualified states, which are the whole reason the
- * confirmation exists.
+ * the floor plan this client would lease, which is the question a property-level answer cannot
+ * settle. Only when there is no confirmation does the property speak.
  *
- * A catalog "No" renders NOTHING. The line is a standard detail, not a verdict, and "this
- * property has no washer/dryer" is a claim worth making only where someone has confirmed it.
- * Null everywhere → null here → no line at all.
+ * Three sources, in order:
+ *   1. the pair's confirmed status
+ *   2. property_catalog.washer_dryer_status — the unified property-level answer
+ *   3. the two legacy columns, derived — for a row whose status was never set
+ *
+ * (3) exists so this degrades honestly against a database where the unified column is missing
+ * or a property was added after the one-time derivation. It applies the same precedence the
+ * derivation does, so a card's wording does not change when a row is finally stamped.
+ *
+ * Null everywhere → null here → no line at all. Silence is never mistaken for "no washer".
  */
 export function washerDryerCardLine(
   confirmed: WasherDryerStatus | null | undefined,
   catalog: CatalogWasherDryer | null | undefined,
 ): { text: string; confirmed: boolean } | null {
   if (confirmed) return { text: WASHER_DRYER_LABEL[confirmed], confirmed: true }
-  const included = catalog?.included ?? null
-  const connections = catalog?.connections ?? null
-  if (included === "Yes") return { text: WASHER_DRYER_LABEL.included, confirmed: false }
-  if (connections === "Yes") return { text: "Washer & Dryer Connections", confirmed: false }
-  // Qualified states, said as the catalog says them — never flattened into a flat "Included".
-  if (included === "Select Units" || included === "Specific Floor Plans") {
-    return { text: `Washer & Dryer — ${included}`, confirmed: false }
-  }
-  if (connections === "Select Units") return { text: "Washer & Dryer Connections — Select Units", confirmed: false }
-  return null
+  const stored = catalog?.status
+    ?? deriveWasherDryerStatus(catalog?.included ?? null, catalog?.connections ?? null)
+  return stored ? { text: WASHER_DRYER_LABEL[stored], confirmed: false } : null
 }

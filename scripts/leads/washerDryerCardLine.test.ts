@@ -23,44 +23,68 @@ console.log("\nWASHER & DRYER — the standard-detail line\n")
 
 // ── PRECEDENCE: A PERSON OUTRANKS THE CATALOG ──────────────────────────────────────────────
 ok("a confirmed status wins outright",
-  line("included", { included: "No", connections: null })?.text === "Washer & Dryer Included")
+  line("included", { status: null, included: "No", connections: null })?.text === "Washer & Dryer Included")
 ok("…including when it disagrees with the property record",
-  line("hookups", { included: "Yes", connections: null })?.text === "Washer & Dryer Hookups")
+  line("hookups", { status: "included", included: "Yes", connections: null })?.text === "Washer & Dryer Hookups")
 ok("…and it is marked confirmed, so the card can say where it came from",
   line("included", null)?.confirmed === true)
 
-// ── THE CATALOG FILLS IN, IN ITS OWN WORDS ─────────────────────────────────────────────────
-ok("an unqualified Yes reads as Included",
-  line(null, { included: "Yes", connections: null })?.text === "Washer & Dryer Included")
-ok("connections read as Connections, not as Included",
-  line(null, { included: null, connections: "Yes" })?.text === "Washer & Dryer Connections")
+// ── THE PROPERTY'S UNIFIED STATUS FILLS IN ─────────────────────────────────────────────────
+// One vocabulary now. The catalog no longer speaks in words of its own, which is the whole
+// point: what the map shows, the card shows, and the client pill shows.
+ok("the property-level status fills in when no pair confirmed one",
+  line(null, { status: "laundry_onsite", included: null, connections: null })?.text
+    === "Laundry Facilities On-Site")
+ok("…and is never marked confirmed, because nobody checked it for THIS client",
+  line(null, { status: "included", included: null, connections: null })?.confirmed === false)
+ok("a confirmed pair still outranks the property's own status",
+  line("hookups", { status: "included", included: null, connections: null })?.text
+    === "Washer & Dryer Hookups")
+
+// ── THE LEGACY FALLBACK, FOR A ROW THE DERIVATION NEVER STAMPED ────────────────────────────
+// The two columns are kept — 107 properties hold a distinct fact in each — and a row added
+// after the one-time backfill has no status yet. The same precedence applies, so the wording
+// does not change when it is finally stamped.
+ok("an unqualified Yes still reads as Included",
+  line(null, { status: null, included: "Yes", connections: null })?.text === "Washer & Dryer Included")
+ok("connections now read in the shared word: Hookups",
+  line(null, { status: null, included: null, connections: "Yes" })?.text === "Washer & Dryer Hookups")
 ok("Select Units is NOT flattened into Included",
-  line(null, { included: "Select Units", connections: null })?.text === "Washer & Dryer — Select Units")
-ok("…nor is Specific Floor Plans",
-  line(null, { included: "Specific Floor Plans", connections: null })?.text
-    === "Washer & Dryer — Specific Floor Plans")
-ok("qualified connections keep their qualifier too",
-  line(null, { included: null, connections: "Select Units" })?.text
-    === "Washer & Dryer Connections — Select Units")
-ok("the catalog line is never marked confirmed",
-  line(null, { included: "Yes", connections: null })?.confirmed === false)
+  line(null, { status: null, included: "Select Units", connections: null })?.text
+    === "Washer & Dryer — Select Units")
+ok("…nor is Specific Floor Plans, which shares the Select Units wording",
+  line(null, { status: null, included: "Specific Floor Plans", connections: null })?.text
+    === "Washer & Dryer — Select Units")
+ok("qualified connections are qualified too",
+  line(null, { status: null, included: null, connections: "Select Units" })?.text
+    === "Washer & Dryer — Select Units")
+ok("the legacy line is never marked confirmed",
+  line(null, { status: null, included: "Yes", connections: null })?.confirmed === false)
 ok("Included outranks Connections when a property records both",
-  line(null, { included: "Yes", connections: "Yes" })?.text === "Washer & Dryer Included")
+  line(null, { status: null, included: "Yes", connections: "Yes" })?.text === "Washer & Dryer Included")
+ok("a stamped status outranks the legacy columns it was derived from",
+  line(null, { status: "laundry_onsite", included: "Yes", connections: null })?.text
+    === "Laundry Facilities On-Site")
 
 // ── SILENCE, WHERE SILENCE IS THE TRUTH ────────────────────────────────────────────────────
 ok("nothing recorded anywhere renders no line", line(null, null) === null)
-ok("…and an empty record is the same as none", line(null, { included: null, connections: null }) === null)
-ok('a catalog "No" renders nothing — the line is a detail, not a verdict',
-  line(null, { included: "No", connections: null }) === null)
-ok('…including "No" on both columns', line(null, { included: "No", connections: "No" }) === null)
+ok("…and an empty record is the same as none",
+  line(null, { status: null, included: null, connections: null }) === null)
+ok('a legacy "No" renders nothing — it means no machine in the unit, not no laundry at all',
+  line(null, { status: null, included: "No", connections: null }) === null)
+ok('…including "No" on both columns', line(null, { status: null, included: "No", connections: "No" }) === null)
 ok("a token outside the recorded vocabulary is not echoed onto the card",
-  line(null, { included: "probably" as string, connections: null }) === null)
+  line(null, { status: null, included: "probably" as string, connections: null }) === null)
+// "No Laundry Facilities" is a CONFIRMED finding, so it does render — unlike a legacy "No",
+// which only says the unit has no machine.
+ok('a chosen "none" renders, because somebody verified it',
+  line(null, { status: "none", included: null, connections: null })?.text === "No Laundry Facilities")
 
 // ── ABACUS ALAMO RANCH — THE EXAMPLE THIS WAS ASKED TO FIX ─────────────────────────────────
 // property_catalog place ChIJq42a1ZhDXIYRtrTF7gbdX7c: washer_dryer_included "Yes",
 // washer_dryer_connections null. The client this was reported on has no lead_property_reasons
 // row at all, so there is no confirmation to outrank it.
-const abacus = line(null, { included: "Yes", connections: null })
+const abacus = line(null, { status: "included", included: "Yes", connections: null })
 ok("Abacus now shows a line", abacus !== null)
 ok("…reading exactly 'Washer & Dryer Included'", abacus?.text === "Washer & Dryer Included")
 ok("…and marked unconfirmed, because nobody has confirmed it for this client",
@@ -134,7 +158,7 @@ void (async () => {
     const fake = {
       rpc: async (_name: string, args: { p_place_ids: string[] }) => {
         calls.push(args.p_place_ids)
-        return { data: args.p_place_ids.map((id) => ({ place_id: id, washer_dryer_included: "Yes", washer_dryer_connections: null })), error: null }
+        return { data: args.p_place_ids.map((id) => ({ place_id: id, washer_dryer_included: "Yes", washer_dryer_connections: null, washer_dryer_status: "included" })), error: null }
       },
     } as unknown as Parameters<typeof loadCatalogWasherDryer>[0]
 

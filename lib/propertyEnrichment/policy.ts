@@ -98,7 +98,7 @@ export const CANONICAL_SCALAR_FIELDS = [
   "internet_fee", "internet_notes", "internet_last_verified", "leasing_hours", "tour_hours_notes",
   "hours_last_verified", "furnished_units_available", "furniture_package_available",
   "corporate_housing_available", "corporate_lease_allowed", "washer_dryer_included",
-  "washer_dryer_connections", "affordable_program", "affordable_income_cap", "affordable_rent_limitation",
+  "washer_dryer_connections", "washer_dryer_status", "affordable_program", "affordable_income_cap", "affordable_rent_limitation",
   "affordable_program_eligibility", "affordable_program_notes", "affordable_program_last_verified",
   "escort_required", "tour_requirement_status", "escort_notes", "escort_requirement_last_verified",
   "submarket", "cross_streets", "nearby_freeways", "nearby_landmark_1", "nearby_landmark_1_type",
@@ -312,6 +312,12 @@ export const OWNER_CORRECTABLE_FIELDS = new Set([
   // separate, additional gate and is not touched.
   "washer_dryer_included",
   "washer_dryer_connections",
+  // The UNIFIED property-level status, and the only one of the three an editor writes now.
+  // Here for the same reason as the two beside it: an owner who has just verified a building
+  // must be able to CORRECT a value that is already populated, which preserve-by-default would
+  // otherwise refuse as a conflict. The same three locks apply — ownerOverride on the
+  // candidate, manual_verified as the source, and membership of this set.
+  "washer_dryer_status",
   // GIFT CARD — a resident promotion, owner-maintained like the special beside it. Three states
   // have to survive: null (not researched), 'yes' (+ an amount), 'no' (confirmed none). The
   // status is what carries the FACT; an amount alone could not express a confirmed 'no'.

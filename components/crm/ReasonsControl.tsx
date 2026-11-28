@@ -23,6 +23,7 @@ export default function ReasonsControl({
   previewReasons,
   onSave,
   washerDryer,
+  washerDryerFromProperty,
   onSaveWasherDryer,
   averageRent,
   onSaveAverageRent,
@@ -46,6 +47,17 @@ export default function ReasonsControl({
    * Properties passes them because that is the list a client is sent.
    */
   washerDryer?: WasherDryerStatus | null
+  /**
+   * What the PROPERTY record says, used only to SEED the dropdown when this pair has no
+   * confirmation of its own. It is never treated as the saved value.
+   *
+   * This is the map → Recommendations half of the sync. Without it, a status verified in the
+   * map's Edit Property panel left this dropdown reading "Not verified", and a locator had no
+   * way to tell an unanswered question from an answered one. With it, the property's answer is
+   * visible here, and pressing Save confirms it for THIS client — which is what puts the pill
+   * on their card. Opening the editor alone changes nothing.
+   */
+  washerDryerFromProperty?: WasherDryerStatus | null
   onSaveWasherDryer?: (next: WasherDryerStatus | null) => Promise<boolean>
   /**
    * OPTIONAL average-rent control, on the same terms as the washer/dryer one: both props or
@@ -58,7 +70,9 @@ export default function ReasonsControl({
   const [draft, setDraft] = useState<string[]>(reasons)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [wdDraft, setWdDraft] = useState<WasherDryerStatus | null>(washerDryer ?? null)
+  // The pair's own answer, else the property's. See washerDryerFromProperty.
+  const wdSeed = washerDryer ?? washerDryerFromProperty ?? null
+  const [wdDraft, setWdDraft] = useState<WasherDryerStatus | null>(wdSeed)
   const showWasherDryer = typeof onSaveWasherDryer === "function"
 
   // ── AVERAGE RENT ──────────────────────────────────────────────────────────────────────────
@@ -87,7 +101,7 @@ export default function ReasonsControl({
     // Seed from the CURRENT saved value every time it opens, so a cancelled edit
     // never leaks into the next one.
     setDraft(reasons.length ? reasons : [""])
-    setWdDraft(washerDryer ?? null)
+    setWdDraft(wdSeed)
     setArRent(txt(averageRent?.quotedRent)); setArWeeks(txt(averageRent?.concessionWeeks))
     setArMonths(txt(averageRent?.concessionMonths)); setArTerm(txt(averageRent?.leaseMonths))
     setArShow(averageRent?.show === true)
@@ -102,6 +116,9 @@ export default function ReasonsControl({
     const okSaved = await onSave(cleaned)
     // Two independent writes to two independent columns. The status only goes out when it
     // actually CHANGED, so pressing Save after editing reasons alone never touches it.
+    // Compared against the PAIR's saved value, not the seed. A draft seeded from the property
+    // record therefore counts as a change, so saving writes the confirmation this client's card
+    // needs — the property answering for them is not the same as a locator confirming it.
     const wdChanged = showWasherDryer && wdDraft !== (washerDryer ?? null)
     const okWd = okSaved && wdChanged ? await onSaveWasherDryer!(wdDraft) : true
     const arChanged = showAverageRent && (

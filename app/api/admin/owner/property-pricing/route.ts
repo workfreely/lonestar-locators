@@ -10,6 +10,7 @@ import { enrichProperty } from "@/lib/propertyEnrichment/writer"
 import { SupabaseEnrichmentStore } from "@/lib/propertyEnrichment/stores/supabaseStore"
 import type { FieldCandidate, VerificationStatus } from "@/lib/propertyEnrichment/types"
 import { asCatalogWasherDryerIncluded, asCatalogWasherDryerConnections } from "@/lib/propertyIntel/washerDryerCatalog"
+import { asWasherDryerStatus } from "@/lib/leads/washerDryer"
 import {
   APPROVAL_COLUMNS, APPROVAL_FIELDS, CRIMINAL_COLUMNS, planApprovalWrites,
 } from "@/lib/propertyIntel/approvalCriteria"
@@ -97,7 +98,8 @@ const READ_COLUMNS =
   "credit_minimum_status, credit_minimum_score, credit_observed_approval_score, " +
   "credit_screening_notes, credit_screening_checked_at, " +
   // Display-only context for the Map panel header, and the location notes it shows.
-  "google_rating, property_image_url, property_image_url_backup, nearby_landmark_1, cross_streets"
+  "google_rating, property_image_url, property_image_url_backup, nearby_landmark_1, cross_streets, " +
+  "washer_dryer_status"
 
 /**
  * ARE THE APPROVAL-CRITERIA COLUMNS PRESENT?
@@ -319,6 +321,7 @@ export async function GET(req: NextRequest) {
     // the editor can show "Not Verified" rather than inventing a "No".
     washerDryerIncluded: s(row.washer_dryer_included),
     washerDryerConnections: s(row.washer_dryer_connections),
+    washerDryerStatus: asWasherDryerStatus(row.washer_dryer_status),
     // GIFT CARD — three states, preserved across the round trip. A null status means NOBODY HAS
     // RESEARCHED IT and is returned as null rather than coerced to "no", because the editor has to
     // show "Unknown" rather than claim the property confirmed it has none.
@@ -434,9 +437,16 @@ export async function PUT(req: NextRequest) {
   // instruction to erase. Clearing a populated value back to unknown would need the separate
   // ownerClear key, which is deliberately scoped to commission and is not widened here.
   //
-  // This never reaches a client's recommendation card. The client-facing status is a different,
-  // per-(client, property) value the locator confirms in the reasons editor, because a
-  // property-level "Select Units" is not a promise about one client's floor plan.
+  // THE UNIFIED PROPERTY-LEVEL STATUS, and the only washer/dryer column an editor writes now.
+  // One vocabulary, shared with the reasons editor and the client pill, so verifying a laundry
+  // room in one place is the same fact in the other.
+  //
+  // The two legacy columns are still ACCEPTED, because a script or an older client may still
+  // send them and their data is deliberately kept — but no UI sends them any more.
+  if ("washerDryerStatus" in body) {
+    const v = asWasherDryerStatus(body.washerDryerStatus)
+    if (v) add("washer_dryer_status", v)
+  }
   if ("washerDryerIncluded" in body) {
     const v = asCatalogWasherDryerIncluded(body.washerDryerIncluded)
     if (v) add("washer_dryer_included", v)

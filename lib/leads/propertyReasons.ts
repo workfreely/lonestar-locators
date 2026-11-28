@@ -175,7 +175,60 @@ export async function saveWasherDryer(
     console.error("[property-reasons] washer/dryer save failed:", error.message)
     return false
   }
+  // THE PAIR IS SAVED. Now tell the PROPERTY, so the map's Edit Property panel shows what was
+  // just confirmed here instead of "Not verified".
+  void promoteWasherDryerToCatalog(propertyKey, asWasherDryerStatus(status))
   return true
+}
+
+/**
+ * PROMOTE a confirmed status onto the master property record.
+ *
+ * ── WHY THIS IS A FETCH AND NOT AN UPSERT ───────────────────────────────────────────────────
+ * property_catalog has RLS on with no policies, so the browser client cannot write it at all —
+ * by design. Every catalog edit goes through the owner route, which runs requirePlatformAdmin()
+ * and then the governed enrichment writer, so a promotion is authorized, validated and audited
+ * exactly like the same edit typed into the map panel. There is no second write path.
+ *
+ * ── IT NEVER FAILS THE SAVE ─────────────────────────────────────────────────────────────────
+ * The pair is already written by the time this runs, and the pair is what the client sees. A
+ * locator without platform-admin rights gets a 403 here: their confirmation still stands for
+ * their client, and the master record simply keeps whatever it held. That is the right outcome
+ * — editing the shared property record is an administrator's act — so this logs and returns
+ * rather than surfacing an error for work that succeeded.
+ *
+ * ── ONLY A RESOLVED PROPERTY ────────────────────────────────────────────────────────────────
+ * canonical_property_key is 'pid:<place id>' for a Google-resolved property and 'url:<…>' for
+ * an unresolved one. There is no catalog row to promote to in the second case.
+ *
+ * ── CLEARING DOES NOT PROPAGATE ─────────────────────────────────────────────────────────────
+ * Taking a pill back off one client's card says that pair was never verified; it does not say
+ * the building has no laundry. The route treats a blank as "leave it alone" for every field it
+ * owns, and this follows that rule rather than erasing a property-level answer other clients
+ * rely on.
+ */
+async function promoteWasherDryerToCatalog(
+  propertyKey: PropertyKey,
+  status: WasherDryerStatus | null,
+): Promise<void> {
+  if (!status) return
+  const placeId = /^pid:(.+)$/.exec(String(propertyKey))?.[1]
+  if (!placeId) return
+  try {
+    const res = await fetch("/api/admin/owner/property-pricing", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ placeId, washerDryerStatus: status }),
+    })
+    if (!res.ok) {
+      console.info(
+        `[property-reasons] washer/dryer not promoted to the property record (${res.status}); ` +
+        "the client-specific confirmation is saved and unaffected",
+      )
+    }
+  } catch (e) {
+    console.info("[property-reasons] washer/dryer promotion skipped:", (e as Error).message)
+  }
 }
 
 /**

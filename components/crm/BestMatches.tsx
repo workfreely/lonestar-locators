@@ -400,6 +400,12 @@ WRAP, measured rather than assumed. On a 390px phone this row is
                     // Washer/dryer rides on the SAME client-property pair as the reasons.
                     // Supplied only here, so Favorites keeps the editor it has always had.
                     washerDryer={washerDryerByKey?.get(String(r.canonical_property_key)) ?? null}
+                    // What the PROPERTY record says, so a status verified in the map's Edit
+                    // Property panel shows here instead of "Not verified". Seed only — the
+                    // locator still presses Save to confirm it for this client.
+                    washerDryerFromProperty={
+                      catalogWasherDryerByKey?.get(String(r.canonical_property_key))?.status ?? null
+                    }
                     onSaveWasherDryer={
                       onSaveWasherDryer
                         ? (next) => onSaveWasherDryer(String(r.canonical_property_key), next)

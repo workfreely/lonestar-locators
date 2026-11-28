@@ -29,22 +29,27 @@ const strip = (s: string) =>
 const read = (p: string) => strip(readFileSync(join(process.cwd(), p), "utf8"))
 const raw = (p: string) => readFileSync(join(process.cwd(), p), "utf8")
 const MIG = "supabase/migrations/20261031000000_client_washer_dryer_status.sql"
-// The migration that WIDENED the pair to three. The original above is history and is asserted
-// as it shipped; this one is what the live constraint must agree with.
+// The migration that widened the pair to three. History now, asserted as it shipped.
 const MIG_FAC = "supabase/migrations/20261128000000_laundry_facilities_onsite.sql"
+// THE UNIFICATION: one vocabulary for the pair AND the property. This is the migration the
+// live constraints must agree with.
+const MIG_UNI = "supabase/migrations/20261128000001_unified_washer_dryer_status.sql"
 
 console.log("\n=== 1. THE VOCABULARY, DEFINED ONCE ===")
 {
-  eq("three statuses, no more", [...WASHER_DRYER_STATUSES], ["included", "hookups", "laundry_onsite"])
+  eq("five statuses, no more", [...WASHER_DRYER_STATUSES],
+    ["included", "hookups", "select_units", "laundry_onsite", "none"])
   eq("the client wording is spelled out, never abbreviated", WASHER_DRYER_LABEL, {
     included: "Washer & Dryer Included",
     hookups: "Washer & Dryer Hookups",
+    select_units: "Washer & Dryer — Select Units",
     laundry_onsite: "Laundry Facilities On-Site",
+    none: "No Laundry Facilities",
   })
   ok("no label abbreviates to W/D", !Object.values(WASHER_DRYER_LABEL).some((l) => /\bW\/D\b/i.test(l)))
   eq("the dropdown defaults to not verified", WASHER_DRYER_OPTIONS[0], { value: "", label: "Not verified" })
-  eq("four options, in the approved order", WASHER_DRYER_OPTIONS.map((o) => o.value),
-    ["", "included", "hookups", "laundry_onsite"])
+  eq("six options, in the approved order", WASHER_DRYER_OPTIONS.map((o) => o.value),
+    ["", "included", "hookups", "select_units", "laundry_onsite", "none"])
   // The menu and the stored vocabulary are ONE list, not two that happen to match: every status
   // is offered, nothing is offered that cannot be stored, and the clear option is the only extra.
   eq("the menu is exactly the vocabulary plus the clear option",
@@ -162,7 +167,13 @@ console.log("\n=== 6. THE EDITOR ===")
   const rc = read("components/crm/ReasonsControl.tsx")
   ok("the dropdown appears only when a handler is supplied", /const showWasherDryer = typeof onSaveWasherDryer === "function"/.test(rc))
   ok("so Favorites, which passes neither prop, is unchanged", /washerDryer\?: WasherDryerStatus \| null/.test(rc))
-  ok("it is seeded from the saved value each time the editor opens", /setWdDraft\(washerDryer \?\? null\)/.test(rc))
+  ok("it is seeded from the pair's own value each time the editor opens, else the property's",
+    /const wdSeed = washerDryer \?\? washerDryerFromProperty \?\? null/.test(rc) && /setWdDraft\(wdSeed\)/.test(rc))
+  // The seed is NOT the saved value. A draft seeded from the property record must still count
+  // as a change, or pressing Save would leave the client's card without the pill the locator
+  // just looked at.
+  ok("change is measured against the PAIR, never against the seed",
+    /wdChanged = showWasherDryer && wdDraft !== \(washerDryer \?\? null\)/.test(rc))
   ok("the status is written only when it actually changed", /wdChanged = showWasherDryer && wdDraft !== \(washerDryer \?\? null\)/.test(rc))
   ok("it reads its options from the shared module", /WASHER_DRYER_OPTIONS\.map/.test(rc))
   ok("the three-reason maximum is untouched", /slice\(0, MAX_REASONS\)/.test(rc))
@@ -237,11 +248,9 @@ console.log("\n=== 7. THE MIGRATION ===")
 console.log("\n=== 7b. THE WIDENING MIGRATION ===")
 {
   const mig = raw(MIG_FAC)
-  // Built from the vocabulary, so a fourth status cannot be added to TypeScript and quietly
-  // left out of the constraint that decides whether it can be stored at all.
-  const list = WASHER_DRYER_STATUSES.map((v) => `'${v}'`).join(",")
-  ok("the CHECK admits exactly the shipped vocabulary, on both tables",
-    (mig.match(new RegExp(`in \\(${list}\\)`, "g")) ?? []).length === 2, list)
+  // As it SHIPPED — three values. The unification below is what the live constraint now holds.
+  ok("the CHECK admitted the three values of the day, on both tables",
+    (mig.match(/in \('included','hookups','laundry_onsite'\)/g) ?? []).length === 2)
   ok("both constraints are replaced, not left to clash",
     (mig.match(/drop constraint if exists/g) ?? []).length === 2)
   ok("the swap is atomic", /^begin;/m.test(mig) && /^commit;/m.test(mig))
@@ -252,6 +261,52 @@ console.log("\n=== 7b. THE WIDENING MIGRATION ===")
   for (const fn of ["lb_prepare_client_share", "lb_create_client_share", "lb_resolve_client_recommendations"]) {
     ok(`${fn} is left alone`, !new RegExp(`create or replace function[\\s\\S]{0,80}${fn}`, "i").test(mig))
   }
+  ok("commission columns appear nowhere in the migration",
+    !/send_commission|escort_commission|bonus_flat/.test(mig))
+}
+
+console.log("\n=== 7c. THE UNIFICATION MIGRATION ===")
+{
+  const mig = raw(MIG_UNI)
+  // Built from the vocabulary, so a sixth status cannot be added to TypeScript and quietly
+  // left out of the constraints that decide whether it can be stored at all.
+  const list = WASHER_DRYER_STATUSES.map((v) => `'${v}'`).join(",")
+  ok("the CHECK admits exactly the shipped vocabulary, on all THREE tables",
+    (mig.match(new RegExp(`in \\(${list}\\)`, "g")) ?? []).length === 3, list)
+  ok("the property-level column is added, nullable and additive",
+    /add column if not exists washer_dryer_status text;/.test(mig))
+
+  // ── THE POINT OF THE WHOLE CHANGE: NOTHING VERIFIED IS THROWN AWAY ────────────────────────
+  // 107 properties hold a distinct fact in each legacy column. Collapsing them would lose one.
+  ok("neither legacy column is dropped",
+    !/drop column[\s\S]{0,60}washer_dryer_(included|connections)/i.test(mig))
+  ok("neither legacy column is rewritten",
+    !/set\s+washer_dryer_included|set\s+washer_dryer_connections/i.test(mig))
+  ok("the only column written by the backfill is the new one",
+    (mig.match(/^\s*set washer_dryer_status = case/m) ?? []).length === 1)
+
+  // 'No' means no machine in the unit. It does not mean no laundry in the building, and a
+  // derivation that said so would put an unverified claim in front of a renter.
+  ok("'No' derives nothing", !/when washer_dryer_(included|connections) = 'No'/.test(mig))
+  ok("'none' is never derived, only chosen", !/then 'none'/.test(mig))
+
+  // Re-running must not overwrite an answer a person has typed since.
+  ok("the backfill only fills rows that have no status yet",
+    /where washer_dryer_status is null/.test(mig))
+  ok("the swap is atomic", /^begin;/m.test(mig) && /^commit;/m.test(mig))
+
+  // 20261115000000 states the rule: a drop takes the grants with it, and the default hands
+  // anon execute back. Any migration that drops this function must repeat the revoke.
+  if (/drop function if exists public\.lb_property_washer_dryer_by_ids/.test(mig)) {
+    ok("the dropped RPC has its revoke repeated",
+      /revoke all on function public\.lb_property_washer_dryer_by_ids\(text\[\]\) from public, anon;/.test(mig))
+    ok("…and its grant, to authenticated only",
+      /grant execute on function public\.lb_property_washer_dryer_by_ids\(text\[\]\) to authenticated;/.test(mig))
+  }
+  // The migration may NAME them in its reasoning; it must not REDEFINE them. The alternation
+  // is inside the group — outside it, the bare name in a comment matched and failed this.
+  ok("the three share functions are left alone",
+    !/create or replace function[\s\S]{0,80}(lb_prepare_client_share|lb_create_client_share|lb_resolve_client_recommendations)/i.test(mig))
   ok("commission columns appear nowhere in the migration",
     !/send_commission|escort_commission|bonus_flat/.test(mig))
 }
@@ -280,9 +335,10 @@ console.log("\n=== 8. POSTGRES AGREES (live catalog; needs no migration applied)
       // fails at the database with the UI showing a saved value.
       const defs = execFileSync("psql", [url, "-At", "-c",
         "select conrelid::regclass || ' ' || pg_get_constraintdef(oid) from pg_constraint " +
-        "where conname in ('lead_property_reasons_wd_status_chk','client_rec_share_items_wd_status_chk') " +
+        "where conname in ('lead_property_reasons_wd_status_chk','client_rec_share_items_wd_status_chk'," +
+        "'property_catalog_wd_status_chk') " +
         "order by 1;"], { encoding: "utf8", timeout: 60_000 }).trim().split("\n").filter(Boolean)
-      ok("both tables still carry a washer/dryer CHECK", defs.length === 2, String(defs.length))
+      ok("all three tables carry the washer/dryer CHECK", defs.length === 3, String(defs.length))
       for (const d of defs) {
         const table = d.split(" ")[0]
         for (const v of WASHER_DRYER_STATUSES) {

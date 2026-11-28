@@ -2,8 +2,7 @@
 
 import { useEffect, useState } from "react"
 import DateTimePicker from "./DateTimePicker"
-import { CATALOG_WD_INCLUDED_OPTIONS, CATALOG_WD_CONNECTIONS_OPTIONS,
-  asCatalogWasherDryerIncluded, asCatalogWasherDryerConnections } from "@/lib/propertyIntel/washerDryerCatalog"
+import { WASHER_DRYER_OPTIONS, asWasherDryerStatus, type WasherDryerStatus } from "@/lib/leads/washerDryer"
 
 /**
  * Owner-only property pricing editor — the pencil on a Recommended Properties card.
@@ -34,8 +33,7 @@ type Loaded = {
   threebr: number | null
   currentSpecial: string | null
   /** Property-level washer/dryer, in property_catalog's own vocabulary. */
-  washerDryerIncluded?: string | null
-  washerDryerConnections?: string | null
+  washerDryerStatus?: string | null
   pricingSource: string | null
   checkedAt: string | null
   sendCommission: string | null
@@ -125,11 +123,10 @@ export default function PropertyPricingEditor({
   const [twobr, setTwobr] = useState("")
   const [threebr, setThreebr] = useState("")
   const [special, setSpecial] = useState("")
-  const [wdIncluded, setWdIncluded] = useState("")
-  const [wdConnections, setWdConnections] = useState("")
+  const [wdStatus, setWdStatus] = useState<"" | WasherDryerStatus>("")
   // What was LOADED, so Save can send a dropdown only when it actually changed — the same rule
   // the commission fields already follow, and the reason a legacy value is never resubmitted.
-  const [loadedWd, setLoadedWd] = useState({ inc: "", conn: "" })
+  const [loadedWd, setLoadedWd] = useState<{ status: "" | WasherDryerStatus }>({ status: "" })
   const [source, setSource] = useState("")
   const [checkedAt, setCheckedAt] = useState(todayIso())
   // The shared CRM picker is a normal element we render, so it has to be opened explicitly —
@@ -159,7 +156,7 @@ export default function PropertyPricingEditor({
     // a glimpse of the wrong building's numbers is worse than a moment of nothing.
     setOnebr(""); setTwobr(""); setThreebr("")
     setSpecial(""); setSource("")
-    setWdIncluded(""); setWdConnections(""); setLoadedWd({ inc: "", conn: "" })
+    setWdStatus(""); setLoadedWd({ status: "" })
     setSend(""); setEscort(""); setBonus("")
     setLoadedCommission({ send: "", escort: "", bonus: "" })
     setAddress(null)
@@ -178,9 +175,8 @@ export default function PropertyPricingEditor({
         setThreebr(d.threebr == null ? "" : String(d.threebr))
         setSpecial(d.currentSpecial ?? "")
         {
-          const inc = asCatalogWasherDryerIncluded(d.washerDryerIncluded) ?? ""
-          const conn = asCatalogWasherDryerConnections(d.washerDryerConnections) ?? ""
-          setWdIncluded(inc); setWdConnections(conn); setLoadedWd({ inc, conn })
+          const st = asWasherDryerStatus(d.washerDryerStatus) ?? ""
+          setWdStatus(st); setLoadedWd({ status: st })
         }
         setSource(d.pricingSource ?? "")
         setAddress(d.address ?? null)
@@ -229,8 +225,7 @@ export default function PropertyPricingEditor({
       if (source.trim()) body.pricingSource = source.trim()
       // CHANGED ONLY. "Not Verified" leaves the stored value alone — it is the absence of an
       // answer, not an instruction to erase one, exactly as a blank rent is.
-      if (wdIncluded && wdIncluded !== loadedWd.inc) body.washerDryerIncluded = wdIncluded
-      if (wdConnections && wdConnections !== loadedWd.conn) body.washerDryerConnections = wdConnections
+      if (wdStatus && wdStatus !== loadedWd.status) body.washerDryerStatus = wdStatus
       // TWO REASONS A COMMISSION FIELD IS OMITTED, and the second one matters more than it looks.
       //
       // BLANK means "nobody has checked". Sending 0 for it would manufacture a verified zero out
@@ -260,7 +255,7 @@ export default function PropertyPricingEditor({
 
       // `in` rather than truthiness: a deliberate clear sends null, which is falsy but IS a save.
       const anyCommission = "sendCommission" in body || "escortCommission" in body || "bonusFlat" in body
-      const anyWasherDryer = "washerDryerIncluded" in body || "washerDryerConnections" in body
+      const anyWasherDryer = "washerDryerStatus" in body
       if (!body.onebr && !body.twobr && !body.threebr && !body.currentSpecial && !anyCommission && !anyWasherDryer) {
         setError("Enter at least one price, a special, a commission value, or a washer/dryer status.")
         return
@@ -404,23 +399,17 @@ export default function PropertyPricingEditor({
                     a field about washers should not make the reader guess which appliances are
                     meant. Connections sits on the LEFT because it is the weaker fact of the two,
                     so the pair reads from hookups up to included. */}
-                <div className="mt-3 grid grid-cols-2 gap-2">
-                  <div>
-                    <span className={label}>W/D Connections</span>
-                    <select value={wdConnections} onChange={(e) => setWdConnections(e.target.value)} className={`${field} mt-1`}>
-                      {CATALOG_WD_CONNECTIONS_OPTIONS.map((o) => (
-                        <option key={o.value || "none"} value={o.value}>{o.label}</option>
-                      ))}
-                    </select>
-                  </div>
-                  <div>
-                    <span className={label}>W/D Included</span>
-                    <select value={wdIncluded} onChange={(e) => setWdIncluded(e.target.value)} className={`${field} mt-1`}>
-                      {CATALOG_WD_INCLUDED_OPTIONS.map((o) => (
-                        <option key={o.value || "none"} value={o.value}>{o.label}</option>
-                      ))}
-                    </select>
-                  </div>
+                <div className="mt-3">
+                  <span className={label}>Washer &amp; Dryer</span>
+                  <select
+                    value={wdStatus}
+                    onChange={(e) => setWdStatus(asWasherDryerStatus(e.target.value) ?? "")}
+                    className={`${field} mt-1`}
+                  >
+                    {WASHER_DRYER_OPTIONS.map((o) => (
+                      <option key={o.value || "none"} value={o.value}>{o.label}</option>
+                    ))}
+                  </select>
                 </div>
                 <p className="mt-1.5 text-[10px] text-[var(--crm-text-muted)]">
                   Not Verified keeps the stored value — saving never clears one.

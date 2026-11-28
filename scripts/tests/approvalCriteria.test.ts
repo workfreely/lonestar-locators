@@ -418,7 +418,12 @@ ok("the order is unchanged above the new section, and the new section is last",
   heading("Amenities / Features") < heading("Property Intelligence") &&
   heading("Property Intelligence") < heading("Approval Criteria"))
 ok("the gift card is still NOT owner-clearable (pre-existing behaviour)", !OWNER_CLEARABLE_FIELDS.has("gift_card_status"))
-ok("the washer/dryer controls are untouched", /washerDryerIncluded/.test(panel) && /washerDryerConnections/.test(panel))
+// The washer/dryer control is not this release's business — only that it is still there and
+// still its own thing. It became ONE dropdown over the unified vocabulary in a later change
+// (the two catalog-worded selects, washerDryerIncluded and washerDryerConnections, were what
+// let the map and the reasons editor disagree about the same property).
+ok("the washer/dryer control is untouched by Approval Criteria",
+  /washerDryerStatus/.test(panel) && /WASHER_DRYER_OPTIONS/.test(panel))
 ok("the three tristate attributes are untouched",
   /private_yard/.test(panel) && /attached_garage/.test(panel) && /detached_garage/.test(panel))
 ok("the panel still writes through the enrichment writer only", /enrichProperty\(store/.test(route))
