@@ -83,15 +83,22 @@ const URGENCY_RANK: Record<RankedAction["urgency"], number> = { overdue: 0, toda
 /**
  * Action keys whose deadline is a real MOMENT rather than a day.
  *
- * Deliberately a one-key set, not a flag on every action. Day-level urgency is correct for the
+ * Deliberately a two-key set, not a flag on every action. Day-level urgency is correct for the
  * rest of the workflow — a Build List backstop due "today at 9 AM" should not turn red at 9:01,
- * because the locator has the day to do it. Speed to lead is the exception: a Contact Lead due
- * ten minutes after the lead arrived means ten minutes, and rounding it to a calendar day throws
- * away the entire point of the deadline.
+ * because the locator has the day to do it. These two are the exceptions, because for them the
+ * deadline IS the product rule rather than a backstop:
+ *
+ *   contact_lead  speed to lead. Due ten minutes after the lead arrived; rounding that to a
+ *                 calendar day throws away the entire point of it.
+ *   send_list     the 24-hour rule for a client who has entered Searching. Its deadline is the
+ *                 start of the locator's next working day (lib/workflow/autoDueDate →
+ *                 nextWorkingMorning), which is inside 24 hours. Under day-level urgency that
+ *                 deadline read "Today" for the whole of the day it landed on and only turned
+ *                 overdue the following morning — an effective two-day SLA on a one-day promise.
  *
  * Every other action keeps the behaviour it has always had.
  */
-const TIMESTAMP_LEVEL_ACTION_KEYS = new Set(["contact_lead"])
+const TIMESTAMP_LEVEL_ACTION_KEYS = new Set(["contact_lead", "send_list"])
 
 /** True when this action's due time should be compared as an instant, not a date. */
 function isTimestampLevel(action: { action_key?: string | null } | null | undefined): boolean {

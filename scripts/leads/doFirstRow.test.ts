@@ -8,7 +8,10 @@ import { getNextAction } from "@/lib/nextAction"
 import { getActionIcon } from "@/lib/actionDisplay"
 import { formatDueDateTime } from "@bc/companion-shared"
 import { formatWorkflowActionLabel, isFollowUpAction, isContactFollowUpAction } from "@/lib/leads/workflowActionLabels"
+import { getStageWorkflowAction } from "@/lib/workflowEngine"
 import { readFileSync } from "node:fs"
+
+const TZ = "America/Chicago"
 
 let pass = 0, fail = 0
 const ok = (l: string, c: boolean, d = "") => { c ? (pass++, console.log(`  ✓ ${l}`)) : (fail++, console.log(`  ✗ ${l}${d ? ` — ${d}` : ""}`)) }
@@ -192,13 +195,42 @@ console.log("\n6b. SHARED RANKING AND EVERY OTHER SURFACE ARE UNTOUCHED:")
   const { execSync } = require("node:child_process") as typeof import("node:child_process")
   const changed = execSync("git diff --name-only HEAD", { encoding: "utf8" }).split("\n").filter(Boolean)
   const mustNotChange = [
-    "lib/nextAction.ts", "lib/workflowEngine.ts",
+    "lib/nextAction.ts",
     "lib/leads/actionRelevance.ts", "lib/leads/actionCompletion.ts",
-    "lib/leads/stageTransition.ts", "app/api/admin/leads/update-stage/route.ts",
+    "lib/leads/stageTransition.ts",
     "lib/followup/gate.ts", "lib/followup/engine.ts", "lib/followup/autoEnroll.ts",
     "components/crm/FollowUpRow.tsx", "components/crm/LeadCard.tsx", "lib/actionDisplay.ts",
   ]
   for (const f of mustNotChange) ok(`untouched — ${f}`, !changed.includes(f), "MODIFIED")
+
+  // TWO MORE FILES LEFT THAT LIST in the Searching-deadline release, for the same reason the
+  // Tour Follow-Up numbering release moved two out (see the block below): file-level immutability
+  // was only ever a proxy for "the behaviour Do First relies on is intact". That behaviour is the
+  // stage→action mapping and the check-then-insert successor rule, so both are asserted directly.
+  //
+  //   lib/workflowEngine.ts                      — searching's deadline became the 24-hour rule
+  //   app/api/admin/leads/update-stage/route.ts  — searching now creates that action even when
+  //                                                skipWorkflowAction is set
+  const we = readFileSync("lib/workflowEngine.ts", "utf8")
+  ok("lib/workflowEngine.ts — every stage still maps to the same action key Do First reads",
+    getStageWorkflowAction("new", {}, TZ)?.actionKey === "contact_lead" &&
+    getStageWorkflowAction("contacted", { follow_up_count: 0 }, TZ)?.actionKey === "build_list" &&
+    getStageWorkflowAction("searching", {}, TZ)?.actionKey === "send_list" &&
+    getStageWorkflowAction("list_sent", {}, TZ)?.actionKey === "follow_up_1" &&
+    getStageWorkflowAction("applied", {}, TZ)?.actionKey === "check_application" &&
+    getStageWorkflowAction("closed", {}, TZ)?.actionKey === "get_invoice_details")
+  ok("…and a workflow action is still never manual, so it can never be the preliminary task",
+    /action_type: "workflow"/.test(we) && /origin: "workflow"/.test(we))
+  ok("…and the engine still only ever CHECKS-THEN-INSERTS, never updates a due date",
+    /if \(existing && existing\.length > 0\) return null/.test(we) &&
+    !/\.from\("lead_next_actions"\)\s*\n?\s*\.update\(/.test(we))
+  const rt = readFileSync("app/api/admin/leads/update-stage/route.ts", "utf8")
+  ok("update-stage — the successor is still created only on a REAL stage transition",
+    /oldStage !== crm_status && \(!skipWorkflowAction/.test(rt))
+  ok("…through the one shared, duplicate-protected helper",
+    /createWorkflowActionIfNeeded\(supabaseAdmin, leadId, spec\)/.test(rt))
+  ok("…and the route still creates no manual task of its own",
+    !/action_type: "manual"/.test(rt) && !/origin: "custom"/.test(rt))
 
   // TWO FILES LEFT THAT LIST, deliberately, in the Tour Follow-Up numbering release.
   // File-level immutability was only ever a proxy for "the behaviour Do First relies

@@ -147,13 +147,21 @@ function buildInvoiceSummary(lead: any) {
   return hasAny ? summary : null
 }
 
-// The most recent NON-successful outreach on a still-New lead, expressed as its
-// Last Action title. Returns null unless the lead is New and has such an event —
-// a genuine first contact (first_text_sent_at) or any later stage supersedes it.
+// The most recent NON-successful outreach, expressed as its Last Action title.
+//
+// ── IT IS NOT GATED ON THE STAGE ANY MORE ───────────────────────────────────────────────────
+// This used to require crm_status === "new", which made it unreachable in practice. The one
+// path that records these events — recordPendingOutreach, for a call that went unanswered or a
+// text that was sent — advances the lead New → Contacted in the SAME call. So by the time
+// anything re-read the lead, its stage was never "new", the attempt was discarded, and a lead
+// that had genuinely been texted fell through to the "Lead Created" fallback. A repeat attempt
+// on an already-Contacted lead was discarded for the same reason.
+//
+// An outbound attempt is the last thing the locator did, whatever stage the lead is in, so it
+// competes on its timestamp like every other candidate. It is still only a CANDIDATE: a genuine
+// first contact or any completed action with a later timestamp outranks it.
 function outreachLastActionTitle(lead: any, latestOutreach: LatestOutreach): string | null {
   if (!latestOutreach) return null
-  if (String(lead.crm_status ?? "new") !== "new") return null
-  if (str(lead.first_text_sent_at)) return null // already successfully contacted
   return latestOutreach.type === "text_sent" ? "Sent Text" : "Called — No Answer"
 }
 
@@ -173,7 +181,9 @@ function deriveLastAction(
   nextActions: any[] = [],
   latestOutreach: LatestOutreach = null,
 ): { title: string; completedAt: string | null; propertyName: string | null; completedVia: string | null } | null {
-  const candidates: { title: string; completedAt: string; propertyName: string | null; completedVia: string | null }[] = []
+  // `isAttempt` marks the outbound-attempt candidate so an exact timestamp tie resolves in
+  // favour of a real completion (see the sort below). It never reaches the DTO.
+  const candidates: { title: string; completedAt: string; propertyName: string | null; completedVia: string | null; isAttempt?: boolean }[] = []
 
   const firstContact = str(lead.first_text_sent_at)
   if (firstContact) {
@@ -198,7 +208,7 @@ function deriveLastAction(
   }
 
   const outreachTitle = outreachLastActionTitle(lead, latestOutreach)
-  if (outreachTitle && latestOutreach) candidates.push({ title: outreachTitle, completedAt: latestOutreach.occurredAt, propertyName: null, completedVia: null })
+  if (outreachTitle && latestOutreach) candidates.push({ title: outreachTitle, completedAt: latestOutreach.occurredAt, propertyName: null, completedVia: null, isAttempt: true })
 
   for (const a of nextActions || []) {
     if (String(a.lead_id) !== String(lead.id)) continue
@@ -223,8 +233,15 @@ function deriveLastAction(
     const createdAt = str(lead.created_at)
     return createdAt ? { title: "Lead Created", completedAt: createdAt, propertyName: null, completedVia: null } : null
   }
-  candidates.sort((x, y) => (x.completedAt < y.completedAt ? 1 : x.completedAt > y.completedAt ? -1 : 0))
-  return candidates[0]
+  // Newest first. An EXACT tie goes to the completion rather than the attempt: completing a
+  // Contact FU writes its text_sent timeline event and the row's completed_at from the same
+  // timestamp, and "Contact FU1" is the more informative of the two.
+  candidates.sort((x, y) => {
+    if (x.completedAt !== y.completedAt) return x.completedAt < y.completedAt ? 1 : -1
+    return (x.isAttempt ? 1 : 0) - (y.isAttempt ? 1 : 0)
+  })
+  const { title, completedAt, propertyName, completedVia } = candidates[0]
+  return { title, completedAt, propertyName, completedVia }
 }
 
 // Build the read-only DTO the Companion renders, from a CRM `leads` row + its

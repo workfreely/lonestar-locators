@@ -124,6 +124,35 @@ export function speedToLeadDue(timeZone: string, workHours?: WorkHours, now: Dat
   return normalizeToWorkingWindow(target, timeZone, workHours)
 }
 
+/**
+ * The START of the locator's next working day — the earliest window-start instant that is
+ * still ahead of `now`.
+ *
+ * ── WHY THIS EXISTS ALONGSIDE autoDueInDays(1) ──────────────────────────────────────────────
+ * autoDueInDays(1) means "9:00 AM tomorrow", which is the right deadline for a move made
+ * during the working day but the wrong one for a move made BEFORE the day opens: a stage
+ * change at 02:00 got a deadline 31 hours out, skipping the whole of the coming working day.
+ *
+ * This anchors on the window instead of the calendar, so the deadline is always the next time
+ * the locator is actually at work:
+ *
+ *   moved 08:00 → 09:00 the SAME day     (the window has not opened yet → the coming morning)
+ *   moved 14:00 → 09:00 the next day     (today's window is already open → the next one)
+ *   moved 22:30 → 09:00 the next day     (today's window has closed → the next one)
+ *
+ * Because the previous window start is at or before `now`, the next one is no more than a day
+ * ahead — so the deadline is inside 24 hours for every moment of the day (give or take the
+ * one-hour shift on a DST transition day, which moves the window start itself).
+ *
+ * `now` is injectable so the boundaries, midnight and both DST transitions are testable.
+ */
+export function nextWorkingMorning(timeZone: string, workHours?: WorkHours, now: Date = new Date()): string {
+  const startHour = workHours?.startHour ?? WORK_WINDOW_START_HOUR
+  const thisMorning = atHourInZone(now, 0, startHour, timeZone)
+  if (thisMorning.getTime() > now.getTime()) return thisMorning.toISOString()
+  return atHourInZone(now, 1, startHour, timeZone).toISOString()
+}
+
 // 9:00 AM `days` calendar days from now, in the locator zone, clamped to the
 // working window. `timeZone` is REQUIRED (a resolved IANA id). Optional
 // `workHours` (the locator's Profile setting) overrides the 9/21 default window;

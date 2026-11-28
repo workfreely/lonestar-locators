@@ -162,8 +162,22 @@ ok(
   urgencyFor(row({ action_key: "contact_lead", due_at: minutesFromNow(60 * 20) })) === "upcoming",
 )
 
-// EVERY OTHER ACTION IS UNCHANGED: still day-level, so a time earlier today is NOT overdue.
-for (const key of ["build_list", "send_list", "follow_up_1", "schedule_tour", "email_guest_card"]) {
+// send_list JOINED contact_lead in the Searching-deadline release, and for the same reason: its
+// deadline is the product rule (a client in Searching gets their list inside 24 hours), not a
+// backstop. Under day-level urgency that deadline read "Today" for the whole of the day it landed
+// on and only turned overdue the next morning — a two-day SLA on a one-day promise.
+ok(
+  "send_list five minutes past its deadline is OVERDUE, same day",
+  urgencyFor(row({ action_key: "send_list", title: "Send List", due_at: minutesFromNow(-5) })) === "overdue",
+)
+ok(
+  "send_list five minutes BEFORE its deadline is not overdue",
+  urgencyFor(row({ action_key: "send_list", title: "Send List", due_at: minutesFromNow(5) })) === "today",
+)
+
+// EVERY OTHER ACTION IS UNCHANGED: still day-level, so a time earlier today is NOT overdue. These
+// deadlines are backstops — the locator has the day to do them.
+for (const key of ["build_list", "follow_up_1", "schedule_tour", "email_guest_card"]) {
   ok(
     `${key} five minutes past its time today is still "today" (day-level, unchanged)`,
     urgencyFor(row({ action_key: key, title: key, due_at: minutesFromNow(-5) })) === "today",

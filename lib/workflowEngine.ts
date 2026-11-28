@@ -16,7 +16,7 @@
 
 import type { SupabaseClient } from "@supabase/supabase-js"
 import { CURRENT_WORKFLOW_VERSION, type WorkflowActionKey } from "@bc/companion-shared"
-import { autoDueInDays, speedToLeadDue, autoDueOnDate, type WorkHours } from "./workflow/autoDueDate"
+import { autoDueInDays, speedToLeadDue, autoDueOnDate, nextWorkingMorning, type WorkHours } from "./workflow/autoDueDate"
 import { isDemoLeadId } from "@/lib/demo/demoWorkspace"
 
 export type WorkflowActionSpec = {
@@ -92,8 +92,12 @@ export function getStageWorkflowAction(
       return { title: "Build List", dueAt: autoDueInDays(1, timeZone, workHours), actionKey: "build_list" }
 
     case "searching":
-      // Actionable immediately; due is a backstop — 9:00 AM the next calendar day.
-      return { title: "Send List", dueAt: autoDueInDays(1, timeZone, workHours), actionKey: "send_list" }
+      // Actionable immediately, and deadlined within 24 HOURS: due at the start of the
+      // locator's next working day (see nextWorkingMorning). That is the same instant
+      // autoDueInDays(1) produced for any transition made during the working day; it differs
+      // only for a move made before the window opens, where "9:00 AM tomorrow" put the
+      // deadline a day and a half out and skipped the whole of the coming working day.
+      return { title: "Send List", dueAt: nextWorkingMorning(timeZone, workHours), actionKey: "send_list" }
 
     case "list_sent":
       return { title: "FU1", dueAt: autoDueInDays(1, timeZone, workHours), actionKey: "follow_up_1", sequence: 1 }

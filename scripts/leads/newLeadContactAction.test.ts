@@ -20,7 +20,7 @@
  *   npx tsx scripts/leads/newLeadContactAction.test.ts
  */
 import { getStageWorkflowAction, createWorkflowActionIfNeeded } from "@/lib/workflowEngine"
-import { autoDueInDays } from "@/lib/workflow/autoDueDate"
+import { autoDueInDays, nextWorkingMorning } from "@/lib/workflow/autoDueDate"
 import { rankLeadActions } from "@/lib/nextActions"
 
 let pass = 0, fail = 0
@@ -103,7 +103,14 @@ async function run() {
 
   // 11. Other workflow stages keep their existing +1-day backstop
   eq(getStageWorkflowAction("contacted", { follow_up_count: 0 }, TZ)?.dueAt, autoDueInDays(1, TZ), "11a. contacted→build_list still +1 day")
-  eq(getStageWorkflowAction("searching", {}, TZ)?.dueAt, autoDueInDays(1, TZ), "11b. searching→send_list still +1 day")
+  // searching is the ONE exception, as of the Searching-deadline release: Send List carries the
+  // 24-hour rule, so its deadline is the start of the locator's next working day rather than
+  // "9 AM tomorrow". Those two are the same instant for any move made during the working day;
+  // they differ before the window opens, where +1 day put the deadline over 24 hours out.
+  // Pinned against the helper, not a literal, so the rule has exactly one definition.
+  eq(getStageWorkflowAction("searching", {}, TZ)?.dueAt, nextWorkingMorning(TZ), "11b. searching→send_list uses the 24-hour rule")
+  ok((new Date(getStageWorkflowAction("searching", {}, TZ)!.dueAt).getTime() - Date.now()) / 3_600_000 <= 24,
+    "11c. …and that deadline is inside 24 hours")
 
   console.log(`\n${pass} passed, ${fail} failed`)
   if (fail > 0) process.exit(1)

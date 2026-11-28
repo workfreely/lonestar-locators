@@ -269,10 +269,33 @@ export async function POST(request: Request) {
 
     let workflowAction = null as Awaited<ReturnType<typeof createWorkflowActionIfNeeded>>
 
-    // `skipWorkflowAction` suppresses the successor for this transition — used by
-    // the Build List START move (Contacted → Searching) so build_list stays the
-    // open action and Send List is created only on explicit "Mark List Built".
-    if (oldStage !== crm_status && !skipWorkflowAction) {
+    // `skipWorkflowAction` suppresses the successor for this transition — used by the
+    // Applied and Closed flows, which create their own property-scoped successor, and
+    // formerly by the Build List START move (Contacted → Searching).
+    //
+    // ── SEARCHING IS EXEMPT, BECAUSE SUPPRESSING ITS SUCCESSOR REMOVED ONLY THE DEADLINE ───
+    // The Build List START move passed skipWorkflowAction so that build_list would stay the
+    // open action and Send List would be created only on "Mark List Built". That is not what
+    // happened. rankLeadActions deliberately drops an open "Build List" row for a lead whose
+    // stage is `searching` (a Build List there is treated as a leftover from Contacted), so
+    // the action every surface DISPLAYED was already the stage's computed "Send List" — whose
+    // due date is leads.next_action_date, which the same move posts as null.
+    //
+    // The result was a lead sitting in Searching showing "Send List" with a blank Due and an
+    // urgency of "none", so it could never go overdue and never appeared in the Agenda's due
+    // queue. Darlene Wilkerson (#118) is the reported case; she reached Contacted through an
+    // UNANSWERED attempt, which deliberately creates the contact chase instead of build_list,
+    // so she had no open row of any kind — but the blank deadline happened to every lead moved
+    // in this way, with or without a build_list row.
+    //
+    // Creating the row changes no displayed title: Searching already read "Send List". It
+    // supplies the deadline that title never had, and the engine's one-open-row-per-action_key
+    // dedup makes the later "Mark List Built" successor a no-op rather than a duplicate.
+    //
+    // Deliberately keyed on the DESTINATION STAGE, not on "ignore the flag": Applied and Closed
+    // still rely on skipWorkflowAction, and their behaviour is untouched.
+    const stageOwnsItsDeadline = crm_status === "searching"
+    if (oldStage !== crm_status && (!skipWorkflowAction || stageOwnsItsDeadline)) {
       const spec = getStageWorkflowAction(crm_status, lead, timeZone, workHours)
       if (spec) {
         workflowAction = await createWorkflowActionIfNeeded(supabaseAdmin, leadId, spec)
